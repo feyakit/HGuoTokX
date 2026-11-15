@@ -500,3 +500,48 @@ html.theme-light .article-body blockquote { background: rgba(43, 40, 36, .045); 
 
 
 }
+
+
+/* HGuoTokX Liquid Glass 2.0 · desktop player chrome.
+   Avoid large backdrop filters over the video compositor. */
+@layer legacy {
+  .desktop-controls .player-control {
+    border-radius:999px;
+    border:1px solid transparent;
+    color:#f2f5ff;
+    min-height:34px;
+    transition:background-color .16s,border-color .16s,transform .16s,color .16s;
+  }
+  .desktop-controls .player-control:hover,
+  .desktop-controls .player-control:focus-visible {
+    background:rgb(111 121 170 / .27);
+    border-color:rgb(212 221 255 / .20);
+    color:white;
+  }
+  .desktop-controls .player-control:focus-visible {
+    outline:2px solid #b7d7ff;
+    outline-offset:2px;
+  }
+  .desktop-controls .player-control.is-on {
+    color:#9fd6ff;
+  }
+  .desktop-seek-played {
+    background:linear-gradient(90deg,#78d8ff,#9394ff);
+  }
+  .player-speed-menu {
+    background:rgb(28 30 48 / .96);
+    border:1px solid rgb(204 212 255 / .23);
+    border-radius:16px;
+    box-shadow:0 18px 42px rgb(0 0 0 / .38),inset 0 1px 0 rgb(255 255 255 / .15);
+  }
+  .player-speed-menu button { border-radius:10px; }
+  .player-speed-menu button[aria-checked="true"] { color:#a8d8ff; }
+}
+@media (prefers-reduced-transparency:reduce),(prefers-contrast:more) {
+  .player-speed-menu { background:#1c1e30; }
+}
+@media (forced-colors:active) {
+  .desktop-controls .player-control { border-color:ButtonText;color:ButtonText; }
+  .player-speed-menu { background:Canvas;border-color:CanvasText;color:CanvasText; }
+  .desktop-seek-played { background:Highlight; }
+}
