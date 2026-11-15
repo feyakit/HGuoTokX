@@ -807,8 +807,11 @@ html.theme-light[data-glass-quality="low"] .ios-toast-host>div {
   }
 }
 @media (forced-colors:active) {
-  html .ios-mobile-nav .hg-glass,html .ios-dialog,html .ios-toast-host>div,
-  html .win-search-launch,html .desktop-home-tabs,html .player-speed-menu {
+  html[data-glass-quality] .ios-mobile-nav .hg-glass,
+  html[data-glass-quality] .ios-mobile-nav[data-over-video=true] .hg-glass,
+  html[data-glass-quality] .ios-dialog,html[data-glass-quality] .ios-toast-host>div,
+  html[data-glass-quality] .win-search-launch,html[data-glass-quality] .desktop-home-tabs,
+  html[data-glass-quality] .player-speed-menu {
     background:Canvas;
     border-color:CanvasText;
     box-shadow:none;
