@@ -52,7 +52,7 @@ export function LaunchAnimation({ onFinish }: { onFinish: () => void }) {
     return () => { disposed = true; void listener?.unregister().catch(() => {}); };
   }, [finish]);
 
-  return <div className="hg-launch" role="dialog" aria-modal="true" aria-label="HGuoTokX 启动动画"
+  return <div className="hg-launch" role="dialog" aria-modal="true" aria-label="HGuoX 启动动画"
     onAnimationEnd={event => { if (event.target === event.currentTarget && event.animationName === "launch-exit") finish(); }}>
     <div className="hg-launch-stage" aria-hidden="true">
       <div className="hg-launch-orbit" />

@@ -126,7 +126,7 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
         <div ref={contentRef} className="ios-settings-column ios-settings-content">
           <div className="pt-1 pb-4">
             <h1 className="ios-page-title text-on">设置</h1>
-            <p className="text-[13px] text-mut mt-2">让 HGuoTokX 更合你的习惯</p>
+            <p className="text-[13px] text-mut mt-2">让 HGuoX 更合你的习惯</p>
           </div>
           {section("外观", <>
             <div className="ios-appearance-row items-center">
@@ -314,14 +314,14 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
             <Button onClick={() => setAbout(true)} className="w-full flex items-center gap-3 px-3.5 py-3 text-left pressable">
               <span className="ios-setting-icon"><IInfo size={16} /></span>
               <div className="flex-1">
-                <div className="text-[14px] text-on">关于 HGuoTokX</div>
+                <div className="text-[14px] text-on">关于 HGuoX</div>
                 <div className="text-[12px] text-mut">版本 {APP_VERSION} · 仅限非商业使用</div>
               </div>
               <IChevR size={15} className="text-mut" />
             </Button>
           </>)}
 
-          <div className="text-center text-[12px] text-dim mt-5">HGuoTokX {APP_VERSION} · {platform === "android" ? "Android" : platform === "ios" ? "iOS" : platform === "macos" ? "macOS" : platform === "linux" ? "Linux" : "Windows"} 客户端</div>
+          <div className="text-center text-[12px] text-dim mt-5">HGuoX {APP_VERSION} · {platform === "android" ? "Android" : platform === "ios" ? "iOS" : platform === "macos" ? "macOS" : platform === "linux" ? "Linux" : "Windows"} 客户端</div>
         </div>
       </div>
 
@@ -359,13 +359,13 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
         </div>
       </Modal>
 
-      <Modal label="关于 HGuoTokX" open={about} onClose={() => setAbout(false)} width={392}>
+      <Modal label="关于 HGuoX" open={about} onClose={() => setAbout(false)} width={392}>
         <div className="p-5">
           <div className="flex items-center gap-3">
             <span className="w-11 h-11 rounded-(--r-sm) brand-grad glow-neon flex items-center justify-center text-on-primary text-[17px] font-black">H</span>
             <div>
-              <div className="text-[16px] font-bold text-on leading-tight">HGuoTokX</div>
-              <div className="text-[12px] text-mut mt-0.5">HGuoTokX 客户端 v{APP_VERSION}</div>
+              <div className="text-[16px] font-bold text-on leading-tight">HGuoX</div>
+              <div className="text-[12px] text-mut mt-0.5">HGuoX 客户端 v{APP_VERSION}</div>
             </div>
           </div>
 
@@ -380,10 +380,10 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
           </Surface>
 
           <div className="mt-4 divide-y divide-s3">
-            <Button aria-label="打开项目仓库" onClick={() => { api.openUrl("https://github.com/zxsos/HGuoTokX").catch(() => { copyText("https://github.com/zxsos/HGuoTokX").then(() => toast("仓库地址已复制", "ok")).catch(() => {}); }); }}
+            <Button aria-label="打开项目仓库" onClick={() => { api.openUrl("https://github.com/feyakit/HGuoX").catch(() => { copyText("https://github.com/feyakit/HGuoX").then(() => toast("仓库地址已复制", "ok")).catch(() => {}); }); }}
               className="w-full flex items-center gap-2 py-2.5 text-left pressable">
               <ILink size={15} className="text-mut" />
-              <span className="text-[13px] text-on/85">github.com/zxsos/HGuoTokX</span>
+              <span className="text-[13px] text-on/85">github.com/feyakit/HGuoX</span>
               <span className="ml-auto text-[12px] text-primary">打开</span>
             </Button>
             <Button onClick={() => { copyText("https://huangguoai.com").then(() => toast("站点地址已复制", "ok")).catch(() => {}); }}

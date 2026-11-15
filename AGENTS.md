@@ -4,7 +4,7 @@
 
 ## 这是什么项目
 
-`HGuoTokX` 是基于 [HGhubX](https://github.com/zxsos/HGhubX) 的**二次定制**：
+`HGuoX` 是基于 [HGhubX](https://github.com/zxsos/HGhubX) 的**二次定制**：
 Tauri 2 + React 19 + TypeScript + Rust，目标是 **Android 手机自用**。
 
 - 许可证 **PolyForm Noncommercial 1.0.0**：禁止商用；`LICENSE` 里的
@@ -54,8 +54,8 @@ if (/\brx\s*=|\bstroke\s*=/.test(sourceSvg.split("<g", 1)[0])) throw ...
 ### 3. 包名与产品名
 
 ```
-identifier    com.hguotokx.app
-productName   HGuoTokX
+identifier    com.hguox.app
+productName   HGuoX
 Cargo 包名     hghubx（不要动，改了要连带动 iOS/Xcode 工程配置，用户看不到）
 ```
 
@@ -97,4 +97,4 @@ git diff main upstream/main -- <某个文件>     # 看具体改动
 git checkout upstream/main -- <某个文件>      # 只取某个文件（取完记得改品牌名）
 ```
 
-取完上游文件后，把 `HGhubX` 换成 `HGuoTokX`、`com.hghubx.app` 换成 `com.hguotokx.app`。
+取完上游文件后，把 `HGhubX` 换成 `HGuoX`、`com.hghubx.app` 换成 `com.hguox.app`。

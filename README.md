@@ -6,9 +6,9 @@
 
 <div align="center">
 
-<img src="hguotokx.svg" alt="HGuoTokX" width="128" height="128" />
+<img src="hguox.svg" alt="HGuoX" width="128" height="128" />
 
-# HGuoTokX
+# HGuoX
 
 **个人自用的安卓短剧客户端 · Rust + Tauri 2**
 

@@ -319,7 +319,7 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
         title: detail?.title || "",
         cover: detail?.cover?.trim() || "",
         desc: detail?.description || "",
-        author: detail?.author?.name || "HGuoTokX",
+        author: detail?.author?.name || "HGuoX",
         authorId: detail?.author?.id || -1,
         tags: detail?.tags || [],
         score: detail?.score || 0,
