@@ -63,3 +63,29 @@ Code delivered on this branch:
 **Accessibility and compatibility:** low mode uses legible solid colors; existing reduced-motion and high-contrast rules remain in force. Fallbacks are applied by CSS even when JavaScript is delayed. The rendering policy is a capability heuristic, not a real-time GPU frame-rate monitor. It cannot guarantee 60 fps or identical glass compositing on all WebViews.
 
 **Validation:** `pnpm test:glass-quality` checks full mode on five platform-token variants plus low-memory, low-core and forced-color fallback scenarios in Chromium. This is a WebView-style regression, not native iOS/Android/Windows/macOS/Linux acceptance testing.
+
+## Phase 5 · selected neon-glass X branding
+
+The selected direction is the **second dark neon-glass concept**: luminous warm
+peach/play core, cyan-violet X ribbons and a deep indigo app tile, **without
+text inside the icon**.
+
+- `app-icon.svg`, `hguotokx.svg`, and `public/logo.svg` share one
+  scalable, self-contained vector **interpretation** of the selected concept.
+  This is not a pixel-for-pixel tracing of the photorealistic generated image.
+- `src-tauri/icons/ios/source.svg` uses the same artwork but has no pre-rounded
+  mask and no corner-stroke so Apple can apply its own shape.
+- All native icon slots are generated at build time by
+  `generate-brand-icons.mjs` and `generate-ios-icons.mjs`, then synchronized
+  to generated mobile projects by the platform sync scripts.
+- In-app branding and launch screen reference `/logo.svg` rather than retaining
+  independent copies of the earlier H silhouette.
+- Brand static tests now require the new warm/cool gradients, core/play
+  geometry and the shared icon source.
+
+**Source-art fidelity:** the user-approved 1254-pixel concept is maintained as
+a separate original artwork and should be archived unmodified. The vector
+interpretation deliberately simplifies photographic refractions to remain
+legible at 32–48 px. Pixel-identical icon packaging requires committing the
+original image as a native binary asset, followed by icon generation and
+real-device mask checks; it must not be claimed from the vector alone.
