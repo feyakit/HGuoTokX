@@ -228,7 +228,7 @@ try {
       await page.getByRole("button", { name: titles[0], exact: true }).waitFor();
       assert.equal(await page.getByRole("button", { name: titlePattern }).count(), titles.length);
       await page.getByRole("button", { name: /未登录/ }).click();
-      const profileLogin = page.getByRole("dialog", { name: "登录 HGhubX", exact: true });
+      const profileLogin = page.getByRole("dialog", { name: "登录 HGuoTokX", exact: true });
       await profileLogin.getByLabel("账号", { exact: true }).fill("profile-fixture");
       await profileLogin.getByLabel("密码", { exact: true }).fill("test-password");
       await profileLogin.getByRole("button", { name: "登录", exact: true }).last().click();
@@ -292,7 +292,7 @@ try {
 
       const accountButton = page.getByRole("button", { name: /未登录/ });
       await accountButton.click();
-      const dialog = page.getByRole("dialog", { name: "登录 HGhubX", exact: true });
+      const dialog = page.getByRole("dialog", { name: "登录 HGuoTokX", exact: true });
       await dialog.waitFor();
       const username = dialog.getByLabel("账号", { exact: true });
       const password = dialog.getByLabel("密码", { exact: true });
