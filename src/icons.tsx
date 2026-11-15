@@ -97,22 +97,22 @@ export const CAT_ICONS: Record<string, ReturnType<typeof S>> = {
 };
 
 export function Logo({ size = 28, className = "" }: { size?: number; className?: string }) {
+  // Shared H + play silhouette used by the launcher and public SVG artwork.
+  // Inline gradients are defined inside each icon to support multiple windows.
+  const gradientId = React.useId();
   return (
-    <svg width={size} height={size} viewBox="0 0 64 64" className={className} aria-hidden>
+    <svg width={size} height={size} viewBox="0 0 64 64" className={className} aria-hidden="true">
       <defs>
-        <linearGradient id="logo-x-night" x1="4" y1="0" x2="60" y2="64" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#06465b" />
-          <stop offset="1" stopColor="#002837" />
+        <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
+          <stop stopColor="#78D8FF" />
+          <stop offset=".54" stopColor="#7977FF" />
+          <stop offset="1" stopColor="#F28ACF" />
         </linearGradient>
       </defs>
-      <rect width="64" height="64" rx="17.455" fill="url(#logo-x-night)" />
-      <rect x=".65" y=".65" width="62.7" height="62.7" rx="16.8" fill="none" stroke="#60cdff" strokeOpacity=".14" strokeWidth=".8" />
-      <g transform="translate(-2.909091 -2.909091) scale(1.4545455)">
-        <path d="M14 13v22M14 24h10M24 13v22" stroke="#60cdff" strokeWidth="4.4" strokeLinecap="round" fill="none" />
-        <path d="M31 17.5c3.2 0 5.5 2.6 5.5 6.5S34.2 30.5 31 30.5" stroke="#60cdff" strokeWidth="4" strokeLinecap="round" fill="none" />
-      </g>
-      <path d="M40 27.2 46.3 31.9 40 36.6Z" fill="#b1f5dc" />
-      <path d="M46.7 11.3 52.5 17.1M52.5 11.3 46.7 17.1" stroke="#b1f5dc" strokeWidth="2.9" strokeLinecap="round" />
+      <rect width="64" height="64" rx="15" fill={`url(#${gradientId})`} />
+      <path d="M18 16V48M18 32H44M44 16V48" fill="none"
+        stroke="white" strokeOpacity=".94" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M31 24L48 33L31 42Z" fill="white" fillOpacity=".92" />
     </svg>
   );
 }
