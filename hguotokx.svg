@@ -1,17 +1,42 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="HGuoTokX translucent H play logo">
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="HGuoTokX neon glass X play icon">
 <defs>
-<linearGradient id="back" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#78D8FF"/><stop offset=".46" stop-color="#7977FF"/><stop offset="1" stop-color="#F28ACF"/></linearGradient>
-<radialGradient id="light" cx=".18" cy=".02" r="1"><stop stop-color="#FFFFFF" stop-opacity=".9"/><stop offset=".45" stop-color="#D6E4FF" stop-opacity=".2"/><stop offset="1" stop-color="#8A5EE5" stop-opacity="0"/></radialGradient>
-<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FFFFFF" stop-opacity=".94"/><stop offset=".52" stop-color="#FAF6FF" stop-opacity=".76"/><stop offset="1" stop-color="#FFFFFF" stop-opacity=".9"/></linearGradient>
-<linearGradient id="shine" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FFFFFF" stop-opacity=".64"/><stop offset="1" stop-color="#FFFFFF" stop-opacity=".05"/></linearGradient>
+<linearGradient id="back" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#07051C"/><stop offset=".46" stop-color="#151246"/><stop offset=".79" stop-color="#360F40"/><stop offset="1" stop-color="#120921"/></linearGradient>
+<radialGradient id="aura" cx=".48" cy=".48" r=".57"><stop stop-color="#F64A9A" stop-opacity=".28"/><stop offset=".5" stop-color="#7B3DFF" stop-opacity=".15"/><stop offset="1" stop-color="#0B0B2C" stop-opacity="0"/></radialGradient>
+<radialGradient id="aqua" cx=".90" cy=".14" r=".82"><stop stop-color="#37DEFF" stop-opacity=".22"/><stop offset="1" stop-color="#134CF2" stop-opacity="0"/></radialGradient>
+<linearGradient id="orbitWarm" x1=".02" y1=".05" x2=".85" y2="1"><stop stop-color="#FFF7B1"/><stop offset=".24" stop-color="#FFC052"/><stop offset=".52" stop-color="#FC6A8A"/><stop offset=".8" stop-color="#CE51FF"/><stop offset="1" stop-color="#7F55FF"/></linearGradient>
+<linearGradient id="orbitCool" x1=".1" y1="1" x2="1" y2="0"><stop stop-color="#29E5FC"/><stop offset=".28" stop-color="#669BFF"/><stop offset=".56" stop-color="#AC65FF"/><stop offset=".82" stop-color="#DA69FF"/><stop offset="1" stop-color="#7EEBFF"/></linearGradient>
+<radialGradient id="peach" cx=".28" cy=".15" r=".88"><stop stop-color="#FFD793"/><stop offset=".27" stop-color="#FF9D71"/><stop offset=".58" stop-color="#F9488C"/><stop offset=".88" stop-color="#B334AF"/><stop offset="1" stop-color="#7628A0"/></radialGradient>
+<linearGradient id="leaf" x1=".1" y1=".1" x2=".9" y2="1"><stop stop-color="#EAFBA6"/><stop offset=".38" stop-color="#9DE05D"/><stop offset=".75" stop-color="#3CB87A"/><stop offset="1" stop-color="#36D4DC"/></linearGradient>
+<linearGradient id="glaze" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FFFFFF" stop-opacity=".86"/><stop offset=".35" stop-color="#FFFFFF" stop-opacity=".18"/><stop offset="1" stop-color="#FFFFFF" stop-opacity=".02"/></linearGradient>
+<linearGradient id="play" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FFFFFF"/><stop offset=".7" stop-color="#FFF7FE"/><stop offset="1" stop-color="#FFD8FF"/></linearGradient>
+<filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="23"/></filter>
+<clipPath id="appMask"><rect width="1024" height="1024" rx="210"/></clipPath>
 </defs>
-<clipPath id="appMask"><rect width="1024" height="1024" rx="225"/></clipPath><g clip-path="url(#appMask)">
+<g clip-path="url(#appMask)">
 <rect width="1024" height="1024" fill="url(#back)"/>
-<path d="M0 646Q231 392 469 537T1024 435V1024H0Z" fill="#6546CE" opacity=".33"/>
-<path d="M0 190Q250 68 520 221T1024 222V0H0Z" fill="#E5F7FF" opacity=".35"/>
-<rect width="1024" height="1024" fill="url(#light)"/>
-<g><path d="M282 248Q282 215 315 215H370Q403 215 403 248V441H621V248Q621 215 654 215H709Q742 215 742 248V776Q742 809 709 809H654Q621 809 621 776V571H403V776Q403 809 370 809H315Q282 809 282 776Z" fill="url(#glass)" stroke="#FFFFFF" stroke-opacity=".62" stroke-width="12" stroke-linejoin="round"/>
-<path d="M483 426L653 524L483 622Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-opacity=".76" stroke-width="10" stroke-linejoin="round"/>
-<path d="M317 245H371V452M657 246H709V455" fill="none" stroke="url(#shine)" stroke-width="14" stroke-linecap="round" opacity=".82"/></g>
+<rect width="1024" height="1024" fill="url(#aura)"/>
+<rect width="1024" height="1024" fill="url(#aqua)"/>
+<ellipse cx="509" cy="545" rx="310" ry="287" fill="#F74BCA" opacity=".15" filter="url(#glow)"/>
+<!-- Two translucent cinematic light ribbons cross into an abstract X. -->
+<path d="M236 286C316 210 424 277 564 421C705 567 827 695 779 760C720 844 576 735 431 581C282 419 178 342 236 286Z" fill="none" stroke="url(#orbitWarm)" stroke-width="100" stroke-linecap="round" opacity=".83"/>
+<path d="M790 284C701 209 579 339 442 482C297 636 186 723 242 782C314 861 445 766 594 610C737 457 847 348 790 284Z" fill="none" stroke="url(#orbitCool)" stroke-width="96" stroke-linecap="round" opacity=".82"/>
+<path d="M229 246C359 162 495 350 608 475" fill="none" stroke="#FFF9FA" stroke-opacity=".55" stroke-width="15" stroke-linecap="round"/>
+<path d="M804 249C695 166 572 355 480 449" fill="none" stroke="#D0FBFF" stroke-opacity=".55" stroke-width="14" stroke-linecap="round"/>
+<!-- Floating fruit/play core, inspired by the selected dark neon-glass artwork. -->
+<circle cx="509" cy="506" r="222" fill="#F73F8E" opacity=".36" filter="url(#glow)"/>
+<path d="M514 286C625 261 725 345 739 472C757 610 670 727 526 733C386 742 281 644 287 510C293 384 390 279 514 286Z" fill="url(#peach)" stroke="#FFC7EA" stroke-opacity=".65" stroke-width="10"/>
+<path d="M327 416C350 344 433 301 520 304C579 307 620 326 649 355C571 319 474 348 400 414C361 448 336 478 320 503Z" fill="#FFFFFF" opacity=".24"/>
+<path d="M316 516C307 414 381 334 456 314" fill="none" stroke="#FFFFFF" stroke-opacity=".58" stroke-width="24" stroke-linecap="round"/>
+<path d="M517 285C509 261 508 241 517 225" fill="none" stroke="#FEB887" stroke-width="20" stroke-linecap="round"/>
+<path d="M520 256C529 182 592 149 676 149C664 221 594 270 520 256Z" fill="url(#leaf)" stroke="#D3FFFF" stroke-width="7" stroke-opacity=".7"/>
+<path d="M527 247C559 212 597 187 650 174" fill="none" stroke="#FFFFFF" stroke-opacity=".56" stroke-width="7" stroke-linecap="round"/>
+<path d="M501 268C484 231 450 222 414 225C429 265 458 284 501 268Z" fill="url(#leaf)" stroke="#E6FFB6" stroke-width="5" stroke-opacity=".7"/>
+<path d="M453 414Q453 393 472 404L632 495Q652 507 632 519L473 611Q453 625 453 599Z" fill="url(#play)" stroke="#FFFFFF" stroke-width="10" stroke-linejoin="round"/>
+<!-- Iridescent foreground ribbon, short of the center so the play remains legible. -->
+<path d="M221 760C275 805 383 759 463 687" fill="none" stroke="url(#orbitCool)" stroke-opacity=".88" stroke-width="77" stroke-linecap="round"/>
+<path d="M564 705C687 814 765 830 802 745" fill="none" stroke="url(#orbitWarm)" stroke-opacity=".74" stroke-width="79" stroke-linecap="round"/>
+<path d="M217 759C265 790 360 762 430 706" fill="none" stroke="#F5FFFF" stroke-opacity=".52" stroke-width="11" stroke-linecap="round"/>
+<path d="M579 730C691 819 748 805 770 772" fill="none" stroke="#FFFFFF" stroke-opacity=".4" stroke-width="9" stroke-linecap="round"/>
+<rect x="12" y="12" width="1000" height="1000" rx="206" fill="none" stroke="url(#glaze)" stroke-width="23" opacity=".36"/>
 </g>
 </svg>
