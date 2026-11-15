@@ -61,6 +61,15 @@ try {
       assert.equal(actual.speedBlur, "none", `${scenario.name}: player menu fallback`);
       assert.notEqual(actual.navBackground, "rgba(0, 0, 0, 0)", `${scenario.name}: nav must stay readable`);
     }
+    if (scenario.name === "windows-capable") {
+      // Accessibility toggles while the WebView stays alive must change
+      // compositing without restarting the app.
+      await page.emulateMedia({ forcedColors: "active" });
+      await page.waitForFunction(() => document.documentElement.dataset.glassQuality === "low");
+      assert.equal(await page.locator(".ios-dialog").evaluate(el => getComputedStyle(el).backdropFilter), "none");
+      await page.emulateMedia({ forcedColors: "none" });
+      await page.waitForFunction(() => document.documentElement.dataset.glassQuality === "full");
+    }
     assert.deepEqual(errors, [], `${scenario.name}: no runtime errors`);
     console.log(`PASS ${scenario.name}: ${JSON.stringify(actual)}`);
     await context.close();
