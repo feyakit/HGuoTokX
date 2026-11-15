@@ -1,10 +1,10 @@
-# HGuoTokX · Liquid Glass 2.0 · Phase 1
+# HGuoX · Liquid Glass 2.0 · Phase 1
 
 This branch proposes an incremental cross-platform visual refresh. It is **not** a native UIKit Liquid Glass implementation and does not replace playback or networking.
 
 ## Delivered
 
-- Shared H + play mark in `hguotokx.svg`, `public/logo.svg`, `app-icon.svg`.
+- Shared H + play mark in `hguox.svg`, `public/logo.svg`, `app-icon.svg`.
 - Matching **opaque, unmasked square** artwork in `src-tauri/icons/ios/source.svg` (iOS asset pipeline requires it).
 - Glass highlight and ambient brand tokens in `src/styles/ios.css`, preserving existing nav, modal, segmented-control layouts and accessibility fallbacks.
 - No changes to API routing, media decoding, data storage, OS permissions or app package identifiers.
@@ -37,7 +37,7 @@ Brand palette: ice blue `#78D8FF`, violet `#7977FF`, rose `#F28ACF`. Use glossy 
 Code delivered on this branch:
 - Cross-platform page chrome for search, page headings, filters, settings cards and Windows/macOS/Linux desktop sidebars.
 - Desktop video controls with restrained translucent menus and gradient seek-progress. Playback clock, codecs, network and session logic unchanged.
-- Updated visual regression expectations to refer to HGuoTokX rather than the previous name.
+- Updated visual regression expectations to refer to HGuoX rather than the previous name.
 - Static brand consistency test (`pnpm test:brand`).
 - CI Chromium fixtures for mobile tab alignment, overlays/focus/back handling and the real App's 390×844 dark-mode viewport. Screenshots are uploaded if that CI job fails.
 
@@ -70,7 +70,7 @@ The selected direction is the **second dark neon-glass concept**: luminous warm
 peach/play core, cyan-violet X ribbons and a deep indigo app tile, **without
 text inside the icon**.
 
-- `app-icon.svg`, `hguotokx.svg`, and `public/logo.svg` share one
+- `app-icon.svg`, `hguox.svg`, and `public/logo.svg` share one
   scalable, self-contained vector **interpretation** of the selected concept.
   This is not a pixel-for-pixel tracing of the photorealistic generated image.
 - `src-tauri/icons/ios/source.svg` uses the same artwork but has no pre-rounded

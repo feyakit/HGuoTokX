@@ -10,7 +10,7 @@ const read = file => readFileSync(resolve(root, file), "utf8");
 const markers = ["#F9488C", "#29E5FC", "#7F55FF"];
 const sources = [
   "app-icon.svg",
-  "hguotokx.svg",
+  "hguox.svg",
   "public/logo.svg",
   "src-tauri/icons/ios/source.svg",
 ];
@@ -47,4 +47,4 @@ for (const step of ["generate-brand-icons.mjs","generate-ios-icons.mjs","sync-an
 }
 assert(beforeBuild.indexOf("generate-brand-icons.mjs") < beforeBuild.indexOf("sync-android-icons.mjs"), "Generate brand sources before synchronizing Android");
 assert(beforeBuild.indexOf("generate-ios-icons.mjs") < beforeBuild.indexOf("sync-ios-icons.mjs"), "Generate iOS sources before synchronizing Apple");
-console.log("PASS: selected HGuoTokX neon-glass X icon, consistent app sources and platform build ordering");
+console.log("PASS: selected HGuoX neon-glass X icon, consistent app sources and platform build ordering");
