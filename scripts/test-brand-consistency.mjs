@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const read = file => readFileSync(resolve(root, file), "utf8");
-const markers = ["#78D8FF", "#7977FF", "#F28ACF"];
+const markers = ["#F9488C", "#29E5FC", "#7F55FF"];
 const sources = [
   "app-icon.svg",
   "hguotokx.svg",
@@ -18,7 +18,8 @@ for (const file of sources) {
   const svg = read(file);
   assert.match(svg, /<svg\b/, `${file} must be SVG`);
   assert.match(svg, /viewBox="0 0 1024 1024"/, `${file} must share icon geometry`);
-  assert.match(svg, /L653 524L483 622/, `${file} must contain H play silhouette`);
+  assert.match(svg, /M453 414/, `${file} must contain new play triangle`);
+  for (const layer of ["orbitWarm", "orbitCool", "peach", "play"]) assert(svg.includes(layer), `${file}: missing neon-glass ${layer} layer`);
   for (const marker of markers) assert(svg.includes(marker), `${file}: missing ${marker}`);
 }
 const ios = read("src-tauri/icons/ios/source.svg");
@@ -36,7 +37,9 @@ const icons = read("src/icons.tsx");
 assert(app.includes("HGuoTok"), "Launch must show current product name");
 assert(!app.includes("<span>HGhub</span>"), "Launch must not display the legacy name");
 assert(desktop.includes("HGuo"), "Desktop chrome must show current product");
-for (const marker of markers) assert(icons.includes(marker), `Inline Logo missing ${marker}`);
+assert(icons.includes('src="/logo.svg"'), "In-app Logo must use the same public source as the launcher");
+assert(app.includes('src="/logo.svg"'), "Launch animation must render the selected source");
+assert(!app.includes("hg-launch-left"), "Legacy H stroke launch animation must not be displayed");
 const config = JSON.parse(read("src-tauri/tauri.conf.json"));
 const beforeBuild = config.build.beforeBuildCommand;
 for (const step of ["generate-brand-icons.mjs","generate-ios-icons.mjs","sync-android-icons.mjs","sync-ios-icons.mjs"]) {
@@ -44,4 +47,4 @@ for (const step of ["generate-brand-icons.mjs","generate-ios-icons.mjs","sync-an
 }
 assert(beforeBuild.indexOf("generate-brand-icons.mjs") < beforeBuild.indexOf("sync-android-icons.mjs"), "Generate brand sources before synchronizing Android");
 assert(beforeBuild.indexOf("generate-ios-icons.mjs") < beforeBuild.indexOf("sync-ios-icons.mjs"), "Generate iOS sources before synchronizing Apple");
-console.log("PASS: HGuoTokX brand sources, fallbacks and platform build ordering");
+console.log("PASS: selected HGuoTokX neon-glass X icon, consistent app sources and platform build ordering");
