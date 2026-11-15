@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="../../src/index.css"/></head>
+<body style="background:var(--p-bg)">
+<nav class="ios-mobile-nav" data-over-video="false"><div class="hg-glass"><div class="ios-mobile-nav-items"><span>首页</span></div></div></nav>
+<div class="ios-overlay"><div class="ios-dialog"><span>半透明弹层</span></div></div>
+<div class="ios-setting-group"><div>内容卡片</div></div>
+<div class="player-speed-menu"><button>1.0x</button></div>
+<script type="module">
+import { installGlassQuality } from "../../src/glassQuality.ts";
+window.__stopGlass = installGlassQuality("windows");
+</script>
+</body></html>
