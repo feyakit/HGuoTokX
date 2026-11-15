@@ -722,3 +722,97 @@ html.theme-light .ios-mobile-nav:not([data-over-video=true]) .hg-drop>.ios-liqui
   .win-nav-item.is-selected::before { background:HighlightText; }
   .ios-page-heading::after { display:none; }
 }
+
+
+/* Phase 4 — full glass with automatic compatibility / accessibility fallback.
+ * Backdrop sampling is limited to navigational and transient surfaces:
+ * static cards are translucent-looking, but never trigger video-wide repaint.
+ */
+:root {
+  --glass-full-blur:38px;
+  --glass-full-saturation:170%;
+}
+html[data-glass-platform="android"] { --glass-full-blur:22px; --glass-full-saturation:145%; }
+html[data-glass-platform="windows"] { --glass-full-blur:28px; }
+html[data-glass-platform="linux"] { --glass-full-blur:16px; --glass-full-saturation:135%; }
+html[data-glass-platform="macos"] { --glass-full-blur:36px; }
+
+html[data-glass-quality="full"] .ios-mobile-nav:not([data-over-video=true]) .hg-glass,
+html[data-glass-quality="full"] .ios-dialog,
+html[data-glass-quality="full"] .ios-toast-host>div,
+html[data-glass-quality="full"] .win-search-launch {
+  background-color:var(--glass-bg);
+  backdrop-filter:blur(var(--glass-full-blur)) saturate(var(--glass-full-saturation));
+  -webkit-backdrop-filter:blur(var(--glass-full-blur)) saturate(var(--glass-full-saturation));
+  border-color:var(--glass-rim);
+  box-shadow:var(--ios-shadow),0 18px 42px var(--glass-ambient);
+}
+/* Keep an opaque dark, contrasting navigation surface on video. */
+html[data-glass-quality="full"] .ios-mobile-nav[data-over-video=true] .hg-glass {
+  backdrop-filter:blur(8px) saturate(115%);
+  -webkit-backdrop-filter:blur(8px) saturate(115%);
+}
+/* Ordinary content should never blur an entire scroll region. */
+html[data-glass-quality] .ios-setting-group,
+html[data-glass-quality] .ios-account-card,
+html[data-glass-quality] .ios-rank-row,
+html[data-glass-quality] .ios-surface,
+html[data-glass-quality] .ios-collection-link {
+  backdrop-filter:none;
+  -webkit-backdrop-filter:none;
+}
+html[data-glass-quality] .ios-setting-group,
+html[data-glass-quality] .ios-account-card {
+  background:var(--p-s1);
+  box-shadow:var(--surface-shadow),inset 0 1px 0 var(--ios-highlight);
+}
+/* WebViews without blur, tiny shared-memory devices and accessibility modes. */
+html[data-glass-quality="low"] .ios-mobile-nav .hg-glass,
+html[data-glass-quality="low"] .ios-dialog,
+html[data-glass-quality="low"] .ios-toast-host>div,
+html[data-glass-quality="low"] .win-search-launch,
+html[data-glass-quality="low"] .desktop-home-tabs,
+html[data-glass-quality="low"] .desktop-context-header>.ios-button,
+html[data-glass-quality="low"] .player-speed-menu {
+  background:var(--ios-glass-solid);
+  background-image:none;
+  backdrop-filter:none;
+  -webkit-backdrop-filter:none;
+}
+html[data-glass-quality="low"] .ios-mobile-nav .hg-glass::before,
+html[data-glass-quality="low"] .ios-dialog::before,
+html[data-glass-quality="low"] .ios-toast-host>div::before,
+html[data-glass-quality="low"] .win-search-launch::before,
+html[data-glass-quality="low"] .ios-setting-group::before,
+html[data-glass-quality="low"] .ios-account-card::before {
+  display:none;
+}
+html[data-glass-quality="low"] .ios-page-heading::after { display:none; }
+html[data-glass-quality="low"] .ios-mobile-nav[data-over-video=true] .hg-glass {
+  background:#1c1c20;
+}
+html.theme-light[data-glass-quality="low"] .ios-mobile-nav:not([data-over-video=true]) .hg-glass,
+html.theme-light[data-glass-quality="low"] .ios-dialog,
+html.theme-light[data-glass-quality="low"] .win-search-launch,
+html.theme-light[data-glass-quality="low"] .ios-toast-host>div {
+  background:#f8f7f3;
+}
+@media (prefers-reduced-transparency:reduce),(prefers-contrast:more) {
+  html .ios-mobile-nav .hg-glass,html .ios-dialog,html .ios-toast-host>div,
+  html .win-search-launch,html .desktop-home-tabs,html .player-speed-menu {
+    background:var(--ios-glass-solid);
+    background-image:none;
+    backdrop-filter:none;
+    -webkit-backdrop-filter:none;
+  }
+}
+@media (forced-colors:active) {
+  html .ios-mobile-nav .hg-glass,html .ios-dialog,html .ios-toast-host>div,
+  html .win-search-launch,html .desktop-home-tabs,html .player-speed-menu {
+    background:Canvas;
+    border-color:CanvasText;
+    box-shadow:none;
+    backdrop-filter:none;
+    -webkit-backdrop-filter:none;
+  }
+}
