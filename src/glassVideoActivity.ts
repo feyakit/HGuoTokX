@@ -8,7 +8,7 @@ export function installGlassVideoActivity(): () => void {
   const root = document.documentElement;
   const playing = new Set<HTMLVideoElement>();
   const apply = () => {
-    root.dataset.glassVideo = playing.size > 0 && !document.hidden ? "playing" : "idle";
+    root.dataset.glassVideo = playing.size > 0 ? "playing" : "idle";
     if (playing.size > 0) observer.observe(document, { childList: true, subtree: true });
     else observer.disconnect();
   };
@@ -37,12 +37,19 @@ export function installGlassVideoActivity(): () => void {
   }
   for (const event of ["play", "playing"]) document.addEventListener(event, onStart, true);
   for (const event of ["pause", "ended", "emptied"]) document.addEventListener(event, onStop, true);
-  document.addEventListener("visibilitychange", apply);
+  const onVisibility = () => {
+    // Some WebViews suspend video without a reliable pause event.
+    for (const video of playing) {
+      if (video.paused || video.ended || !video.isConnected) playing.delete(video);
+    }
+    apply();
+  };
+  document.addEventListener("visibilitychange", onVisibility);
   apply();
   return () => {
     for (const event of ["play", "playing"]) document.removeEventListener(event, onStart, true);
     for (const event of ["pause", "ended", "emptied"]) document.removeEventListener(event, onStop, true);
-    document.removeEventListener("visibilitychange", apply);
+    document.removeEventListener("visibilitychange", onVisibility);
     observer.disconnect();
     playing.clear();
     delete root.dataset.glassVideo;
