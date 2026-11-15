@@ -39,6 +39,7 @@ jobs:
       - name: Verify brand and platform icon generation
         run: |
           pnpm test:brand
+          pnpm test:rebrand
           node scripts/generate-brand-icons.mjs
           node scripts/generate-ios-icons.mjs
           pnpm test:ios-icons
