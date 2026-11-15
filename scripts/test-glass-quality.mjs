@@ -82,6 +82,29 @@ try {
       await page.waitForFunction(() => document.documentElement.dataset.glassQuality === "full");
       await page.evaluate(() => window.__glass.setPreference("auto"));
       assert.equal(await page.evaluate(() => window.__glass.getPreference()), "auto");
+    
+      // A video start should cap only high-cost composites, then restore full
+      // refraction on pause. It also handles unmounts without pause events.
+      await page.evaluate(() => {
+        const video = document.createElement("video");
+        video.id = "glass-video-probe";
+        Object.defineProperty(video, "paused", { configurable: true, get: () => false });
+        Object.defineProperty(video, "ended", { configurable: true, get: () => false });
+        document.body.append(video);
+        video.dispatchEvent(new Event("play"));
+      });
+      await page.waitForFunction(() => document.documentElement.dataset.glassVideo === "playing");
+      const playingBlur = await page.locator(".ios-dialog").evaluate(el => getComputedStyle(el).backdropFilter);
+      assert.match(playingBlur, /blur\\(14px\\)/, "Playback caps overlay blur at 14px");
+      const tabsBlur = await page.locator(".desktop-home-tabs").evaluate(el => getComputedStyle(el).backdropFilter);
+      assert.match(tabsBlur, /blur\\(14px\\)/, "Desktop video tabs cap blur while playing");
+      await page.locator("#glass-video-probe").evaluate(video => video.dispatchEvent(new Event("pause")));
+      await page.waitForFunction(() => document.documentElement.dataset.glassVideo === "idle");
+      assert.match(await page.locator(".ios-dialog").evaluate(el => getComputedStyle(el).backdropFilter), /blur\\(28px\\)/);
+      await page.locator("#glass-video-probe").evaluate(video => video.dispatchEvent(new Event("play")));
+      await page.waitForFunction(() => document.documentElement.dataset.glassVideo === "playing");
+      await page.locator("#glass-video-probe").evaluate(video => video.remove());
+      await page.waitForFunction(() => document.documentElement.dataset.glassVideo === "idle");
     }
     if (scenario.name === "low-memory") {
       // A deliberate quality override can opt into full glass, unless

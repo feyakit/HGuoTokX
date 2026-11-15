@@ -11,7 +11,9 @@ import { APP_VERSION, LOCAL, logLine, platform, webviewVersion } from "./api";
 import Hls from "hls.js";
 import { installLayoutDiagnostics } from "./layoutDiagnostics";
 import { installGlassQuality } from "./glassQuality";
+import { installGlassVideoActivity } from "./glassVideoActivity";
 installGlassQuality(platform);
+installGlassVideoActivity();
 installPlaybackPageEvents();
 void initPlaybackLog();
 /* 环境指纹：写进始终记录的 debug.log。用户复制诊断时不用再自报版本、平台、内核版本 */

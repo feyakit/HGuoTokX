@@ -105,3 +105,20 @@ event is handled across tabs/windows via the storage listener.
 switches, low-memory manual override and forced-colors priority. Real-world
 GPU load varies with drivers, WebView compositor and video decoder and still
 requires on-device validation.
+
+## Phase 7 · Video-aware glass compositing
+
+The glass compositor now listens to capture-phase HTMLVideoElement playback
+events. While at least one connected video is playing, expensive transient
+backdrop layers (dialogs, toasts, desktop tabs and playback speed panels)
+use a reduced 14px blur cap. Small desktop context buttons use a 10px cap.
+When playback pauses or ends, full-strength glass returns. A lightweight
+MutationObserver runs only while a video is active and resets this mode when a
+virtualized player is removed without a pause event. Visibility changes are
+handled without timers or animation-frame polling.
+
+This works **with** the existing settings: user-controlled Full remains the
+preferred quality, Low always disables blur, and system reduced transparency
+and forced colors retain priority. The rendered video itself never receives
+a backdrop blur. Browser checks cover play, pause and removed-video cleanup;
+native WebView performance still requires physical-device testing.
