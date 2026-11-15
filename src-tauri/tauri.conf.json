@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm build && node scripts/generate-ios-icons.mjs && node scripts/sync-android-icons.mjs && node scripts/sync-ios-icons.mjs && node scripts/patch-android-splash.mjs",
+    "beforeBuildCommand": "pnpm build && node scripts/generate-brand-icons.mjs && node scripts/generate-ios-icons.mjs && node scripts/sync-android-icons.mjs && node scripts/sync-ios-icons.mjs && node scripts/patch-android-splash.mjs",
     "frontendDist": "../dist"
   },
   "app": {
