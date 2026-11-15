@@ -153,7 +153,7 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
                 <div className="text-[14px] text-on">启动时静音</div>
                 <div className="text-[12px] text-mut">默认开启，每次启动均静音；关闭后记住上次静音状态。下次启动生效。</div>
               </div>
-              <Toggle desktop on={muteOnStartup} onChange={setMuteOnStartup} label="启动时静音" />
+              <Toggle desktop={platform === "windows" || platform === "macos" || platform === "linux"} on={muteOnStartup} onChange={setMuteOnStartup} label="启动时静音" />
             </div>
             <div className="flex items-center gap-3 px-3.5 py-3">
               <span className="ios-setting-icon"><IBoltF size={16} /></span>
@@ -161,7 +161,7 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
                 <div className="text-[14px] text-on">优先高清</div>
                 <div className="text-[12px] text-mut">有高清就用 HEVC，播不了会自动切回标准</div>
               </div>
-              <Toggle desktop on={preferHevc} onChange={setPreferHevc} label="优先高清" />
+              <Toggle desktop={platform === "windows" || platform === "macos" || platform === "linux"} on={preferHevc} onChange={setPreferHevc} label="优先高清" />
             </div>
           </>)}
 
@@ -201,7 +201,7 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
                 <div className="text-[14px] text-on">自动选择线路</div>
                 <div className="text-[12px] text-mut">主站不可用时检测已发布镜像；关闭后保留手动选择</div>
               </div>
-              <Toggle desktop label="自动选择线路" on={autoLineOn} onChange={(on) => {
+              <Toggle desktop={platform === "windows" || platform === "macos" || platform === "linux"} label="自动选择线路" on={autoLineOn} onChange={(on) => {
                 void setAutoLine(on).catch(() => toast("自动选线暂停失败，请重试", "info"));
                 setAutoLineOn(on);
                 toast(on ? "已开启自动选择线路" : "已关闭自动选线，可手动选择播放源", "info");
@@ -217,7 +217,7 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
                     : "默认开启，防上游投毒与内网探测；若导致正文或特殊代理异常可关闭（或用 --no-strict 启动）"}
                 </div>
               </div>
-              <Toggle desktop
+              <Toggle desktop={platform === "windows" || platform === "macos" || platform === "linux"}
                 on={strictSecurity}
                 disabled={!strictSecurityReady || securityPending}
                 onChange={(on) => {
@@ -276,7 +276,7 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
                 <div className="text-[12px] text-mut">版本、平台、当前线路和播放失败原因始终记录；开关只额外记录拖动与缓冲细节</div>
                 {playbackLog.error && <div role="alert" className="text-[12px] text-danger">{playbackLog.error}</div>}
               </div>
-              <Toggle desktop label="播放诊断日志" on={playbackLog.enabled} disabled={!playbackLog.ready || playbackLog.pending}
+              <Toggle desktop={platform === "windows" || platform === "macos" || platform === "linux"} label="播放诊断日志" on={playbackLog.enabled} disabled={!playbackLog.ready || playbackLog.pending}
                 onChange={(on) => { void setPlaybackLog(on).then(() => toast(on ? "已开启播放诊断，请复现问题" : "已关闭播放诊断，已有日志保留", "ok")).catch(() => toast("日志设置保存失败，请重试", "info")); }} />
             </div>
             <Button disabled={!playbackLog.ready || playbackLog.pending || copyingLog} onClick={async () => {
