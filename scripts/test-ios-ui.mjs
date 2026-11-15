@@ -351,6 +351,19 @@ try {
       assert.equal(controlRadii.segmented, "999px", "Segmented controls use rounded outer corners");
       assert.equal(controlRadii.indicator, "999px", "Selected segment uses matching rounded corners");
       await assertSlider(appearance, 3, test.theme === "dark" ? 2 : 1, "appearance:initial");
+      // Exercise real Settings controls as well as the isolated glass fixture.
+      const glassPicker = page.getByRole("group", { name: "玻璃特效", exact: true });
+      await assertSlider(glassPicker, 3, 0, "glass:auto");
+      await glassPicker.getByRole("button", { name: "省电", exact: true }).click();
+      await page.waitForFunction(() => document.documentElement.dataset.glassQuality === "low");
+      assert.equal(await page.evaluate(() => localStorage.getItem("hguox_glass_preference_v1")), "low");
+      await assertSlider(glassPicker, 3, 2, "glass:low");
+      await glassPicker.getByRole("button", { name: "完整", exact: true }).click();
+      await assertSlider(glassPicker, 3, 1, "glass:full");
+      await glassPicker.getByRole("button", { name: "自动", exact: true }).click();
+      await assertSlider(glassPicker, 3, 0, "glass:auto restored");
+      assert.equal(await page.evaluate(() => localStorage.getItem("hguox_glass_preference_v1")), null);
+      check("glass rendering preference, accessibility-safe fallback, and persistence");
       check("circular icon controls and rounded segmented controls");
       const pageIn = page.locator(".a-page-in");
       if (await pageIn.count()) {

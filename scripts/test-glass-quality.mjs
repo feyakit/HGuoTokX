@@ -72,7 +72,7 @@ try {
       assert.equal(await page.evaluate(() => window.__glass.getPreference()), "low");
       await page.evaluate(() => window.__glass.setPreference("full"));
       await page.waitForFunction(() => document.documentElement.dataset.glassQuality === "full");
-      assert.match(await page.locator(".ios-dialog").evaluate(el => getComputedStyle(el).backdropFilter), /blur\\(/);
+      assert.match(await page.locator(".ios-dialog").evaluate(el => getComputedStyle(el).backdropFilter), /blur\(/);
       // Accessibility toggles while the WebView stays alive must change
       // compositing without restarting the app.
       await page.emulateMedia({ forcedColors: "active" });
