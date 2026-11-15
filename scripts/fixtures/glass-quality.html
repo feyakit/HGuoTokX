@@ -9,6 +9,8 @@
 <div class="player-speed-menu"><button>1.0x</button></div>
 <script type="module">
 import { installGlassQuality } from "../../src/glassQuality.ts";
-window.__stopGlass = installGlassQuality("windows");
+const supported = ["android","ios","windows","macos","linux"];
+const requested = new URLSearchParams(location.search).get("platform");
+window.__stopGlass = installGlassQuality(supported.includes(requested) ? requested : "windows");
 </script>
 </body></html>
