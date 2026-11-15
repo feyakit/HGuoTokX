@@ -36,6 +36,11 @@ jobs:
       - name: Build frontend
         run: pnpm build
 
+      - name: Verify platform icon generation
+        run: |
+          node scripts/generate-brand-icons.mjs
+          node scripts/generate-ios-icons.mjs
+
   rust:
     name: Rust compile check
     runs-on: ubuntu-24.04
