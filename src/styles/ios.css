@@ -571,7 +571,7 @@ html.theme-transitioning .ios-account-card { backdrop-filter:none; -webkit-backd
   .ios-mobile-nav .ios-mobile-nav-item[aria-current=page],.ios-mobile-nav[data-over-video=true] .ios-mobile-nav-item[aria-current=page],.ios-segmented-items>[aria-pressed=true] { color:HighlightText!important; }
 }
 
-/* HGuoTokX Liquid Glass 2.0: cross-platform visual tokens.
+/* HGuoX Liquid Glass 2.0: cross-platform visual tokens.
    Keep the existing semantic colors, interaction geometry and safe fallbacks. */
 :root {
   --brand-ice:#78d8ff;
@@ -656,7 +656,7 @@ html.theme-light .ios-mobile-nav:not([data-over-video=true]) .hg-drop>.ios-liqui
   .ios-mobile-nav:not([data-over-video=true]) .hg-drop>.ios-liquid-fill { background:Highlight; }
 }
 
-/* Phase 3 · shared page chrome: visually consistent with HGuoTokX's glass
+/* Phase 3 · shared page chrome: visually consistent with HGuoX's glass
    identity on mobile and desktop. Preserve solid media surfaces and focus. */
 .ios-page-heading {
   position:relative;
