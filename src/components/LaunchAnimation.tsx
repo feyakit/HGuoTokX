@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { addPluginListener } from "@tauri-apps/api/core";
 import { platform } from "../api";
 import "../styles/launch.css";
@@ -9,9 +9,8 @@ import { hasAcceptedAgreement } from "../usageAgreement";
 let launchCompleted = false;
 export const LAUNCH_DURATION = 2200;
 
-/** HGuoTokX shared H-play identity with spring-animated strokes. */
+/** HGuoTokX shared dark neon X-play identity, honoring reduced motion. */
 export function LaunchAnimation({ onFinish }: { onFinish: () => void }) {
-  const gradient = useId();
   const finishRef = useRef(onFinish);
   finishRef.current = onFinish;
   const complete = useRef(false);
@@ -57,22 +56,8 @@ export function LaunchAnimation({ onFinish }: { onFinish: () => void }) {
     <div className="hg-launch-stage" aria-hidden="true">
       <div className="hg-launch-orbit" />
       <div className="hg-launch-mark">
-        <svg className="hg-launch-svg" viewBox="0 0 64 64" fill="none">
-          <defs><linearGradient id={gradient} x1="0" y1="0" x2="1" y2="1">
-            <stop stopColor="#78D8FF" /><stop offset=".54" stopColor="#7977FF" />
-            <stop offset="1" stopColor="#F28ACF" />
-          </linearGradient></defs>
-          <g className="hg-launch-tile">
-            <rect width="64" height="64" rx="15" fill={`url(#${gradient})`} />
-            <path d="M1 16Q24 1 48 12" stroke="white" strokeOpacity=".26" strokeWidth="2" />
-          </g>
-          <g stroke="white" strokeWidth="8" strokeLinecap="round">
-            <path className="hg-launch-stroke hg-launch-left" d="M18 16V48" />
-            <path className="hg-launch-stroke hg-launch-bridge" d="M18 32H44" />
-            <path className="hg-launch-stroke hg-launch-right" d="M44 16V48" />
-          </g>
-          <path className="hg-launch-play" d="M31 24L48 33L31 42Z" fill="white" />
-        </svg>
+        <img className="hg-launch-svg hg-launch-logo" src="/logo.svg"
+          width="152" height="152" alt="" draggable={false} decoding="async" />
       </div>
       <div className="hg-launch-wordmark"><span>HGuoTok</span><span className="hg-launch-word-x">X</span></div>
     </div>
