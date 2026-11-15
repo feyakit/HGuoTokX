@@ -95,12 +95,12 @@ try {
       });
       await page.waitForFunction(() => document.documentElement.dataset.glassVideo === "playing");
       const playingBlur = await page.locator(".ios-dialog").evaluate(el => getComputedStyle(el).backdropFilter);
-      assert.match(playingBlur, /blur\\(14px\\)/, "Playback caps overlay blur at 14px");
+      assert.match(playingBlur, /blur\(14px\)/, "Playback caps overlay blur at 14px");
       const tabsBlur = await page.locator(".desktop-home-tabs").evaluate(el => getComputedStyle(el).backdropFilter);
-      assert.match(tabsBlur, /blur\\(14px\\)/, "Desktop video tabs cap blur while playing");
+      assert.match(tabsBlur, /blur\(14px\)/, "Desktop video tabs cap blur while playing");
       await page.locator("#glass-video-probe").evaluate(video => video.dispatchEvent(new Event("pause")));
       await page.waitForFunction(() => document.documentElement.dataset.glassVideo === "idle");
-      assert.match(await page.locator(".ios-dialog").evaluate(el => getComputedStyle(el).backdropFilter), /blur\\(28px\\)/);
+      assert.match(await page.locator(".ios-dialog").evaluate(el => getComputedStyle(el).backdropFilter), /blur\(28px\)/);
       await page.locator("#glass-video-probe").evaluate(video => video.dispatchEvent(new Event("play")));
       await page.waitForFunction(() => document.documentElement.dataset.glassVideo === "playing");
       await page.locator("#glass-video-probe").evaluate(video => video.remove());
