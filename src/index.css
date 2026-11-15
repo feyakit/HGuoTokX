@@ -502,7 +502,7 @@ html.theme-light .article-body blockquote { background: rgba(43, 40, 36, .045); 
 }
 
 
-/* HGuoTokX Liquid Glass 2.0 · desktop player chrome.
+/* HGuoX Liquid Glass 2.0 · desktop player chrome.
    Avoid large backdrop filters over the video compositor. */
 @layer legacy {
   .desktop-controls .player-control {
