@@ -617,3 +617,41 @@ html.theme-light {
     box-shadow:none;
   }
 }
+
+/* Phase 2: restrained color refraction on active navigation and controls.
+   Video overlays remain dark for contrast, including in light appearance. */
+.ios-mobile-nav:not([data-over-video=true]) .hg-drop>.ios-liquid-fill {
+  background:
+    linear-gradient(135deg,rgb(120 216 255 / .18),rgb(121 119 255 / .19) 55%,rgb(242 138 207 / .12)),
+    var(--ios-selected);
+  border:1px solid rgb(200 210 255 / .12);
+}
+html.theme-light .ios-mobile-nav:not([data-over-video=true]) .hg-drop>.ios-liquid-fill {
+  background:
+    linear-gradient(135deg,rgb(120 216 255 / .23),rgb(121 119 255 / .15) 55%,rgb(242 138 207 / .10)),
+    var(--ios-selected);
+}
+.ios-mobile-nav:not([data-over-video=true]) .hg-glass {
+  background-image:var(--glass-reflection);
+  background-color:var(--glass-bg);
+}
+.ios-mobile-nav:not([data-over-video=true]) .ios-mobile-nav-item:focus-visible,
+.ios-segmented-items>.ios-button:focus-visible {
+  outline:2px solid var(--p-primary);
+  outline-offset:-3px;
+  border-radius:var(--control-radius);
+}
+@media (prefers-reduced-transparency:reduce),(prefers-contrast:more) {
+  .ios-mobile-nav:not([data-over-video=true]) .hg-glass {
+    background-image:none;
+    background-color:var(--ios-glass-solid);
+  }
+  .ios-mobile-nav:not([data-over-video=true]) .hg-drop>.ios-liquid-fill {
+    background:var(--ios-selected);
+    border-color:var(--ios-edge);
+  }
+}
+@media (forced-colors:active) {
+  .ios-mobile-nav:not([data-over-video=true]) .hg-glass { background:Canvas; }
+  .ios-mobile-nav:not([data-over-video=true]) .hg-drop>.ios-liquid-fill { background:Highlight; }
+}
