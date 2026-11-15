@@ -51,3 +51,15 @@ Code delivered on this branch:
 7. Confirm redistribution complies with original PolyForm Noncommercial license and the project README's distribution restrictions.
 
 **Not complete in this branch:** signed store submissions, real-device installation evidence, native API-level Liquid Glass and full feature regression. The visual layer is a WebView/CSS-inspired material system.
+
+## Phase 4 · Full Glass and platform-aware degradation
+
+**Default appearance:** high-fidelity glass is enabled on capable devices. Platform-specific blur ceilings are set through `data-glass-platform`: iOS 38 px, macOS 36 px, Windows 28 px, Android 22 px and Linux 16 px (these are styling caps, not claims of device support).
+
+**Auto downgrade:** `src/glassQuality.ts` sets `data-glass-quality="low"` when CSS backdrop blur is unavailable, when device-memory reports ≤2 GB, when hardware concurrency reports ≤2 logical cores, or when the OS requests reduced transparency, increased contrast or forced colors. Unsupported optional hardware fields do not automatically downgrade. System preference changes are observed live; no identifiers or preferences are persisted.
+
+**Frame cost control:** blur is limited to mobile navigation, transient dialogs/toasts, desktop search and related compact controls. Normal cards, settings lists and account cards use solid material surfaces even in full mode. The bottom navigation over video uses a maximum 8 px blur with an opaque contrasting base. Video frames, posters and long lists are not wrapped in a live blurred backdrop.
+
+**Accessibility and compatibility:** low mode uses legible solid colors; existing reduced-motion and high-contrast rules remain in force. Fallbacks are applied by CSS even when JavaScript is delayed. The rendering policy is a capability heuristic, not a real-time GPU frame-rate monitor. It cannot guarantee 60 fps or identical glass compositing on all WebViews.
+
+**Validation:** `pnpm test:glass-quality` checks full mode on five platform-token variants plus low-memory, low-core and forced-color fallback scenarios in Chromium. This is a WebView-style regression, not native iOS/Android/Windows/macOS/Linux acceptance testing.
