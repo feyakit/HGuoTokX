@@ -4,7 +4,7 @@
  * accessibility preferences or unsupported WebView features reduce cost.
  * No user preferences or device identifiers are persisted.
  */
-import { platform } from "./api";
+export type GlassPlatform = "android" | "ios" | "windows" | "macos" | "linux";
 
 export type GlassQuality = "full" | "low";
 
@@ -32,7 +32,7 @@ export function resolveGlassQuality(options: {
   return "full";
 }
 
-export function installGlassQuality(): () => void {
+export function installGlassQuality(platform: GlassPlatform): () => void {
   const root = document.documentElement;
   root.dataset.glassPlatform = platform;
   const queries = media.map(query => window.matchMedia(query));
