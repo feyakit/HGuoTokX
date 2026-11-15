@@ -120,6 +120,26 @@ try {
       assert.match(await page.locator(".ios-dialog").evaluate(el => getComputedStyle(el).backdropFilter), /blur\(14px\)/);
       await page.locator("#glass-video-probe").evaluate(video => video.remove());
       await page.waitForFunction(() => document.documentElement.dataset.glassVideo === "idle");
+      await page.evaluate(() => {
+        const detached = document.createElement("video");
+        Object.defineProperty(detached, "paused", { configurable: true, get: () => false });
+        detached.dispatchEvent(new Event("play"));
+      });
+      assert.equal(await page.locator("html").getAttribute("data-glass-video"), "idle", "Detached media events are ignored");
+      await page.evaluate(() => {
+        const video = document.createElement("video");
+        video.id = "video-error-probe";
+        Object.defineProperty(video, "paused", { configurable: true, get: () => false });
+        Object.defineProperty(video, "ended", { configurable: true, get: () => false });
+        document.body.append(video);
+        video.dispatchEvent(new Event("playing"));
+      });
+      await page.waitForFunction(() => document.documentElement.dataset.glassVideo === "playing");
+      assert.equal(await page.locator("#video-error-probe").evaluate(el => getComputedStyle(el).backdropFilter), "none", "Video pixels are never backdrop blurred");
+      await page.locator("#video-error-probe").evaluate(el => el.dispatchEvent(new Event("error")));
+      await page.waitForFunction(() => document.documentElement.dataset.glassVideo === "idle");
+      await page.evaluate(() => window.__stopGlassVideo());
+      assert.equal(await page.locator("html").getAttribute("data-glass-video"), null, "Cleanup leaves no stale quality attribute");
     }
     if (scenario.name === "low-memory") {
       // A deliberate quality override can opt into full glass, unless
