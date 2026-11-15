@@ -34,7 +34,7 @@ assert(css.includes("forced-colors:active"), "Must have forced-color fallback");
 const app = read("src/components/LaunchAnimation.tsx");
 const desktop = read("src/components/DesktopChrome.tsx");
 const icons = read("src/icons.tsx");
-assert(app.includes("HGuoTok"), "Launch must show current product name");
+assert(app.includes("HGuoX"), "Launch must show current product name");
 assert(!app.includes("<span>HGhub</span>"), "Launch must not display the legacy name");
 assert(desktop.includes("HGuo"), "Desktop chrome must show current product");
 assert(icons.includes('src="/logo.svg"'), "In-app Logo must use the same public source as the launcher");
