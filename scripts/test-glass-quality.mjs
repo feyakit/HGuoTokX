@@ -12,15 +12,16 @@ try {
     executablePath: process.env.BROWSER_EXECUTABLE || undefined,
   });
   const origin = vite.resolvedUrls.local[0];
+  const capableDevice = { memoryGB: 8, cores: 8 };
   const scenarios = [
-    { name: "windows-capable", platform: "windows", expected: "full", options: {} },
-    { name: "ios-capable", platform: "ios", expected: "full", options: {} },
-    { name: "android-capable", platform: "android", expected: "full", options: {} },
-    { name: "macos-capable", platform: "macos", expected: "full", options: {} },
-    { name: "linux-capable", platform: "linux", expected: "full", options: {} },
-    { name: "low-memory", expected: "low", options: { memoryGB: 2 } },
-    { name: "low-cpu", expected: "low", options: { cores: 2 } },
-    { name: "forced-colors", expected: "low", options: { forcedColors: "active" } },
+    { name: "windows-capable", platform: "windows", expected: "full", options: capableDevice },
+    { name: "ios-capable", platform: "ios", expected: "full", options: capableDevice },
+    { name: "android-capable", platform: "android", expected: "full", options: capableDevice },
+    { name: "macos-capable", platform: "macos", expected: "full", options: capableDevice },
+    { name: "linux-capable", platform: "linux", expected: "full", options: capableDevice },
+    { name: "low-memory", expected: "low", options: { ...capableDevice, memoryGB: 2 } },
+    { name: "low-cpu", expected: "low", options: { ...capableDevice, cores: 2 } },
+    { name: "forced-colors", expected: "low", options: { ...capableDevice, forcedColors: "active" } },
   ];
   for (const scenario of scenarios) {
     const context = await browser.newContext({
