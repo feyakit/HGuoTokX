@@ -192,11 +192,22 @@ jobs:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
           set -euo pipefail
-          if [ -z "${KEYSTORE_BASE64:-}" ]; then
-            echo "::error::缺少 ANDROID_KEY_BASE64 secret，无法签名"; exit 1
-          fi
           KS="$RUNNER_TEMP/release.keystore"
-          echo "$KEYSTORE_BASE64" | base64 -d > "$KS"
+          if [ -n "${KEYSTORE_BASE64:-}" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$KS"
+            echo "[sign] 使用仓库 secrets 里的固定签名密钥"
+          else
+            # 没配 secrets 时用临时密钥：包能装、能用，但每次构建签名不同，
+            # 覆盖升级前要先卸载旧版。个人自用够用；配好 secrets 后自动切回固定签名。
+            echo "::warning::未配置 ANDROID_KEY_BASE64，本次使用临时密钥签名（升级需先卸载）"
+            rm -f "$KS"
+            keytool -genkeypair -v -keystore "$KS" -storetype PKCS12 \
+              -alias hguotokx -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass hguotokx -keypass hguotokx \
+              -dname "CN=HGuoTokX, O=HGuoTokX, C=CN" >/dev/null 2>&1
+            KEY_ALIAS="hguotokx"; STORE_PASSWORD="hguotokx"; KEY_PASSWORD="hguotokx"
+            export KEY_ALIAS STORE_PASSWORD KEY_PASSWORD
+          fi
           BT="$(ls "$ANDROID_SDK_ROOT/build-tools" | sort -V | tail -1)"
           APKSIGNER="$ANDROID_SDK_ROOT/build-tools/$BT/apksigner"
           mkdir -p artifacts
