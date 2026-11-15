@@ -7,6 +7,14 @@ export function installFixture({ theme, titles }) {
   }));
   const topic = { id: 1, title: "本周精选", slug: "weekly", cover: cards[0].cover, intro: "城市与故事", video_count: cards.length };
   const paged = items => ({ items, pagination: { page: 1, pages: 1, size: 30, total: items.length } });
+  // UI regressions exercise the App after the separately tested agreement gate.
+  // Without a valid click-through fixture, StartupGate correctly displays the
+  // agreement instead of mounting the navigation, and tests time out.
+  localStorage.setItem("hghubx_usage_agreement", JSON.stringify({
+    version: "2026-11-15-v1",
+    accepted: true,
+    acceptedAt: "2026-11-15T00:00:00.000Z",
+  }));
   localStorage.setItem("hghubx_theme", theme);
   localStorage.setItem("hghubx_app_v1", JSON.stringify({ favs: [1, 2, 3, 4, 5, 6], history: [{ id: 1, ep: 3, t: 55, dur: 180, at: 123 }], searchHist: ["都市"] }));
   localStorage.setItem("hghubx_swipe_ep_v2", "1");
