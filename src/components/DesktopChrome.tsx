@@ -34,7 +34,7 @@ export function DesktopTitleBar({ collapsed, onToggle }: { collapsed: boolean; o
       onDoubleClick={(e) => { if (!(e.target as HTMLElement).closest("button")) appWindow().toggleMaximize().catch(() => {}); }}>
       <div className="win-wordmark" data-tauri-drag-region>
         <Logo size={24} />
-        <span>HG<span className="win-wordmark-light">hub</span>X</span>
+        <span>HGuo<span className="win-wordmark-light">Tok</span>X</span>
       </div>
       <Button className="win-caption-tool" aria-label={collapsed ? "展开侧栏" : "收起侧栏"} onClick={onToggle}>
         <ISidebar size={17} strokeWidth={1.7} />
