@@ -14,7 +14,7 @@ import { copyPlaybackLog, initPlaybackLog, setPlaybackLog, tracePlayback, usePla
 import { formatNetDiag, shortVerdict } from "../netDiagReport";
 import { copyText } from "../clipboard";
 import { Loader } from "../components/ios/effects";
-import { IBack, IBoltF, IBroom, IChevR, IHeart, IInfo, ILink, ILockF, IMoon, IRefresh, ISun, IVolMute } from "../icons";
+import { IBack, IBoltF, IBroom, IChevR, IHeart, IInfo, ILink, ILockF, IMoon, IRefresh, ISun, IVolMute, Logo } from "../icons";
 
 const SETTING_GROUPS = ["外观", "播放", "内容偏好", "本地数据", "网络", "播放诊断", "其他"] as const;
 type SettingGroup = typeof SETTING_GROUPS[number];
@@ -362,7 +362,7 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
       <Modal label="关于 HGuoTokX" open={about} onClose={() => setAbout(false)} width={392}>
         <div className="p-5">
           <div className="flex items-center gap-3">
-            <span className="w-11 h-11 rounded-(--r-sm) brand-grad glow-neon flex items-center justify-center text-on-primary text-[17px] font-black">H</span>
+            <Logo size={44} className="rounded-(--r-sm) shrink-0" />
             <div>
               <div className="text-[16px] font-bold text-on leading-tight">HGuoTokX</div>
               <div className="text-[12px] text-mut mt-0.5">HGuoTokX 客户端 v{APP_VERSION}</div>
