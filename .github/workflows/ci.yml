@@ -84,6 +84,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Install Chromium for UI fixtures
         run: pnpm exec playwright-core install --with-deps chromium
+      - name: Full glass and capability fallback regression
+        run: pnpm test:glass-quality
       - name: Mobile layout regression
         run: pnpm test:mobile-layout
       - name: Overlay focus and back-stack regression
