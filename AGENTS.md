@@ -1,0 +1,100 @@
+# AGENTS.md
+
+给 AI 编码助手的项目约定。改代码前请先读完这一页，能省掉大部分返工。
+
+## 这是什么项目
+
+`HGuoTokX` 是基于 [HGhubX](https://github.com/zxsos/HGhubX) 的**二次定制**：
+Tauri 2 + React 19 + TypeScript + Rust，目标是 **Android 手机自用**。
+
+- 许可证 **PolyForm Noncommercial 1.0.0**：禁止商用；`LICENSE` 里的
+  `Required Notice: Copyright (c) 2026 HGhubX contributors` **必须保留**，
+  不许删、不许改成自己的名字。
+- 上游是活的，会持续更新。改动原则：**能不改上游代码就不改**，
+  优先在配置、图标、样式层做定制，这样同步上游时不打架。
+
+## 构建与验证
+
+本地大概率**没有 cargo / rustc / Android NDK**（我在容器里就是），所以：
+
+| 想验证什么 | 怎么验 |
+|---|---|
+| TypeScript 类型 + 前端打包 | `pnpm build`（= `tsc --noEmit && tsc -p tsconfig.tests.json && vite build`） |
+| 单元/回归用例 | `pnpm test:<名字>`，全部列在 `package.json` 的 scripts 里 |
+| 出 APK | **推 tag 让 CI 构建**，本地出不了 |
+
+CI（`.github/workflows/`）：
+
+- `ci.yml` — push main / PR 触发，跑 tsc + cargo check + 单测
+- `release.yml` — push `v*` tag 触发，五平台并行打包并发 Release
+
+**不要**为了验证一个前端改动去推 tag：一次五平台构建 30 分钟。
+
+## 已知的坑（都真踩过）
+
+### 1. iOS 图标的 `source.svg` 有三个硬性要求
+
+`scripts/generate-ios-icons.mjs` 会校验 `src-tauri/icons/ios/source.svg`：
+
+```js
+if (/\brx\s*=|\bstroke\s*=/.test(sourceSvg.split("<g", 1)[0])) throw ...
+```
+
+- **背景必须是正方形、不带 `rx`、不带 `stroke`**（系统自己裁圆角）
+- 校验只看**第一个 `<g>` 之前**的内容，所以内容图元**必须包在 `<g>` 里**，
+  否则整个文件都算「背景」，内容里的 `rx` 也会被拒
+- 这个文件缺失或不合规，**五个平台全部在 `beforeBuildCommand` 第一步就失败**，
+  报错信息各不相同但根因都在这
+
+### 2. 换图标时别漏非 PNG 文件
+
+重新生成 `src-tauri/icons/` 时如果只处理 `.png`，会把 `ios/source.svg`
+这类文件弄丢，后果同上。
+
+### 3. 包名与产品名
+
+```
+identifier    com.hguotokx.app
+productName   HGuoTokX
+Cargo 包名     hghubx（不要动，改了要连带动 iOS/Xcode 工程配置，用户看不到）
+```
+
+### 4. 签名
+
+`.github/workflows/release.yml` 的签名步骤：有 `ANDROID_KEY_BASE64` 就用固定密钥，
+没有就现生成临时密钥（自用能跑，但每次签名不同、升级要先卸载）。
+keystore 不在仓库里，别去找。
+
+## 代码约定
+
+- **注释和提交信息用中文**，解释「为什么」而不是「做了什么」
+- 提交署名固定：
+
+  ```
+  git -c user.name="feyakit" -c user.email="feya0517@gmail.com" commit
+  ```
+
+- 新增功能尽量带一个 `tests/xxx.html` + `tests/xxx.tsx` + `scripts/test-xxx.mjs`
+  的回归用例（上游这套基建很完整，照着写就行），并在 `package.json` 加 script
+- 中文文案要贴合产品语气：直接、不夸张、不用营销词
+
+## 别做的事
+
+- 删 `LICENSE` 里的版权声明，或把项目说成完全原创
+- 重构上游的业务逻辑（`Feed.tsx`、`net.rs`、`media.rs` 这些）——一旦分叉过大，
+  以后同步上游就要手动合并
+- 把 `hghubx_` 开头的 localStorage 键名改掉——那是存储迁移逻辑的基准，
+  改了老用户的收藏/历史会丢
+- 在没跑 `pnpm build` 的情况下提交
+
+## 同步上游
+
+```bash
+git remote add upstream https://github.com/zxsos/HGhubX.git   # 只需一次
+git fetch upstream
+git log --oneline main..upstream/main        # 上游比我们多什么
+git diff main upstream/main -- <某个文件>     # 看具体改动
+git checkout upstream/main -- <某个文件>      # 只取某个文件（取完记得改品牌名）
+```
+
+取完上游文件后，把 `HGhubX` 换成 `HGuoTokX`、`com.hghubx.app` 换成 `com.hguotokx.app`。
