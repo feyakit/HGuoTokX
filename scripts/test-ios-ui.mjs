@@ -323,6 +323,12 @@ try {
       check("visible form labels, login errors, focus trap, Escape, and overlay back");
 
       await page.getByRole("button", { name: "设置", exact: true }).click();
+      // Settings uses accessible collapsible groups. Open the panels as a
+      // real user would; hidden controls should not be made globally visible.
+      const appearanceGroup = page.getByRole("button", { name: "外观设置", exact: true });
+      const networkGroup = page.getByRole("button", { name: "网络设置", exact: true });
+      await appearanceGroup.click();
+      await networkGroup.click();
       const security = page.getByRole("switch", { name: "严格安全模式", exact: true });
       const appearance = page.getByRole("group", { name: "外观模式", exact: true });
       await security.waitFor();
@@ -442,7 +448,7 @@ try {
           muted: root.getPropertyValue("--p-mut").trim(),
         };
       });
-      assert.match(material.blur, new RegExp(`blur\\(${test.theme === "light" ? 28 : 22}px\\)`), "Glass panels use the theme-specific blur");
+      assert.equal(material.blur, "none", "Scrolling settings cards avoid expensive live background blur");
       if (test.theme === "light") {
         const contrast = (foreground, background) => {
           const rgb = color => {
@@ -487,6 +493,7 @@ try {
       await appearance.getByRole("button", { name: "浅色", exact: true }).scrollIntoViewIfNeeded();
       await appearance.scrollIntoViewIfNeeded();
       await shot("settings");
+      await page.getByRole("button", { name: "本地数据设置", exact: true }).click();
       const clearCache = page.getByRole("button").filter({ has: page.getByText("清理缓存", { exact: true }) });
       await clearCache.click();
       const confirmation = page.getByRole("dialog");
