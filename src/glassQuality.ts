@@ -52,8 +52,15 @@ export function installGlassQuality(platform: GlassPlatform): () => void {
     });
   };
   update();
-  for (const query of queries) query.addEventListener("change", update);
+  // WebKitGTK and older Apple WebViews may only expose the legacy listener API.
+  for (const query of queries) {
+    if (typeof query.addEventListener === "function") query.addEventListener("change", update);
+    else query.addListener(update);
+  }
   return () => {
-    for (const query of queries) query.removeEventListener("change", update);
+    for (const query of queries) {
+      if (typeof query.removeEventListener === "function") query.removeEventListener("change", update);
+      else query.removeListener(update);
+    }
   };
 }
