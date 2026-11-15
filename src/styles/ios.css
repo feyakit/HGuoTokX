@@ -655,3 +655,70 @@ html.theme-light .ios-mobile-nav:not([data-over-video=true]) .hg-drop>.ios-liqui
   .ios-mobile-nav:not([data-over-video=true]) .hg-glass { background:Canvas; }
   .ios-mobile-nav:not([data-over-video=true]) .hg-drop>.ios-liquid-fill { background:Highlight; }
 }
+
+/* Phase 3 · shared page chrome: visually consistent with HGuoTokX's glass
+   identity on mobile and desktop. Preserve solid media surfaces and focus. */
+.ios-page-heading {
+  position:relative;
+  isolation:isolate;
+}
+.ios-page-heading::after {
+  content:"";
+  position:absolute;
+  z-index:-1;
+  width:min(340px,65vw);
+  height:80px;
+  top:0;
+  left:var(--ios-page-inset);
+  pointer-events:none;
+  background:radial-gradient(ellipse at center,var(--glass-ambient),transparent 70%);
+}
+.ios-page-title {
+  letter-spacing:-.04em;
+  text-wrap:balance;
+}
+.ios-search-form {
+  background:var(--glass-card-bg);
+  border:1px solid var(--glass-rim);
+  border-radius:999px;
+  box-shadow:var(--surface-shadow);
+}
+.ios-search-form:focus-within {
+  border-color:var(--p-primary);
+  box-shadow:0 0 0 3px var(--p-tint),var(--surface-shadow);
+}
+.ios-filter-pill[aria-pressed=true] {
+  box-shadow:var(--control-shadow),0 4px 12px var(--glass-ambient);
+}
+.win-titlebar {
+  border-bottom:1px solid var(--glass-rim);
+  background:var(--p-bg);
+}
+.win-sidebar {
+  border-right:1px solid var(--glass-rim);
+  background:var(--p-bg);
+}
+.win-nav-item.is-selected {
+  background:color-mix(in srgb,var(--p-primary) 13%,var(--p-s2));
+  color:var(--p-on);
+}
+.win-nav-item.is-selected::before {
+  background:var(--brand-spectrum);
+}
+.win-sidebar .win-search-launch {
+  border-color:var(--glass-rim);
+}
+.ios-setting-group,.ios-account-card {
+  box-shadow:var(--surface-shadow),0 9px 28px var(--glass-ambient);
+}
+@media (prefers-reduced-transparency:reduce),(prefers-contrast:more) {
+  .ios-search-form { background:var(--p-s1); }
+  .win-nav-item.is-selected { background:var(--p-s3); }
+  .ios-page-heading::after { display:none; }
+}
+@media (forced-colors:active) {
+  .win-titlebar,.win-sidebar,.ios-search-form { border-color:CanvasText; }
+  .win-nav-item.is-selected { background:Highlight;color:HighlightText; }
+  .win-nav-item.is-selected::before { background:HighlightText; }
+  .ios-page-heading::after { display:none; }
+}
