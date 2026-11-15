@@ -36,10 +36,12 @@ jobs:
       - name: Build frontend
         run: pnpm build
 
-      - name: Verify platform icon generation
+      - name: Verify brand and platform icon generation
         run: |
+          pnpm test:brand
           node scripts/generate-brand-icons.mjs
           node scripts/generate-ios-icons.mjs
+          pnpm test:ios-icons
 
   rust:
     name: Rust compile check
@@ -65,3 +67,35 @@ jobs:
       - name: Cargo check
         working-directory: src-tauri
         run: cargo check --all-targets
+
+  ui-regression:
+    name: Cross-platform UI smoke (Chromium fixture)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Chromium for UI fixtures
+        run: pnpm exec playwright-core install --with-deps chromium
+      - name: Mobile layout regression
+        run: pnpm test:mobile-layout
+      - name: Overlay focus and back-stack regression
+        run: pnpm test:ios-overlays
+      - name: Real App iOS-style smoke
+        env:
+          IOS_UI_CASE: 390x844-dark
+        run: pnpm test:ios-ui
+      - name: Upload browser evidence on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: liquid-glass-ui-regression
+          path: test-results/
+          if-no-files-found: ignore
