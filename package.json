@@ -17,6 +17,7 @@
     "test:ios-ui": "node scripts/test-ios-ui.mjs",
     "test:ios-icons": "node scripts/test-ios-icons.mjs",
     "test:brand": "node scripts/test-brand-consistency.mjs",
+    "test:glass-quality": "node scripts/test-glass-quality.mjs",
     "test:score-badge": "node scripts/test-score-badge-position.mjs",
     "test:ui-performance": "node scripts/test-ui-performance.mjs",
     "test:ios-overlays": "node scripts/test-ios-overlays.mjs",
