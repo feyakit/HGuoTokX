@@ -13,7 +13,11 @@ try {
   });
   const origin = vite.resolvedUrls.local[0];
   const scenarios = [
-    { name: "capable", expected: "full", options: {} },
+    { name: "windows-capable", platform: "windows", expected: "full", options: {} },
+    { name: "ios-capable", platform: "ios", expected: "full", options: {} },
+    { name: "android-capable", platform: "android", expected: "full", options: {} },
+    { name: "macos-capable", platform: "macos", expected: "full", options: {} },
+    { name: "linux-capable", platform: "linux", expected: "full", options: {} },
     { name: "low-memory", expected: "low", options: { memoryGB: 2 } },
     { name: "low-cpu", expected: "low", options: { cores: 2 } },
     { name: "forced-colors", expected: "low", options: { forcedColors: "active" } },
@@ -30,7 +34,7 @@ try {
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
-    await page.goto(`${origin}scripts/fixtures/glass-quality.html`);
+    await page.goto(`${origin}scripts/fixtures/glass-quality.html?platform=${scenario.platform || "windows"}`);
     await page.waitForFunction(() => !!document.documentElement.dataset.glassQuality);
     const actual = await page.evaluate(() => {
       const style = selector => getComputedStyle(document.querySelector(selector));
@@ -46,7 +50,7 @@ try {
       };
     });
     assert.equal(actual.quality, scenario.expected, `${scenario.name}: quality`);
-    assert.equal(actual.platform, "windows", `${scenario.name}: platform`);
+    assert.equal(actual.platform, scenario.platform || "windows", `${scenario.name}: platform`);
     assert.equal(actual.cardBlur, "none", `${scenario.name}: scrolling cards do not blur video`);
     if (scenario.expected === "full") {
       assert.match(actual.navBlur, /blur\(/, "Full mode should blur navigation");
