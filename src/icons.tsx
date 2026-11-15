@@ -96,25 +96,10 @@ export const CAT_ICONS: Record<string, ReturnType<typeof S>> = {
   短剧: IClapper, 漫剧: IStarsF, 游戏: IGamepad, 音乐: IHeadphones, 美食: IBowl, 旅行: ICompass, 萌宠: IPawF, 科技: ICpu,
 };
 
+/** Single public SVG is the source for the inline brand slot, splash and app icons. */
 export function Logo({ size = 28, className = "" }: { size?: number; className?: string }) {
-  // Shared H + play silhouette used by the launcher and public SVG artwork.
-  // Inline gradients are defined inside each icon to support multiple windows.
-  const gradientId = React.useId();
-  return (
-    <svg width={size} height={size} viewBox="0 0 64 64" className={className} aria-hidden="true">
-      <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
-          <stop stopColor="#78D8FF" />
-          <stop offset=".54" stopColor="#7977FF" />
-          <stop offset="1" stopColor="#F28ACF" />
-        </linearGradient>
-      </defs>
-      <rect width="64" height="64" rx="15" fill={`url(#${gradientId})`} />
-      <path d="M18 16V48M18 32H44M44 16V48" fill="none"
-        stroke="white" strokeOpacity=".94" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M31 24L48 33L31 42Z" fill="white" fillOpacity=".92" />
-    </svg>
-  );
+  return <img width={size} height={size} className={className} src="/logo.svg"
+    alt="" aria-hidden="true" draggable={false} decoding="async" />;
 }
 export const IList = S(<><path d="M8.5 6.5h11" /><path d="M8.5 12h11" /><path d="M8.5 17.5h11" /><circle cx="4.6" cy="6.5" r="1.2" fill="currentColor" stroke="none" /><circle cx="4.6" cy="12" r="1.2" fill="currentColor" stroke="none" /><circle cx="4.6" cy="17.5" r="1.2" fill="currentColor" stroke="none" /></>);
 export const IFileText = S(<><path d="M6.5 3.5h7.2l3.8 3.8v13.2H6.5z" /><path d="M13.7 3.5v3.8h3.8" /><path d="M9.4 12.2h5.2" /><path d="M9.4 15.6h5.2" /></>);
