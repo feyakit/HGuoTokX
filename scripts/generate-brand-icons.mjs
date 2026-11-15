@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Regenerate desktop and Android launch icons from the shared HGuoTokX artwork.
+ * Regenerate desktop and Android launch icons from the shared HGuoX artwork.
  * iOS uses its unmasked opaque source.svg and dedicated generator.
  *
  * Generation is staged and validated before updating the tracked icon sources.
@@ -16,7 +16,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const cli = join(root, "node_modules", "@tauri-apps", "cli", "tauri.js");
 const source = join(root, "app-icon.svg");
 const icons = join(root, "src-tauri", "icons");
-const staging = mkdtempSync(join(tmpdir(), "hguotokx-brand-icons-"));
+const staging = mkdtempSync(join(tmpdir(), "hguox-brand-icons-"));
 
 const desktop = [
   "32x32.png", "128x128.png", "128x128@2x.png", "icon.png", "icon.ico", "icon.icns",

@@ -90,9 +90,9 @@ jobs:
           if (-not (Test-Path $bin)) {
             $bin = (Get-ChildItem "src-tauri/target/release" -Filter *.exe | Select-Object -First 1).FullName
           }
-          Copy-Item $bin "artifacts/HGuoTokX.exe"
-          Compress-Archive -Path "artifacts/HGuoTokX.exe" -DestinationPath "artifacts/HGuoTokX_${v}_x64_portable.zip" -Force
-          Remove-Item "artifacts/HGuoTokX.exe"
+          Copy-Item $bin "artifacts/HGuoX.exe"
+          Compress-Archive -Path "artifacts/HGuoX.exe" -DestinationPath "artifacts/HGuoX_${v}_x64_portable.zip" -Force
+          Remove-Item "artifacts/HGuoX.exe"
           Get-ChildItem artifacts | Select-Object Name, Length
 
       - uses: actions/upload-artifact@v7
@@ -202,10 +202,10 @@ jobs:
             echo "::warning::未配置 ANDROID_KEY_BASE64，本次使用临时密钥签名（升级需先卸载）"
             rm -f "$KS"
             keytool -genkeypair -v -keystore "$KS" -storetype PKCS12 \
-              -alias hguotokx -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass hguotokx -keypass hguotokx \
-              -dname "CN=HGuoTokX, O=HGuoTokX, C=CN" >/dev/null 2>&1
-            KEY_ALIAS="hguotokx"; STORE_PASSWORD="hguotokx"; KEY_PASSWORD="hguotokx"
+              -alias hguox -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass hguox -keypass hguox \
+              -dname "CN=HGuoX, O=HGuoX, C=CN" >/dev/null 2>&1
+            KEY_ALIAS="hguox"; STORE_PASSWORD="hguox"; KEY_PASSWORD="hguox"
             export KEY_ALIAS STORE_PASSWORD KEY_PASSWORD
           fi
           BT="$(ls "$ANDROID_SDK_ROOT/build-tools" | sort -V | tail -1)"
@@ -214,7 +214,7 @@ jobs:
           found=0
           for f in $(find src-tauri/gen/android/app/build/outputs/apk -name '*-release*.apk'); do
             abi="$(basename "$(dirname "$(dirname "$f")")")"
-            out="artifacts/HGuoTokX_${VERSION}_${abi}.apk"
+            out="artifacts/HGuoX_${VERSION}_${abi}.apk"
             "$APKSIGNER" sign \
               --ks "$KS" --ks-key-alias "$KEY_ALIAS" \
               --ks-pass "pass:$STORE_PASSWORD" --key-pass "pass:$KEY_PASSWORD" \
@@ -305,7 +305,7 @@ jobs:
           SUFFIX=universal
           if [ "${{ inputs.quick }}" = "true" ]; then DIR=aarch64-apple-darwin; SUFFIX=arm64; fi
           cp "src-tauri/target/$DIR/release/bundle/dmg/"*.dmg \
-             "artifacts/HGuoTokX_${{ steps.ver.outputs.version }}_${SUFFIX}.dmg"
+             "artifacts/HGuoX_${{ steps.ver.outputs.version }}_${SUFFIX}.dmg"
           ls -lh artifacts
 
       - uses: actions/upload-artifact@v7
@@ -454,7 +454,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          cp src-tauri/target/release/bundle/deb/*.deb "artifacts/HGuoTokX_${{ steps.ver.outputs.version }}_amd64.deb"
+          cp src-tauri/target/release/bundle/deb/*.deb "artifacts/HGuoX_${{ steps.ver.outputs.version }}_amd64.deb"
           ls -lh artifacts
 
       - uses: actions/upload-artifact@v7
