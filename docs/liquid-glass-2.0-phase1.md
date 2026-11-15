@@ -31,3 +31,23 @@ Brand palette: ice blue `#78D8FF`, violet `#7977FF`, rose `#F28ACF`. Use glossy 
 - Added `scripts/generate-brand-icons.mjs` and included it in Tauri `beforeBuildCommand` and CI. Icons are generated in a temporary directory, validated as PNG/ICO/ICNS and copied to tracked source paths only after all expected slots are present.
 - Added quiet ice/violet/rose refraction to non-video mobile navigation. Video navigation and reduced transparency/high contrast stay legible.
 - No production binary packages have been built or manually checked as part of this review. CI build is the gate for these scripts; individual platforms still require native acceptance.
+
+## Phase 3 · implemented scope and delivery gates
+
+Code delivered on this branch:
+- Cross-platform page chrome for search, page headings, filters, settings cards and Windows/macOS/Linux desktop sidebars.
+- Desktop video controls with restrained translucent menus and gradient seek-progress. Playback clock, codecs, network and session logic unchanged.
+- Updated visual regression expectations to refer to HGuoTokX rather than the previous name.
+- Static brand consistency test (`pnpm test:brand`).
+- CI Chromium fixtures for mobile tab alignment, overlays/focus/back handling and the real App's 390×844 dark-mode viewport. Screenshots are uploaded if that CI job fails.
+
+**Definition of done before release**
+1. Green latest-head CI: frontend, icon generation, static brand test, Chromium fixtures and Rust compilation.
+2. Run the existing full UI matrix (`pnpm test:ios-ui`) and the video regression suite (`pnpm test:playback`) against the candidate commit.
+3. Build and install Android APK, iOS unsigned/signed target as appropriate, Windows setup/portable, macOS app/dmg, Linux deb. Check package name, launcher icon, splash and window branding.
+4. Verify login/logout, account scope, favorites, playback resume, episode swipes, search/history, proxy line switching and security preferences on **real devices**. Browser mocks do not prove native media success.
+5. Re-evaluate iOS ATS `NSAllowsArbitraryLoads` in the unsigned workflow with a documented upstream-network compatibility matrix before altering networking.
+6. Inspect light/dark, high contrast, reduced motion, reduced transparency, landscape, safe areas, keyboard tab order and low-power performance.
+7. Confirm redistribution complies with original PolyForm Noncommercial license and the project README's distribution restrictions.
+
+**Not complete in this branch:** signed store submissions, real-device installation evidence, native API-level Liquid Glass and full feature regression. The visual layer is a WebView/CSS-inspired material system.
