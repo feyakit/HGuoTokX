@@ -287,6 +287,9 @@ try {
       const linksRestored = await assertStableLinks("Collection switch");
       result.profileLinks = { before: linksBefore, history: linksHistory, restored: linksRestored };
       await page.getByRole("button", { name: "退出登录", exact: true }).click();
+      const logoutConfirmation = page.getByRole("dialog", { name: "退出登录", exact: true });
+      await logoutConfirmation.getByRole("button", { name: "确认退出", exact: true }).click();
+      await logoutConfirmation.waitFor({ state: "hidden" });
       await page.getByRole("button", { name: /未登录/ }).waitFor();
       check("local favorites, score badges, preserved playback progress, two-way slider, and stable profile shortcut columns");
 
