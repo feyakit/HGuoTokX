@@ -103,3 +103,26 @@
 .hg-launch { background:radial-gradient(80% 58% at 50% 42%,#242553 0%,#131329 66%,#0d0d19 100%); }
 .hg-launch-mark { filter:drop-shadow(0 16px 35px rgb(121 119 255 / .24)); }
 @media (prefers-reduced-motion:reduce) { .hg-launch-mark { filter:none; } }
+
+/* Dark neon glass brand reveal. Static SVG icon is the canonical mark.
+   Animate its transform/opacity only; never blur the entire WebView. */
+.hg-launch {
+  --launch-ink: #fff2fe;
+  --launch-muted: #b8abd6;
+  --launch-bg: #0a0820;
+  --launch-accent: #f78dc5;
+  background:
+    radial-gradient(circle at 50% 42%, rgb(135 55 169 / .20), transparent 48%),
+    radial-gradient(circle at 73% 17%, rgb(58 161 242 / .10), transparent 47%),
+    #0a0820;
+}
+.hg-launch-logo {
+  object-fit: contain;
+  filter: drop-shadow(0 12px 22px rgb(216 80 210 / .21));
+  animation: launch-tile 780ms 400ms both;
+}
+.hg-launch-word-x { color: #f793d9; }
+.hg-launch-orbit { border-color: #bd72fd; }
+@media (prefers-reduced-motion: reduce) {
+  .hg-launch-logo { animation:none; }
+}
