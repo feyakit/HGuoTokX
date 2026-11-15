@@ -89,3 +89,19 @@ interpretation deliberately simplifies photographic refractions to remain
 legible at 32–48 px. Pixel-identical icon packaging requires committing the
 original image as a native binary asset, followed by icon generation and
 real-device mask checks; it must not be claimed from the vector alone.
+
+## Phase 6 · Runtime glass quality controls
+
+Appearance Settings exposes **自动 / 完整 / 省电**. Auto remains the default: full
+quality on supported devices, low cost when reported device RAM is ≤2 GB or
+logical cores ≤2. Choosing "完整" overrides those *hardware heuristics* only;
+it **cannot** override missing CSS blur, reduced transparency, high contrast
+or forced colors. "省电" switches navigational and dialog backgrounds to
+solid, readable materials. Changing modes applies immediately and saves just
+one device-local preference key (`hguox_glass_preference_v1`). The update
+event is handled across tabs/windows via the storage listener.
+
+`pnpm test:glass-quality` verifies persistence across reload, live quality
+switches, low-memory manual override and forced-colors priority. Real-world
+GPU load varies with drivers, WebView compositor and video decoder and still
+requires on-device validation.

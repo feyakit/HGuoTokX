@@ -819,3 +819,25 @@ html.theme-light[data-glass-quality="low"] .ios-toast-host>div {
     -webkit-backdrop-filter:none;
   }
 }
+
+/* Phase 6 — explicit glass quality controls with responsive, touch-friendly UI.
+   The active quality still defers to OS accessibility and missing blur support. */
+.ios-glass-preference-row {
+  display:flex;
+  align-items:center;
+  gap:14px;
+  justify-content:space-between;
+  padding:14px 18px;
+  border-top:1px solid var(--ios-edge);
+}
+.ios-glass-preference-copy { flex:1; min-width:0; }
+.ios-glass-preference-copy>div+div { margin-top:4px; line-height:1.5; }
+.ios-glass-preference-picker { flex:none; width:232px; max-width:100%; }
+.ios-glass-preference-picker .ios-segmented-items>.ios-button { min-height:44px; padding-inline:8px; }
+@media(max-width:680px) {
+  .ios-glass-preference-row { flex-direction:column; align-items:stretch; }
+  .ios-glass-preference-picker { width:100%; }
+}
+@media(forced-colors:active) {
+  .ios-glass-preference-row { border-color:CanvasText; }
+}

@@ -63,11 +63,33 @@ try {
       assert.notEqual(actual.navBackground, "rgba(0, 0, 0, 0)", `${scenario.name}: nav must stay readable`);
     }
     if (scenario.name === "windows-capable") {
+      // Manual preference is persisted and takes effect without reloading.
+      await page.evaluate(() => window.__glass.setPreference("low"));
+      await page.waitForFunction(() => document.documentElement.dataset.glassQuality === "low");
+      assert.equal(await page.locator(".ios-dialog").evaluate(el => getComputedStyle(el).backdropFilter), "none");
+      await page.reload();
+      await page.waitForFunction(() => document.documentElement.dataset.glassQuality === "low");
+      assert.equal(await page.evaluate(() => window.__glass.getPreference()), "low");
+      await page.evaluate(() => window.__glass.setPreference("full"));
+      await page.waitForFunction(() => document.documentElement.dataset.glassQuality === "full");
+      assert.match(await page.locator(".ios-dialog").evaluate(el => getComputedStyle(el).backdropFilter), /blur\\(/);
       // Accessibility toggles while the WebView stays alive must change
       // compositing without restarting the app.
       await page.emulateMedia({ forcedColors: "active" });
       await page.waitForFunction(() => document.documentElement.dataset.glassQuality === "low");
       assert.equal(await page.locator(".ios-dialog").evaluate(el => getComputedStyle(el).backdropFilter), "none");
+      await page.emulateMedia({ forcedColors: "none" });
+      await page.waitForFunction(() => document.documentElement.dataset.glassQuality === "full");
+      await page.evaluate(() => window.__glass.setPreference("auto"));
+      assert.equal(await page.evaluate(() => window.__glass.getPreference()), "auto");
+    }
+    if (scenario.name === "low-memory") {
+      // A deliberate quality override can opt into full glass, unless
+      // accessibility or unsupported blur requires the safe fallback.
+      await page.evaluate(() => window.__glass.setPreference("full"));
+      await page.waitForFunction(() => document.documentElement.dataset.glassQuality === "full");
+      await page.emulateMedia({ forcedColors: "active" });
+      await page.waitForFunction(() => document.documentElement.dataset.glassQuality === "low");
       await page.emulateMedia({ forcedColors: "none" });
       await page.waitForFunction(() => document.documentElement.dataset.glassQuality === "full");
     }

@@ -2,6 +2,7 @@ import { Button, SegmentedControl, Surface, TextArea } from "../components/ios/c
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, APP_VERSION, hostOf, logLine, platform, type UpdateInfo } from "../api";
 import { useStore } from "../store";
+import { GLASS_PREFERENCE_EVENT, GLASS_QUALITY_EVENT, getGlassPreference, setGlassPreference, type GlassPreference, type GlassQuality } from "../glassQuality";
 import { Modal, Toggle } from "../components/ui";
 import LinePicker from "../components/LinePicker";
 import ProxySettings from "../components/ProxySettings";
@@ -19,7 +20,7 @@ import { IBack, IBoltF, IBroom, IChevR, IHeart, IInfo, ILink, ILockF, IMoon, IRe
 const SETTING_GROUPS = ["外观", "播放", "内容偏好", "本地数据", "网络", "播放诊断", "其他"] as const;
 type SettingGroup = typeof SETTING_GROUPS[number];
 const GROUP_SUMMARIES: Record<SettingGroup, string> = {
-  外观: "跟随系统、浅色与深色",
+  外观: "主题外观与玻璃特效",
   播放: "启动静音与画质偏好",
   内容偏好: "标签屏蔽与内容显示",
   本地数据: "收藏、观看记录与缓存",
@@ -52,6 +53,22 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
   const [diagReport, setDiagReport] = useState<string | null>(null);
   const [copyingReport, setCopyingReport] = useState(false);
   const [openGroups, setOpenGroups] = useState<Set<SettingGroup>>(() => new Set(initialSection ? [initialSection] : []));
+  const [glassPreference, setGlassPreferenceView] = useState<GlassPreference>(getGlassPreference);
+  const [effectiveGlass, setEffectiveGlass] = useState<GlassQuality>(
+    () => document.documentElement.dataset.glassQuality === "low" ? "low" : "full"
+  );
+  useEffect(() => {
+    const syncGlass = () => {
+      setGlassPreferenceView(getGlassPreference());
+      setEffectiveGlass(document.documentElement.dataset.glassQuality === "low" ? "low" : "full");
+    };
+    window.addEventListener(GLASS_PREFERENCE_EVENT, syncGlass);
+    window.addEventListener(GLASS_QUALITY_EVENT, syncGlass);
+    return () => {
+      window.removeEventListener(GLASS_PREFERENCE_EVENT, syncGlass);
+      window.removeEventListener(GLASS_QUALITY_EVENT, syncGlass);
+    };
+  }, []);
   const contentRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!initialSection) return;
@@ -141,6 +158,24 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
                     onClick={() => setTheme(value)}>
                     {label}
                   </Button>
+                ))}
+              </SegmentedControl>
+            </div>
+            <div className="ios-glass-preference-row">
+              <div className="ios-glass-preference-copy">
+                <div className="text-[14px] text-on">玻璃特效</div>
+                <div className="text-[12px] text-mut" role="status" aria-live="polite">
+                  {effectiveGlass === "low"
+                    ? "当前使用省电材质；系统辅助功能或兼容性限制始终优先"
+                    : glassPreference === "full"
+                      ? "完整玻璃已启用，可能增加电量与 GPU 消耗"
+                      : "当前启用完整玻璃；设备负载较高时可选择省电"}
+                </div>
+              </div>
+              <SegmentedControl className="ios-glass-preference-picker" aria-label="玻璃特效" activeIndex={(["auto", "full", "low"] as const).indexOf(glassPreference)}>
+                {([["auto", "自动"], ["full", "完整"], ["low", "省电"]] as const).map(([value, label]) => (
+                  <Button key={value} type="button" aria-pressed={glassPreference === value}
+                    onClick={() => setGlassPreference(value)}>{label}</Button>
                 ))}
               </SegmentedControl>
             </div>
