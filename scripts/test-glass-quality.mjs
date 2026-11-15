@@ -98,11 +98,26 @@ try {
       assert.match(playingBlur, /blur\(14px\)/, "Playback caps overlay blur at 14px");
       const tabsBlur = await page.locator(".desktop-home-tabs").evaluate(el => getComputedStyle(el).backdropFilter);
       assert.match(tabsBlur, /blur\(14px\)/, "Desktop video tabs cap blur while playing");
+      // Two concurrently playing videos must not race the quality state.
+      await page.evaluate(() => {
+        const video = document.createElement("video");
+        video.id = "second-glass-video";
+        Object.defineProperty(video, "paused", { configurable: true, get: () => false });
+        Object.defineProperty(video, "ended", { configurable: true, get: () => false });
+        document.body.append(video);
+        video.dispatchEvent(new Event("play"));
+      });
       await page.locator("#glass-video-probe").evaluate(video => video.dispatchEvent(new Event("pause")));
+      assert.equal(await page.locator("html").getAttribute("data-glass-video"), "playing", "Other playing video retains compositor cap");
+      await page.locator("#second-glass-video").evaluate(video => video.remove());
       await page.waitForFunction(() => document.documentElement.dataset.glassVideo === "idle");
       assert.match(await page.locator(".ios-dialog").evaluate(el => getComputedStyle(el).backdropFilter), /blur\(28px\)/);
       await page.locator("#glass-video-probe").evaluate(video => video.dispatchEvent(new Event("play")));
       await page.waitForFunction(() => document.documentElement.dataset.glassVideo === "playing");
+      await page.evaluate(() => window.__glass.setPreference("low"));
+      assert.equal(await page.locator(".ios-dialog").evaluate(el => getComputedStyle(el).backdropFilter), "none", "Low quality overrides video cap");
+      await page.evaluate(() => window.__glass.setPreference("auto"));
+      assert.match(await page.locator(".ios-dialog").evaluate(el => getComputedStyle(el).backdropFilter), /blur\(14px\)/);
       await page.locator("#glass-video-probe").evaluate(video => video.remove());
       await page.waitForFunction(() => document.documentElement.dataset.glassVideo === "idle");
     }
