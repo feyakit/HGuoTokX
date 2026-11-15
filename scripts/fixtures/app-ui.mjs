@@ -18,6 +18,21 @@ export function installFixture({ theme, titles }) {
   localStorage.setItem("hghubx_theme", theme);
   localStorage.setItem("hghubx_app_v1", JSON.stringify({ favs: [1, 2, 3, 4, 5, 6], history: [{ id: 1, ep: 3, t: 55, dur: 180, at: 123 }], searchHist: ["都市"] }));
   localStorage.setItem("hghubx_swipe_ep_v2", "1");
+  // The login UI test deliberately switches identity: authenticated favorites
+  // and history must come from that account, not leak from the guest snapshot.
+  const accountKey = JSON.stringify(["https://fixture.invalid", 9]);
+  localStorage.setItem("hghubx_accounts_v1", JSON.stringify({
+    version: 1,
+    accounts: {
+      [accountKey]: {
+        likes: [], favs: [1, 2, 3, 4, 5, 6], follows: [],
+        postLikes: [], postFavs: [],
+        history: [{ id: 1, ep: 3, t: 55, dur: 180, at: 123 }],
+        localHistory: [1], dirtyHistory: {},
+      },
+    },
+  }));
+
   const callbacks = new Map();
   let nextCallback = 0, backChannel;
   window.__IOS_UI_FIXTURE__ = {
@@ -44,9 +59,19 @@ export function installFixture({ theme, titles }) {
       if (command === "api_search_hot") return paged(titles.map((title, index) => ({ video_id: index + 1, title, plays: `${550 - index * 10}.1w播放量` })));
       if (command === "api_video") return { ...cards[(args.id - 1) % cards.length], counts: { collect: 900, comment: 20, hot: 286000, like: 1800 }, episodes: [] };
       if (command === "api_login") {
-        if (args.username === "profile-fixture") return { user: { id: 9, username: "fixture", nickname: "示例用户", avatar: "", avatar_color: "#63748b", counts: {} } };
+        if (args.username === "profile-fixture") return {
+          origin: "https://fixture.invalid",
+          user: { id: 9, username: "fixture", nickname: "示例用户", avatar: "", avatar_color: "#63748b", counts: {} },
+          interactions: { favorite_video_ids: [1, 2, 3, 4, 5, 6] },
+        };
         throw "账号或密码不正确";
       }
+      if (command === "api_me") return {
+        origin: "https://fixture.invalid",
+        user: { id: 9, username: "fixture", nickname: "示例用户", avatar: "", avatar_color: "#63748b", counts: {} },
+        interactions: { favorite_video_ids: [1, 2, 3, 4, 5, 6] },
+      };
+      if (command === "api_account_history") return { items: [], pagination: { page: 1, pages: 1, size: 50, total: 0 } };
       if (command === "api_logout") return { ok: true };
       if (command === "security_set") return args.strict;
       if (command === "api_play") throw "UI fixture has no media";
