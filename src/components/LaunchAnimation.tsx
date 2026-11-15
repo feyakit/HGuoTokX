@@ -9,7 +9,7 @@ import { hasAcceptedAgreement } from "../usageAgreement";
 let launchCompleted = false;
 export const LAUNCH_DURATION = 2200;
 
-/** HGuoTokX shared dark neon X-play identity, honoring reduced motion. */
+/** HGuoX shared dark neon X-play identity, honoring reduced motion. */
 export function LaunchAnimation({ onFinish }: { onFinish: () => void }) {
   const finishRef = useRef(onFinish);
   finishRef.current = onFinish;
@@ -51,7 +51,7 @@ export function LaunchAnimation({ onFinish }: { onFinish: () => void }) {
     return () => { disposed = true; void listener?.unregister().catch(() => {}); };
   }, [finish]);
 
-  return <div className="hg-launch" role="dialog" aria-modal="true" aria-label="HGuoTokX 启动动画"
+  return <div className="hg-launch" role="dialog" aria-modal="true" aria-label="HGuoX 启动动画"
     onAnimationEnd={event => { if (event.target === event.currentTarget && event.animationName === "launch-exit") finish(); }}>
     <div className="hg-launch-stage" aria-hidden="true">
       <div className="hg-launch-orbit" />

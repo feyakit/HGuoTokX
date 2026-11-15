@@ -37,7 +37,7 @@ export default function LoginModal() {
   useEffect(() => {
     if (!loginOpen) { setPassword(""); setShowPassword(false); setErr(""); }
   }, [loginOpen]);
-  const title = mode === "login" ? "登录 HGuoTokX" : "注册 HGuoTokX";
+  const title = mode === "login" ? "登录 HGuoX" : "注册 HGuoX";
   const close = () => {
     if (pending.current) return;
     setLoginOpen(false);
