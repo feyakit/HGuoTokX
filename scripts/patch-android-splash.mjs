@@ -30,6 +30,14 @@ if (!existsSync(res)) {
 // 与 src/styles/launch.css 的 --launch-bg、index.html 首帧背景一致
 const BRAND = "#071218";
 const THEME = "Theme.hghubx";
+const EDGE_ITEMS = [
+  ["android:statusBarColor", "@android:color/transparent"],
+  ["android:navigationBarColor", "@android:color/transparent"],
+  ["android:windowDrawsSystemBarBackgrounds", "true"],
+  ["android:windowLayoutInDisplayCutoutMode", "shortEdges"],
+  ["android:enforceStatusBarContrast", "false"],
+  ["android:enforceNavigationBarContrast", "false"],
+];
 const valuesDir = join(res, "values");
 const colorsPath = join(valuesDir, "colors.xml");
 const pending = new Map();
@@ -126,15 +134,6 @@ for (const directory of directories) {
 for (const [path, xml] of pending) writeFileSync(path, xml);
 console.log(`[splash] Android ${themeCount} 个主题背景已对齐 → ${BRAND}（更新 ${pending.size} 个文件）`);
 patchEdgeToEdgeActivity(join(root, "src-tauri", "gen", "android"));
-
-const EDGE_ITEMS = [
-  ["android:statusBarColor", "@android:color/transparent"],
-  ["android:navigationBarColor", "@android:color/transparent"],
-  ["android:windowDrawsSystemBarBackgrounds", "true"],
-  ["android:windowLayoutInDisplayCutoutMode", "shortEdges"],
-  ["android:enforceStatusBarContrast", "false"],
-  ["android:enforceNavigationBarContrast", "false"],
-];
 
 /** 系统栏透明并允许内容画到刘海下。已有同名 item 时不覆盖，避免和模板打架。 */
 function edgeToEdge(body) {
