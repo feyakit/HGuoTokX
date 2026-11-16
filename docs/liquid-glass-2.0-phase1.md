@@ -122,3 +122,20 @@ preferred quality, Low always disables blur, and system reduced transparency
 and forced colors retain priority. The rendered video itself never receives
 a backdrop blur. Browser checks cover play, pause and removed-video cleanup;
 native WebView performance still requires physical-device testing.
+
+## Phase 8 · On-demand WebView cadence diagnostic
+
+Appearance Settings includes **检测玻璃流畅度**, an explicit local test
+of the current foreground WebView's `requestAnimationFrame` cadence. It
+collects up to 72 frame intervals, computes the median and 95th percentile
+and flags sustained long frames (p95 ≥80ms or ≥12% of intervals >50ms).
+30Hz screens are not falsely classified as slow. No periodic monitoring,
+device fingerprinting, network telemetry or automatic preference changes
+are introduced. Backgrounding or leaving the page stops the sample.
+
+Results are advisory: WebView frame pacing does **not** measure video decoder
+FPS, compositor cost alone, GPU occupancy, power consumption or thermal state.
+When the sample suggests stutter, the user may explicitly select the existing
+Low mode. The isolated Chromium test checks deterministic statistics and an
+actual short frame sample; the real App smoke covers the visible Settings
+control and result. Native device acceptance remains necessary.

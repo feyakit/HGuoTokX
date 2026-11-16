@@ -364,6 +364,10 @@ try {
       await assertSlider(glassPicker, 3, 0, "glass:auto restored");
       assert.equal(await page.evaluate(() => localStorage.getItem("hguox_glass_preference_v1")), null);
       check("glass rendering preference, accessibility-safe fallback, and persistence");
+      await page.getByRole("button", { name: "检测玻璃流畅度", exact: true }).click();
+      await page.waitForFunction(() => document.querySelector(".ios-glass-performance-result")?.textContent?.includes("检测结果："), { timeout: 8000 });
+      assert.match(await page.locator(".ios-glass-performance-result").innerText(), /典型间隔|采样不足/, "Settings renders the local cadence result");
+      check("on-demand WebView frame cadence diagnostic");
       check("circular icon controls and rounded segmented controls");
       const pageIn = page.locator(".a-page-in");
       if (await pageIn.count()) {

@@ -63,6 +63,18 @@ try {
       assert.notEqual(actual.navBackground, "rgba(0, 0, 0, 0)", `${scenario.name}: nav must stay readable`);
     }
     if (scenario.name === "windows-capable") {
+      const measurements = await page.evaluate(async () => ({
+        smooth: window.__glassPerformance.assess(Array.from({length:30}, () => 16.7)),
+        thirtyHz: window.__glassPerformance.assess(Array.from({length:30}, () => 33.3)),
+        overloaded: window.__glassPerformance.assess(Array.from({length:30}, (_, index) => index%3===0 ? 110 : 16.7)),
+        invalid: window.__glassPerformance.assess([NaN, -1, 0, 16, Infinity]),
+        live: await window.__glassPerformance.sample({ frames:12, timeoutMs:5000 }),
+      }));
+      assert.equal(measurements.smooth.status, "smooth", "60Hz UI cadence is healthy");
+      assert.equal(measurements.thirtyHz.status, "smooth", "30Hz display does not false-positive");
+      assert.equal(measurements.overloaded.status, "stutter", "Repeated long frames trigger recommendation");
+      assert.equal(measurements.invalid.status, "inconclusive", "Invalid samples are rejected");
+      assert.equal(measurements.live.frameCount, 12, "Probe completes and cleans up after requested frames");
       // Manual preference is persisted and takes effect without reloading.
       await page.evaluate(() => window.__glass.setPreference("low"));
       await page.waitForFunction(() => document.documentElement.dataset.glassQuality === "low");

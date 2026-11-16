@@ -11,10 +11,12 @@
 <script type="module">
 import { installGlassQuality, getGlassPreference, setGlassPreference } from "../../src/glassQuality.ts";
 import { installGlassVideoActivity } from "../../src/glassVideoActivity.ts";
+import { assessGlassFrames, measureGlassFrameCadence } from "../../src/glassPerformance.ts";
 const supported = ["android","ios","windows","macos","linux"];
 const requested = new URLSearchParams(location.search).get("platform");
 window.__stopGlass = installGlassQuality(supported.includes(requested) ? requested : "windows");
 window.__stopGlassVideo = installGlassVideoActivity();
 window.__glass = { getPreference:getGlassPreference, setPreference:setGlassPreference };
+window.__glassPerformance = { assess:assessGlassFrames, sample:measureGlassFrameCadence };
 </script>
 </body></html>

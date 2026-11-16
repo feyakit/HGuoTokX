@@ -857,3 +857,42 @@ html.theme-light[data-glass-quality="low"] .ios-toast-host>div {
 @media(forced-colors:active) {
   .ios-glass-preference-row { border-color:CanvasText; }
 }
+
+/* Phase 8: on-demand local WebView frame cadence diagnostic. */
+.ios-glass-diagnostics {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:10px 14px;
+  padding:14px 18px;
+  border-top:1px solid var(--ios-edge);
+}
+.ios-glass-diagnostics-copy { flex:1 1 210px; min-width:0; }
+.ios-glass-diagnostics-copy>div+div { margin-top:4px; line-height:1.5; }
+.ios-glass-check-button.ios-button,
+.ios-glass-recommend-low.ios-button {
+  min-height:44px;
+  padding-inline:16px;
+  background:var(--p-s3);
+  border:1px solid var(--ios-edge);
+  border-radius:var(--r-ctl);
+}
+.ios-glass-performance-result {
+  flex:1 0 100%;
+  min-width:0;
+  display:flex;
+  gap:12px;
+  flex-wrap:wrap;
+  align-items:center;
+  font-size:12px;
+  line-height:1.5;
+  color:var(--p-mut);
+  overflow-wrap:anywhere;
+}
+@media (max-width:520px) {
+  .ios-glass-check-button.ios-button { width:100%; }
+}
+@media (forced-colors:active) {
+  .ios-glass-diagnostics { border-color:CanvasText; }
+  .ios-glass-check-button.ios-button,.ios-glass-recommend-low.ios-button { border-color:ButtonText; }
+}

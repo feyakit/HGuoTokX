@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, APP_VERSION, hostOf, logLine, platform, type UpdateInfo } from "../api";
 import { useStore } from "../store";
 import { GLASS_PREFERENCE_EVENT, GLASS_QUALITY_EVENT, getGlassPreference, setGlassPreference, type GlassPreference, type GlassQuality } from "../glassQuality";
+import { measureGlassFrameCadence, type GlassFrameAssessment } from "../glassPerformance";
 import { Modal, Toggle } from "../components/ui";
 import LinePicker from "../components/LinePicker";
 import ProxySettings from "../components/ProxySettings";
@@ -57,6 +58,26 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
   const [effectiveGlass, setEffectiveGlass] = useState<GlassQuality>(
     () => document.documentElement.dataset.glassQuality === "low" ? "low" : "full"
   );
+  const [glassChecking, setGlassChecking] = useState(false);
+  const [glassReport, setGlassReport] = useState<GlassFrameAssessment | null>(null);
+  const [glassProbeError, setGlassProbeError] = useState("");
+  const glassProbeAbort = useRef<AbortController | null>(null);
+  useEffect(() => () => glassProbeAbort.current?.abort(), []);
+  const checkGlassCadence = async () => {
+    if (glassProbeAbort.current) return;
+    const controller = new AbortController();
+    glassProbeAbort.current = controller;
+    setGlassChecking(true); setGlassReport(null); setGlassProbeError("");
+    try {
+      const report = await measureGlassFrameCadence({ signal: controller.signal });
+      if (!controller.signal.aborted) setGlassReport(report);
+    } catch (error) {
+      if (!controller.signal.aborted) setGlassProbeError(error instanceof Error ? error.message : "检测失败");
+    } finally {
+      if (glassProbeAbort.current === controller) glassProbeAbort.current = null;
+      if (!controller.signal.aborted) setGlassChecking(false);
+    }
+  };
   useEffect(() => {
     const syncGlass = () => {
       setGlassPreferenceView(getGlassPreference());
@@ -178,6 +199,31 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
                     onClick={() => setGlassPreference(value)}>{label}</Button>
                 ))}
               </SegmentedControl>
+            </div>
+            <div className="ios-glass-diagnostics">
+              <div className="ios-glass-diagnostics-copy">
+                <div className="text-[14px] text-on">设备流畅度检测</div>
+                <div className="text-[12px] text-mut">检测当前 WebView 画面更新间隔，不代表视频帧率或 GPU 跑分；仅在点击时运行。</div>
+              </div>
+              <Button type="button" disabled={glassChecking} onClick={() => { void checkGlassCadence(); }}
+                className="ios-glass-check-button">
+                {glassChecking ? "检测中…" : "检测玻璃流畅度"}
+              </Button>
+              {(glassChecking || glassReport || glassProbeError) && (
+                <div className="ios-glass-performance-result" role="status" aria-live="polite">
+                  {glassChecking ? "正在检测前台画面更新…" : glassProbeError
+                    ? `检测失败：${glassProbeError}`
+                    : glassReport && glassReport.status === "inconclusive"
+                      ? "检测结果：采样不足，建议重新检测"
+                      : glassReport
+                        ? `检测结果：${glassReport.status === "smooth" ? "流畅" : "检测到卡顿"} · 典型间隔 ${glassReport.medianMs}ms · 95% 间隔 ${glassReport.p95Ms}ms`
+                        : ""}
+                  {glassReport?.status === "stutter" && glassPreference !== "low" && (
+                    <Button type="button" onClick={() => setGlassPreference("low")}
+                      className="ios-glass-recommend-low">切换省电</Button>
+                  )}
+                </div>
+              )}
             </div>
           </>)}
 
