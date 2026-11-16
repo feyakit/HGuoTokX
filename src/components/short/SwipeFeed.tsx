@@ -2,17 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import VideoSurface, { type VideoHandle } from "../VideoSurface";
 import { Button } from "../ios/controls";
 import { useStore } from "../../store";
-import { api, fmt, platform } from "../../api";
+import { fmt, platform } from "../../api";
 import { copyText } from "../../clipboard";
 import { assignSlots, type AccentScheme } from "../../accent";
 import { useAccent } from "../../useAccent";
 import { installGlassQuality } from "../../glassQuality";
 import { registerOverlayBack } from "../../back";
-import { IBack, IBoltF, ICheck, IClose, IHeart, IHeartF, ISearch, IShare, IStar, IStarF, IVertSwap, IVol, IVolMute } from "../../icons";
+import { IBack, IBoltF, ICheck, IClose, IComment, IHeart, IHeartF, IMore, ISearch, IShare, IStar, IStarF, IVertSwap, IVol, IVolMute } from "../../icons";
+import { CommentsPanel } from "../Panels";
+import LinePicker from "../LinePicker";
 import { haptic, mediaKey, networkProfile } from "./runtime";
 import { invalidateMedia, loadMedia, type LoadedMedia } from "./media";
 
-type FeedTab = "follow" | "recommend" | "rank";
+type FeedTab = "follow" | "recommend";
 type Item = { id: number; ep: number; key: string };
 type Series = { id: number; ep: number; time?: number };
 
@@ -21,9 +23,8 @@ function asMedia(value: LoadedMedia | { error: string } | undefined): LoadedMedi
 }
 
 const TABS: { key: FeedTab; label: string }[] = [
-  { key: "follow", label: "追剧" },
   { key: "recommend", label: "推荐" },
-  { key: "rank", label: "榜单" },
+  { key: "follow", label: "追剧" },
 ];
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
 const HOLD_MS = 380;
@@ -42,15 +43,14 @@ export default function SwipeFeed({
   onBack?: () => void;
 }) {
   const store = useStore();
-  const { favs, history, isLiked, isFav, setLiked, setCollected, addHistory, muted, setMuted, volume, setVolume, toast, preferHevc, lineEpoch, setFs, setTab: setAppTab } = store;
+  const { favs, history, isLiked, isFav, setLiked, setCollected, addHistory, muted, setMuted, volume, setVolume, toast, preferHevc, setPreferHevc, lineEpoch, setFs, setTab: setAppTab } = store;
   const discover = variant === "discover";
   const net = useRef(networkProfile());
   const rootRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const handles = useRef<(VideoHandle | null)[]>([null, null, null]);
   const [tab, setTab] = useState<FeedTab>("recommend");
-  const [cursor, setCursor] = useState({ follow: 0, recommend: 0, rank: 0 });
-  const [rankIds, setRankIds] = useState<number[]>([]);
+  const [cursor, setCursor] = useState({ follow: 0, recommend: 0 });
   const [series, setSeries] = useState<Series | null>(discover ? null : { id: videoId || 0, ep: startEp, time: startTime });
   const [slots, setSlots] = useState<string[]>(["", "", ""]);
   const [media, setMedia] = useState<Record<string, LoadedMedia | { error: string }>>({});
@@ -60,6 +60,10 @@ export default function SwipeFeed({
   const [locked, setLocked] = useState(false);
   const [dim, setDim] = useState(false);
   const [sheet, setSheet] = useState(false);
+  const [comments, setComments] = useState(false);
+  const [more, setMore] = useState(false);
+  const [lineOpen, setLineOpen] = useState(false);
+  const [turned, setTurned] = useState(false);
   const [speedOpen, setSpeedOpen] = useState(false);
   const [burst, setBurst] = useState<{ x: number; y: number; n: number } | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -81,22 +85,15 @@ export default function SwipeFeed({
     return () => setFs(false);
   }, [discover, series, active, setFs]);
 
-  useEffect(() => {
-    if (tab !== "rank" || rankIds.length) return;
-    let cancel = false;
-    api.rank("hot").then(res => { if (!cancel) setRankIds((res.items || []).map(item => item.video_id)); }).catch(() => {});
-    return () => { cancel = true; };
-  }, [tab, rankIds.length, lineEpoch]);
-
   const list = useMemo<Item[]>(() => {
     if (!discover || series) return [];
-    const source = tab === "follow" ? favs : tab === "rank" ? rankIds : ids;
+    const source = tab === "follow" ? favs : ids;
     return source.map(id => {
       const saved = tab === "follow" ? history.find(row => row.id === id) : undefined;
       const ep = saved?.ep || 1;
       return { id, ep, key: mediaKey(id, ep) };
     });
-  }, [discover, series, tab, favs, rankIds, ids, history]);
+  }, [discover, series, tab, favs, ids, history]);
 
   const index = discover && !series ? Math.min(cursor[tab], Math.max(0, list.length - 1)) : 0;
   const currentItem: Item | null = series
@@ -185,12 +182,15 @@ export default function SwipeFeed({
     if (!active) return;
     return registerOverlayBack(() => {
       if (sheet) { setSheet(false); return true; }
+      if (comments) { setComments(false); return true; }
+      if (more) { setMore(false); return true; }
       if (speedOpen) { setSpeedOpen(false); return true; }
       if (showGuide) { setShowGuide(false); return true; }
       if (discover && series) { leaveSeries(); return true; }
+      if (!discover) { onBack?.(); return true; }
       return false;
     });
-  }, [active, sheet, speedOpen, showGuide, discover, series, leaveSeries]);
+  }, [active, sheet, comments, more, speedOpen, showGuide, discover, series, leaveSeries, onBack]);
 
   useEffect(() => {
     handles.current.forEach((handle, slot) => {
@@ -409,7 +409,7 @@ export default function SwipeFeed({
   const currentScheme = useAccent(currentItem?.id, ready?.poster);
 
   return (
-    <div ref={rootRef} className={`db-feed ${dim ? "is-dim" : ""} ${series ? "is-series" : ""} ${boost || locked ? "is-boost" : ""}`} style={{ ...schemeStyle(currentScheme), paddingBottom: series ? 0 : bottomInset }}
+    <div ref={rootRef} className={`db-feed ${dim ? "is-dim" : ""} ${series ? "is-series" : ""} ${boost || locked ? "is-boost" : ""} ${turned ? "is-turned" : ""}`} style={{ ...schemeStyle(currentScheme), paddingBottom: series ? 0 : bottomInset }}
       data-short-feed={discover ? "discover" : "series"} data-accent={currentScheme.accent} data-accent-source={currentScheme.source}>
       {discover && !series && (
         <div className="db-top" data-gesture="none">
@@ -426,6 +426,7 @@ export default function SwipeFeed({
       {(series || !discover) && (
         <div className="db-series-top" data-gesture="none">
           <Button aria-label="返回" className="db-icon" onClick={leaveSeries}><IBack size={22} /></Button>
+          <Button className="db-top-side" aria-label={muted ? "取消静音" : "静音"} onClick={() => setMuted(value => !value)}>{muted ? <IVolMute size={20} /> : <IVol size={20} />}</Button>
           <span className="db-ep-label">{ready ? `${ready.detail.title} · 第${currentItem?.ep || 1}集` : "剧内连播"}</span>
           <Button className="db-speed" aria-label="倍速" aria-expanded={speedOpen} onClick={() => setSpeedOpen(value => !value)}>
             倍速 {applied === 2 && (boost || locked) ? "2.0x" : `${rate % 1 ? rate.toFixed(2) : rate.toFixed(1)}x`}
@@ -443,7 +444,7 @@ export default function SwipeFeed({
 
       {items.length === 0 ? (
         <div className="db-empty">
-          <p>{tab === "follow" ? "还没有在追的剧" : tab === "rank" ? "榜单暂时没有内容" : "暂无视频"}</p>
+          <p>{tab === "follow" ? "还没有在追的剧" : "暂无视频"}</p>
           {tab === "follow" && <Button className="db-pill" onClick={() => setTab("recommend")}>去刷剧</Button>}
         </div>
       ) : (
@@ -476,7 +477,8 @@ export default function SwipeFeed({
                 }}
                 onLike={() => likeAt((rootRef.current?.clientWidth || 0) / 2, (rootRef.current?.clientHeight || 0) / 2, false)}
                 onFav={() => { void setCollected("video", item.id, !isFav(item.id)).catch(error => toast(error instanceof Error ? error.message : "收藏失败", "info")); }}
-                onShare={() => { const title = asMedia(media[key])?.detail.title || "这部剧"; void copyText(title).then(() => toast("已复制剧名", "ok")).catch(() => toast("复制失败", "info")); }}
+                onComment={() => setComments(true)}
+                onMore={() => setMore(true)}
                 onSheet={() => setSheet(true)}
                 onPick={ep => series ? setSeries({ id: series.id, ep }) : enterSeries(item.id, ep)}
                 onRetry={() => { invalidateMedia(item.id, item.ep); setMedia(prev => { const next = { ...prev }; delete next[key]; return next; }); }}
@@ -506,6 +508,37 @@ export default function SwipeFeed({
           onClose={() => setSheet(false)}
         />
       )}
+      {comments && currentItem && (
+        <div className="db-sheet-root" role="dialog" aria-label="评论" data-gesture="none">
+          <button type="button" className="db-sheet-mask" aria-label="关闭评论" onClick={() => setComments(false)} />
+          <div className="db-sheet v3-panel"><CommentsPanel videoId={currentItem.id} ep={currentItem.ep} total={ready?.detail.counts.comment || 0} onClose={() => setComments(false)} /></div>
+        </div>
+      )}
+      {more && (
+        <div className="db-sheet-root" role="dialog" aria-label="更多" data-gesture="none">
+          <button type="button" className="db-sheet-mask" aria-label="关闭更多" onClick={() => setMore(false)} />
+          <div className="db-sheet v3-panel v3-more">
+            <h2>更多</h2>
+            <div className="v3-speeds">
+              {SPEEDS.map(value => <Button key={value} aria-pressed={rate === value} onClick={() => { setRate(value); setLocked(false); setBoost(false); }}>{value}x</Button>)}
+            </div>
+            <Button onClick={() => setPreferHevc(!preferHevc)}>{preferHevc ? "清晰度：高清" : "清晰度：标准"}</Button>
+            <Button onClick={() => setLineOpen(true)}>线路</Button>
+            <Button onClick={() => setTurned(value => !value)}>{turned ? "退出横屏" : "横屏"}</Button>
+            <Button onClick={() => {
+              const video = handles.current.map(handle => handle?.el()).find(el => el);
+              const run = async () => {
+                if (document.pictureInPictureElement) { await document.exitPictureInPicture(); return; }
+                if (video && document.pictureInPictureEnabled) { await video.requestPictureInPicture(); return; }
+                toast("当前环境不支持画中画", "info");
+              };
+              void run().catch(() => toast("画中画开启失败", "info"));
+            }}>画中画</Button>
+            <Button onClick={() => { const title = ready?.detail.title || "这部剧"; void copyText(title).then(() => toast("已复制剧名", "ok")).catch(() => toast("复制失败", "info")); }}>分享</Button>
+          </div>
+        </div>
+      )}
+      <LinePicker open={lineOpen} onClose={() => setLineOpen(false)} />
     </div>
   );
 }
@@ -533,13 +566,13 @@ function CountDown({ ep, onCancel }: { ep: number; onCancel: () => void }) {
 
 function Slide({
   slot, offset, item, loaded, active, preload, paused, rate, muted, volume, bottomInset, series, interactive, liked, faved, continueEp, veil,
-  onHandle, onEnded, onTime, onOpenSeries, onLike, onFav, onShare, onSheet, onPick, onRetry,
+  onHandle, onEnded, onTime, onOpenSeries, onLike, onFav, onComment, onMore, onSheet, onPick, onRetry,
 }: {
   slot: number; offset: number; item: Item; loaded?: LoadedMedia | { error: string }; active: boolean; preload: boolean;
   paused: boolean; rate: number; muted: boolean; volume: number; bottomInset: number; series: boolean; interactive: boolean;
   liked: boolean; faved: boolean; continueEp?: { ep: number; t: number }; veil: number;
   onHandle: (handle: VideoHandle | null) => void; onEnded: () => void; onTime: (t: number, dur: number) => void;
-  onOpenSeries: () => void; onLike: () => void; onFav: () => void; onShare: () => void; onSheet: () => void;
+  onOpenSeries: () => void; onLike: () => void; onFav: () => void; onComment: () => void; onMore: () => void; onSheet: () => void;
   onPick: (ep: number) => void; onRetry: () => void;
 }) {
   const data = loaded && "detail" in loaded ? loaded : undefined;
@@ -622,7 +655,8 @@ function Slide({
         {interactive && <div className="db-rail" data-gesture="none">
           <Button aria-label={liked ? "取消喜欢" : "喜欢"} onClick={onLike}><i className={liked ? "is-like" : ""}>{liked ? <IHeartF size={30} /> : <IHeart size={30} />}</i><span>{fmt(data?.detail.counts.like)}</span></Button>
           <Button aria-label={faved ? "取消收藏" : "收藏"} onClick={onFav}><i className={faved ? "is-fav" : ""}>{faved ? <IStarF size={28} /> : <IStar size={28} />}</i><span>{fmt(data?.detail.counts.collect)}</span></Button>
-          <Button aria-label="分享" onClick={onShare}><IShare size={28} /><span>分享</span></Button>
+          <Button aria-label="评论" onClick={onComment}><IComment size={28} /><span>评论</span></Button>
+          <Button aria-label="更多" onClick={onMore}><IMore size={28} /><span>更多</span></Button>
         </div>}
       </div>
     </section>

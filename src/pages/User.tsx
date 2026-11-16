@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, fmt } from "../api";
 import type { Paged, UserProfile, VideoCard } from "../types";
 import { useStore } from "../store";
+import { openTitles } from "../openVideo";
 import { useContentPreferences } from "../contentPreferences";
 import { Masonry } from "../components/cards";
 import { InplaceSearch } from "../components/InplaceSearch";
@@ -113,11 +114,11 @@ function FollowingContent({ onBack, wide }: { onBack: () => void; wide: boolean 
       {!user ? <Empty icon={<IUser size={26} />} title="登录后查看关注流" sub="关注喜欢的作者，第一时间看到他们的新作品" action="去登录" onAction={() => setLoginOpen(true)} />
         : state.loading && !state.items.length ? <div className="flex justify-center py-12"><Loader /></div>
         : state.err && !state.items.length ? <Empty icon={<IGrid size={26} />} title="关注流加载失败" sub={state.err} action="重试" onAction={() => void state.loadMore()} />
-        : state.items.length ? <Masonry videos={state.items} scopeKey={`following:${accountScope}`} wide={wide} onOpen={video => push({ kind: "feed", videoIds: state.items.map(item => item.id), index: state.items.findIndex(item => item.id === video.id), title: "关注" })} />
+        : state.items.length ? <Masonry videos={state.items} scopeKey={`following:${accountScope}`} wide={wide} onOpen={video => openTitles(push, state.items.map(item => item.id), state.items.findIndex(item => item.id === video.id), video.title)} />
         : <Empty icon={<IGrid size={26} />} title="还没有关注内容" sub="在分类中发现作品，关注喜欢的作者。" action="去分类看看" onAction={() => setTab("category")} />}
       {user && <PaginationFeedback state={state} />}
     </div>
-    {searching && <InplaceSearch kind="video" wide={wide} onClose={() => setSearching(false)} onOpenVideo={(v, list) => push({ kind: "feed", videoIds: list.map(x => x.id), index: list.findIndex(x => x.id === v.id), title: "关注" })} />}
+    {searching && <InplaceSearch kind="video" wide={wide} onClose={() => setSearching(false)} onOpenVideo={(v, list) => openTitles(push, list.map(x => x.id), list.findIndex(x => x.id === v.id), v.title)} />}
   </div>;
 }
 
@@ -223,10 +224,10 @@ function UserContent({ id, name, onBack, wide }: { id: number; name?: string; on
       <div className="mt-4 mb-2.5 flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-[14px] font-bold text-on">作品</h2><p role="status" className="text-[12px] text-mut">{countLabel(state)}</p></div>
       {state.loading && !state.items.length ? <div className="flex justify-center py-12"><Loader /></div>
         : state.err && !state.items.length ? <Empty icon={<IGrid size={26} />} title="作品加载失败" sub={state.err} action="重试" onAction={() => void state.loadMore()} />
-        : state.items.length ? <Masonry videos={state.items} scopeKey={id} wide={wide} onOpen={v => push({ kind: "feed", videoIds: state.items.map(x => x.id), index: state.items.findIndex(x => x.id === v.id), title: profile?.nickname || name || "用户作品" })} />
+        : state.items.length ? <Masonry videos={state.items} scopeKey={id} wide={wide} onOpen={v => openTitles(push, state.items.map(x => x.id), state.items.findIndex(x => x.id === v.id), v.title)} />
         : <Empty icon={<IGrid size={26} />} title="暂无作品" />}
       <PaginationFeedback state={state} />
     </div>
-    {searching && <InplaceSearch kind="video" wide={wide} onClose={() => setSearching(false)} onOpenVideo={(v, list) => push({ kind: "feed", videoIds: list.map(x => x.id), index: list.findIndex(x => x.id === v.id), title: profile?.nickname || name || "用户作品" })} />}
+    {searching && <InplaceSearch kind="video" wide={wide} onClose={() => setSearching(false)} onOpenVideo={(v, list) => openTitles(push, list.map(x => x.id), list.findIndex(x => x.id === v.id), v.title)} />}
   </div>;
 }

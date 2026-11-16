@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, fmt } from "../api";
 import type { Post, VideoCard } from "../types";
 import { useStore } from "../store";
+import { openTitles } from "../openVideo";
 import { MediaCard, Masonry, RowCard } from "../components/cards";
 import { FilteredContent } from "../components/FilteredContent";
 import { useContentPreferences } from "../contentPreferences";
@@ -126,7 +127,7 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
               </Button>
               <FilteredContent items={list} scopeKey={c.cate}>{visible => <div className="scroll-x flex gap-2.5 snap-x" role="group" aria-label={`${c.name}影片预览`}>
                 {visible.map((v) => (
-                  <RowCard key={v.id} v={v} onOpen={() => push({ kind: "feed", videoIds: list.map((x) => x.id), index: list.findIndex((x) => x.id === v.id), title: c.name })} />
+                  <RowCard key={v.id} v={v} onOpen={() => openTitles(push, list.map(x => x.id), list.findIndex(x => x.id === v.id), v.title)} />
                 ))}
                 {!list.length && <PreviewStatus name={c.name} loading={loading[c.cate] !== false} error={errors[c.cate]} onRetry={() => void loadPreview(c.cate)} />}
               </div>}</FilteredContent>
@@ -310,7 +311,7 @@ export function ChannelPage({ cate, name, onBack, wide }: { cate: string; name: 
         {items.length > 0 && err && <div role="status" className="mb-3 flex flex-wrap items-center gap-2 text-[12px] text-mut"><span>{err}</span><Button className="px-3 text-primary" onClick={() => void loadMore(replacing)}>重试</Button></div>}
         {items.length ? (
           <div inert={replacing || undefined} className={replacing ? "opacity-60" : undefined}>
-            <Masonry videos={items} scopeKey={filterKey(serverSort, originalCate)} wide={wide} onOpen={(v) => { if (!replacing) push({ kind: "feed", videoIds: items.map((x) => x.id), index: items.findIndex((x) => x.id === v.id), title: name }); }} />
+            <Masonry videos={items} scopeKey={filterKey(serverSort, originalCate)} wide={wide} onOpen={(v) => { if (!replacing) openTitles(push, items.map(x => x.id), items.findIndex(x => x.id === v.id), v.title); }} />
           </div>
         ) : err ? (
           <Empty icon={<IGrid size={26} />} title="加载失败" sub={err} action="重试" onAction={() => void loadMore(true)} />
@@ -324,7 +325,7 @@ export function ChannelPage({ cate, name, onBack, wide }: { cate: string; name: 
           <div className="text-center text-[12px] text-dim py-3">— 已经到底啦 —</div>
         )}
       </div>
-      {searching && <InplaceSearch kind="video" scope={cate === "original" ? "original" : undefined} wide={wide} onClose={() => setSearching(false)} onOpenVideo={(v, list) => push({ kind: "feed", videoIds: list.map((x) => x.id), index: list.findIndex((x) => x.id === v.id), title: `搜索 · ${name}` })} />}
+      {searching && <InplaceSearch kind="video" scope={cate === "original" ? "original" : undefined} wide={wide} onClose={() => setSearching(false)} onOpenVideo={(v, list) => openTitles(push, list.map(x => x.id), list.findIndex(x => x.id === v.id), v.title)} />}
     </div>
   );
 }

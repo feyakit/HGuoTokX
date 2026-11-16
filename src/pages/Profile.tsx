@@ -1,14 +1,15 @@
 import { Button, SegmentedControl, Surface } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
 import { useEffect, useRef, useState } from "react";
-import { api, APP_VERSION, fmt, fmtTime, isMobile, platform } from "../api";
+import { api, APP_VERSION, cover, fmt, fmtTime, isMobile, platform } from "../api";
 import type { Detail } from "../types";
 import { useStore } from "../store";
 import { Avatar, Empty, Modal } from "../components/ui";
 import { MediaCard } from "../components/cards";
 import { useContentPreferences } from "../contentPreferences";
 import { CollectionLink, CollectionLinks } from "../components/CollectionLink";
-import { IChevR, IClock, IDownload, IHeart, IInfo, ILink, ILogout, IMoon, IPlayF, IRefresh, ISettings, IStar, IUser, IUserF } from "../icons";
+import { IChevR, IClock, IHeart, ILogout, ISettings, IStar, IUser, IUserF } from "../icons";
+import { openTitles } from "../openVideo";
 import { ambientStyle, useAmbient } from "../useAccent";
 
 /* Account changes discard cached details synchronously, before another account can paint. */
@@ -21,11 +22,11 @@ function ProfileContent({ wide }: { wide: boolean }) {
   const { blockReason } = useContentPreferences();
   const { user, setLoginOpen, logout, history, favs, likes, clearHistory, push, accountSync, syncAccount } = useStore();
   const ambient = useAmbient();
-  const [tab, setTab] = useState<"fav" | "history">("fav");
+  const [tab, setTab] = useState<"follow" | "fav" | "history">(isMobile ? "follow" : "fav");
   const [cache, setCache] = useState<Record<number, Detail>>({});
   const cacheRef = useRef(cache);
   cacheRef.current = cache;
-  const [limits, setLimits] = useState({ fav: 12, history: 12 });
+  const [limits, setLimits] = useState({ follow: 12, fav: 12, history: 12 });
   const [failedIds, setFailedIds] = useState<number[]>([]);
   const [reload, setReload] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -40,7 +41,7 @@ function ProfileContent({ wide }: { wide: boolean }) {
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
-  const ids = tab === "fav" ? favs : history.map((h) => h.id);
+  const ids = tab === "history" ? history.map((h) => h.id) : favs;
   const visibleIds = ids.slice(0, limits[tab]);
   const cards = visibleIds.map(id => cache[id]).filter((card): card is Detail => !!card);
   const failed = failedIds.filter(id => visibleIds.includes(id));
@@ -153,25 +154,19 @@ function ProfileContent({ wide }: { wide: boolean }) {
           </Button>
         )}
 
-        {isMobile && (
-          <>
-            <div className="db-stats">
-              <div><b>{likes.length}</b><span>喜欢</span></div>
-              <div><b>{favs.length}</b><span>收藏</span></div>
-              <div><b>{history.length}</b><span>历史</span></div>
-            </div>
-            <div className="v3-dest" aria-label="功能入口">
-              <p>去设置</p>
-              <Button onClick={() => push({ kind: "settings", section: "本地数据" })}><IDownload size={18} /><span>离线缓存</span><IChevR size={16} /></Button>
-              <Button onClick={() => push({ kind: "settings", section: "网络" })}><ILink size={18} /><span>线路设置</span><IChevR size={16} /></Button>
-              <Button onClick={() => push({ kind: "settings", section: "播放" })}><IPlayF size={18} /><span>播放设置</span><IChevR size={16} /></Button>
-              <Button onClick={() => push({ kind: "settings", section: "其他" })}><IRefresh size={18} /><span>检查更新</span><IChevR size={16} /></Button>
-              <Button onClick={() => push({ kind: "settings", section: "内容偏好" })}><IHeart size={18} /><span>内容偏好</span><IChevR size={16} /></Button>
-              <Button onClick={() => push({ kind: "settings", section: "播放" })}><IInfo size={18} /><span>字幕样式</span><IChevR size={16} /></Button>
-              <Button onClick={() => push({ kind: "settings", section: "外观" })}><IMoon size={18} /><span>护眼与定时关闭</span><IChevR size={16} /></Button>
-              <Button onClick={() => push({ kind: "settings", section: "其他" })}><IInfo size={18} /><span>关于 HGuoX</span><IChevR size={16} /></Button>
-            </div>
-          </>
+        {isMobile && history.length > 0 && (
+          <div className="v3-continue" aria-label="继续观看">
+            {history.slice(0, 8).map(row => {
+              const card = cache[row.id];
+              return (
+                <button key={row.id} type="button" aria-label={`继续看 ${card?.title || "这部剧"}`} onClick={() => openTitles(push, [row.id], 0, card?.title || "继续观看", { startEp: row.ep, startTime: row.t })}>
+                  {card && <img src={cover(card.cover)} alt="" />}
+                  <b>{card?.title || "继续观看"}</b>
+                  <i><s style={{ width: `${row.dur ? Math.min(100, (row.t / row.dur) * 100) : 12}%` }} /></i>
+                </button>
+              );
+            })}
+          </div>
         )}
 
         {user && accountSync.error && <div role="alert" className="mt-3 rounded-(--r-sm) bg-s3 p-3 text-[13px]">
@@ -191,11 +186,19 @@ function ProfileContent({ wide }: { wide: boolean }) {
         )}
 
         {/* 我的内容 */}
-        <SegmentedControl className="mt-4" aria-label="我的内容" activeIndex={tab === "fav" ? 0 : 1}>
-          {([["fav", "我的收藏"], ["history", "观看历史"]] as const).map(([k, l]) => (
-            <Button aria-pressed={tab === k} key={k} onClick={() => setTab(k)}>{l}</Button>
-          ))}
-        </SegmentedControl>
+        {isMobile ? (
+          <SegmentedControl className="mt-4" aria-label="我的内容" activeIndex={tab === "follow" ? 0 : tab === "fav" ? 1 : 2}>
+            {([["follow", "在追"], ["fav", "收藏"], ["history", "历史"]] as const).map(([k, l]) => (
+              <Button aria-pressed={tab === k} key={k} onClick={() => setTab(k)}>{l}</Button>
+            ))}
+          </SegmentedControl>
+        ) : (
+          <SegmentedControl className="mt-4" aria-label="我的内容" activeIndex={tab === "history" ? 1 : 0}>
+            {([["fav", "我的收藏"], ["history", "观看历史"]] as const).map(([k, l]) => (
+              <Button aria-pressed={tab === k} key={k} onClick={() => setTab(k)}>{l}</Button>
+            ))}
+          </SegmentedControl>
+        )}
 
         <div className="mt-3" aria-busy={loading || syncingFavorites}>
           {favoriteSyncFailed ? (
@@ -214,10 +217,7 @@ function ProfileContent({ wide }: { wide: boolean }) {
                   badge={c.is_finished ? "已完结" : `${c.episode_count} 集`}
                   subtitle={c.tags?.slice(0, 2).join(" · ")}
                   progress={progress ? `第 ${progress.ep} 集 · ${fmtTime(progress.t)}` : undefined}
-                  onOpen={() => push({
-                    kind: "feed", videoIds: cards.map(x => x.id), index: cards.findIndex(x => x.id === c.id),
-                    title: tab === "fav" ? "我的收藏" : "观看历史", startEp: progress?.ep, startTime: progress?.t,
-                  })} />;
+                  onOpen={() => openTitles(push, cards.map(x => x.id), cards.findIndex(x => x.id === c.id), c.title, { startEp: progress?.ep, startTime: progress?.t })} />;
               })}
             </div>
           ) : failed.length ? (

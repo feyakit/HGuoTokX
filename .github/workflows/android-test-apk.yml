@@ -35,8 +35,8 @@ jobs:
         run: |
           V="$(node -p "require('./src-tauri/tauri.conf.json').version")"
           node scripts/set-version.mjs "$V"
-          # 3.1.0 按公式是 3001000。这次指定 3010000，覆盖安装高于 3.0.1。
-          node -e "const fs=require('fs'); const p='src-tauri/tauri.conf.json'; const j=JSON.parse(fs.readFileSync(p,'utf8')); j.bundle.android.versionCode=3010000; fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n');"
+          # 3.2.0 按公式是 3002000。这次指定 3020000，覆盖安装高于 3.1.0。
+          node -e "const fs=require('fs'); const p='src-tauri/tauri.conf.json'; const j=JSON.parse(fs.readFileSync(p,'utf8')); j.bundle.android.versionCode=3020000; fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n');"
           CODE="$(node -p "require('./src-tauri/tauri.conf.json').bundle.android.versionCode")"
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "versionCode=$CODE" >> "$GITHUB_OUTPUT"

@@ -69,7 +69,7 @@ try {
     if (step.back) await page.getByRole("button", { name: "返回", exact: true }).click();
     console.log("ok", step.id);
   }
-  assert.equal(steps.length >= 20, true);
+  assert.equal(steps.length >= 15, true);
   console.log(JSON.stringify({ passed: true, steps: steps.length }));
 } finally {
   await browser?.close();

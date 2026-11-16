@@ -17,16 +17,16 @@ import { Loader } from "../components/ios/effects";
 import { IBack, IBoltF, IBroom, IChevR, IHeart, IInfo, ILink, ILockF, IMoon, IRefresh, ISun, IVolMute } from "../icons";
 import type { SettingsSectionName } from "../store";
 
-const SETTING_GROUPS = ["外观", "播放", "内容偏好", "本地数据", "网络", "播放诊断", "其他"] as const;
+const SETTING_GROUPS = ["播放", "网络与线路", "本地数据与缓存", "外观", "内容偏好", "关于与更新", "使用条款"] as const;
 type SettingGroup = SettingsSectionName;
 const GROUP_SUMMARIES: Record<SettingGroup, string> = {
+  播放: "静音、画质和播放诊断",
+  网络与线路: "代理、线路与连接诊断",
+  本地数据与缓存: "收藏、观看记录与缓存",
   外观: "跟随系统、浅色与深色",
-  播放: "启动静音与画质偏好",
   内容偏好: "标签屏蔽与内容显示",
-  本地数据: "收藏、观看记录与缓存",
-  网络: "代理、线路与连接诊断",
-  播放诊断: "详细日志与问题排查",
-  其他: "检查更新、使用协议与关于应用",
+  关于与更新: "检查更新和关于应用",
+  使用条款: "协议与免责声明",
 };
 
 /* 独立设置页：线路 / 外观 / 播放 / 本地数据 / 清理缓存 / 网络诊断 / 关于
@@ -52,7 +52,7 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
   const [diagnosing, setDiagnosing] = useState(false);
   const [diagReport, setDiagReport] = useState<string | null>(null);
   const [copyingReport, setCopyingReport] = useState(false);
-  const [openGroups, setOpenGroups] = useState<Set<SettingGroup>>(() => new Set(initialSection ? [initialSection] : []));
+  const [openGroups, setOpenGroups] = useState<Set<SettingGroup>>(() => new Set(SETTING_GROUPS));
   const contentRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!initialSection) return;
@@ -130,7 +130,6 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
             <p className="text-[13px] text-mut mt-2">让 HGuoX 更合你的习惯</p>
           </div>
           {section("外观", <>
-            <p className="px-3.5 pt-3 text-[12px] text-mut">深色用来减眩光。没有到点自动关闭。</p>
             <div className="ios-appearance-row items-center">
               <span className="ios-setting-icon">{themePreference === "system" ? <IRefresh size={16} /> : theme === "dark" ? <IMoon size={16} /> : <ISun size={16} />}</span>
               <div className="flex-1">
@@ -149,14 +148,13 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
           </>)}
 
           {section("播放", <>
-            <p className="px-3.5 pt-3 text-[12px] text-mut">片源自带字幕时跟随系统，这里不另做字幕皮肤。</p>
             <div className="flex items-center gap-3 px-3.5 py-3">
               <span className="ios-setting-icon"><IVolMute size={16} /></span>
               <div className="flex-1 min-w-0">
                 <div className="text-[14px] text-on">启动时静音</div>
                 <div className="text-[12px] text-mut">默认开启，每次启动均静音；关闭后记住上次静音状态。下次启动生效。</div>
               </div>
-              <Toggle desktop on={muteOnStartup} onChange={setMuteOnStartup} label="启动时静音" />
+              <Toggle on={muteOnStartup} onChange={setMuteOnStartup} label="启动时静音" />
             </div>
             <div className="flex items-center gap-3 px-3.5 py-3">
               <span className="ios-setting-icon"><IBoltF size={16} /></span>
@@ -164,13 +162,37 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
                 <div className="text-[14px] text-on">优先高清</div>
                 <div className="text-[12px] text-mut">有高清就用 HEVC，播不了会自动切回标准</div>
               </div>
-              <Toggle desktop on={preferHevc} onChange={setPreferHevc} label="优先高清" />
+              <Toggle on={preferHevc} onChange={setPreferHevc} label="优先高清" />
             </div>
+            <div className="flex items-center gap-3 px-3.5 py-3">
+              <span className="ios-setting-icon"><IInfo size={16} /></span>
+              <div className="flex-1 min-w-0">
+                <div className="text-[14px] text-on">播放诊断日志</div>
+                <div className="text-[12px] text-mut">版本、平台、当前线路和播放失败原因始终记录；开关只额外记录拖动与缓冲细节</div>
+                {playbackLog.error && <div role="alert" className="text-[12px] text-danger">{playbackLog.error}</div>}
+              </div>
+              <Toggle label="播放诊断日志" on={playbackLog.enabled} disabled={!playbackLog.ready || playbackLog.pending}
+                onChange={(on) => { void setPlaybackLog(on).then(() => toast(on ? "已开启播放诊断，请复现问题" : "已关闭播放诊断，已有日志保留", "ok")).catch(() => toast("日志设置保存失败，请重试", "info")); }} />
+            </div>
+            <Button disabled={!playbackLog.ready || playbackLog.pending || copyingLog} onClick={async () => {
+              setCopyingLog(true);
+              try { await copyPlaybackLog(); toast("播放诊断日志已复制", "ok"); }
+              catch (e) { toast((e as Error).message || "复制日志失败", "info"); }
+              finally { setCopyingLog(false); }
+            }} className="w-full flex items-center gap-3 px-3.5 py-3 text-left pressable disabled:opacity-60">
+              <span className="ios-setting-icon"><ILink size={16} /></span>
+              <div className="flex-1 min-w-0">
+                <div className="text-[14px] text-on">{copyingLog ? "正在复制…" : "复制播放诊断日志"}</div>
+                <div className="text-[12px] text-mut">含版本、平台、当前线路和播放失败原因</div>
+              </div>
+              <IChevR size={15} className="text-mut" />
+            </Button>
+            {playbackLog.path && <details className="ios-settings-log-path text-[12px] text-mut"><summary className="cursor-pointer py-3">查看日志保存位置</summary><p className="break-all select-text pb-3">{playbackLog.path}</p></details>}
           </>)}
 
           {section("内容偏好", <ContentPreferencesSettings />)}
 
-          {section("本地数据", <>
+          {section("本地数据与缓存", <>
             <div className="flex items-center gap-3 px-3.5 py-3">
               <span className="ios-setting-icon"><IHeart size={16} /></span>
               <div className="flex-1">
@@ -181,14 +203,14 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
             <Button onClick={() => { setClearError(""); setClearOpen(true); }} className="w-full flex items-center gap-3 px-3.5 py-3 text-left pressable">
               <span className="ios-setting-icon"><IBroom size={16} /></span>
               <div className="flex-1">
-                <div className="text-[14px] text-on">清理缓存</div>
+                <div className="text-[14px] text-on">缓存管理</div>
                 <div className="text-[12px] text-mut">非 Linux 只清应用内媒体缓存；Linux 桌面版额外清 WebView 缓存</div>
               </div>
               <IChevR size={15} className="text-mut" />
             </Button>
           </>)}
 
-          {section("网络", <>
+          {section("网络与线路", <>
             <ProxySettings />
             <Button onClick={() => setLineOpen(true)} className="w-full flex items-center gap-3 px-3.5 py-3 text-left pressable">
               <span className="ios-setting-icon"><IBoltF size={16} /></span>
@@ -204,7 +226,7 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
                 <div className="text-[14px] text-on">自动选择线路</div>
                 <div className="text-[12px] text-mut">主站不可用时检测已发布镜像；关闭后保留手动选择</div>
               </div>
-              <Toggle desktop label="自动选择线路" on={autoLineOn} onChange={(on) => {
+              <Toggle label="自动选择线路" on={autoLineOn} onChange={(on) => {
                 void setAutoLine(on).catch(() => toast("自动选线暂停失败，请重试", "info"));
                 setAutoLineOn(on);
                 toast(on ? "已开启自动选择线路" : "已关闭自动选线，可手动选择播放源", "info");
@@ -220,7 +242,7 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
                     : "默认开启，防上游投毒与内网探测；若导致正文或特殊代理异常可关闭（或用 --no-strict 启动）"}
                 </div>
               </div>
-              <Toggle desktop
+              <Toggle
                 on={strictSecurity}
                 disabled={!strictSecurityReady || securityPending}
                 onChange={(on) => {
@@ -271,33 +293,7 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
             </Button>
           </>)}
 
-          {section("播放诊断", <>
-            <div className="flex items-center gap-3 px-3.5 py-3">
-              <span className="ios-setting-icon"><IInfo size={16} /></span>
-              <div className="flex-1 min-w-0">
-                <div className="text-[14px] text-on">播放诊断日志</div>
-                <div className="text-[12px] text-mut">版本、平台、当前线路和播放失败原因始终记录；开关只额外记录拖动与缓冲细节</div>
-                {playbackLog.error && <div role="alert" className="text-[12px] text-danger">{playbackLog.error}</div>}
-              </div>
-              <Toggle desktop label="播放诊断日志" on={playbackLog.enabled} disabled={!playbackLog.ready || playbackLog.pending}
-                onChange={(on) => { void setPlaybackLog(on).then(() => toast(on ? "已开启播放诊断，请复现问题" : "已关闭播放诊断，已有日志保留", "ok")).catch(() => toast("日志设置保存失败，请重试", "info")); }} />
-            </div>
-            <Button disabled={!playbackLog.ready || playbackLog.pending || copyingLog} onClick={async () => {
-              setCopyingLog(true);
-              try { await copyPlaybackLog(); toast("播放诊断日志已复制", "ok"); }
-              catch (e) { toast((e as Error).message || "复制日志失败", "info"); }
-              finally { setCopyingLog(false); }
-            }} className="w-full flex items-center gap-3 px-3.5 py-3 text-left pressable disabled:opacity-60">
-              <span className="ios-setting-icon"><ILink size={16} /></span>
-              <div className="flex-1 min-w-0">
-                <div className="text-[14px] text-on">{copyingLog ? "正在复制…" : "复制播放诊断日志"}</div>
-                <div className="text-[12px] text-mut">含版本、平台、当前线路和播放失败原因</div>
-              </div>
-              <IChevR size={15} className="text-mut" />
-            </Button>
-            {playbackLog.path && <details className="ios-settings-log-path text-[12px] text-mut"><summary className="cursor-pointer py-3">查看日志保存位置</summary><p className="break-all select-text pb-3">{playbackLog.path}</p></details>}
-          </>)}
-          {section("其他", <>
+          {section("关于与更新", <>
             <Button onClick={checkUpdate} disabled={checking} className="w-full flex items-center gap-3 px-3.5 py-3 text-left pressable disabled:opacity-60">
               <span className="ios-setting-icon">{checking ? <Loader label="正在检查更新" className="size-4" /> : <IRefresh size={16} />}</span>
               <div className="flex-1">
@@ -306,19 +302,21 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
               </div>
               <IChevR size={15} className="text-mut" />
             </Button>
-            <Button onClick={() => setAgreementOpen(true)} className="w-full flex items-center gap-3 px-3.5 py-3 text-left pressable">
-              <span className="ios-setting-icon"><ILockF size={16} /></span>
-              <div className="flex-1 min-w-0">
-                <div className="text-[14px] text-on">使用条款与免责声明</div>
-                <div className="text-[12px] text-mut">查看完整协议与中国大陆下载传播限制</div>
-              </div>
-              <IChevR size={15} className="text-mut" />
-            </Button>
             <Button onClick={() => setAbout(true)} className="w-full flex items-center gap-3 px-3.5 py-3 text-left pressable">
               <span className="ios-setting-icon"><IInfo size={16} /></span>
               <div className="flex-1">
                 <div className="text-[14px] text-on">关于 HGuoX</div>
                 <div className="text-[12px] text-mut">版本 {APP_VERSION} · 仅限非商业使用</div>
+              </div>
+              <IChevR size={15} className="text-mut" />
+            </Button>
+          </>)}
+          {section("使用条款", <>
+            <Button onClick={() => setAgreementOpen(true)} className="w-full flex items-center gap-3 px-3.5 py-3 text-left pressable">
+              <span className="ios-setting-icon"><ILockF size={16} /></span>
+              <div className="flex-1 min-w-0">
+                <div className="text-[14px] text-on">使用条款与免责声明</div>
+                <div className="text-[12px] text-mut">查看完整协议与中国大陆下载传播限制</div>
               </div>
               <IChevR size={15} className="text-mut" />
             </Button>

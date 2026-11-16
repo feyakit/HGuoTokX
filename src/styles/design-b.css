@@ -207,7 +207,8 @@ html[data-glass-quality="low"] .db-speed, html[data-glass-quality="low"] .db-boo
 .ios-mobile-nav.db-dock .hg-glass { background: rgba(14, 15, 19, 0.88) !important; background-color: rgba(14, 15, 19, 0.88) !important; border-color: rgba(255,255,255,.12); box-shadow: none; transition: background-color .45s ease; }
 .ios-mobile-nav.db-dock[data-over-video="true"] .hg-glass { background: rgba(8, 10, 14, 0.42) !important; background-color: rgba(8, 10, 14, 0.42) !important; border-color: rgba(255,255,255,.08); }
 html[data-playback-chrome="dim"] .ios-mobile-nav.db-dock[data-over-video="true"] .hg-glass { background: rgba(8, 10, 14, 0.16) !important; background-color: rgba(8, 10, 14, 0.16) !important; }
-.ios-mobile-nav.db-dock .hg-drop { top: auto; bottom: 7px; height: 3px; }
+.ios-mobile-nav.db-dock .ios-mobile-nav-items { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ios-mobile-nav.db-dock .hg-drop { top: auto; bottom: 7px; height: 3px; width: 33.3333%; }
 .ios-mobile-nav.db-dock .hg-drop > .ios-liquid-fill { width: 16px; height: 3px; margin: 0 auto; border-radius: 2px; background: #fff !important; box-shadow: none; }
 .ios-mobile-nav.db-dock .ios-mobile-nav-item { color: #b8bcc8 !important; }
 .ios-mobile-nav.db-dock .ios-mobile-nav-item[aria-current=page] { color: #fff !important; }

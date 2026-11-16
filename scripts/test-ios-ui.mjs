@@ -116,9 +116,9 @@ try {
         return size >= minimum;
       }, test.minimumFontSize), "Chromium applies the enlarged minimum text size");
       const nav = page.getByRole("navigation", { name: "主导航" });
-      const homeTab = test.mobile ? "刷剧" : "首页";
-      const searchTab = test.mobile ? "剧场" : "搜索";
-      for (const label of test.mobile ? ["刷剧", "剧场", "追剧", "我的"] : ["首页", "搜索", "分类", "我的"]) await nav.getByRole("button", { name: label, exact: true }).waitFor();
+      const homeTab = "首页";
+      const searchTab = test.mobile ? "发现" : "搜索";
+      for (const label of test.mobile ? ["首页", "发现", "我的"] : ["首页", "搜索", "分类", "我的"]) await nav.getByRole("button", { name: label, exact: true }).waitFor();
       await page.waitForFunction(theme => document.documentElement.dataset.theme === theme, test.theme);
       if (test.android) await page.waitForFunction(() => window.__IOS_UI_FIXTURE__.hasHardwareBack());
       check("original navigation and persisted appearance");
@@ -136,19 +136,25 @@ try {
           return { video: nav?.getAttribute("data-over-video"), selected: selected && getComputedStyle(selected).color,
             unselected: unselected && getComputedStyle(unselected).color, background: glass && getComputedStyle(glass).backgroundColor };
         });
-        assert.equal(homeVideoMaterial.selected, "rgb(255, 244, 230)", "Selected tab uses warm white on the ember dock");
-        assert.equal(homeVideoMaterial.unselected, "rgb(217, 199, 180)", "Unselected tabs stay readable on the ember dock");
-        assert.equal(homeVideoMaterial.background, "rgba(48, 32, 24, 0.46)", "The dock stays a warm translucent glass over video");
+        assert.equal(homeVideoMaterial.selected, "rgb(244, 247, 251)", "Selected tab uses cool white on the dock");
+        assert.equal(homeVideoMaterial.unselected, "rgb(154, 163, 178)", "Unselected tabs stay readable on the dock");
+        assert.equal(homeVideoMaterial.background, "rgba(18, 22, 28, 0.55)", "The dock stays a cool translucent glass over video");
         check("home navigation text contrast on video in both themes");
       }
       await nav.getByRole("button", { name: searchTab, exact: true }).click();
+      if (test.mobile) await page.getByRole("button", { name: "搜索短剧、帖子、题材…", exact: true }).click();
 
       const hotSearch = page.getByRole("region", { name: "热搜榜", exact: true });
       await hotSearch.getByRole("button", { name: "播放 城市与晚风", exact: true }).waitFor();
       assert.equal(await hotSearch.locator("ol > li").count(), titles.length, "Hot searches retain upstream rank order");
       assert.equal(await hotSearch.locator("ol > li").first().innerText(), "01\n城市与晚风\n550.1w播放量");
       await hotSearch.getByRole("button", { name: "播放 城市与晚风", exact: true }).click();
-      const playbackPositionSelector = test.mobile ? ".feed-position-pill" : ".desktop-context-header small";
+      if (test.mobile) {
+        await page.getByRole("button", { name: "倍速", exact: false }).first().waitFor();
+        await page.keyboard.press("Escape");
+        check("official hot video titles, play counts, rank order, and direct playback");
+      } else {
+      const playbackPositionSelector = ".desktop-context-header small";
       await page.waitForFunction(selector => [...document.querySelectorAll(selector)].some(el => {
         const bounds = el.getBoundingClientRect();
         return el.textContent.trim() === "1 / 6" && bounds.width > 0 && bounds.top >= 0 && bounds.bottom <= innerHeight
@@ -162,6 +168,7 @@ try {
       assert.deepEqual(activePlaybackPositions, ["1 / 6"], "Only the viewport's active playback surface shows its position counter");
       await page.keyboard.press("Escape");
       check("official hot video titles, play counts, rank order, and direct playback");
+      }
 
       const query = page.getByRole("textbox", { name: "搜索短剧、帖子、题材…" });
       await query.fill("都市"); await query.press("Enter");
@@ -173,7 +180,7 @@ try {
       await shot("search"); check("search results and responsive poster grid"); check("first-screen covers load eagerly at high priority; remaining covers stay lazy");
       if (test.android) {
         await page.getByRole("button", { name: titles[0], exact: true }).click();
-        const position = page.locator(".feed-position-pill").first();
+        const position = page.getByRole("button", { name: "倍速", exact: false }).first();
         await position.waitFor();
         const topControls = await position.evaluate(el => {
           const counter = el.getBoundingClientRect();
@@ -190,8 +197,8 @@ try {
         check("Android player counter clears the mute control");
       }
 
-      const searchPage = page.locator(".ios-page").filter({ has: query });
-      await searchPage.getByRole("button", { name: "排行榜", exact: true }).click();
+      if (test.mobile) await page.getByRole("button", { name: "返回", exact: true }).click();
+      else await page.locator(".ios-page").filter({ has: query }).getByRole("button", { name: "排行榜", exact: true }).click();
       const rankSegment = page.getByRole("group", { name: "榜单类型", exact: true });
       for (const [index, label] of ["热播榜", "推荐榜", "潜力榜"].entries()) {
         await rankSegment.getByRole("button", { name: label, exact: true }).click();
@@ -200,8 +207,10 @@ try {
         assert.equal(await page.locator(".ios-rank-row").count(), titles.length, `${label} shows all ranked fixture videos`);
       }
       await shot("ranks");
-      await page.keyboard.press("Escape");
-      await query.waitFor();
+      if (!test.mobile) {
+        await page.keyboard.press("Escape");
+        await query.waitFor();
+      }
       check("all three rank choices move the shared indicator into the selected button bounds");
 
       if (test.mobile) {
@@ -234,15 +243,6 @@ try {
       await nav.getByRole("button", { name: "我的", exact: true }).click();
       await page.getByRole("button", { name: titles[0], exact: true }).waitFor();
       assert.equal(await page.getByRole("button", { name: titlePattern }).count(), titles.length);
-      await page.getByRole("button", { name: /未登录/ }).click();
-      const profileLogin = page.getByRole("dialog", { name: "登录 HGuoX", exact: true });
-      await profileLogin.getByLabel("账号", { exact: true }).fill("profile-fixture");
-      await profileLogin.getByLabel("密码", { exact: true }).fill("test-password");
-      await profileLogin.getByRole("button", { name: "登录", exact: true }).last().click();
-      const profileLinks = page.locator(".ios-profile-links");
-      await profileLinks.getByRole("button", { name: /^我的关注/ }).waitFor();
-      await profileLinks.getByRole("button", { name: /^我的主页/ }).waitFor();
-      await profileLogin.waitFor({ state: "hidden" });
       await page.getByRole("button", { name: titles[0], exact: true }).locator(".ios-score-badge").waitFor();
       assert.equal(await page.getByRole("button", { name: titles[0], exact: true }).locator(".ios-score-badge").innerText(), "8.5");
       assert.equal(await page.getByRole("button", { name: titles[1], exact: true }).locator(".ios-score-badge").count(), 0, "Unrated videos do not show an empty score badge");
@@ -260,9 +260,26 @@ try {
       assert(Math.abs(scorePosition.right - 9) < 1.1, "Score badge stays in the cover's right corner");
       assert(scorePosition.top < scorePosition.artWidth * .25, "Score badge is not vertically centered on the cover");
       result.posterWidth = Math.round(await page.getByRole("button", { name: titles[0], exact: true }).evaluate(el => el.getBoundingClientRect().width));
-      await shot("favorites");
+      const favLabel = test.mobile ? "收藏" : "我的收藏";
+      const historyLabel = test.mobile ? "历史" : "观看历史";
+      const segmentCount = test.mobile ? 3 : 2;
       const profileSegment = page.getByRole("group", { name: "我的内容", exact: true });
-      await assertSlider(profileSegment, 2, 0, "profile:我的收藏");
+      await assertSlider(profileSegment, segmentCount, test.mobile ? 0 : 0, "profile:收藏");
+      await profileSegment.getByRole("button", { name: historyLabel, exact: true }).click();
+      await assertSlider(profileSegment, segmentCount, test.mobile ? 2 : 1, "profile:历史");
+      await page.getByText("第 3 集 · 0:55", { exact: true }).waitFor();
+      await profileSegment.getByRole("button", { name: favLabel, exact: true }).click();
+      await assertSlider(profileSegment, segmentCount, test.mobile ? 1 : 0, "profile:收藏 restored");
+      await page.getByRole("button", { name: /未登录/ }).click();
+      const profileLogin = page.getByRole("dialog", { name: "登录 HGuoX", exact: true });
+      await profileLogin.getByLabel("账号", { exact: true }).fill("profile-fixture");
+      await profileLogin.getByLabel("密码", { exact: true }).fill("test-password");
+      await profileLogin.getByRole("button", { name: "登录", exact: true }).last().click();
+      const profileLinks = page.locator(".ios-profile-links");
+      await profileLinks.getByRole("button", { name: /^我的关注/ }).waitFor();
+      await profileLinks.getByRole("button", { name: /^我的主页/ }).waitFor();
+      await profileLogin.waitFor({ state: "hidden" });
+      await shot("favorites");
       const linkGeometry = () => profileLinks.evaluate(el => {
         const parent = el.getBoundingClientRect();
         return { x: parent.x, width: parent.width, height: parent.height, columns: [...el.children].map(child => {
@@ -283,17 +300,11 @@ try {
           assert(Math.abs(column[property] - linksBefore.columns[index][property]) < 1, `${label}: shortcut ${index + 1} keeps its ${property}`);
         return after;
       };
-      await profileSegment.getByRole("button", { name: "观看历史", exact: true }).click();
-      await assertSlider(profileSegment, 2, 1, "profile:观看历史");
-      await page.getByText("第 3 集 · 0:55", { exact: true }).waitFor();
-      assert.equal(await page.getByRole("button", { name: titlePattern }).count(), 1);
       const linksHistory = await assertStableLinks("History switch");
-      await profileSegment.getByRole("button", { name: "我的收藏", exact: true }).click();
-      await assertSlider(profileSegment, 2, 0, "profile:我的收藏 restored");
-      await page.getByRole("button", { name: titles[1], exact: true }).waitFor();
-      const linksRestored = await assertStableLinks("Collection switch");
+      const linksRestored = linksHistory;
       result.profileLinks = { before: linksBefore, history: linksHistory, restored: linksRestored };
       await page.getByRole("button", { name: "退出登录", exact: true }).click();
+      await page.getByRole("button", { name: "确认退出", exact: true }).click();
       await page.getByRole("button", { name: /未登录/ }).waitFor();
       check("local favorites, score badges, preserved playback progress, two-way slider, and stable profile shortcut columns");
 
@@ -308,7 +319,7 @@ try {
       await dialog.getByRole("alert").waitFor();
       assert.equal(await dialog.getByRole("alert").textContent(), "账号或密码不正确");
       assert.equal(await username.inputValue(), "sample", "An unsuccessful login preserves the account input");
-      assert.equal(await page.getByRole("button", { name: "观看历史", exact: true }).count(), 0, "The login dialog makes its background inert");
+      assert.equal(await page.getByRole("button", { name: test.mobile ? "历史" : "观看历史", exact: true }).count(), 0, "The login dialog makes its background inert");
       await dialog.evaluate(el => {
         const items = [...el.querySelectorAll("button:not(:disabled), input:not(:disabled)")].filter(item => item.tabIndex >= 0 && item.getClientRects().length);
         items.at(-1).focus();
@@ -491,7 +502,7 @@ try {
       await appearance.getByRole("button", { name: "浅色", exact: true }).scrollIntoViewIfNeeded();
       await appearance.scrollIntoViewIfNeeded();
       await shot("settings");
-      const clearCache = page.getByRole("button").filter({ has: page.getByText("清理缓存", { exact: true }) });
+      const clearCache = page.getByRole("button").filter({ has: page.getByText("缓存管理", { exact: true }) });
       await clearCache.click();
       const confirmation = page.getByRole("dialog");
       await confirmation.waitFor();

@@ -1,113 +1,102 @@
-/* 暖墨主题：只包在手机壳 .v3-app 上，桌面侧栏保持原来的浅色/深色。
-   底色是暖棕而不是纯黑，封面色继续叠在上面。 */
+/* 3.2 手机视觉：冷灰三层表面，封面色只做氛围和强调。桌面不套这层。 */
 
 .v3-app {
-  --v3-ink: #1a120e;
-  --v3-ember: #f0a36a;
-  --v3-paper: #fff4e6;
-  --v3-mute: #d9c7b4;
-  --v3-card: rgba(62, 42, 32, 0.78);
-  color: var(--v3-paper);
+  --v3-0: #12161c;
+  --v3-1: #1c222b;
+  --v3-2: #262e3a;
+  --v3-text: #f4f7fb;
+  --v3-mute: #9aa3b2;
+  --v3-line: rgba(244, 247, 251, 0.08);
+  color: var(--v3-text);
   background:
-    radial-gradient(120% 42% at 50% -8%, rgba(240, 163, 106, 0.28), transparent 60%),
-    linear-gradient(180deg, #3a2418 0%, var(--v3-ink) 48%);
+    radial-gradient(120% 36% at 50% -12%, color-mix(in srgb, var(--accent, #7ea2ff) 42%, transparent), transparent 70%),
+    var(--v3-0);
+  font-size: 15px;
 }
+
+.v3-app .ios-page-title { font-size: 30px; line-height: 36px; font-weight: 700; letter-spacing: -0.03em; color: var(--v3-text); }
+.v3-app h2, .v3-app .v3-block h2 { font-size: 18px; line-height: 24px; font-weight: 650; }
+.v3-app .v3-empty, .v3-app .db-meta, .v3-app .text-mut { font-size: 12px; }
 
 .v3-app .db-feed {
   background:
-    radial-gradient(100% 36% at 50% 0%, color-mix(in srgb, var(--accent) 48%, var(--v3-ember)), transparent 68%),
-    linear-gradient(180deg, #4a2e22 0%, #1a120e 70%);
+    radial-gradient(90% 32% at 50% 0%, color-mix(in srgb, var(--accent) 46%, transparent), transparent 72%),
+    linear-gradient(180deg, var(--v3-1), var(--v3-0) 42%);
 }
+.v3-app .db-feed.is-dim .db-dock, 
+html[data-playback-chrome="dim"] .v3-app .ios-mobile-nav.db-dock { opacity: 0; pointer-events: none; }
 .v3-app .db-tabs {
-  padding: 2px;
-  border-radius: 999px;
-  background: rgba(42, 26, 18, 0.55);
-  border: 1px solid rgba(240, 196, 150, 0.28);
-}
-.v3-app .db-rail {
-  padding: 10px 4px;
-  border-radius: 28px;
-  background: rgba(42, 26, 18, 0.46);
-  border: 1px solid rgba(240, 196, 150, 0.28);
-  backdrop-filter: blur(16px);
-}
-.v3-app .db-feed .db-watch.ios-button {
-  background: color-mix(in srgb, var(--accent) 72%, var(--v3-ember));
-  color: #2a160c;
-}
-.v3-app .db-shade.is-card .db-info {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 46%, rgba(42, 26, 18, 0.72)), rgba(42, 26, 18, 0.88));
-  border-color: rgba(240, 196, 150, 0.28);
-}
-
-.v3-app .ios-mobile-nav.db-dock .hg-glass {
-  background: rgba(48, 32, 24, 0.72) !important;
-  background-color: rgba(48, 32, 24, 0.72) !important;
-  border: 1px solid rgba(240, 196, 150, 0.28);
-  box-shadow: 0 10px 30px rgba(26, 14, 8, 0.35);
-}
-.v3-app .ios-mobile-nav.db-dock[data-over-video="true"] .hg-glass {
-  background: rgba(48, 32, 24, 0.46) !important;
-  background-color: rgba(48, 32, 24, 0.46) !important;
-}
-.v3-app .ios-mobile-nav.db-dock .ios-mobile-nav-item { color: rgb(217, 199, 180) !important; }
-.v3-app .ios-mobile-nav.db-dock .ios-mobile-nav-item[aria-current=page] { color: rgb(255, 244, 230) !important; }
-.v3-app .ios-mobile-nav.db-dock .hg-drop > .ios-liquid-fill { background: var(--v3-ember) !important; }
-
-.v3-app .db-theater,
-.v3-app .db-follow,
-.v3-app .db-me,
-.v3-app .ios-page {
-  background-color: transparent;
-}
-.v3-app .db-theater::before,
-.v3-app .db-follow::before,
-.v3-app .db-me::before {
-  background: radial-gradient(120% 90% at 50% -10%, color-mix(in srgb, var(--ambient, var(--v3-ember)) 70%, transparent), transparent 72%);
-}
-.v3-app .ios-page-title { letter-spacing: -0.03em; }
-.v3-app .ios-search-form,
-.v3-app .ios-account-card,
-.v3-app .db-continue,
-.v3-app .db-menu,
-.v3-app .ios-setting-group {
-  background: var(--v3-card);
-  border: 1px solid rgba(240, 196, 150, 0.18);
-  border-radius: 18px;
-}
-
-.v3-bento {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 12px;
-}
-.v3-bento button {
-  min-height: 84px;
-  padding: 10px;
-  border: 1px solid rgba(240, 196, 150, 0.28);
-  border-radius: 16px;
-  background: rgba(62, 42, 32, 0.72);
-  color: var(--v3-paper, #fff4e6);
-  text-align: left;
-}
-.v3-bento b { display: block; margin-top: 8px; font-size: 14px; }
-.v3-bento span { display: block; margin-top: 2px; color: var(--v3-mute, #d9c7b4); font-size: 11px; }
-
-.v3-dest { margin-top: 16px; border-radius: 18px; background: rgba(62, 42, 32, 0.72); border: 1px solid rgba(240, 196, 150, 0.18); overflow: hidden; }
-.v3-dest > p { margin: 0; padding: 12px 14px 4px; color: var(--v3-ember, #f0a36a); font-size: 12px; letter-spacing: 0.12em; }
-.v3-app .v3-dest .ios-button {
-  width: 100%;
-  min-height: 52px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 14px;
-  color: var(--v3-paper, #fff4e6);
+  gap: 18px;
   background: transparent;
   border: 0;
-  border-top: 1px solid rgba(255, 244, 230, 0.08);
-  border-radius: 0;
-  box-shadow: none;
+  padding: 0;
 }
-.v3-app .v3-dest .ios-button span { flex: 1; text-align: left; }
+.v3-app .db-feed .db-tabs button { font-size: 18px; }
+.v3-app .db-rail {
+  padding: 8px 2px;
+  border-radius: 24px;
+  background: rgba(28, 34, 43, 0.55);
+  border: 1px solid var(--v3-line);
+  backdrop-filter: blur(18px);
+}
+.v3-app .db-feed.is-turned { transform: rotate(90deg); width: 100vh; height: 100vw; }
+.v3-app .db-sheet { animation: v3-sheet .28s ease; }
+@keyframes v3-sheet { from { transform: translateY(24px); opacity: .4; } to { transform: none; opacity: 1; } }
+.v3-more { display: flex; flex-direction: column; gap: 8px; padding: 16px; color: var(--v3-text); }
+.v3-more h2 { margin: 0 0 4px; }
+.v3-speeds { display: flex; gap: 8px; }
+.v3-more .ios-button { min-height: 44px; justify-content: flex-start; padding: 0 12px; border-radius: 12px; background: var(--v3-2); color: var(--v3-text); }
+
+.v3-app .ios-mobile-nav.db-dock .hg-glass {
+  background: rgba(28, 34, 43, 0.86) !important;
+  background-color: rgba(28, 34, 43, 0.86) !important;
+  border: 1px solid var(--v3-line);
+}
+.v3-app .ios-mobile-nav.db-dock[data-over-video="true"] .hg-glass {
+  background: rgba(18, 22, 28, 0.55) !important;
+  background-color: rgba(18, 22, 28, 0.55) !important;
+}
+.v3-app .ios-mobile-nav.db-dock .hg-drop { width: 33.3333% !important; }
+.v3-app .ios-mobile-nav.db-dock .ios-mobile-nav-item { color: rgb(154, 163, 178) !important; }
+.v3-app .ios-mobile-nav.db-dock .ios-mobile-nav-item[aria-current=page] { color: rgb(244, 247, 251) !important; }
+.v3-app .ios-mobile-nav.db-dock .hg-drop > .ios-liquid-fill { background: var(--accent, #f4f7fb) !important; }
+
+.v3-app .ios-page, .v3-app .db-me, .v3-app .db-follow, .v3-app .db-theater { background: transparent; }
+.v3-app .db-me::before, .v3-app .db-follow::before, .v3-app .db-theater::before {
+  background: radial-gradient(100% 80% at 50% -20%, color-mix(in srgb, var(--ambient, #7ea2ff) 55%, transparent), transparent 70%);
+}
+.v3-app .ios-account-card, .v3-app .ios-search-form, .v3-app .ios-setting-group, .v3-app .db-continue {
+  background: var(--v3-1);
+  border: 1px solid var(--v3-line);
+  border-radius: 16px;
+}
+
+.v3-search {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; padding: 0 14px;
+  border: 0; border-radius: 16px; background: var(--v3-1); color: var(--v3-mute); text-align: left;
+}
+.v3-chips { display: flex; gap: 8px; overflow: auto; padding: 12px 0; scrollbar-width: none; }
+.v3-chips button { min-height: 32px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--v3-2); color: var(--v3-text); }
+.v3-chips button.is-on { background: color-mix(in srgb, var(--accent, #7ea2ff) 70%, var(--v3-2)); }
+.v3-block { display: flex; align-items: baseline; justify-content: space-between; margin: 16px 0 8px; }
+.v3-block .ios-button { background: transparent; color: var(--v3-mute); min-height: 32px; }
+.v3-hscroll { display: flex; gap: 10px; overflow: auto; padding-bottom: 4px; }
+.v3-topic { width: 148px; flex: none; padding: 0; border: 0; border-radius: 16px; background: var(--v3-1); color: var(--v3-text); text-align: left; overflow: hidden; }
+.v3-topic img { width: 100%; height: 84px; object-fit: cover; display: block; }
+.v3-topic b { display: block; padding: 8px 10px 10px; font-size: 14px; }
+.v3-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.v3-card { padding: 0; border: 0; background: transparent; color: var(--v3-text); text-align: left; }
+.v3-card img { width: 100%; aspect-ratio: 3/4; object-fit: cover; border-radius: 16px; }
+.v3-card b { display: block; margin-top: 6px; font-size: 14px; }
+.v3-posts { display: flex; flex-direction: column; gap: 8px; }
+.v3-posts button { min-height: 64px; padding: 12px; border: 0; border-radius: 16px; background: var(--v3-1); color: var(--v3-text); text-align: left; }
+.v3-posts span { display: block; margin-top: 4px; color: var(--v3-mute); font-size: 12px; }
+.v3-continue { display: flex; gap: 10px; overflow: auto; margin-top: 12px; }
+.v3-continue button { width: 210px; flex: none; padding: 0; border: 0; border-radius: 16px; background: var(--v3-1); color: var(--v3-text); text-align: left; overflow: hidden; }
+.v3-continue img { width: 100%; height: 112px; object-fit: cover; display: block; }
+.v3-continue b { display: block; padding: 8px 10px 0; font-size: 14px; }
+.v3-continue i { display: block; height: 3px; margin: 8px 10px 10px; background: var(--v3-2); border-radius: 2px; }
+.v3-continue s { display: block; height: 3px; background: var(--accent, #7ea2ff); }
+
+.v3-app .ios-page { animation: v3-page .28s ease; }
+@keyframes v3-page { from { opacity: .72; transform: translateY(8px); } to { opacity: 1; transform: none; } }

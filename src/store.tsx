@@ -24,7 +24,7 @@ export type FeedContext = {
   startTime?: number;
 };
 
-export type SettingsSectionName = "外观" | "播放" | "内容偏好" | "本地数据" | "网络" | "播放诊断" | "其他";
+export type SettingsSectionName = "播放" | "网络与线路" | "本地数据与缓存" | "外观" | "内容偏好" | "关于与更新" | "使用条款";
 
 export type Page =
   | FeedContext
