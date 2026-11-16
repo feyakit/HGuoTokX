@@ -172,6 +172,9 @@ jobs:
       - name: 生成 Android 工程
         run: pnpm tauri android init --ci
 
+      - name: 系统状态栏/导航栏透明
+        run: python3 scripts/patch-android-system-bars.py
+
       - name: 编译 APK（按 ABI 分包）
         run: |
           # quick / android-arm64 只出 arm64：真机验证用不到 v7a 和 x86_64，省三分之二时间
