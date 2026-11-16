@@ -1,15 +1,17 @@
 /* 3.2 手机视觉：冷灰三层表面，封面色只做氛围和强调。桌面不套这层。 */
 
+/* 3.x 的四个表面色之前写死成深色，浅色主题下整页变成「白字压米白底」——
+   标题、榜单项、卡片名全都看不见。这里改成直接引用主题调色板，深浅两套主题都能读。 */
 .v3-app {
-  --v3-0: #12161c;
-  --v3-1: #1c222b;
-  --v3-2: #262e3a;
-  --v3-text: #f4f7fb;
-  --v3-mute: #9aa3b2;
-  --v3-line: rgba(244, 247, 251, 0.08);
+  --v3-0: var(--p-canvas);
+  --v3-1: var(--p-s1);
+  --v3-2: var(--p-s3);
+  --v3-text: var(--p-on);
+  --v3-mute: var(--p-mut);
+  --v3-line: color-mix(in srgb, var(--p-on) 10%, transparent);
   color: var(--v3-text);
   background:
-    radial-gradient(120% 36% at 50% -12%, color-mix(in srgb, var(--accent, #7ea2ff) 42%, transparent), transparent 70%),
+    radial-gradient(120% 36% at 50% -12%, color-mix(in srgb, var(--accent, #7ea2ff) 22%, transparent), transparent 70%),
     var(--v3-0);
   font-size: 15px;
 }
@@ -18,10 +20,11 @@
 .v3-app h2, .v3-app .v3-block h2 { font-size: 18px; line-height: 24px; font-weight: 650; }
 .v3-app .v3-empty, .v3-app .db-meta, .v3-app .text-mut { font-size: 12px; }
 
+/* 刷剧页是视频舞台，固定深色，不随主题走浅 */
 .v3-app .db-feed {
   background:
-    radial-gradient(90% 32% at 50% 0%, color-mix(in srgb, var(--accent) 46%, transparent), transparent 72%),
-    linear-gradient(180deg, var(--v3-1), var(--v3-0) 42%);
+    radial-gradient(90% 32% at 50% 0%, color-mix(in srgb, var(--accent, #7ea2ff) 46%, transparent), transparent 72%),
+    linear-gradient(180deg, #1c222b, #12161c 42%);
 }
 .v3-app .db-feed.is-dim .db-dock, 
 html[data-playback-chrome="dim"] .v3-app .ios-mobile-nav.db-dock { opacity: 0; pointer-events: none; }
@@ -77,7 +80,7 @@ html[data-playback-chrome="dim"] .v3-app .ios-mobile-nav.db-dock { opacity: 0; p
 }
 .v3-chips { display: flex; gap: 8px; overflow: auto; padding: 12px 0; scrollbar-width: none; }
 .v3-chips button { min-height: 32px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--v3-2); color: var(--v3-text); }
-.v3-chips button.is-on { background: color-mix(in srgb, var(--accent, #7ea2ff) 70%, var(--v3-2)); }
+.v3-chips button.is-on { background: var(--p-primary); color: var(--p-on-primary); }
 .v3-block { display: flex; align-items: baseline; justify-content: space-between; margin: 16px 0 8px; }
 .v3-block .ios-button { background: transparent; color: var(--v3-mute); min-height: 32px; }
 .v3-hscroll { display: flex; gap: 10px; overflow: auto; padding-bottom: 4px; }
