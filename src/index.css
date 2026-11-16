@@ -518,7 +518,7 @@ html.theme-light .article-body blockquote { background: rgba(43, 40, 36, .045); 
       模糊不可用时退回更实的底（@supports 兜底）。
    =================================================================== */
 .ios-mobile-nav .hg-glass {
-  background: linear-gradient(180deg, rgba(24, 24, 28, .30) 0%, rgba(18, 18, 22, .52) 100%);
+  background: linear-gradient(180deg, rgba(22, 22, 26, .34) 0%, rgba(14, 14, 18, .62) 100%);
   backdrop-filter: blur(40px) saturate(200%) brightness(1.06);
   -webkit-backdrop-filter: blur(40px) saturate(200%) brightness(1.06);
   border: 1px solid rgba(255, 255, 255, .18);
@@ -535,7 +535,7 @@ html.theme-light .article-body blockquote { background: rgba(43, 40, 36, .045); 
     linear-gradient(180deg, rgba(255, 255, 255, .09), transparent 44%);
 }
 /* 深色主题：标签提亮 + 暗影，亮画面上也读得清 */
-html:not(.theme-light) .ios-mobile-nav .ios-mobile-nav-item { color: rgba(255, 255, 255, .82); text-shadow: 0 1px 3px rgba(0, 0, 0, .45); }
+html:not(.theme-light) .ios-mobile-nav .ios-mobile-nav-item { color: rgba(255, 255, 255, .95); text-shadow: 0 1px 4px rgba(0, 0, 0, .7), 0 0 2px rgba(0, 0, 0, .5); }
 html:not(.theme-light) .ios-mobile-nav .ios-mobile-nav-item[aria-current=page] { color: #fff; font-weight: 700; }
 
 /* 浅色主题：暖白玻璃 + 墨色字 */
