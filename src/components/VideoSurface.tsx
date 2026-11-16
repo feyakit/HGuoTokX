@@ -34,6 +34,9 @@ type Props = {
   /** 换源后重新套用，避免切集时音量/倍速被浏览器重置 */
   volume?: number;
   rate?: number;
+  /** 刷剧池按网络缩短缓冲。不传时保持原来的 30s / 60s，避免影响已有播放页。 */
+  maxBufferLength?: number;
+  maxMaxBufferLength?: number;
   onTime?: (t: number) => void;
   onDuration?: (d: number) => void;
   onSize?: (w: number, h: number, measurementKey: string) => boolean | void;
@@ -49,6 +52,7 @@ type Props = {
 /** 只负责「播」：hls.js + video 元素，控制条由外层渲染。 */
 const VideoSurface = forwardRef<VideoHandle, Props>(function VideoSurface(
   { src, poster, autoPlay = true, active = true, measurementKey = src, diagnosticContext = {}, muted = false, loop = false, fit = "contain", volume = 1, rate = 1,
+    maxBufferLength = 30, maxMaxBufferLength = 60,
     onTime, onDuration, onSize, onPlaying, onPause, onWaiting, onEnded, onError, onClick, className = "" },
   ref,
 ) {
@@ -156,8 +160,8 @@ const VideoSurface = forwardRef<VideoHandle, Props>(function VideoSurface(
         preferManagedMediaSource: false,
         autoStartLoad: false,
         startPosition: resume?.time ?? -1,
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
+        maxBufferLength,
+        maxMaxBufferLength,
         backBufferLength: 30,
         maxBufferHole: 0.5,
         nudgeOffset: 0.25,

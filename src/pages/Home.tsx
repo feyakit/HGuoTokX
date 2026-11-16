@@ -1,6 +1,6 @@
 import { Loader } from "../components/ios/effects";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Feed from "../components/Feed";
+import SwipeFeed from "../components/short/SwipeFeed";
 import { api } from "../api";
 import type { VideoCard } from "../types";
 import { useStore } from "../store";
@@ -127,7 +127,7 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
       </div>}
       <div className="relative flex-1 min-h-0">
       {ids.length > 0 && (active || feedMounted) ? (
-        <Feed videoIds={ids} mode="home" active={active} bottomInset={bottomInset} onBlocked={onBlocked}
+        <SwipeFeed ids={ids} active={active} bottomInset={bottomInset}
           onNearEnd={() => { if (!loading && !done && Date.now() >= retryAt.current) load(page + 1); }} />
       ) : hiddenCount > 0 ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-bg px-5 pb-24">

@@ -10,7 +10,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const output = join(root, "test-results", "mobile-layout", new Date().toISOString().replace(/[:.]/g, "-"));
 const userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1";
 const viewports = [{ width: 320, height: 694 }, { width: 390, height: 844 }, { width: 430, height: 932 }, { width: 844, height: 390 }];
-const tabs = ["首页", "搜索", "分类", "我的"];
+const tabs = ["刷剧", "剧场", "追剧", "我的"];
 const report = {
   environment: { browser: "Chromium with iPhone UA", transport: "real App; Tauri IPC mocked; no upstream traffic", limitation: "Does not replace native iOS/WKWebView verification", userAgent },
   cases: [], external: [], pageErrors: [],
@@ -37,6 +37,7 @@ try {
         if (cmd === "playback_log_status") return Promise.resolve({ enabled: false, path: null, error: null });
         if (["debug_log", "set_text_interaction"].includes(cmd)) return Promise.resolve();
         if (cmd === "line_auto") return Promise.resolve({ base: "https://fixture.invalid", previous: "https://fixture.invalid", switched: false, pick: { tier: "main", ms: 1, reason: "fixture", candidates: [] } });
+        if (cmd === "api_tags") return Promise.resolve({ categories: [] });
         if (["api_feed", "api_category", "api_posts", "api_original_videos", "api_post_category", "api_search_hot"].includes(cmd)) return Promise.resolve(emptyPage);
         // App's development-only playback self-test must not fetch media upstream.
         if (cmd === "api_play") return Promise.reject("Layout fixture has no playback media");

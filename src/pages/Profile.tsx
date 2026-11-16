@@ -18,7 +18,7 @@ export default function Profile({ wide }: { wide: boolean }) {
 
 function ProfileContent({ wide }: { wide: boolean }) {
   const { blockReason } = useContentPreferences();
-  const { user, setLoginOpen, logout, history, favs, clearHistory, push, accountSync, syncAccount } = useStore();
+  const { user, setLoginOpen, logout, history, favs, likes, clearHistory, push, accountSync, syncAccount } = useStore();
   const [tab, setTab] = useState<"fav" | "history">("fav");
   const [cache, setCache] = useState<Record<number, Detail>>({});
   const cacheRef = useRef(cache);
@@ -103,7 +103,7 @@ function ProfileContent({ wide }: { wide: boolean }) {
   };
 
   return (
-    <div className="ios-page absolute inset-0 bg-bg flex flex-col">
+    <div className={`ios-page absolute inset-0 bg-bg flex flex-col ${isMobile ? "db-me" : ""}`}>
       <div className="ios-page-heading shrink-0 px-4 flex items-center">
         <h1 className="ios-page-title text-on">我的</h1>
         {isMobile && (
@@ -149,6 +149,28 @@ function ProfileContent({ wide }: { wide: boolean }) {
               登录<IChevR size={13} />
             </span>
           </Button>
+        )}
+
+        {isMobile && (
+          <>
+            <div className="db-stats">
+              <div><b>{likes.length}</b><span>喜欢</span></div>
+              <div><b>{favs.length}</b><span>收藏</span></div>
+              <div><b>{history.length}</b><span>历史</span></div>
+            </div>
+            <div className="db-shortcuts">
+              <Button onClick={() => push({ kind: "settings" })}>离线缓存</Button>
+              <Button onClick={() => push({ kind: "settings" })}>线路设置</Button>
+              <Button onClick={() => push({ kind: "settings" })}>播放设置</Button>
+              <Button onClick={() => push({ kind: "settings" })}>检查更新</Button>
+            </div>
+            <div className="db-menu mt-3">
+              <Button onClick={() => push({ kind: "settings", section: "内容偏好" })}>内容偏好</Button>
+              <Button onClick={() => push({ kind: "settings" })}>字幕样式</Button>
+              <Button onClick={() => push({ kind: "settings" })}>护眼与定时关闭</Button>
+              <Button onClick={() => push({ kind: "settings" })}>关于 HGuoX</Button>
+            </div>
+          </>
         )}
 
         {user && accountSync.error && <div role="alert" className="mt-3 rounded-(--r-sm) bg-s3 p-3 text-[13px]">

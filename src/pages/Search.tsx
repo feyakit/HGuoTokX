@@ -1,6 +1,6 @@
 import { Button, Form, Input, SegmentedControl, Surface } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, fmt, isMobile } from "../api";
 import type { HotSearchVideo, Post, RankItem, VideoCard } from "../types";
 import { useStore } from "../store";
@@ -11,7 +11,7 @@ import { useSearchResults } from "../useSearchResults";
 import { SearchTags } from "../components/SearchTags";
 import { IBack, IChevR, IClose, IFireF, IPlayF, IRefresh, ISearch, ITrophy } from "../icons";
 
-export default function Search({ active, wide }: { active: boolean; wide: boolean }) {
+export default function Search({ active, wide, title = "搜索", extra }: { active: boolean; wide: boolean; title?: string; extra?: ReactNode }) {
   const { push, searchHist, addSearch, clearSearchHist, lineEpoch, accountScope } = useStore();
   const [q, setQ] = useState("");
   const [submitted, setSubmitted] = useState("");
@@ -73,8 +73,8 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
   const querying = submitted.length > 0;
 
   return (
-    <div className="ios-page absolute inset-0 bg-bg flex flex-col">
-      <div className="ios-page-heading shrink-0"><h1 className="ios-page-title">搜索</h1></div>
+    <div className={`ios-page absolute inset-0 bg-bg flex flex-col ${extra ? "db-theater" : ""}`}>
+      <div className="ios-page-heading shrink-0"><h1 className="ios-page-title">{title}</h1></div>
       {/* 搜索栏 */}
       <div className="shrink-0 px-4 pb-3 flex items-center gap-2.5" >
         <Form className="ios-search-form flex-1 min-w-0 flex items-center gap-2"
@@ -93,6 +93,7 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
       <div className="flex-1 scroll-y px-4 pb-24">
         {!querying ? (
           <>
+            {extra}
             <Surface role="region" aria-label="热搜榜" className="mt-1 rounded-(--r-md) bg-s2 p-3.5 a-rise">
                 <div className="flex items-center justify-between">
                   <h2 className="flex items-center gap-1.5 text-[14px] font-semibold text-on/90"><IFireF size={15} className="text-primary" />热搜榜</h2>

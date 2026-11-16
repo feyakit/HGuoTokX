@@ -38,7 +38,7 @@ try {
   const nav = page.getByRole("navigation", { name: "主导航" });
   await nav.waitFor();
   await page.waitForFunction(() => window.__IOS_UI_FIXTURE__.hasHardwareBack());
-  await nav.getByRole("button", { name: "分类", exact: true }).click();
+  await nav.getByRole("button", { name: "剧场", exact: true }).click();
   await page.getByRole("button").filter({ has: page.getByText("专题", { exact: true }) }).click();
   await page.getByRole("heading", { name: "专题", exact: true }).waitFor();
 
@@ -67,7 +67,7 @@ try {
   await page.evaluate(() => window.__IOS_UI_FIXTURE__.hardwareBack());
   await page.waitForTimeout(150);
   assert.equal(await page.getByRole("heading", { name: "专题", exact: true }).count(), 0, "Second back leaves the topic page");
-  assert.equal(await page.getByRole("heading", { name: "分类", exact: true }).isVisible(), true, "Second back returns to the category tab");
+  assert.equal(await page.getByRole("heading", { name: "剧场", exact: true }).isVisible(), true, "Second back returns to the theater tab");
   report.checks.push("second back follows the normal page stack");
   report.passed = true;
   await page.screenshot({ path: fileURLToPath(new URL("final.png", output)), animations: "disabled" });

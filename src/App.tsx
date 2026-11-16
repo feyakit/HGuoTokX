@@ -12,7 +12,8 @@ import { ToastHost } from "./components/ui";
 import { DesktopRail, DesktopTitleBar } from "./components/DesktopChrome";
 import ResizeHandles from "./components/ResizeHandles";
 import { tracePlayback } from "./playbackDiagnostics";
-import { IGrid, IGridF, IHome, IHomeF, ISearch, IUser, IUserF } from "./icons";
+import { IGrid, IGridF, IHeart, IHeartF, IPlayF, IUser, IUserF } from "./icons";
+import SwipeFeed from "./components/short/SwipeFeed";
 
 // Local chunks load on first visit; visited tabs stay mounted as before.
 const Search = lazy(() => import("./pages/Search"));
@@ -29,6 +30,8 @@ const TagsPage = lazy(() => import("./pages/Discover").then(module => ({ default
 const TagPage = lazy(() => import("./pages/Discover").then(module => ({ default: module.TagPage })));
 const FollowingPage = lazy(() => import("./pages/User").then(module => ({ default: module.FollowingPage })));
 const UserPage = lazy(() => import("./pages/User").then(module => ({ default: module.UserPage })));
+const Theater = lazy(() => import("./pages/Theater"));
+const Follow = lazy(() => import("./pages/Follow"));
 
 function PageLoading() {
   return <div className="absolute inset-0 grid place-items-center bg-bg"><Loader label="页面加载中" /></div>;
@@ -40,9 +43,9 @@ const isSelectableText = (target: EventTarget | null) => target instanceof Eleme
 function TabBar() {
   const { tab, setTab, platform } = useStore();
   const items = [
-    { key: "home", label: "首页", Icon: IHome, Active: IHomeF },
-    { key: "search", label: "搜索", Icon: ISearch, Active: ISearch },
-    { key: "category", label: "分类", Icon: IGrid, Active: IGridF },
+    { key: "home", label: "刷剧", Icon: IPlayF, Active: IPlayF },
+    { key: "search", label: "剧场", Icon: IGrid, Active: IGridF },
+    { key: "category", label: "追剧", Icon: IHeart, Active: IHeartF },
     { key: "profile", label: "我的", Icon: IUser, Active: IUserF },
   ] as const;
   const index = items.findIndex(item => item.key === tab);
@@ -71,6 +74,9 @@ function StackPage(props: Parameters<typeof StackPageContent>[0]) {
 function StackPageContent({ page, onBack, wide, top, bottomInset }: {
   page: Page; onBack: () => void; wide: boolean; top: boolean; bottomInset: number;
 }) {
+  if (page.kind === "series") {
+    return <SwipeFeed variant="series" videoId={page.videoId} startEp={page.startEp} startTime={page.startTime} active={top} onBack={onBack} />;
+  }
   if (page.kind === "feed") {
     return (
       <Feed videoIds={page.videoIds} startIndex={page.index} title={page.title} kind={page.feedKind || "video"}
@@ -104,8 +110,8 @@ function MainTabs({ wide, pageActive, bottomInset }: { wide: boolean; pageActive
   // First visits mount on demand; subsequent switches preserve queries, scroll and playback state.
   return <>
     <div className={visible("home")} inert={!pageActive || tab !== "home"} aria-hidden={!pageActive || tab !== "home"}>{mounted("home") && <Home active={pageActive && tab === "home"} bottomInset={bottomInset} />}</div>
-    <div className={visible("search")} inert={!pageActive || tab !== "search"} aria-hidden={!pageActive || tab !== "search"}>{mounted("search") && <Suspense fallback={<PageLoading />}><Search active={pageActive && tab === "search"} wide={wide} /></Suspense>}</div>
-    <div className={visible("category")} inert={!pageActive || tab !== "category"} aria-hidden={!pageActive || tab !== "category"}>{mounted("category") && <Suspense fallback={<PageLoading />}><Category wide={wide} active={pageActive && tab === "category"} /></Suspense>}</div>
+    <div className={visible("search")} inert={!pageActive || tab !== "search"} aria-hidden={!pageActive || tab !== "search"}>{mounted("search") && <Suspense fallback={<PageLoading />}>{isMobile ? <Theater active={pageActive && tab === "search"} wide={wide} /> : <Search active={pageActive && tab === "search"} wide={wide} />}</Suspense>}</div>
+    <div className={visible("category")} inert={!pageActive || tab !== "category"} aria-hidden={!pageActive || tab !== "category"}>{mounted("category") && <Suspense fallback={<PageLoading />}>{isMobile ? <Follow active={pageActive && tab === "category"} wide={wide} /> : <Category wide={wide} active={pageActive && tab === "category"} />}</Suspense>}</div>
     <div className={visible("profile")} inert={!pageActive || tab !== "profile"} aria-hidden={!pageActive || tab !== "profile"}>{mounted("profile") && <Suspense fallback={<PageLoading />}><Profile wide={wide} /></Suspense>}</div>
   </>;
 }

@@ -116,7 +116,9 @@ try {
         return size >= minimum;
       }, test.minimumFontSize), "Chromium applies the enlarged minimum text size");
       const nav = page.getByRole("navigation", { name: "主导航" });
-      for (const label of ["首页", "搜索", "分类", "我的"]) await nav.getByRole("button", { name: label, exact: true }).waitFor();
+      const homeTab = test.mobile ? "刷剧" : "首页";
+      const searchTab = test.mobile ? "剧场" : "搜索";
+      for (const label of test.mobile ? ["刷剧", "剧场", "追剧", "我的"] : ["首页", "搜索", "分类", "我的"]) await nav.getByRole("button", { name: label, exact: true }).waitFor();
       await page.waitForFunction(theme => document.documentElement.dataset.theme === theme, test.theme);
       if (test.android) await page.waitForFunction(() => window.__IOS_UI_FIXTURE__.hasHardwareBack());
       check("original navigation and persisted appearance");
@@ -125,7 +127,7 @@ try {
         await videoNav.waitFor();
         const navBackground = await videoNav.evaluate(nav => nav.getAttribute("data-over-video"));
         assert.equal(navBackground, "true", "Home navigation declares its video background");
-        await nav.getByRole("button", { name: "首页", exact: true }).click();
+        await nav.getByRole("button", { name: homeTab, exact: true }).click();
         const homeVideoMaterial = await page.evaluate(() => {
           const nav = document.querySelector('nav[aria-label="主导航"]');
           const selected = nav?.querySelector('[aria-current="page"]');
@@ -139,7 +141,7 @@ try {
         assert.equal(homeVideoMaterial.background, "rgba(28, 28, 32, 0.94)", "Home navigation keeps an opaque dark glass surface over black video");
         check("home navigation text contrast on video in both themes");
       }
-      await nav.getByRole("button", { name: "搜索", exact: true }).click();
+      await nav.getByRole("button", { name: searchTab, exact: true }).click();
 
       const hotSearch = page.getByRole("region", { name: "热搜榜", exact: true });
       await hotSearch.getByRole("button", { name: "播放 城市与晚风", exact: true }).waitFor();
@@ -184,7 +186,7 @@ try {
           && topControls.counter.top < topControls.mute.bottom && topControls.counter.bottom > topControls.mute.top, false,
         "Playback position and mute control do not overlap");
         await page.keyboard.press("Escape");
-        await nav.getByRole("button", { name: "搜索", exact: true }).waitFor();
+        await nav.getByRole("button", { name: searchTab, exact: true }).waitFor();
         check("Android player counter clears the mute control");
       }
 
@@ -202,7 +204,12 @@ try {
       await query.waitFor();
       check("all three rank choices move the shared indicator into the selected button bounds");
 
-      await nav.getByRole("button", { name: "分类", exact: true }).click();
+      if (test.mobile) {
+        const clear = page.getByRole("button", { name: "清空搜索", exact: true });
+        if (await clear.count()) await clear.click();
+      } else {
+        await nav.getByRole("button", { name: "分类", exact: true }).click();
+      }
       await page.getByRole("button").filter({ has: page.getByText("专题", { exact: true }) }).click();
       const topic = page.getByRole("button").filter({ has: page.getByText("本周精选", { exact: true }) });
       await topic.waitFor();
