@@ -5,7 +5,7 @@
  * 为什么需要：
  *   Tauri 的 Android 模板主题继承 `Theme.MaterialComponents.DayNight.NoActionBar`，
  *   它的 `android:windowBackground` 是 Material 灰底（暗色 #303030 / 亮色 #FAFAFA）。
- *   而启动动画的背景是深色品牌色 #071218（见 src/styles/launch.css 的 --launch-bg），
+ *   而启动动画的背景是深色品牌色 #0A0820（见 src/styles/launch.css 的 --launch-bg），
  *   于是点开应用会先闪一下灰/白，再跳进启动动画。
  *
  *   这里把窗口首帧背景固定成品牌色，与 index.html 首帧、launch.css 三层对齐。
@@ -28,7 +28,7 @@ if (!existsSync(res)) {
 }
 
 // 与 src/styles/launch.css 的 --launch-bg、index.html 首帧背景一致
-const BRAND = "#071218";
+const BRAND = "#0A0820";
 const THEME = "Theme.hghubx";
 const valuesDir = join(res, "values");
 const colorsPath = join(valuesDir, "colors.xml");

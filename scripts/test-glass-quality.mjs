@@ -48,6 +48,7 @@ try {
         cardBlur: blur(".ios-setting-group"),
         speedBlur: blur(".player-speed-menu"),
         navBackground: style(".ios-mobile-nav .hg-glass").backgroundColor,
+        navReflection: style(".ios-mobile-nav .hg-glass").backgroundImage,
       };
     });
     assert.equal(actual.quality, scenario.expected, `${scenario.name}: quality`);
@@ -56,10 +57,12 @@ try {
     if (scenario.expected === "full") {
       assert.match(actual.navBlur, /blur\(/, "Full mode should blur navigation");
       assert.match(actual.dialogBlur, /blur\(/, "Full mode should blur overlays");
+      assert.match(actual.navReflection, /radial-gradient\(/, "Full mode includes the glass reflection");
     } else {
       assert.equal(actual.navBlur, "none", `${scenario.name}: nav fallback`);
       assert.equal(actual.dialogBlur, "none", `${scenario.name}: dialog fallback`);
       assert.equal(actual.speedBlur, "none", `${scenario.name}: player menu fallback`);
+      assert.equal(actual.navReflection, "none", `${scenario.name}: no reflection in solid mode`);
       assert.notEqual(actual.navBackground, "rgba(0, 0, 0, 0)", `${scenario.name}: nav must stay readable`);
     }
     if (scenario.name === "windows-capable") {
@@ -108,6 +111,12 @@ try {
       await page.waitForFunction(() => document.documentElement.dataset.glassVideo === "playing");
       const playingBlur = await page.locator(".ios-dialog").evaluate(el => getComputedStyle(el).backdropFilter);
       assert.match(playingBlur, /blur\(14px\)/, "Playback caps overlay blur at 14px");
+      const navGlass = page.locator(".ios-mobile-nav .hg-glass");
+      assert.match(await navGlass.evaluate(el => getComputedStyle(el).backdropFilter), /blur\(14px\)/);
+      await page.locator("html").evaluate(el => el.classList.add("theme-light", "theme-transitioning"));
+      assert.equal(await navGlass.evaluate(el => getComputedStyle(el).backdropFilter), "none", "Theme transition suspends video-mode blur");
+      assert.notEqual(await navGlass.evaluate(el => getComputedStyle(el).backgroundImage), actual.navReflection, "Light and dark use different reflections");
+      await page.locator("html").evaluate(el => el.classList.remove("theme-light", "theme-transitioning"));
       const tabsBlur = await page.locator(".desktop-home-tabs").evaluate(el => getComputedStyle(el).backdropFilter);
       assert.match(tabsBlur, /blur\(14px\)/, "Desktop video tabs cap blur while playing");
       // Two concurrently playing videos must not race the quality state.

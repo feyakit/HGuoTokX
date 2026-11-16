@@ -14,12 +14,12 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const cli = join(root, "node_modules", "@tauri-apps", "cli", "tauri.js");
-const source = join(root, "app-icon.svg");
+const source = join(root, "hguox.manifest.json");
 const icons = join(root, "src-tauri", "icons");
 const staging = mkdtempSync(join(tmpdir(), "hguox-brand-icons-"));
 
 const desktop = [
-  "32x32.png", "128x128.png", "128x128@2x.png", "icon.png", "icon.ico", "icon.icns",
+  "32x32.png", "64x64.png", "128x128.png", "128x128@2x.png", "icon.png", "icon.ico", "icon.icns",
 ];
 const densities = ["mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"];
 const android = densities.flatMap(density => [
@@ -42,7 +42,7 @@ function validate(path) {
 }
 
 try {
-  if (!existsSync(cli) || !existsSync(source)) throw new Error("Install dependencies and provide app-icon.svg before generating icons");
+  if (!existsSync(cli) || !existsSync(source)) throw new Error("请安装依赖并提供 hguox.manifest.json 后再生成图标");
   execFileSync(process.execPath, [cli, "icon", "--output", staging, source], { cwd: root, stdio: "inherit" });
   // Validate the entire output before overwriting any tracked source asset.
   for (const name of required) {

@@ -2,14 +2,28 @@ name: Release
 
 # 打 tag（v1.2.3）即自动出包并发布 Release；也可以在 Actions 页手动跑：
 # platforms=all + quick=false + 填好 tag，等价于一次正式发版。
+# 开发分支的 push 生成四平台 QA 产物，Android 走单独的预览工作流。
 on:
   push:
     tags: ["v*"]
+    branches: [design/liquid-glass-brand-v1]
+    paths:
+      - 'src/**'
+      - 'src-tauri/**'
+      - 'scripts/**'
+      - 'public/**'
+      - 'index.html'
+      - 'app-icon.svg'
+      - 'hguox*.svg'
+      - 'hguox.manifest.json'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/release.yml'
   # 手动跑：默认 quick + 单平台，验证改动用；选 all 且关掉 quick 就是发版那套全量构建。
   workflow_dispatch:
     inputs:
       platforms:
-        description: "构建范围：check 只查编译不出包；all 四平台；选单个只出那一个"
+        description: "构建范围：check 只查编译不出包；all 五平台；选单个只出那一个"
         type: choice
         default: all
         options: [all, android-arm64, android, linux, windows, macos, ios, check]
@@ -22,12 +36,17 @@ on:
         type: string
         default: ""
 
+permissions:
+  contents: read
+
 concurrency:
   group: release-${{ github.ref }}-${{ github.event_name }}-${{ github.run_id }}
   cancel-in-progress: true
 
 env:
   CI: "true"
+  HGUOX_RELEASE_TAG: ${{ inputs.tag }}
+  HGUOX_BRANCH_PREVIEW: ${{ github.event_name == 'push' && github.ref == 'refs/heads/design/liquid-glass-brand-v1' }}
 
 jobs:
   # ================= Windows：NSIS 安装包 + 便携包 =================
@@ -37,8 +56,8 @@ jobs:
     timeout-minutes: 60
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.platforms == 'all' || inputs.platforms == 'windows' }}
     env:
-      CARGO_PROFILE_RELEASE_LTO: ${{ inputs.quick && 'thin' || 'true' }}
-      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: ${{ inputs.quick && '4' || '1' }}
+      CARGO_PROFILE_RELEASE_LTO: ${{ (inputs.quick || (github.event_name == 'push' && github.ref_type == 'branch')) && 'thin' || 'true' }}
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: ${{ (inputs.quick || (github.event_name == 'push' && github.ref_type == 'branch')) && '4' || '1' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -48,8 +67,8 @@ jobs:
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             V="${GITHUB_REF_NAME#v}"
-          elif [[ -n "${{ inputs.tag }}" ]]; then
-            V="${{ inputs.tag }}"
+          elif [[ -n "$HGUOX_RELEASE_TAG" ]]; then
+            V="$HGUOX_RELEASE_TAG"
             V="${V#v}"
           else
             V="$(node -p "require('./src-tauri/tauri.conf.json').version")"
@@ -97,7 +116,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: windows
+          name: ${{ env.HGUOX_BRANCH_PREVIEW == 'true' && format('windows-preview-{0}', github.sha) || 'windows' }}
           path: artifacts/*
           if-no-files-found: error
 
@@ -106,7 +125,8 @@ jobs:
     name: Android (split per ABI)
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platforms == 'all' || startsWith(inputs.platforms, 'android') }}
+    # 开发分支的 Android 预览由独立的临时签名工作流构建。
+    if: ${{ startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && (inputs.platforms == 'all' || startsWith(inputs.platforms, 'android'))) }}
     env:
       CARGO_PROFILE_RELEASE_LTO: ${{ inputs.quick && 'thin' || 'true' }}
       CARGO_PROFILE_RELEASE_CODEGEN_UNITS: ${{ inputs.quick && '4' || '1' }}
@@ -119,8 +139,8 @@ jobs:
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             V="${GITHUB_REF_NAME#v}"
-          elif [[ -n "${{ inputs.tag }}" ]]; then
-            V="${{ inputs.tag }}"
+          elif [[ -n "$HGUOX_RELEASE_TAG" ]]; then
+            V="$HGUOX_RELEASE_TAG"
             V="${V#v}"
           else
             V="$(node -p "require('./src-tauri/tauri.conf.json').version")"
@@ -190,16 +210,23 @@ jobs:
           STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           VERSION: ${{ steps.ver.outputs.version }}
+          FORMAL_BUILD: ${{ startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '') }}
         run: |
           set -euo pipefail
           KS="$RUNNER_TEMP/release.keystore"
+          trap 'rm -f "$KS"' EXIT
+          SIGNING_SUFFIX=""
+          if [[ "$FORMAL_BUILD" == "true" && -z "${KEYSTORE_BASE64:-}" ]]; then
+            echo "::error::正式发布需要已配置的 Android 固定签名密钥"
+            exit 1
+          fi
           if [ -n "${KEYSTORE_BASE64:-}" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > "$KS"
             echo "[sign] 使用仓库 secrets 里的固定签名密钥"
           else
-            # 没配 secrets 时用临时密钥：包能装、能用，但每次构建签名不同，
-            # 覆盖升级前要先卸载旧版。个人自用够用；配好 secrets 后自动切回固定签名。
-            echo "::warning::未配置 ANDROID_KEY_BASE64，本次使用临时密钥签名（升级需先卸载）"
+            # 仅无发布 tag 的 QA 构建可以用临时密钥。
+            SIGNING_SUFFIX="_TEST-KEY"
+            echo "::warning::本次使用临时密钥签名，请在备用设备上测试"
             rm -f "$KS"
             keytool -genkeypair -v -keystore "$KS" -storetype PKCS12 \
               -alias hguox -keyalg RSA -keysize 2048 -validity 10000 \
@@ -214,7 +241,7 @@ jobs:
           found=0
           for f in $(find src-tauri/gen/android/app/build/outputs/apk -name '*-release*.apk'); do
             abi="$(basename "$(dirname "$(dirname "$f")")")"
-            out="artifacts/HGuoX_${VERSION}_${abi}.apk"
+            out="artifacts/HGuoX_${VERSION}_${abi}${SIGNING_SUFFIX}.apk"
             "$APKSIGNER" sign \
               --ks "$KS" --ks-key-alias "$KEY_ALIAS" \
               --ks-pass "pass:$STORE_PASSWORD" --key-pass "pass:$KEY_PASSWORD" \
@@ -223,7 +250,6 @@ jobs:
             "$APKSIGNER" verify --print-certs "$out" | head -3
             found=$((found+1))
           done
-          rm -f "$KS"
           if [ "$found" -eq 0 ]; then echo "::error::没有找到 release APK"; exit 1; fi
           # 打一下实际写进 APK 的 versionCode，升级链对不对看这行
           AAPT2="$(ls "$ANDROID_SDK_ROOT"/build-tools/*/aapt2 | sort -V | tail -1)"
@@ -243,8 +269,8 @@ jobs:
     timeout-minutes: 60
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.platforms == 'all' || inputs.platforms == 'macos' }}
     env:
-      CARGO_PROFILE_RELEASE_LTO: ${{ inputs.quick && 'thin' || 'true' }}
-      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: ${{ inputs.quick && '4' || '1' }}
+      CARGO_PROFILE_RELEASE_LTO: ${{ (inputs.quick || (github.event_name == 'push' && github.ref_type == 'branch')) && 'thin' || 'true' }}
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: ${{ (inputs.quick || (github.event_name == 'push' && github.ref_type == 'branch')) && '4' || '1' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -254,8 +280,8 @@ jobs:
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             V="${GITHUB_REF_NAME#v}"
-          elif [[ -n "${{ inputs.tag }}" ]]; then
-            V="${{ inputs.tag }}"
+          elif [[ -n "$HGUOX_RELEASE_TAG" ]]; then
+            V="$HGUOX_RELEASE_TAG"
             V="${V#v}"
           else
             V="$(node -p "require('./src-tauri/tauri.conf.json').version")"
@@ -290,7 +316,7 @@ jobs:
       - name: 构建（Universal dmg）
         run: |
           # quick 只编 arm64：universal 要交叉编两遍，时间翻倍
-          if [ "${{ inputs.quick }}" = "true" ]; then
+          if [ "${{ inputs.quick }}" = "true" ] || [ "$HGUOX_BRANCH_PREVIEW" = "true" ]; then
             pnpm tauri build --target aarch64-apple-darwin
           else
             pnpm tauri build --target universal-apple-darwin
@@ -303,14 +329,17 @@ jobs:
           mkdir -p artifacts
           DIR=universal-apple-darwin
           SUFFIX=universal
-          if [ "${{ inputs.quick }}" = "true" ]; then DIR=aarch64-apple-darwin; SUFFIX=arm64; fi
+          if [ "${{ inputs.quick }}" = "true" ] || [ "$HGUOX_BRANCH_PREVIEW" = "true" ]; then
+            DIR=aarch64-apple-darwin
+            SUFFIX=arm64
+          fi
           cp "src-tauri/target/$DIR/release/bundle/dmg/"*.dmg \
              "artifacts/HGuoX_${{ steps.ver.outputs.version }}_${SUFFIX}.dmg"
           ls -lh artifacts
 
       - uses: actions/upload-artifact@v7
         with:
-          name: macos
+          name: ${{ env.HGUOX_BRANCH_PREVIEW == 'true' && format('macos-preview-{0}', github.sha) || 'macos' }}
           path: artifacts/*
           if-no-files-found: error
 
@@ -320,8 +349,8 @@ jobs:
     timeout-minutes: 60
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.platforms == 'all' || inputs.platforms == 'ios' }}
     env:
-      CARGO_PROFILE_RELEASE_LTO: ${{ inputs.quick && 'thin' || 'true' }}
-      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: ${{ inputs.quick && '4' || '1' }}
+      CARGO_PROFILE_RELEASE_LTO: ${{ (inputs.quick || (github.event_name == 'push' && github.ref_type == 'branch')) && 'thin' || 'true' }}
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: ${{ (inputs.quick || (github.event_name == 'push' && github.ref_type == 'branch')) && '4' || '1' }}
       APPLE_DEVELOPMENT_TEAM: "ABCDE12345"
     steps:
       - uses: actions/checkout@v7
@@ -332,8 +361,8 @@ jobs:
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             V="${GITHUB_REF_NAME#v}"
-          elif [[ -n "${{ inputs.tag }}" ]]; then
-            V="${{ inputs.tag }}"
+          elif [[ -n "$HGUOX_RELEASE_TAG" ]]; then
+            V="$HGUOX_RELEASE_TAG"
             V="${V#v}"
           else
             V="$(node -p "require('./src-tauri/tauri.conf.json').version")"
@@ -385,7 +414,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: ios
+          name: ${{ env.HGUOX_BRANCH_PREVIEW == 'true' && format('ios-preview-{0}', github.sha) || 'ios' }}
           path: artifacts/*
           if-no-files-found: error
 
@@ -396,8 +425,8 @@ jobs:
     timeout-minutes: 60
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.platforms == 'all' || inputs.platforms == 'linux' }}
     env:
-      CARGO_PROFILE_RELEASE_LTO: ${{ inputs.quick && 'thin' || 'true' }}
-      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: ${{ inputs.quick && '4' || '1' }}
+      CARGO_PROFILE_RELEASE_LTO: ${{ (inputs.quick || (github.event_name == 'push' && github.ref_type == 'branch')) && 'thin' || 'true' }}
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: ${{ (inputs.quick || (github.event_name == 'push' && github.ref_type == 'branch')) && '4' || '1' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -407,8 +436,8 @@ jobs:
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             V="${GITHUB_REF_NAME#v}"
-          elif [[ -n "${{ inputs.tag }}" ]]; then
-            V="${{ inputs.tag }}"
+          elif [[ -n "$HGUOX_RELEASE_TAG" ]]; then
+            V="$HGUOX_RELEASE_TAG"
             V="${V#v}"
           else
             V="$(node -p "require('./src-tauri/tauri.conf.json').version")"
@@ -459,7 +488,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: linux
+          name: ${{ env.HGUOX_BRANCH_PREVIEW == 'true' && format('linux-preview-{0}', github.sha) || 'linux' }}
           path: artifacts/*
           if-no-files-found: error
 
@@ -518,7 +547,7 @@ jobs:
     needs: [windows, android, macos, linux, ios]
     # always()：iOS 失败时不能把整包卡住，但成功时要等它的 ipa 一起发
     if: >-
-      always() &&
+      always() && needs.android.result == 'success' &&
       (startsWith(github.ref, 'refs/tags/v') ||
       (github.event_name == 'workflow_dispatch' && inputs.tag != ''))
     runs-on: ubuntu-latest
@@ -541,7 +570,7 @@ jobs:
       - name: 取版本说明
         id: notes
         run: |
-          TAG="${{ inputs.tag != '' && inputs.tag || github.ref_name }}"
+          TAG="${HGUOX_RELEASE_TAG:-$GITHUB_REF_NAME}"
           F="docs/release-notes/${TAG}.md"
           if [ -f "$F" ]; then
             echo "body_path=$F" >> "$GITHUB_OUTPUT"

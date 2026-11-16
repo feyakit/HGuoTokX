@@ -7,6 +7,15 @@ GitHub Actions Chromium tests simulate platform CSS variants; they do NOT
 prove iOS WKWebView, Android System WebView, Windows WebView2, macOS WKWebView
 or Linux WebKitGTK performance.
 
+## Development log
+
+| Change | Evidence |
+|---|---|
+| Integrated `main` 3.0.0 in `f9a39ad` | [Integration CI](https://github.com/feyakit/HGuoX/actions/runs/43794221846) passed TypeScript/Vite, Rust compile checks and Chromium UI tests. Main's playback and tag-pagination files are present in the integration tree. |
+| Launch and icon fixes | Visible wordmark, WebView first paint and native launch backgrounds are aligned. The Android launcher generator consumes the adaptive foreground manifest. Generated Android foregrounds have transparent corners across all five densities. The iOS generator validates 18 opaque square assets. |
+| Glass and layout | Mobile dialogs and sheets use safe-area padding, full mode uses light/dark reflection gradients, and theme transitions suspend backdrop blur. Video playback caps blur on additional navigation surfaces. The Chromium fixture tests these changes. |
+| Native build coverage | Feature-branch pushes run Windows NSIS/portable, Linux DEB, macOS arm64 DMG and unsigned iOS IPA jobs in `release.yml`. Android runs the separate ARM64 preview. Artifacts are tied to the Actions commit, with native device acceptance recorded below. |
+
 ## Current release blockers
 
 1. **Integrated build validation:** `main` at `85a506d` was integrated into
@@ -51,9 +60,20 @@ Artifact contents:
 
 **Do not upgrade another app build with this APK.** Every build uses a fresh,
 untrusted certificate; Android will refuse mismatched signing keys.
-Uninstalling an app can destroy its local favorites, history and settings:
-back up/transfer data before doing so. Do not confuse a successful
-`apksigner verify` with a trusted publication signature.
+Use a spare device without an existing HGuoX installation. Uninstalling an app
+can destroy its local favorites, history and settings. A successful
+`apksigner verify` confirms the test signature and file integrity.
+
+## Package and upgrade checks
+
+| Item | State |
+|---|---|
+| Product / identifier / version | `HGuoX` / `com.hguox.app` / `3.0.0` with Android version code `3000000`. |
+| Android release signing | Tagged publication requires a configured stable Android signing key. Verify the actual release certificate against the installed release and check that the candidate version code is higher. |
+| iOS and macOS signing | The current iOS artifact is unsigned. The macOS preview is ad-hoc signed. Distribution identity, provisioning and notarization need deployment verification before publication. |
+| Windows and Linux packaging | Windows emits NSIS and a portable ZIP. Linux emits an amd64 DEB. Validate trust and runtime dependencies on the target systems. |
+| Old app data | `hghubx_*` keys and same-storage migration are retained. A package-identifier change creates another app data container. Validate backup, restore and rollback with a preserved old install before describing a migration as supported. |
+| Selected logo source | The SVG sources implement the selected neon X concept. The 1254 px original could not be matched to a confirmed source file during this handoff. Pixel fidelity and launcher appearance remain open. |
 
 ## Real-device acceptance matrix
 

@@ -26,7 +26,7 @@ Tauri 2 + React 19 + TypeScript + Rust，目标是 **Android 手机自用**。
 CI（`.github/workflows/`）：
 
 - `ci.yml` — push main / Liquid Glass 开发分支或更新 PR 时，运行前端构建、Rust 编译和 UI 回归
-- `release.yml` — push `v*` tag 触发，五平台并行打包并发 Release
+- `release.yml` — Liquid Glass 分支推送时打包 iOS、Windows、macOS 和 Linux 预览。正式发布使用 `v*` tag 或带 tag 的手动运行。
 
 **不要**为了验证一个前端改动去推 tag：一次五平台构建 30 分钟。
 
@@ -61,8 +61,8 @@ Cargo 包名     hghubx（保留旧技术标识，改了要连带修改 iOS/Xcod
 
 ### 4. 签名
 
-`.github/workflows/release.yml` 的签名步骤：有 `ANDROID_KEY_BASE64` 就用固定密钥，
-没有就现生成临时密钥（自用能跑，但每次签名不同、升级要先卸载）。
+`.github/workflows/release.yml` 的正式发布要求配置 `ANDROID_KEY_BASE64` 和对应签名凭据。
+临时密钥只用于测试，测试包文件名带 `TEST-KEY`。请用备用设备或无现有安装的测试环境。
 keystore 不在仓库里，别去找。
 
 ## 代码约定

@@ -91,10 +91,22 @@ jobs:
         run: pnpm test:mobile-layout
       - name: Overlay focus and back-stack regression
         run: pnpm test:ios-overlays
+      - name: Same-storage data migration regression
+        run: pnpm test:storage-migration
       - name: Real App iOS-style smoke
         env:
           IOS_UI_CASE: 390x844-dark
         run: pnpm test:ios-ui
+      - name: Compact light mode with reduced motion
+        env:
+          IOS_UI_CASE: 320x694-light
+        run: pnpm test:ios-ui
+      - name: Playback regression with local HLS fixture
+        if: github.head_ref == 'design/liquid-glass-brand-v1' || github.ref_name == 'design/liquid-glass-brand-v1'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          pnpm test:playback --scenarios seek,legacy,stall,lifecycle,mms --output test-results/playback-ci
       - name: Upload browser evidence on failure
         if: failure()
         uses: actions/upload-artifact@v7

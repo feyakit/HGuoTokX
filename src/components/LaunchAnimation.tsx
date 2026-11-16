@@ -28,13 +28,15 @@ export function LaunchAnimation({ onFinish }: { onFinish: () => void }) {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") { event.preventDefault(); event.stopImmediatePropagation(); finish(); }
     };
-    motion.addEventListener("change", onMotion);
+    if (typeof motion.addEventListener === "function") motion.addEventListener("change", onMotion);
+    else motion.addListener(onMotion);
     document.addEventListener("visibilitychange", onHidden);
     window.addEventListener("keydown", onKey, true);
     onHidden();
     return () => {
       window.clearTimeout(timer);
-      motion.removeEventListener("change", onMotion);
+      if (typeof motion.removeEventListener === "function") motion.removeEventListener("change", onMotion);
+      else motion.removeListener(onMotion);
       document.removeEventListener("visibilitychange", onHidden);
       window.removeEventListener("keydown", onKey, true);
     };
@@ -56,12 +58,11 @@ export function LaunchAnimation({ onFinish }: { onFinish: () => void }) {
     <div className="hg-launch-stage" aria-hidden="true">
       <div className="hg-launch-orbit" />
       <div className="hg-launch-mark">
-        <img className="hg-launch-svg hg-launch-logo" src="/logo.svg"
+        <img className="hg-launch-logo" src="/logo.svg"
           width="152" height="152" alt="" draggable={false} decoding="async" />
       </div>
-      <div className="hg-launch-wordmark"><span>HGuoTok</span><span className="hg-launch-word-x">X</span></div>
+      <div className="hg-launch-wordmark"><span>HGuo</span><span className="hg-launch-word-x">X</span></div>
     </div>
-    <span className="hg-launch-footnote" aria-hidden="true">PRESS PLAY. FEEL MORE.</span>
   </div>;
 }
 
