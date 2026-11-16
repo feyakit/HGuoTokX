@@ -1,10 +1,14 @@
-.video-details-panel { display:flex; flex-direction:column; height:100%; min-height:0; color:var(--p-on); }
+.video-details-panel { position:relative; display:flex; flex-direction:column; height:100%; min-height:0; color:var(--p-on); }
+/* 内容压在沉浸背景之上 */
+.video-details-heading, .video-details-scroll { position:relative; z-index:1; }
 .video-details-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 16px; flex:none; border-bottom:1px solid var(--ios-edge); }
 .video-details-heading h2 { font-size:17px; font-weight:700; }
 .video-details-scroll { flex:1; min-height:0; padding:16px 16px max(24px,env(safe-area-inset-bottom)); overscroll-behavior:contain; }
 .video-details-overview { display:flex; align-items:flex-start; gap:12px; }
-/* 3:4 封面：Chrome 87 没有 aspect-ratio，直接按宽度算高 */
-.video-details-cover { position:relative; width:76px; height:calc(76px * 4 / 3); flex:none; overflow:hidden; border-radius:16px; background:var(--p-s3); }
+/* 3:4 封面：Chrome 87 没有 aspect-ratio，直接按宽度算高。
+   浮在沉浸背景上：regular glass 边 + 投影，跟背景拉开层次。 */
+.video-details-cover { position:relative; width:76px; height:calc(76px * 4 / 3); flex:none; overflow:hidden; border-radius:16px; background:var(--p-s3);
+  border:1px solid var(--ios-edge); box-shadow:0 12px 26px rgb(0 0 0 / .34), inset 0 1px 0 rgb(255 255 255 / .16); }
 .video-details-copy { flex:1; min-width:0; }
 .video-details-copy>h3 { font-size:15px; line-height:1.5; font-weight:700; overflow-wrap:anywhere; }
 .video-details-stats { display:flex; flex-wrap:wrap; gap:6px 12px; margin-top:8px; font-size:12px; line-height:1.5; color:var(--p-mut); }

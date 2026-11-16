@@ -1,4 +1,4 @@
-import { fmt } from "../api";
+import { cover, fmt } from "../api";
 import type { VideoCard } from "../types";
 import { IClose } from "../icons";
 import { Button, Surface } from "./ios/controls";
@@ -6,6 +6,7 @@ import { Avatar, Img } from "./ui";
 import { ContentTags } from "./ContentTags";
 import { FilteredContent } from "./FilteredContent";
 import { RowCard } from "./cards";
+import StageBackdrop from "./StageBackdrop";
 import "../styles/video-details.css";
 
 type VideoMeta = {
@@ -21,6 +22,11 @@ export default function VideoDetailsPanel({ meta, videoId, episodeCount, related
   onAuthor: () => void; onRelated: (video: VideoCard) => void; onClose?: () => void; onPreferences: () => void;
 }) {
   return <div className="video-details-panel" data-video-details>
+    {/* 顶部 40% 沉浸背景：封面小图放大 + 封面色着色，向下渐隐成页面底色 */}
+    <div aria-hidden className="hg-ambient">
+      <StageBackdrop src={cover(meta.cover)} />
+      <div className="hg-ambient-tint" />
+    </div>
     {onClose && <div className="video-details-heading">
       <h2>视频详情</h2>
       <Button className="ios-icon-button" aria-label="关闭视频详情" onClick={onClose}><IClose size={18} /></Button>
