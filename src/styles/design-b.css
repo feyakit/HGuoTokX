@@ -98,7 +98,7 @@ html[data-glass-quality="low"] .db-shade.is-card .db-info { backdrop-filter: non
   position: absolute; inset: 0; appearance: none; width: 100%; height: 22px; margin: 0; background: transparent; opacity: 0;
 }
 .db-time { display: flex; justify-content: space-between; margin-top: 4px; color: #d5d8e0; font-size: 12px; }
-.db-top, .db-series-top { position: absolute; z-index: 4; left: 12px; right: 12px; top: max(10px, env(safe-area-inset-top)); display: flex; align-items: center; gap: 8px; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
+.db-top, .db-series-top { position: absolute; z-index: 4; left: 12px; right: 12px; top: calc(var(--sat, 12px) + 6px); display: flex; align-items: center; gap: 8px; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
 .db-top { justify-content: space-between; }
 .db-top::before { content: ""; position: absolute; left: -12px; right: -12px; top: -10px; height: 104px; background: linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,0)); pointer-events: none; z-index: -1; }
 .db-tabs { position: relative; display: flex; align-items: center; gap: 4px; }
@@ -114,7 +114,7 @@ html[data-glass-quality="low"] .db-shade.is-card .db-info { backdrop-filter: non
 .db-icon { width: 44px; height: 44px; color: #fff; display: grid; place-items: center; }
 .db-feed .db-speed.ios-button, .db-boost { height: 32px; padding: 0 12px; border-radius: 999px; background: rgba(20,22,28,.62); color: #fff; border: 1px solid rgba(255,255,255,.16); backdrop-filter: blur(16px) saturate(1.4); -webkit-backdrop-filter: blur(16px) saturate(1.4); }
 html[data-glass-quality="low"] .db-speed, html[data-glass-quality="low"] .db-boost, html[data-glass-quality="low"] .db-sheet { backdrop-filter: none; background: rgba(20,22,28,.92); }
-.db-boost { position: absolute; z-index: 5; top: max(16px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; }
+.db-boost { position: absolute; z-index: 5; top: calc(var(--sat, 12px) + 10px); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; }
 .db-speed-menu { position: absolute; z-index: 6; top: 64px; right: 16px; display: flex; flex-direction: column; padding: 6px; border-radius: 16px; background: rgba(20,22,28,.92); border: 1px solid rgba(255,255,255,.12); }
 .db-speed-menu .ios-button { min-height: 40px; padding: 0 16px; color: #fff; }
 .db-speed-menu .ios-button[aria-checked="true"] { color: var(--accent); }
