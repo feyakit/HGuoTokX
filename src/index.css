@@ -503,8 +503,15 @@ html.theme-light .article-body blockquote { background: rgba(43, 40, 36, .045); 
 
 /* 播放页封面取色：顶部柔光用封面主色，读不到时退回品牌色 */
 .hg-accent-glow {
-  position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  position: absolute; inset: 0; pointer-events: none; z-index: 2;
   background:
     radial-gradient(120% 46% at 50% 0%, var(--accent-soft, rgba(121,119,255,.26)) 0%, transparent 62%);
   transition: background 320ms ease;
+}
+
+/* 剧名行前的强调竖条：封面取色的稳定可见信号（柔光被视频盖住时靠它） */
+.hg-accent-pip {
+  width: 3px; height: 14px; border-radius: 2px; flex: none;
+  background: var(--accent, var(--p-primary));
+  box-shadow: 0 0 10px var(--accent-soft, transparent);
 }

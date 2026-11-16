@@ -1423,6 +1423,7 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
                   </div>
                   <div className="relative pt-1.5 pb-2.5">
                     <div className="mobile-video-meta-copy flex flex-wrap items-center gap-2">
+                      <span aria-hidden className="hg-accent-pip" />
                       <Button aria-label="视频详情" onClick={() => setPanel("detail")}
                         className="min-h-11 flex items-center gap-0.5 text-[12px] font-medium hg-ink-3 hg-ov-shadow-strong pressable">
                         详情 · 第 {curEp} 集<IChevR size={11} />
@@ -1433,14 +1434,16 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
                     <div ref={barRef} className="mx-4 mt-2 relative" style={{ height: 14, touchAction: "none" }}
                       onPointerDown={onBarDown} onPointerMove={onBarMove} onPointerUp={onBarUp} onPointerCancel={onBarUp}>
                       {/* 轨道：几乎看不见，只暗示可拖动 */}
-                      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[2px] rounded-full" style={{ background: "rgba(255,255,255,.1)" }}>
+                      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[3.5px] rounded-full" style={{ background: "rgba(255,255,255,.16)" }}>
                         <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} className="h-full rounded-full"
-                          style={{ background: "rgba(255,255,255,.26)", transition: barPct !== null ? "none" : "width .25s linear" }} />
+                          style={{ background: "var(--accent, rgba(255,255,255,.26))", transition: barPct !== null ? "none" : "width .25s linear" }} />
                       </div>
                       {/* 进度点：整个进度条唯一的实心元素 */}
-                      <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} position className="absolute top-1/2 w-[7px] h-[7px] rounded-full bg-white pointer-events-none"
+                      <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} position className="absolute top-1/2 w-[9px] h-[9px] rounded-full pointer-events-none"
                         style={{
                           transform: "translate(-50%, -50%)",
+                          background: "var(--accent, #fff)",
+                          border: "2px solid rgba(255,255,255,.92)",
                           boxShadow: "0 0 8px rgba(0,0,0,.55)",
                           transition: barPct !== null ? "none" : "left .25s linear",
                         }} />
@@ -1561,7 +1564,7 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
           }}>
           <div ref={barRef} className="relative h-full" style={{ touchAction: "none" }}
             onPointerDown={onBarDown} onPointerMove={onBarMove} onPointerUp={onBarUp} onPointerCancel={onBarUp}>
-            <div className="absolute inset-x-0 bottom-[8px] h-[2.5px] rounded-full" style={{ background: "rgba(255,255,255,.3)" }}>
+            <div className="absolute inset-x-0 bottom-[8px] h-[3.5px] rounded-full" style={{ background: "rgba(255,255,255,.3)" }}>
               <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} className="h-full rounded-full bg-[var(--accent,var(--p-primary))]" />
             </div>
           </div>
