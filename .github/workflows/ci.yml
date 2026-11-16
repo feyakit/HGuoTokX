@@ -36,6 +36,9 @@ jobs:
       - name: Build frontend
         run: pnpm build
 
+      - name: 刷剧页手势判定（纯函数，不需要浏览器）
+        run: pnpm test:short-gesture
+
   rust:
     name: Rust compile check
     runs-on: ubuntu-24.04
