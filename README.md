@@ -10,9 +10,9 @@
 
 # HGuoX
 
-**个人自用的安卓短剧客户端 · Rust + Tauri 2**
+**个人自用的短剧客户端 · React + Rust + Tauri 2**
 
-面向 Android 手机：沉浸式竖屏刷剧、上滑换集、同剧连播。
+以 Android 沉浸式竖屏刷剧为主要体验，同时开发 iOS、Windows、macOS 与 Linux 的跨平台界面。除 Android 已提供测试构建外，其他平台的 Liquid Glass 原生设备验收尚未完成。
 
 > **本项目基于 [HGhubX](https://github.com/zxsos/HGhubX) 二次定制**，遵循其
 > PolyForm Noncommercial 1.0.0 许可证，保留原始版权声明（见 [LICENSE](LICENSE)）。
@@ -54,6 +54,15 @@
 - 本项目仅在上述官方渠道发布；任何第三方修改版（尤其是加卡密、VIP 变现的版本）均与作者无关，请自行甄别。
 - 使用者应自行遵守所在地法律法规；因使用本项目产生的任何后果由使用者自行承担。
 - 若相关权利方认为本项目存在侵权，请通过 Issue 联系，我们会及时处理。
+
+## Liquid Glass 2.0 开发预览
+
+- 开发分支：`design/liquid-glass-brand-v1`，尚未合并 `main`。
+- 外观设置：玻璃效果可选 **自动 / 完整 / 省电**，可主动运行 WebView 画面更新间隔检测（不是实际视频 FPS/GPU 跑分）。
+- [Android ARM64 预览构建](https://github.com/feyakit/HGuoX/actions/workflows/preview-android.yml)：预览构建使用独立临时签名密钥，**不能作为稳定升级包**。下载安装前请确认对应 commit、SHA-256 与签名信息。
+- [跨平台实机验收清单](docs/liquid-glass-release-gates.md)：包含五平台测试矩阵、签名/版本/数据迁移注意事项。
+- **版本状态：** 本开发分支仍是 2.1.0 系列，`main` 已更新到 3.0.0；发布前必须解决分支冲突并重新验证。
+- 请勿将 Action 绿色构建等同于在 iOS/Android/Windows/macOS/Linux 实机上已经通过验收。
 
 ## 升级兼容
 
