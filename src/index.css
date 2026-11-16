@@ -501,17 +501,48 @@ html.theme-light .article-body blockquote { background: rgba(43, 40, 36, .045); 
 
 }
 
-/* 播放页封面取色：顶部柔光用封面主色，读不到时退回品牌色 */
-.hg-accent-glow {
-  position: absolute; inset: 0; pointer-events: none; z-index: 2;
-  background:
-    radial-gradient(120% 46% at 50% 0%, var(--accent-soft, rgba(121,119,255,.26)) 0%, transparent 62%);
-  transition: background 320ms ease;
-}
+
 
 /* 剧名行前的强调竖条：封面取色的稳定可见信号（柔光被视频盖住时靠它） */
 .hg-accent-pip {
   width: 3px; height: 14px; border-radius: 2px; flex: none;
   background: var(--accent, var(--p-primary));
   box-shadow: 0 0 10px var(--accent-soft, transparent);
+}
+
+
+/* ===================================================================
+   底部导航：液态玻璃
+   —— 比原来的 .78 更透，靠 blur + 双层高光 + 折射边撑质感，
+      而不是靠不透明度。浅色主题单独一套（暖白玻璃）。
+   =================================================================== */
+.ios-mobile-nav .hg-glass {
+  background: rgba(26, 26, 30, .38);
+  backdrop-filter: blur(40px) saturate(200%) brightness(1.06);
+  -webkit-backdrop-filter: blur(40px) saturate(200%) brightness(1.06);
+  border: 1px solid rgba(255, 255, 255, .16);
+  box-shadow:
+    0 10px 34px rgba(0, 0, 0, .34),
+    inset 0 1px 0 rgba(255, 255, 255, .30),
+    inset 0 -1px 0 rgba(255, 255, 255, .06);
+  overflow: hidden;
+}
+.ios-mobile-nav .hg-glass::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background:
+    radial-gradient(120% 62% at 50% -18%, rgba(255, 255, 255, .26), transparent 62%),
+    linear-gradient(180deg, rgba(255, 255, 255, .10), transparent 44%);
+}
+html.theme-light .ios-mobile-nav .hg-glass {
+  background: rgba(255, 255, 255, .34);
+  border-color: rgba(255, 255, 255, .62);
+  box-shadow:
+    0 10px 28px rgba(72, 52, 26, .18),
+    inset 0 1px 0 rgba(255, 255, 255, .92),
+    inset 0 -1px 0 rgba(0, 0, 0, .05);
+}
+html.theme-light .ios-mobile-nav .hg-glass::before {
+  background:
+    radial-gradient(120% 62% at 50% -18%, rgba(255, 255, 255, .76), transparent 64%),
+    linear-gradient(180deg, rgba(255, 255, 255, .38), transparent 46%);
 }

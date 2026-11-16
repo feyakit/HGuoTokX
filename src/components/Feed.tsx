@@ -1134,9 +1134,6 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
       onPointerDown={() => { if (!isDesktop && fs) wake(); }}>
       <div className="absolute inset-0" inert={controlsLocked}
         style={{ "--accent": accent.accent, "--accent-soft": `${accent.accent}42`, "--accent-2": accent.second } as CSSProperties}>
-      {/* 封面取色柔光（最底层装饰，不挡交互） */}
-      <div className="hg-accent-glow" aria-hidden />
-
       {/* 氛围背景 */}
       {!isDesktop && posterUrl && (
         <div className="absolute inset-0 scale-110 blur-3xl opacity-25 pointer-events-none">
