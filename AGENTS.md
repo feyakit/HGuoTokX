@@ -89,10 +89,13 @@ keystore 不在仓库里，别去找。
 
 ## 同步上游
 
+上游**只有一个来源**：`zxsos/HGhubX`。别从其他 fork 或同名仓库取代码；代码注释里出现的
+`Minireel/HGhubX`、`zhujinrun/HGhubX` 只是历史出处说明（这两个仓库已不存在），不是上游。
+
 ```bash
 git remote add upstream https://github.com/zxsos/HGhubX.git   # 只需一次
 git fetch upstream
-git log --oneline main..upstream/main        # 上游比我们多什么
+git log --oneline upstream/$(git describe --tags --abbrev=0 upstream/main)..upstream/main   # 上次同步点之后上游多了什么
 git diff main upstream/main -- <某个文件>     # 看具体改动
 git checkout upstream/main -- <某个文件>      # 只取某个文件（取完记得改品牌名）
 ```
