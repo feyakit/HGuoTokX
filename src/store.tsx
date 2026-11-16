@@ -156,6 +156,7 @@ function beginThemeTransition() {
 
 import type { AccentScheme } from "./accent";
 import { FALLBACK_SCHEME } from "./accent";
+import { readAmbient } from "./useAccent";
 
 type Store = {
   platform: Platform;
@@ -218,7 +219,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [loginOpen, setLoginOpen] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [lineEpoch, setLineEpoch] = useState(0);
-  const [accent, setAccentState] = useState<AccentScheme>(FALLBACK_SCHEME);
+  /* 冷启动先用上次成功取到的那套色：首页还没出封面时，界面也不会突然退成品牌紫 */
+  const [accent, setAccentState] = useState<AccentScheme>(() => readAmbient());
   const [theater, setTheaterState] = useState(false);
   const [fs, setFsState] = useState(false);
   const [clean, setCleanState] = useState(false);

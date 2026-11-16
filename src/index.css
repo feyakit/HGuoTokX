@@ -689,3 +689,5 @@ html.theme-light .ios-mobile-nav .ios-mobile-nav-item[aria-current=page] {
     radial-gradient(95% 52% at 100% 104%, var(--accent-a2, transparent) 0%, transparent 66%);
   background-repeat: no-repeat;
 }
+/* 设置页不跟色：这里全是文字和分组，可读优先，退回纯 canvas + 实色分组 */
+.ios-settings-page { background-image: none; }
