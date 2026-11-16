@@ -7,7 +7,7 @@ export const STORAGE_KEYS = {
 
 type StorageKey = typeof STORAGE_KEYS[keyof typeof STORAGE_KEYS];
 
-// 旧名称仅用于升级迁移，运行期始终向 HGuoX 的键写入。
+// 旧键仅用于升级迁移，运行期始终向 STORAGE_KEYS 里的键写入（沿用上游 hghubx_ 前缀，改名不动它）。
 const LEGACY_KEYS: Record<StorageKey, string> = {
   hghubx_app_v1: "hghub_app_v1",
   hghubx_swipe_ep_v2: "hghub_swipe_ep_v2",

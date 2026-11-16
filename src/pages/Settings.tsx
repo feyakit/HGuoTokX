@@ -461,10 +461,10 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
           </Surface>
 
           <div className="mt-4 divide-y divide-s3">
-            <Button aria-label="打开项目仓库" onClick={() => { api.openUrl("https://github.com/zxsos/HGuoX").catch(() => { copyText("https://github.com/zxsos/HGuoX").then(() => toast("仓库地址已复制", "ok")).catch(() => {}); }); }}
+            <Button aria-label="打开项目仓库" onClick={() => { api.openUrl("https://github.com/feyakit/HGuoX").catch(() => { copyText("https://github.com/feyakit/HGuoX").then(() => toast("仓库地址已复制", "ok")).catch(() => {}); }); }}
               className="w-full flex items-center gap-2 py-2.5 text-left pressable">
               <ILink size={15} className="text-mut" />
-              <span className="text-[13px] text-on/85">github.com/zxsos/HGuoX</span>
+              <span className="text-[13px] text-on/85">github.com/feyakit/HGuoX</span>
               <span className="ml-auto text-[12px] text-primary">打开</span>
             </Button>
             <Button onClick={() => { copyText("https://huangguoai.com").then(() => toast("站点地址已复制", "ok")).catch(() => {}); }}

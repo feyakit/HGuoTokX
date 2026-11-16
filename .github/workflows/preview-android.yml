@@ -9,6 +9,10 @@ on:
       - 'src/**'
       - 'src-tauri/**'
       - 'scripts/**'
+      - 'app-icon.svg'
+      - 'hguox*.svg'
+      - 'hguox.manifest.json'
+      - 'public/logo.svg'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/preview-android.yml'
@@ -94,34 +98,36 @@ jobs:
             -dname 'CN=HGuoX Test Preview, O=Untrusted Test Build, C=US' >/dev/null 2>&1
           APKSIGNER="$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner"
           AAPT2="$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt2"
+          VERSION="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          VERSION_CODE="$(node -p "require('./src-tauri/tauri.conf.json').bundle.android.versionCode")"
           OUT="artifacts/HGuoX_${GITHUB_SHA:0:8}_arm64_TEST-KEY.apk"
           "$APKSIGNER" sign --ks "$STORE" --ks-key-alias preview \
             --ks-pass "pass:$PASS" --key-pass "pass:$PASS" \
             --v4-signing-enabled false --out "$OUT" "$APK"
           "$APKSIGNER" verify --verbose --print-certs "$OUT" | tee artifacts/signature-verification.txt
-          "$AAPT2" dump badging "$OUT" | grep -m1 '^package:' | tee artifacts/package-identity.txt
-          grep -q "name='com.hguox.app'" artifacts/package-identity.txt
-          grep -q "versionCode='2001000'" artifacts/package-identity.txt
+          BADGING="$("$AAPT2" dump badging "$OUT")"
+          grep '^package:' <<< "$BADGING" | tee artifacts/package-identity.txt
+          grep -Eq "^native-code: 'arm64-v8a'[[:space:]]*$" <<< "$BADGING"
+          grep -Fq "name='com.hguox.app' versionCode='$VERSION_CODE' versionName='$VERSION'" artifacts/package-identity.txt
           sha256sum "$OUT" | tee artifacts/SHA256SUMS.txt
           {
             echo "# HGuoX ARM64 Liquid Glass test preview"
             echo
-            echo "Commit: `$GITHUB_SHA`"
-            echo "Workflow run: `$GITHUB_RUN_ID`"
-            echo "Package: `com.hguox.app`"
-            echo "Build: `2.1.0` / versionCode `2001000`"
+            printf 'Commit: `%s`\n' "$GITHUB_SHA"
+            printf 'Workflow run: `%s`\n' "$GITHUB_RUN_ID"
+            printf 'Package: `com.hguox.app`\n'
+            printf 'Build: `%s` / versionCode `%s`\n' "$VERSION" "$VERSION_CODE"
             echo
             echo "**TEST KEY ONLY — NOT AN OFFICIAL RELEASE.**"
             echo "Signing key is randomly regenerated every run. Do not install over another HGuoX build unless the signing certificate matches."
-            echo "Android may require uninstall first, which removes app-local data. Back up your data before switching builds."
-            echo "The development branch is not synchronized with the v3.0.0 mainline yet."
+            echo "Use a spare device or an Android profile without an existing HGuoX installation. Uninstalling an app removes its local data."
             echo "No Android device tests are performed by this CI job."
           } > artifacts/README-TEST-APK.md
           {
             echo "### ARM64 QA preview generated"
-            echo "Commit: `$GITHUB_SHA`"
+            printf 'Commit: `%s`\n' "$GITHUB_SHA"
             echo "Unique disposable test signature; NOT a production/upgrade-safe package."
-            echo "Download the `hguox-liquid-glass-arm64-preview` artifact from this workflow run."
+            printf 'Download the `hguox-liquid-glass-arm64-preview` artifact from this workflow run.\n'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload verified preview and checksums
         uses: actions/upload-artifact@v7

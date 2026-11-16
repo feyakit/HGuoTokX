@@ -117,7 +117,7 @@ try {
     await page.waitForFunction(() => window.lineSelectionSnapshot?.ready);
     assert.equal(await page.evaluate(() => window.lineSelectionControls.autoLineEnabled()), false);
     assert.equal((await calls(page, "line_auto")).length, 0);
-    report.passed.push("Legacy automatic-line opt-out migrates to HGhubX storage, survives reload and suppresses boot/manual/online auto selection");
+    report.passed.push("Legacy automatic-line opt-out migrates to HGuoX storage, survives reload and suppresses boot/manual/online auto selection");
     await context.close();
   }
 
@@ -126,7 +126,7 @@ try {
     assert.equal(await page.evaluate(() => window.lineSelectionControls.autoLineEnabled()), false);
     assert.equal((await calls(page, "line_auto")).length, 0);
     assert.equal(await page.evaluate(() => localStorage.getItem("hg.autoLine")), null);
-    report.passed.push("The HGhubX preference takes precedence over conflicting legacy storage");
+    report.passed.push("The HGuoX preference takes precedence over conflicting legacy storage");
     await context.close();
   }
 

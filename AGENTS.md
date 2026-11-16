@@ -21,11 +21,11 @@ Tauri 2 + React 19 + TypeScript + Rust，目标是 **Android 手机自用**。
 |---|---|
 | TypeScript 类型 + 前端打包 | `pnpm build`（= `tsc --noEmit && tsc -p tsconfig.tests.json && vite build`） |
 | 单元/回归用例 | `pnpm test:<名字>`，全部列在 `package.json` 的 scripts 里 |
-| 出 APK | **推 tag 让 CI 构建**，本地出不了 |
+| 出 Android ARM64 测试 APK | 推送 Liquid Glass 开发分支，由 `preview-android.yml` 输出临时签名测试包 |
 
 CI（`.github/workflows/`）：
 
-- `ci.yml` — push main / PR 触发，跑 tsc + cargo check + 单测
+- `ci.yml` — push main / Liquid Glass 开发分支或更新 PR 时，运行前端构建、Rust 编译和 UI 回归
 - `release.yml` — push `v*` tag 触发，五平台并行打包并发 Release
 
 **不要**为了验证一个前端改动去推 tag：一次五平台构建 30 分钟。
@@ -89,10 +89,13 @@ keystore 不在仓库里，别去找。
 
 ## 同步上游
 
+上游**只有一个来源**：`zxsos/HGhubX`。别从其他 fork 或同名仓库取代码；代码注释里出现的
+`Minireel/HGhubX`、`zhujinrun/HGhubX` 只是历史出处说明（这两个仓库已不存在），不是上游。
+
 ```bash
 git remote add upstream https://github.com/zxsos/HGhubX.git   # 只需一次
 git fetch upstream
-git log --oneline main..upstream/main        # 上游比我们多什么
+git log --oneline upstream/$(git describe --tags --abbrev=0 upstream/main)..upstream/main   # 上次同步点之后上游多了什么
 git diff main upstream/main -- <某个文件>     # 看具体改动
 git checkout upstream/main -- <某个文件>      # 只取某个文件（取完记得改品牌名）
 ```

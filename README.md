@@ -61,7 +61,7 @@
 - 外观设置：玻璃效果可选 **自动 / 完整 / 省电**，可主动运行 WebView 画面更新间隔检测（不是实际视频 FPS/GPU 跑分）。
 - [Android ARM64 预览构建](https://github.com/feyakit/HGuoX/actions/workflows/preview-android.yml)：预览构建使用独立临时签名密钥，**不能作为稳定升级包**。下载安装前请确认对应 commit、SHA-256 与签名信息。
 - [跨平台实机验收清单](docs/liquid-glass-release-gates.md)：包含五平台测试矩阵、签名/版本/数据迁移注意事项。
-- **版本状态：** 本开发分支仍是 2.1.0 系列，`main` 已更新到 3.0.0；发布前必须解决分支冲突并重新验证。
+- **版本状态：** 开发分支版本已与 `main` 对齐为 3.0.0，采用 Android `versionCode` 3000000。Liquid Glass 仍处于开发预览阶段。
 - 请勿将 Action 绿色构建等同于在 iOS/Android/Windows/macOS/Linux 实机上已经通过验收。
 
 ## 升级兼容

@@ -9,11 +9,13 @@ or Linux WebKitGTK performance.
 
 ## Current release blockers
 
-1. **Mainline drift:** at the start of this QA pass, development was based on
-   app 2.1.0, while `main` identified itself as 3.0.0. The branches were
-   diverged. Rebase or merge the upstream changes with conflict review,
-   then re-run all smoke, playback and installer tests; do not override
-   3.0.0 with a 2.1.0 build. Confirm versions again at merge time.
+1. **Integrated build validation:** `main` at `85a506d` was integrated into
+   the Liquid Glass feature branch. Frontend, Rust and Tauri use `3.0.0`,
+   with Android version code `3000000`. The merge retains independent tag
+   pagination and source-specific video sizing from `main`, plus the glass
+   rendering policy and neon X icon sources from the feature branch. The
+   integrated revision needs CI results and five-platform native QA.
+   Confirm version ordering again before a formal release.
 2. **Android identity and upgrade:** the app identifier is
    `com.hguox.app`. This may be a different Android app from older package
    identifiers. Changing this identifier can isolate app-local storage.
