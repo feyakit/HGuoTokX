@@ -11,6 +11,8 @@ export type AccentScheme = {
   deep: string;
   tag: string;
   source: "image" | "fallback";
+  /** 画面底部三分之一的平均亮度（0–1）：给底栏决定要不要加暗色压光层 */
+  luma: number;
 };
 
 export const ACCENT_BG = "#0E0F13";
@@ -20,6 +22,7 @@ export const FALLBACK_SCHEME: AccentScheme = {
   deep: "#100F2E",
   tag: "#262647",
   source: "fallback",
+  luma: 0.25,
 };
 
 const CACHE_KEY = EXTRA_STORAGE_KEYS.accentCache;
@@ -137,9 +140,23 @@ export function schemeFromPixels(data: Uint8ClampedArray): AccentScheme {
     bucket.count += 1;
     valid += 1;
   }
-  if (pixels === 0 || valid / pixels < 0.08) return FALLBACK_SCHEME;
+  /* 底部三分之一的平均亮度：底栏压在视频上时用它决定压光强度 */
+  const height = 57;
+  let bottomSum = 0;
+  let bottomCount = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < 200) continue;
+    const y = Math.floor((i / 4) / 32);
+    if (y < Math.floor(height * 2 / 3)) continue;
+    bottomSum += (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114) / 255;
+    bottomCount += 1;
+  }
+  const luma = bottomCount ? clamp(bottomSum / bottomCount, 0, 1) : 0.25;
+
+  if (pixels === 0 || valid / pixels < 0.08) return { ...FALLBACK_SCHEME, luma };
+
   const ranked = buckets.filter(b => b.weight > 0).sort((a, b) => b.weight - a.weight);
-  if (!ranked.length) return FALLBACK_SCHEME;
+  if (!ranked.length) return { ...FALLBACK_SCHEME, luma };
   const primary = ranked[0];
   const main: HSL = { h: primary.h / primary.weight, s: primary.s / primary.weight, l: primary.l / primary.weight };
   const accent = clampAccent(main, 4.5);
@@ -150,7 +167,7 @@ export function schemeFromPixels(data: Uint8ClampedArray): AccentScheme {
   const second = clampAccent(secondHsl, 3);
   const deep = hslToRgb(main.h, clamp(main.s, 0.35, 0.7), 0.12);
   const tag = mix(parseHex(ACCENT_BG), accent, 0.22);
-  return { accent: toHex(accent), second: toHex(second), deep: toHex(deep), tag: toHex(tag), source: "image" };
+  return { accent: toHex(accent), second: toHex(second), deep: toHex(deep), tag: toHex(tag), source: "image", luma };
 }
 
 export function readAccentCache(id: string): AccentScheme | null {
@@ -162,8 +179,10 @@ export function readAccentCache(id: string): AccentScheme | null {
     const rows = JSON.parse(raw) as { id: string; scheme: AccentScheme }[];
     const found = rows.find(row => row.id === id);
     if (!found) return null;
-    memory.set(id, found.scheme);
-    return found.scheme;
+    /* 老缓存没有 luma 字段（底栏压光用），补一个安全默认值再返回 */
+    const scheme = { ...found.scheme, luma: typeof found.scheme.luma === "number" ? found.scheme.luma : 0.25 };
+    memory.set(id, scheme);
+    return scheme;
   } catch {
     return null;
   }

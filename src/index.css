@@ -518,7 +518,7 @@ html.theme-light .article-body blockquote { background: rgba(43, 40, 36, .045); 
       模糊不可用时退回更实的底（@supports 兜底）。
    =================================================================== */
 .ios-mobile-nav .hg-glass {
-  background: linear-gradient(180deg, rgba(22, 22, 26, .34) 0%, rgba(14, 14, 18, .62) 100%);
+  background: linear-gradient(180deg, rgba(20, 20, 24, .16) 0%, rgba(14, 14, 18, .30) 100%);
   backdrop-filter: blur(40px) saturate(200%) brightness(1.06);
   -webkit-backdrop-filter: blur(40px) saturate(200%) brightness(1.06);
   border: 1px solid rgba(255, 255, 255, .18);
@@ -527,6 +527,11 @@ html.theme-light .article-body blockquote { background: rgba(43, 40, 36, .045); 
     inset 0 1px 0 rgba(255, 255, 255, .32),
     inset 0 -1px 0 rgba(255, 255, 255, .07);
   overflow: hidden;
+}
+/* Apple HIG：亮内容 → 最多 35% 暗色压光，靠它而不是靠加厚玻璃保证可读性 */
+.ios-mobile-nav .hg-glass::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: #000; opacity: var(--bar-dim, 0); transition: opacity .3s ease;
 }
 .ios-mobile-nav .hg-glass::before {
   content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;

@@ -335,6 +335,9 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
   const posterUrl = cover(meta.cover, 900);
   /* 封面取色：拿封面主色给播放页控件染色；读不到时回退品牌色 */
   const accent = useAccent(curId, posterUrl || undefined);
+  /* 参照 Apple HIG：clear 玻璃压在亮内容上时要加约 35% 的暗色压光层 */
+  const luma = Number.isFinite(accent.luma) ? accent.luma : 0.25;
+  const barDim = Math.max(0, Math.min(0.35, (luma - 0.42) * 0.9));
   const articleHtml = kind === "post" && !post?.video_url ? (post?.content || "") : "";
 
   /* 分享：复制播放链接 */
@@ -1133,7 +1136,7 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
       onPointerMove={() => { if (isDesktop || fs) wake(); }}
       onPointerDown={() => { if (!isDesktop && fs) wake(); }}>
       <div className="absolute inset-0" inert={controlsLocked}
-        style={{ "--accent": accent.accent, "--accent-soft": `${accent.accent}42`, "--accent-2": accent.second } as CSSProperties}>
+        style={{ "--accent": accent.accent, "--accent-soft": `${accent.accent}42`, "--accent-2": accent.second, "--bar-dim": barDim.toFixed(2) } as CSSProperties}>
       {/* 氛围背景 */}
       {!isDesktop && posterUrl && (
         <div className="absolute inset-0 scale-110 blur-3xl opacity-25 pointer-events-none">
