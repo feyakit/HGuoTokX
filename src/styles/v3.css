@@ -96,6 +96,8 @@ html[data-playback-chrome="dim"] .v3-app .ios-mobile-nav.db-dock { opacity: 0; p
 .v3-posts span { display: block; margin-top: 4px; color: var(--v3-mute); font-size: 12px; }
 .v3-continue { display: flex; gap: 10px; overflow: auto; margin-top: 12px; }
 .v3-continue button { width: 210px; flex: none; padding: 0; border: 0; border-radius: 16px; background: var(--v3-1); color: var(--v3-text); text-align: left; overflow: hidden; }
+/* 只有一条时铺满，免得看起来像一条孤零零的窄条 */
+.v3-continue button:only-child { width: 100%; }
 .v3-continue img { width: 100%; height: 112px; object-fit: cover; display: block; }
 .v3-continue b { display: block; padding: 8px 10px 0; font-size: 14px; }
 .v3-continue i { display: block; height: 3px; margin: 8px 10px 10px; background: var(--v3-2); border-radius: 2px; }

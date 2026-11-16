@@ -225,9 +225,11 @@ function ProfileContent({ wide }: { wide: boolean }) {
               title={tab === "fav" ? "收藏加载失败" : "观看记录加载失败"}
               sub="记录仍在，重试后继续浏览。" action="重试" onAction={() => setReload(n => n + 1)} />
           ) : (
-            <Empty icon={tab === "fav" ? <IStar size={24} /> : <IClock size={24} />}
-              title={tab === "fav" ? "还没有收藏" : "还没有观看记录"}
-              sub={tab === "fav" ? "在剧集页点收藏，之后就能在这里找到" : "看过的剧集会出现在这里"}
+            <Empty icon={tab === "fav" ? <IStar size={24} /> : tab === "follow" ? <IHeart size={24} /> : <IClock size={24} />}
+              title={tab === "fav" ? "还没有收藏" : tab === "follow" ? "还没有在追的剧" : "还没有观看记录"}
+              sub={tab === "fav" ? "在剧集页点收藏，之后就能在这里找到"
+                : tab === "follow" ? "在剧集页点追剧，更新会出现在这里"
+                : "看过的剧集会出现在这里"}
               action="去逛逛" onAction={() => push({ kind: "ranks" })} />
           )}
           {cards.length > 0 && failed.length > 0 && <div role="status" className="mt-3 flex flex-wrap items-center gap-2 text-[13px] text-mut">
