@@ -90,7 +90,7 @@ export default function Search({ active, wide, title = "搜索", extra }: { acti
         </Button>
       </div>
 
-      <div className="flex-1 scroll-y px-4 pb-24">
+      <div className={`flex-1 scroll-y px-4 ${extra ? "db-theater-scroll" : "pb-24"}`}>
         {!querying ? (
           <>
             {extra}

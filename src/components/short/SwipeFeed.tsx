@@ -8,7 +8,7 @@ import { assignSlots, type AccentScheme } from "../../accent";
 import { useAccent } from "../../useAccent";
 import { installGlassQuality } from "../../glassQuality";
 import { registerOverlayBack } from "../../back";
-import { IBack, ICheck, IClose, IHeart, IHeartF, IShare, IStar, IStarF } from "../../icons";
+import { IBack, IBoltF, ICheck, IClose, IHeart, IHeartF, ISearch, IShare, IStar, IStarF, IVertSwap, IVol, IVolMute } from "../../icons";
 import { haptic, mediaKey, networkProfile } from "./runtime";
 import { invalidateMedia, loadMedia, type LoadedMedia } from "./media";
 
@@ -42,7 +42,7 @@ export default function SwipeFeed({
   onBack?: () => void;
 }) {
   const store = useStore();
-  const { favs, history, isLiked, isFav, setLiked, setCollected, addHistory, muted, setMuted, volume, setVolume, toast, preferHevc, lineEpoch, setFs } = store;
+  const { favs, history, isLiked, isFav, setLiked, setCollected, addHistory, muted, setMuted, volume, setVolume, toast, preferHevc, lineEpoch, setFs, setTab: setAppTab } = store;
   const discover = variant === "discover";
   const net = useRef(networkProfile());
   const rootRef = useRef<HTMLDivElement>(null);
@@ -391,23 +391,26 @@ export default function SwipeFeed({
   const currentScheme = useAccent(currentItem?.id, ready?.poster);
 
   return (
-    <div ref={rootRef} className={`db-feed ${dim ? "is-dim" : ""} ${series ? "is-series" : ""}`} style={{ ...schemeStyle(currentScheme), paddingBottom: series ? 0 : bottomInset }}
+    <div ref={rootRef} className={`db-feed ${dim ? "is-dim" : ""} ${series ? "is-series" : ""} ${boost || locked ? "is-boost" : ""}`} style={{ ...schemeStyle(currentScheme), paddingBottom: series ? 0 : bottomInset }}
       data-short-feed={discover ? "discover" : "series"}>
       {discover && !series && (
         <div className="db-top" data-gesture="none">
-          {TABS.map(item => (
-            <button key={item.key} type="button" className={tab === item.key ? "is-on" : ""} aria-pressed={tab === item.key} onClick={() => setTab(item.key)}>{item.label}</button>
-          ))}
-          <i style={{ transform: `translateX(${TABS.findIndex(item => item.key === tab) * 100}%)` }} />
-          <Button className="db-mute" aria-label={muted ? "取消静音" : "静音"} onClick={() => setMuted(value => !value)}>{muted ? "静音" : "有声"}</Button>
+          <Button className="db-top-side" aria-label={muted ? "取消静音" : "静音"} onClick={() => setMuted(value => !value)}>{muted ? <IVolMute size={20} /> : <IVol size={20} />}</Button>
+          <div className="db-tabs">
+            {TABS.map(item => (
+              <button key={item.key} type="button" className={tab === item.key ? "is-on" : ""} aria-pressed={tab === item.key} onClick={() => setTab(item.key)}>{item.label}</button>
+            ))}
+            <i style={{ transform: `translateX(${TABS.findIndex(item => item.key === tab) * 72}px)` }} />
+          </div>
+          <Button className="db-top-side" aria-label="搜索" onClick={() => setAppTab("search")}><ISearch size={20} /></Button>
         </div>
       )}
       {(series || !discover) && (
         <div className="db-series-top" data-gesture="none">
           <Button aria-label="返回" className="db-icon" onClick={leaveSeries}><IBack size={22} /></Button>
-          <span className="db-ep-label">{currentItem ? `第${currentItem.ep}集` : ""}</span>
+          <span className="db-ep-label">{ready ? `${ready.detail.title} · 第${currentItem?.ep || 1}集` : "剧内连播"}</span>
           <Button className="db-speed" aria-label="倍速" aria-expanded={speedOpen} onClick={() => setSpeedOpen(value => !value)}>
-            {applied === 2 && (boost || locked) ? "2.0x" : `${rate}x`}
+            倍速 {applied === 2 && (boost || locked) ? "2.0x" : `${rate % 1 ? rate.toFixed(2) : rate.toFixed(1)}x`}
           </Button>
         </div>
       )}
@@ -418,7 +421,7 @@ export default function SwipeFeed({
           ))}
         </div>
       )}
-      {(boost || locked) && <div className="db-boost" data-gesture="none">{locked ? "2.0x 已锁定" : "2.0x 倍速播放中"}{locked && <Button aria-label="关闭倍速锁定" onClick={() => setLocked(false)}><IClose size={14} /></Button>}</div>}
+      {(boost || locked) && <div className="db-boost" data-gesture="none"><IBoltF size={14} />{locked ? "2.0x 已锁定" : "2.0x 倍速播放中"}{locked && <Button aria-label="关闭倍速锁定" onClick={() => setLocked(false)}><IClose size={14} /></Button>}</div>}
 
       {items.length === 0 ? (
         <div className="db-empty">
@@ -491,6 +494,11 @@ export default function SwipeFeed({
 
 const historyTick = { current: 0 };
 
+function clockText(seconds: number) {
+  const value = Math.max(0, Math.floor(seconds || 0));
+  return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
+}
+
 function CountDown({ ep, onCancel }: { ep: number; onCancel: () => void }) {
   const [left, setLeft] = useState(3);
   useEffect(() => {
@@ -518,17 +526,21 @@ function Slide({
 }) {
   const data = loaded && "detail" in loaded ? loaded : undefined;
   const scheme = useAccent(item.id, data?.poster);
+  const resume = !!(continueEp && (continueEp.ep > 1 || continueEp.t > 5));
   const bar = useRef<HTMLInputElement>(null);
   const handleRef = useRef<VideoHandle | null>(null);
   const durationRef = useRef(0);
   const [slow, setSlow] = useState(false);
   const [framed, setFramed] = useState(false);
+  const [clock, setClock] = useState({ t: resume ? continueEp?.t || 0 : 0, d: 0 });
   useEffect(() => { setFramed(false); const timer = window.setTimeout(() => setSlow(true), 600); return () => window.clearTimeout(timer); }, [item.key]);
   const title = data?.detail.title || (loaded && "error" in loaded ? "加载失败" : "正在打开");
   const tags = data?.detail.tags?.slice(0, 2) || [];
   const total = data?.episodes.length || data?.detail.episode_count || 1;
-  const resume = continueEp && (continueEp.ep > 1 || continueEp.t > 5);
-  const watchLabel = resume ? `继续看第 ${continueEp.ep} 集` : "看全集";
+  const episodeDur = data?.detail.episodes?.find(row => row.ep_num === item.ep)?.duration || 0;
+  const shownD = clock.d || episodeDur;
+  const shownT = shownD ? Math.min(clock.t, shownD) : clock.t;
+  const fill = shownD > 0 ? Math.max(6, Math.min(100, (shownT / shownD) * 100)) : 12;
   return (
     <section className={`db-slide ${framed ? "is-framed" : ""}`} style={{ transform: `translate3d(0,${offset * 100}%,0)`, ["--accent" as string]: scheme.accent, ["--accent-2" as string]: scheme.second, ["--deep" as string]: scheme.deep, ["--tag" as string]: scheme.tag }}>
       {data?.poster && <img className={`db-poster ${framed ? "is-gone" : ""}`} src={data.poster} alt="" />}
@@ -544,7 +556,10 @@ function Slide({
               el.value = String(t);
               el.style.setProperty("--fill", `${(t / duration) * 100}%`);
             }
-            if (active) onTime(t, duration);
+            if (active) {
+              onTime(t, duration);
+              setClock(prev => Math.abs(prev.t - t) < 0.35 && Math.abs(prev.d - duration) < 0.5 ? prev : { t, d: duration });
+            }
           }}
           onDuration={d => { durationRef.current = d || 0; if (bar.current) bar.current.max = String(d || 0); }}
         />
@@ -554,34 +569,33 @@ function Slide({
       <div className={`db-shade ${series ? "is-card" : ""} ${interactive ? "" : "is-preview"} ${framed ? "is-framed" : ""}`} style={{ paddingBottom: bottomInset + (series ? 18 : 8) }}>
         <div className="db-info" data-gesture="card">
           <button type="button" className="db-title" onClick={series ? onSheet : onOpenSeries}>{title}</button>
-          {!!tags.length && <div className="db-tags">{tags.map(tag => <span key={tag}>{tag}</span>)}</div>}
-          <p className="db-meta">第{item.ep}集 · 全{total}集</p>
-          {!series && interactive && <Button className="db-watch" onClick={onOpenSeries}>{watchLabel} ›</Button>}
+          <div className="db-tagline">
+            {!!tags.length && <div className="db-tags">{tags.map(tag => <span key={tag}>{tag}</span>)}</div>}
+            {series && interactive && <Button className="db-more" onClick={onSheet}>选集 全{total}集 ›</Button>}
+          </div>
+          {!series && <p className="db-meta">第{item.ep}集 · 全{total}集</p>}
+          {!series && interactive && <Button className="db-watch" onClick={onOpenSeries}>{resume ? `继续看第 ${continueEp!.ep} 集 ›` : "看全集 ›"}</Button>}
           {series && data && interactive && (
-            <div className="db-strip" data-gesture="none">
-              <div className="db-strip-row">
-                {data.episodes.slice(Math.max(0, item.ep - 3), Math.max(5, item.ep + 2)).map(ep => (
-                  <button key={ep} type="button" className={ep === item.ep ? "is-on" : ""} onClick={() => onPick(ep)}>{ep}</button>
-                ))}
-              </div>
-              <Button className="db-more" onClick={onSheet}>选集 全{total}集 ›</Button>
+            <div className="db-strip-row" data-gesture="none">
+              {data.episodes.slice(Math.max(0, item.ep - 3), item.ep + 2).map(ep => (
+                <button key={ep} type="button" className={ep === item.ep ? "is-on" : ""} onClick={() => onPick(ep)}>{ep}</button>
+              ))}
             </div>
           )}
           {interactive && (
             <label className="db-progress">
+              <span className="db-line" aria-hidden="true"><i style={{ width: `${fill}%` }} /></span>
               <span className="sr-only">播放进度</span>
-              <input ref={bar} data-gesture="none" aria-label="播放进度" type="range" min={0} max={0} step={0.1} defaultValue={0}
-                onChange={event => {
-                  const input = event.target;
-                  input.style.setProperty("--fill", `${input.max === "0" ? 0 : (Number(input.value) / Number(input.max)) * 100}%`);
-                }}
+              <input ref={bar} data-gesture="none" aria-label="播放进度" type="range" min={0} max={shownD || 0} step={0.1} defaultValue={shownT}
                 onPointerUp={event => {
                   const input = event.currentTarget;
                   const surface = input.closest(".db-slide")?.querySelector("video");
                   if (surface) surface.currentTime = Number(input.value);
+                  setClock(prev => ({ ...prev, t: Number(input.value) }));
                 }} />
             </label>
           )}
+          {series && interactive && <div className="db-time"><span>{clockText(shownT)}</span><span>{clockText(shownD)}</span></div>}
         </div>
         {interactive && <div className="db-rail" data-gesture="none">
           <Button aria-label={liked ? "取消喜欢" : "喜欢"} onClick={onLike}><i className={liked ? "is-like" : ""}>{liked ? <IHeartF size={30} /> : <IHeart size={30} />}</i><span>{fmt(data?.detail.counts.like)}</span></Button>
@@ -638,12 +652,13 @@ function HeartBurst({ x, y }: { x: number; y: number }) {
 }
 
 function GestureGuide({ onClose }: { onClose: () => void }) {
+  const landscape = typeof window !== "undefined" && window.innerWidth > window.innerHeight;
+  const hints = landscape
+    ? [{ icon: <IVertSwap size={22} />, title: "左侧上下滑", sub: "调亮度" }, { icon: <IBoltF size={22} />, title: "长按 2 倍速", sub: "上滑锁定" }, { icon: <IVol size={22} />, title: "右侧上下滑", sub: "调音量" }]
+    : [{ icon: <IBoltF size={22} />, title: "长按 2 倍速", sub: "松手恢复" }, { icon: <IHeart size={22} />, title: "双击喜欢", sub: "不会取消" }, { icon: <IVertSwap size={22} />, title: "上下滑换剧", sub: "进剧后换集" }];
   return (
     <div className="db-guide" data-gesture="none" onClick={onClose}>
-      <div><b>左侧上下滑</b><span>调亮度</span></div>
-      <div><b>长按 2 倍速</b><span>上滑锁定</span></div>
-      <div><b>右侧上下滑</b><span>调音量</span></div>
-      <p>横屏才调节亮度和音量，点一下关掉</p>
+      {hints.map(hint => <div key={hint.title}>{hint.icon}<b>{hint.title}</b><span>{hint.sub}</span></div>)}
     </div>
   );
 }

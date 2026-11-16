@@ -136,9 +136,9 @@ try {
           return { video: nav?.getAttribute("data-over-video"), selected: selected && getComputedStyle(selected).color,
             unselected: unselected && getComputedStyle(unselected).color, background: glass && getComputedStyle(glass).backgroundColor };
         });
-        assert.equal(homeVideoMaterial.selected, "rgb(25, 25, 25)", "Home selection uses dark ink over the selected light surface");
-        assert.equal(homeVideoMaterial.unselected, "rgb(242, 240, 235)", "Home navigation labels stay bright over dark video");
-        assert.equal(homeVideoMaterial.background, "rgba(28, 28, 32, 0.94)", "Home navigation keeps an opaque dark glass surface over black video");
+        assert.equal(homeVideoMaterial.selected, "rgb(255, 255, 255)", "Selected tab uses white text on the dark dock");
+        assert.equal(homeVideoMaterial.unselected, "rgb(184, 188, 200)", "Unselected tabs stay readable on the dark dock");
+        assert.equal(homeVideoMaterial.background, "rgba(14, 15, 19, 0.88)", "The dock keeps a dark glass surface over video");
         check("home navigation text contrast on video in both themes");
       }
       await nav.getByRole("button", { name: searchTab, exact: true }).click();

@@ -8,7 +8,7 @@ import { Avatar, Empty, Modal } from "../components/ui";
 import { MediaCard } from "../components/cards";
 import { useContentPreferences } from "../contentPreferences";
 import { CollectionLink, CollectionLinks } from "../components/CollectionLink";
-import { IChevR, IClock, IHeart, ILogout, ISettings, IStar, IUser, IUserF } from "../icons";
+import { IChevR, IClock, IDownload, IHeart, IInfo, ILink, ILogout, IMoon, IPlayF, IRefresh, ISettings, IStar, IUser, IUserF } from "../icons";
 
 /* Account changes discard cached details synchronously, before another account can paint. */
 export default function Profile({ wide }: { wide: boolean }) {
@@ -159,16 +159,16 @@ function ProfileContent({ wide }: { wide: boolean }) {
               <div><b>{history.length}</b><span>历史</span></div>
             </div>
             <div className="db-shortcuts">
-              <Button onClick={() => push({ kind: "settings" })}>离线缓存</Button>
-              <Button onClick={() => push({ kind: "settings" })}>线路设置</Button>
-              <Button onClick={() => push({ kind: "settings" })}>播放设置</Button>
-              <Button onClick={() => push({ kind: "settings" })}>检查更新</Button>
+              <Button onClick={() => push({ kind: "settings" })}><IDownload size={18} />离线缓存</Button>
+              <Button onClick={() => push({ kind: "settings" })}><ILink size={18} />线路设置</Button>
+              <Button onClick={() => push({ kind: "settings" })}><IPlayF size={18} />播放设置</Button>
+              <Button onClick={() => push({ kind: "settings" })}><IRefresh size={18} />检查更新</Button>
             </div>
             <div className="db-menu mt-3">
-              <Button onClick={() => push({ kind: "settings", section: "内容偏好" })}>内容偏好</Button>
-              <Button onClick={() => push({ kind: "settings" })}>字幕样式</Button>
-              <Button onClick={() => push({ kind: "settings" })}>护眼与定时关闭</Button>
-              <Button onClick={() => push({ kind: "settings" })}>关于 HGuoX</Button>
+              <Button onClick={() => push({ kind: "settings", section: "内容偏好" })}><span><IHeart size={18} />内容偏好</span><IChevR size={16} /></Button>
+              <Button onClick={() => push({ kind: "settings" })}><span><IInfo size={18} />字幕样式</span><IChevR size={16} /></Button>
+              <Button onClick={() => push({ kind: "settings" })}><span><IMoon size={18} />护眼与定时关闭</span><IChevR size={16} /></Button>
+              <Button onClick={() => push({ kind: "settings" })}><span><IInfo size={18} />关于 HGuoX</span><IChevR size={16} /></Button>
             </div>
           </>
         )}

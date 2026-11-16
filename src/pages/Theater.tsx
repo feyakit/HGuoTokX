@@ -41,18 +41,29 @@ function Showcase({ active, onChannels }: { active: boolean; onChannels: () => v
     api.category("ai-duanju", 1, 8, "latest").then(res => { if (!cancel) setItems(res?.items || []); }).catch(() => {});
     return () => { cancel = true; };
   }, [active]);
-  const hero = items[0];
-  const heroScheme = useAccent(hero?.id, hero ? cover(hero.cover) : "");
+  const slides = items.slice(0, 3);
+  const [slide, setSlide] = useState(0);
+  useEffect(() => {
+    if (slides.length < 2) return;
+    const timer = window.setInterval(() => setSlide(index => (index + 1) % slides.length), 4000);
+    return () => window.clearInterval(timer);
+  }, [slides.length]);
   return (
     <div className="mb-4">
-      {hero && (
-        <button type="button" className="db-hero" onClick={() => push({ kind: "series", videoId: hero.id, title: hero.title })}>
-          <img src={cover(hero.cover)} alt="" style={{ boxShadow: `inset 0 0 0 1px ${heroScheme.accent}` }} />
-          <div>
-            <strong>{hero.title}</strong>
-            <em>热播</em>
-          </div>
-        </button>
+      {!!slides.length && (
+        <div className="db-carousel">
+          {slides.map((item, index) => (
+            <button key={item.id} type="button" style={{ transform: `translateX(${(index - slide) * 100}%)` }}
+              onClick={() => push({ kind: "series", videoId: item.id, title: item.title })}>
+              <img src={cover(item.cover)} alt="" />
+              <div>
+                <strong>{item.title}</strong>
+                <em>独家首播</em>
+              </div>
+            </button>
+          ))}
+          <div className="db-dots">{slides.map((item, index) => <i key={item.id} className={index === slide ? "is-on" : ""} />)}</div>
+        </div>
       )}
       <div className="db-chips" role="tablist" aria-label="题材">
         {CHIPS.map(name => (

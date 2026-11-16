@@ -49,7 +49,7 @@ function TabBar() {
     { key: "profile", label: "我的", Icon: IUser, Active: IUserF },
   ] as const;
   const index = items.findIndex(item => item.key === tab);
-  return <nav className="hg-tabbar ios-mobile-nav" aria-label="主导航" data-over-video={tab === "home"}
+  return <nav className="hg-tabbar ios-mobile-nav db-dock" aria-label="主导航" data-over-video={tab === "home"}
     style={{ paddingBottom: platform === "android" ? "var(--sab, 16px)" : "calc(var(--sab, 16px) * .55)" }}>
       <div className="hg-glass">
       <div className="hg-drop" aria-hidden="true" style={{ transform: `translateX(${index * 100}%)` }}><LiquidIndicator /></div>
@@ -106,7 +106,8 @@ function MainTabs({ wide, pageActive, bottomInset }: { wide: boolean; pageActive
     if (pageActive) setVisited(previous => previous.has(tab) ? previous : new Set([...previous, tab]));
   }, [tab, pageActive]);
   const mounted = (key: Tab) => visited.has(key) || (pageActive && tab === key);
-  const visible = (key: Tab) => tab === key ? `absolute inset-0 ${key === "home" ? "" : "ios-tab-active"}` : "absolute inset-0 hidden pointer-events-none";
+  // 手机端不再播整页淡入：动画从 20% 透明度开始，切到「我的」时标题和卡片会看起来像蒙了一层灰。
+  const visible = (key: Tab) => tab === key ? `absolute inset-0 ${!isMobile && key !== "home" ? "ios-tab-active" : ""}` : "absolute inset-0 hidden pointer-events-none";
   // First visits mount on demand; subsequent switches preserve queries, scroll and playback state.
   return <>
     <div className={visible("home")} inert={!pageActive || tab !== "home"} aria-hidden={!pageActive || tab !== "home"}>{mounted("home") && <Home active={pageActive && tab === "home"} bottomInset={bottomInset} />}</div>
