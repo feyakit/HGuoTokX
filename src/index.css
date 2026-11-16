@@ -433,16 +433,48 @@ input[type="range"].hg-range::-webkit-slider-thumb { -webkit-appearance: none; w
 .player-surface .player-root,
 .player-root { background: #15181d; }
 
-/* —— 留白衬底：视频不满屏（object-contain 留边）时，边缘用封面取到的颜色 ——
-   中间压暗、上下两头带封面色，这样视频还没解码完也不会整屏发亮；
-   满屏（cover）时视频自己盖住整层，看不出任何变化。 */
+/* —— 留白衬底：视频不满屏（object-contain 留边）时的沉浸背景 ——
+   底层封面色暗底（没有封面时兜底），上面铺一张 64px 的小封面再放大：
+   双线性放大本身就是柔和模糊，比大图 filter:blur(40px) 便宜一个数量级。
+   再叠封面色着色 + 底部 40% 压到近黑，让控件区有底可压。
+   满屏（cover）时这一层根本不渲染，视频自己盖住一切。 */
 .hg-stage-fill {
+  overflow: hidden;
   background-color: var(--deep, #100f2e);
   background-image:
     radial-gradient(135% 62% at 50% -6%, var(--stage-wash, transparent) 0%, transparent 76%),
     radial-gradient(135% 62% at 50% 106%, var(--stage-wash, transparent) 0%, transparent 76%),
     radial-gradient(150% 105% at 50% 50%, var(--stage-glow, transparent) 0%, transparent 72%);
-  transition: background-color .28s ease;
+  transition: background-color .35s ease;
+}
+/* inset 负值 + 放大：避免放大/呼吸到边界时透出硬边 */
+.hg-stage-cover {
+  position: absolute; inset: -12%;
+  background-position: 50% 50%;
+  background-size: cover;
+  background-repeat: no-repeat;
+  filter: blur(12px) saturate(1.7) brightness(.5);
+  transform: scale(1.06);
+  transform-origin: center;
+  animation: hg-stage-in .5s ease both, hg-stage-breathe 20s ease-in-out infinite alternate;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+/* 换剧：旧背景 0.5s 淡出，新背景淡入，中间不闪黑 */
+.hg-stage-cover.is-out { animation: hg-stage-out .5s ease both; }
+/* 一层干两件事：底部 40% 渐到近黑（控件区压光），整体再乘一层封面色 */
+.hg-stage-shade {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    linear-gradient(0deg, rgba(6, 6, 9, .94) 0%, rgba(6, 6, 9, .58) 16%, rgba(6, 6, 9, .14) 30%, rgba(6, 6, 9, 0) 44%),
+    linear-gradient(var(--stage-tint, transparent), var(--stage-tint, transparent));
+}
+@keyframes hg-stage-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes hg-stage-out { from { opacity: 1; } to { opacity: 0; } }
+/* 缓慢呼吸：只走 transform，GPU 合成，不重绘 */
+@keyframes hg-stage-breathe { from { transform: scale(1.06); } to { transform: scale(1.12); } }
+@media (prefers-reduced-motion: reduce) {
+  .hg-stage-cover, .hg-stage-cover.is-out { animation: none; }
 }
 
 /* —— 移动端沉浸全屏：固定铺满视口，不受外层滚动容器影响 —— */

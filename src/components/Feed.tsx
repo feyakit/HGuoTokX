@@ -1,4 +1,4 @@
-import { Button, Image, SegmentedControl } from "./ios/controls";
+import { Button, SegmentedControl } from "./ios/controls";
 import { Loader } from "./ios/effects";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -8,6 +8,7 @@ import type { Detail, Episode, PlayInfo, Post, VideoCard } from "../types";
 import { useStore } from "../store";
 import { Img, Sheet } from "./ui";
 import VideoSurface, { type VideoHandle } from "./VideoSurface";
+import StageBackdrop from "./StageBackdrop";
 import PlayerControls from "./PlayerControls";
 import { PlaybackProgress, PlaybackTime } from "./PlaybackProgress";
 import PlaybackLock from "./PlaybackLock";
@@ -1093,6 +1094,12 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
     return Math.max(0, meta.collect + Number(collected) - Number(!!loadedCollected));
   }, [meta.collect, collected, kind, detail?.interaction]);
 
+  /* 画面适配：contain 才有留白（黑边），cover 是铺满。留白时才上模糊封面衬底 */
+  const playerFit: "contain" | "cover" = isDesktop ? "contain"
+    : landscapeVideo ? (fs || vpLandscape ? "contain" : portraitFit)
+      : (!videoSize.w || !videoSize.h || vpLandscape ? "contain" : "cover");
+  const letterbox = playerFit === "contain";
+
   const detailBody = (onClose?: () => void) => <VideoDetailsPanel meta={meta} videoId={curId} episodeCount={episodes.length}
     related={related} following={store.follows.includes(meta.authorId)} followPending={followPending}
     onFollow={() => void onFollow()} onTag={openTag} onClose={onClose} onPreferences={openTagMenu}
@@ -1143,14 +1150,14 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
           "--accent": accent.accent, "--accent-soft": `${accent.accent}42`, "--accent-2": accent.second,
           /* 留白衬底：deep 是同色相的暗底，两档透明度让黑边退成封面色 */
           "--deep": accent.deep, "--stage-wash": `${accent.accent}8c`, "--stage-glow": `${accent.accent}3d`,
+          "--stage-tint": `${accent.accent}38`,
           "--bar-dim": barDim.toFixed(2),
         } as CSSProperties}>
-      {/* 留白衬底：宽高比不匹配时，视频四周不再是黑边，而是封面取到的颜色 */}
-      <div aria-hidden className="hg-stage-fill pointer-events-none absolute inset-0" />
-      {/* 氛围背景 */}
-      {!isDesktop && posterUrl && (
-        <div className="absolute inset-0 scale-110 blur-3xl opacity-25 pointer-events-none">
-          <Image src={posterUrl} alt="" className="w-full h-full object-cover" />
+      {/* 留白衬底：不满屏时才上。封面缩成小图铺满 + 封面色着色 + 底部压暗，替代黑边 */}
+      {letterbox && (
+        <div aria-hidden className="hg-stage-fill pointer-events-none absolute inset-0">
+          {posterUrl && <StageBackdrop src={posterUrl} />}
+          <div className="hg-stage-shade" />
         </div>
       )}
 
@@ -1179,7 +1186,7 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
                   diagnosticContext={{ active: active && !tagMenu && !showHoldGuide, view: mode, kind, video_id: curId, episode: curEp }}
                   volume={volume} rate={effRate}
                   measurementKey={measurementKey}
-                  fit={isDesktop ? "contain" : landscapeVideo ? (fs || vpLandscape ? "contain" : portraitFit) : (!videoSize.w || !videoSize.h || vpLandscape ? "contain" : "cover")}
+                  fit={playerFit}
                   onClick={() => { if (isDesktop) videoRef.current?.toggle(); }}
                   onTime={onTimeTick}
                   onDuration={onDurationTick}
