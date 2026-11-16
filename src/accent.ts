@@ -170,6 +170,57 @@ export function schemeFromPixels(data: Uint8ClampedArray): AccentScheme {
   return { accent: toHex(accent), second: toHex(second), deep: toHex(deep), tag: toHex(tag), source: "image", luma };
 }
 
+const NEAR_WHITE = parseHex("#FFFFFF");
+const NEAR_BLACK = parseHex("#0B0B0F");
+const PAPER = parseHex("#F1EFE9");
+
+/** accent 上的文字/图标色：黑与白里挑对比度高的那个，不靠肉眼猜。 */
+export function onAccent(hex: string): string {
+  const color = parseHex(hex);
+  return contrast(color, NEAR_WHITE) >= contrast(color, NEAR_BLACK) ? "#FFFFFF" : "#0B0B0F";
+}
+
+/** 浅色主题不能拿封面原色压白纸：压到对比度 ≥ 4.5 的深一档再用。 */
+function forPaper(hex: string): string {
+  const hsl = rgbToHsl(parseHex(hex));
+  const s = clamp(hsl.s, 0.5, 0.9);
+  let l = Math.min(hsl.l, 0.5);
+  let rgb = hslToRgb(hsl.h, s, l);
+  let guard = 0;
+  while (contrast(rgb, PAPER) < 4.5 && l > 0.22 && guard < 12) {
+    l -= 0.025;
+    rgb = hslToRgb(hsl.h, s, l);
+    guard += 1;
+  }
+  return toHex(rgb);
+}
+
+/**
+ * 一套封面色 → 全站主题变量。界面强调色只从这里来，组件里不许再写死颜色。
+ * 深色主题直接用 getter 钳制过的 accent；浅色主题改用深变体，避免原色压白底。
+ */
+export function accentTokens(scheme: AccentScheme, light: boolean): Record<string, string> {
+  const primary = light ? forPaper(scheme.accent) : scheme.accent;
+  const second = light ? forPaper(scheme.second) : scheme.second;
+  const { r, g, b } = parseHex(primary);
+  return {
+    /* 播放页 / 沉浸背景 */
+    "--accent": primary,
+    "--accent-2": second,
+    "--accent-on": onAccent(primary),
+    "--accent-a1": `${primary}59`,
+    "--accent-a2": `${primary}33`,
+    "--deep": scheme.deep,
+    /* 主题强调色（按钮、选中态、进度、焦点环） */
+    "--p-primary": primary,
+    "--p-on-primary": light ? "#FFFFFF" : onAccent(primary),
+    "--p-pc": light ? toHex(mix(PAPER, parseHex(primary), 0.16)) : scheme.tag,
+    "--p-on-pc": light ? primary : second,
+    "--p-glow": `rgba(${r}, ${g}, ${b}, .22)`,
+    "--p-tint": `rgba(${r}, ${g}, ${b}, .14)`,
+  };
+}
+
 export function readAccentCache(id: string): AccentScheme | null {
   const hit = memory.get(id);
   if (hit) return hit;

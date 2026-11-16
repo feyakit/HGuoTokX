@@ -2,6 +2,7 @@ import { LiquidIndicator, Loader } from "./components/ios/effects";
 import { Button } from "./components/ios/controls";
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useStore, type Page, type Tab } from "./store";
+import { accentTokens } from "./accent";
 import { isMobile, selfTest } from "./api";
 import { addPluginListener, invoke } from "@tauri-apps/api/core";
 import { runBack } from "./back";
@@ -242,7 +243,7 @@ function ShellInner({ collapsed, theater }: { collapsed: boolean; theater: boole
 
 /* ============ 移动端（无壳） ============ */
 function MobileShell() {
-  const { platform, accent } = useStore();
+  const { platform } = useStore();
   return (
     <div className={`absolute inset-0 flex flex-col bg-canvas plat-${platform}`}
       /* Android：系统栏改透明后 WebView 会铺到屏幕底，而 Android 上的
@@ -251,12 +252,6 @@ function MobileShell() {
       style={{
         "--sat": "max(env(safe-area-inset-top), 12px)",
         "--sab": platform === "android" ? "max(env(safe-area-inset-bottom), 48px)" : "max(env(safe-area-inset-bottom), 16px)",
-        /* 封面色浸染：主光 35%（0x59）用封面主色，底部反光 20%（0x33）沿用同一色相
-           —— 之前用 second 会带出第二个色相，橙色主光配紫色反光容易发花 */
-        "--accent": accent.accent,
-        "--accent-2": accent.second,
-        "--accent-a1": `${accent.accent}59`,
-        "--accent-a2": `${accent.accent}33`,
       } as React.CSSProperties}>
       <div className="relative flex-1 min-h-0">
         <AppBody />
@@ -267,10 +262,19 @@ function MobileShell() {
 
 /* ============ 入口 ============ */
 export default function App() {
-  const { platform, loginOpen, setLoginOpen, tab, setTab, stack, pop, fs, setFs } = useStore();
+  const { platform, accent, theme, loginOpen, setLoginOpen, tab, setTab, stack, pop, fs, setFs } = useStore();
   useEffect(() => {
     tracePlayback("navigation.change", { tab, stack: stack.map(p => ({ page: p.kind, key: p.key })), login_open: loginOpen });
   }, [tab, stack, loginOpen]);
+
+  /* 封面色 → 全站强调色：写在 html 上，portal 出去的播放器和弹层也能继承。
+     换剧才换色（accent 只跟 seriesId），换集不动；浅色主题走深变体。 */
+  useEffect(() => {
+    const root = document.documentElement.style;
+    for (const [key, value] of Object.entries(accentTokens(accent, theme === "light"))) {
+      root.setProperty(key, value);
+    }
+  }, [accent, theme]);
 
   /* iOS keeps player gestures free of selection handles while inputs and reading text
      retain native selection/copy. Pointer targeting also handles non-focusable articles. */
