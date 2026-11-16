@@ -163,6 +163,14 @@ try {
       assert.equal(await page.locator("html").getAttribute("data-glass-video"), null, "Cleanup leaves no stale quality attribute");
     }
     if (scenario.name === "low-memory") {
+      await page.evaluate(() => document.documentElement.classList.add("theme-light"));
+      for (const selector of [".desktop-home-tabs", ".player-speed-menu", ".desktop-context-header .ios-button"]) {
+        const style = await page.locator(selector).evaluate(el => {
+          const css = getComputedStyle(el);
+          return [css.backgroundColor, css.backdropFilter];
+        });
+        assert.deepEqual(style, ["rgb(36, 36, 42)", "none"], `Light theme preserves the player material at low quality for ${selector}`);
+      }
       // A deliberate quality override can opt into full glass, unless
       // accessibility or unsupported blur requires the safe fallback.
       await page.evaluate(() => window.__glass.setPreference("full"));

@@ -177,6 +177,7 @@ async function seekChecks(page, legacy) {
   await clickProgress(page, .1);
   assert.equal((await getLogs(page)).length, 0, "Default-off must not record seeks");
   await page.getByRole("button", { name: "诊断设置", exact: true }).click();
+  await page.getByRole("button", { name: "播放诊断设置", exact: true }).click();
   await page.getByRole("switch", { name: "播放诊断日志", exact: true }).click();
   await page.waitForFunction(() => document.querySelector('[aria-label="播放诊断日志"]').getAttribute("aria-checked") === "true");
   await page.getByRole("button", { name: "诊断设置", exact: true }).click();
@@ -369,13 +370,27 @@ async function lifecyclePlayerCheck(page, legacy) {
 async function lifecycleCheck(page) {
   const feed = await lifecyclePlayerCheck(page, false);
   const legacy = await lifecyclePlayerCheck(page, true);
-  // The video mounts after the parent's inactive effect, just like a late API response.
-  await page.goto(`${report.ui}/tests/player-seek.html?diagnostics=1&inactive=1&proxy=${encodeURIComponent(report.media)}`);
-  await page.waitForFunction(() => document.querySelector("video") && window.playerSeekFixture.engineState().levels > 0);
+  const url = `${report.ui}/tests/player-seek.html?diagnostics=1&inactive=1&proxy=${encodeURIComponent(report.media)}`;
+  // Feed 在未激活时不会请求播放地址，只有进入前台后才会挂载播放器。
+  await page.goto(url);
+  await page.getByRole("button", { name: "切换播放页激活状态" }).waitFor();
+  assert.equal(await page.locator("video").count(), 0, "Cold inactive Feed must not mount a player");
+  assert.equal(await page.evaluate(() => window.playerSeekFixture.playRequests), 0, "Cold inactive Feed must not request a playback URL");
+  await page.getByRole("button", { name: "切换播放页激活状态" }).click();
+  await page.waitForFunction(() => document.querySelector("video")?.currentTime > 1);
+
+  // 独立挂载真实 VideoSurface，模拟页面收起后才返回的播放地址。
+  await page.goto(`${url}&late-mount=1`);
+  await page.evaluate(() => window.playerSeekFixture.setLogging(true));
+  await page.getByRole("button", { name: "挂载播放器" }).click();
+  await page.waitForFunction(() => window.playerSeekFixture.engineState().levels > 0);
   await page.waitForTimeout(350);
   assert(await page.locator("video").evaluate(v => v.paused), "Late-mounted inactive player must not autoplay");
   assert.equal(await page.evaluate(() => window.playerSeekFixture.engineState().loading), false);
-  return { feed, legacy, late_mount_paused: true };
+  assert(!(await getLogs(page)).some(entry => ["play.request", "hlsFragLoading"].includes(entry.event)), "Inactive late mount must not request playback or fragments");
+  await page.getByRole("button", { name: "切换播放页激活状态" }).click();
+  await page.waitForFunction(() => document.querySelector("video")?.currentTime > 1);
+  return { feed, legacy, cold_feed_loads_on_activation: true, late_mount_paused: true };
 }
 
 async function proxyRecoveryCheck(page) {

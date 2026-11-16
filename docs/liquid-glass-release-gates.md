@@ -73,7 +73,13 @@ can destroy its local favorites, history and settings. A successful
 | iOS and macOS signing | The current iOS artifact is unsigned. The macOS preview is ad-hoc signed. Distribution identity, provisioning and notarization need deployment verification before publication. |
 | Windows and Linux packaging | Windows emits NSIS and a portable ZIP. Linux emits an amd64 DEB. Validate trust and runtime dependencies on the target systems. |
 | Old app data | `hghubx_*` keys and same-storage migration are retained. A package-identifier change creates another app data container. Validate backup, restore and rollback with a preserved old install before describing a migration as supported. |
-| Selected logo source | The SVG sources implement the selected neon X concept. The 1254 px original could not be matched to a confirmed source file during this handoff. Pixel fidelity and launcher appearance remain open. |
+| Selected logo source | Compared the 1254×1254 dark neon reference with the desktop, iOS and Android artwork. The SVG family retains the dark tile, warm play core and crossed ribbons, with simpler ribbons, leaves and refraction. The package artwork is a vector derivative. Native launcher-mask checks remain open. |
+
+## Source art and build evidence
+
+- Matched the dark image `霓虹玻璃果实播放图标.png` to the second image in the light/dark pair selected for HGuoX. Original SHA-256 is `cc796e9e74a3cf0a3dfb3966567f3e0bb2900263bec2650e7aac19aaadf791fa`. The original is preserved separately.
+- Preview build `5784730` generated a [test-key Android ARM64 APK](https://github.com/feyakit/HGuoX/actions/runs/43794872851) and [Windows, Linux, macOS ARM64, and unsigned iOS artifacts](https://github.com/feyakit/HGuoX/actions/runs/43794872910). The Publish job skipped. The downloaded APK checksum matched its manifest.
+- The Chromium HLS check on `5784730` found outdated diagnostic settings navigation and a cold-inactive Feed fixture that waited for a player before activation. The updated test retains those cases and additionally mounts a real VideoSurface in an inactive page to verify that it cannot autoplay or start loading fragments. Check the new PR head for its CI result.
 
 ## Real-device acceptance matrix
 

@@ -7,6 +7,7 @@ import "../src/index.css";
 import { flushPlaybackLog, initPlaybackLog, playbackLogApi, setPlaybackLog } from "../src/playbackDiagnostics";
 import Settings from "../src/pages/Settings";
 import Player from "../src/components/Player";
+import VideoSurface from "../src/components/VideoSurface";
 import Hls from "hls.js";
 
 // 仅将自定义媒体协议映射到本地测试服务器；播放器、HLS 和鼠标事件均使用真实实现。
@@ -23,6 +24,7 @@ XMLHttpRequest.prototype.open = function (this: XMLHttpRequest, method: string, 
 const fixture = {
   rejectPlaybackApi: new URLSearchParams(location.search).has("api-failure"),
   seeks: [] as number[], errors: [] as string[],
+  playRequests: 0,
   setActive: (_active: boolean) => {},
   logs: [] as { event: string; data: Record<string, unknown> }[],
   setLogging: setPlaybackLog,
@@ -45,6 +47,7 @@ let testHls: Hls | undefined;
 const diagnosticTest = new URLSearchParams(location.search).has("diagnostics");
 const legacyTest = new URLSearchParams(location.search).has("legacy");
 const initiallyInactive = new URLSearchParams(location.search).has("inactive");
+const lateMount = new URLSearchParams(location.search).has("late-mount");
 if (diagnosticTest) {
   // Test-only handle: exercise the real engine's public API without rewriting production modules.
   const attach = Hls.prototype.attachMedia;
@@ -83,6 +86,7 @@ document.addEventListener("seeking", (e) => {
 window.addEventListener("error", (e) => fixture.errors.push(e.message));
 api.boot = async () => ({ user: null, logged_in: false, base: "https://fixture.invalid", strict_security: true });
 api.play = async () => {
+  fixture.playRequests += 1;
   if (fixture.rejectPlaybackApi) throw new Error("fixture playback API unavailable");
   return { id: 991, ep_num: 1, title: "Seek fixture", duration: 90, video_url: "https://media.fixture.invalid/list.m3u8" };
 };
@@ -96,14 +100,16 @@ api.video = async () => ({
 function Fixture() {
   const [active, setActive] = useState(!initiallyInactive);
   const [settings, setSettings] = useState(false);
+  const [showLatePlayer, setShowLatePlayer] = useState(false);
   fixture.setActive = setActive;
   return <AppProvider>
     <div style={{ position: "relative", width: 900, height: 540 }}>
-      {legacyTest
+      {lateMount ? (showLatePlayer && <VideoSurface src="https://media.fixture.invalid/list.m3u8" autoPlay active={active} />) : legacyTest
         ? <Player src="https://media.fixture.invalid/list.m3u8" autoPlay active={active} className="w-full h-full" diagnosticContext={{ video_id: 991, active }} />
         : <Feed videoIds={[991]} mode="home" active={active} bottomInset={0} />}
     </div>
     <button onClick={() => setActive((v) => !v)}>切换播放页激活状态</button>
+    {lateMount && <button onClick={() => setShowLatePlayer(true)}>挂载播放器</button>}
     {diagnosticTest && <button onClick={() => setSettings(v => !v)}>诊断设置</button>}
     {settings && <div style={{ position: "relative", width: 900, height: 700 }}><Settings onBack={() => setSettings(false)} wide /></div>}
   </AppProvider>;
