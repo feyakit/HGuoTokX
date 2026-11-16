@@ -10,13 +10,21 @@ import type {
 export const APP_VERSION = __APP_VERSION__;
 
 const ua = navigator.userAgent;
-export const isAndroid = /Android/i.test(ua);
+/**
+ * `tauri android build` 会在打包前把 TAURI_ENV_PLATFORM 写进前端。
+ * 部分安卓 WebView 的 UA 不含 Android，只靠运行时字符串会把真机判成桌面，底栏退回旧的「首页/搜索/分类」。
+ */
+const builtPlatform = import.meta.env.TAURI_ENV_PLATFORM;
+export const isAndroid = builtPlatform === "android" || (/Android/i.test(ua) && builtPlatform !== "ios");
 /** iPhone 的 UA 也带「like Mac OS X」，必须先于 macOS 判断；iPadOS 默认伪装成 Mac，用触点数区分。 */
 export const isIos =
-  /iPhone|iPad|iPod/i.test(ua) ||
-  (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1) ||
-  // iPadOS 13+ 默认把自己报成 MacIntel，只能靠触点数认
-  (typeof navigator.platform === "string" && navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  builtPlatform === "ios" ||
+  (builtPlatform !== "android" && (
+    /iPhone|iPad|iPod/i.test(ua) ||
+    (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1) ||
+    // iPadOS 13+ 默认把自己报成 MacIntel，只能靠触点数认
+    (typeof navigator.platform === "string" && navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  ));
 export const isMacos = !isIos && /Macintosh|Mac OS X/i.test(ua);
 /** Linux 桌面：webkit2gtk 的 UA 是「X11; Linux x86_64」。必须排在 Windows 之前判断，
  *  否则会被当成 Windows；而 Android 的 UA 里同样带「Linux」，所以必须先排除安卓。 */

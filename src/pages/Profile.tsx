@@ -9,6 +9,7 @@ import { MediaCard } from "../components/cards";
 import { useContentPreferences } from "../contentPreferences";
 import { CollectionLink, CollectionLinks } from "../components/CollectionLink";
 import { IChevR, IClock, IDownload, IHeart, IInfo, ILink, ILogout, IMoon, IPlayF, IRefresh, ISettings, IStar, IUser, IUserF } from "../icons";
+import { ambientStyle, useAmbient } from "../useAccent";
 
 /* Account changes discard cached details synchronously, before another account can paint. */
 export default function Profile({ wide }: { wide: boolean }) {
@@ -19,6 +20,7 @@ export default function Profile({ wide }: { wide: boolean }) {
 function ProfileContent({ wide }: { wide: boolean }) {
   const { blockReason } = useContentPreferences();
   const { user, setLoginOpen, logout, history, favs, likes, clearHistory, push, accountSync, syncAccount } = useStore();
+  const ambient = useAmbient();
   const [tab, setTab] = useState<"fav" | "history">("fav");
   const [cache, setCache] = useState<Record<number, Detail>>({});
   const cacheRef = useRef(cache);
@@ -103,7 +105,7 @@ function ProfileContent({ wide }: { wide: boolean }) {
   };
 
   return (
-    <div className={`ios-page absolute inset-0 bg-bg flex flex-col ${isMobile ? "db-me" : ""}`}>
+    <div className={`ios-page absolute inset-0 bg-bg flex flex-col ${isMobile ? "db-me" : ""}`} style={isMobile ? ambientStyle(ambient) : undefined}>
       <div className="ios-page-heading shrink-0 px-4 flex items-center">
         <h1 className="ios-page-title text-on">我的</h1>
         {isMobile && (

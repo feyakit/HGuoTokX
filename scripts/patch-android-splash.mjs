@@ -94,7 +94,7 @@ for (const directory of directories) {
         if (!body.includes(marker)) fail(path, `${THEME} 缺少模板插入标记`);
         updated = body.replace(marker, `${marker}\n        <item name="android:windowBackground">@color/launch_background</item>`);
       }
-      xml = xml.slice(0, start) + updated + xml.slice(end);
+      xml = xml.slice(0, start) + edgeToEdge(updated) + xml.slice(end);
     }
 
     // Refresh existing qualified colors too, so they cannot override BRAND.
@@ -125,3 +125,72 @@ for (const directory of directories) {
 // of the day/night variants patched.
 for (const [path, xml] of pending) writeFileSync(path, xml);
 console.log(`[splash] Android ${themeCount} 个主题背景已对齐 → ${BRAND}（更新 ${pending.size} 个文件）`);
+patchEdgeToEdgeActivity(join(root, "src-tauri", "gen", "android"));
+
+const EDGE_ITEMS = [
+  ["android:statusBarColor", "@android:color/transparent"],
+  ["android:navigationBarColor", "@android:color/transparent"],
+  ["android:windowDrawsSystemBarBackgrounds", "true"],
+  ["android:windowLayoutInDisplayCutoutMode", "shortEdges"],
+  ["android:enforceStatusBarContrast", "false"],
+  ["android:enforceNavigationBarContrast", "false"],
+];
+
+/** 系统栏透明并允许内容画到刘海下。已有同名 item 时不覆盖，避免和模板打架。 */
+function edgeToEdge(body) {
+  let next = body;
+  for (const [name, value] of EDGE_ITEMS) {
+    if (new RegExp(`name\\s*=\\s*["']${name}["']`).test(next)) continue;
+    const item = `<item name="${name}">${value}</item>`;
+    const marker = "<!-- Customize your theme here. -->";
+    next = next.includes(marker)
+      ? next.replace(marker, `${marker}\n        ${item}`)
+      : `${item}\n${next}`;
+  }
+  return next;
+}
+
+function walkFiles(dir, name, found = []) {
+  if (!existsSync(dir)) return found;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) walkFiles(path, name, found);
+    else if (entry.name === name) found.push(path);
+  }
+  return found;
+}
+
+/**
+ * 主题色透明之后，还要让窗口不要把内容挤到系统栏下面，视频才能铺到状态栏。
+ * 模板已经调用 enableEdgeToEdge 时原样跳过。
+ */
+function patchEdgeToEdgeActivity(androidRoot) {
+  const files = walkFiles(androidRoot, "MainActivity.kt");
+  if (!files.length) {
+    console.log("[splash] 未找到 MainActivity.kt，系统栏只改了主题色");
+    return;
+  }
+  for (const path of files) {
+    const source = readFileSync(path, "utf8");
+    if (source.includes("enableEdgeToEdge")) {
+      console.log(`[splash] ${path} 已是 edge-to-edge`);
+      continue;
+    }
+    let next = source;
+    if (!next.includes("androidx.activity.enableEdgeToEdge")) {
+      next = next.replace(/(package [^\n]+\n)/, "$1\nimport android.os.Bundle\nimport androidx.activity.enableEdgeToEdge\n");
+    }
+    if (next.includes("super.onCreate(")) {
+      next = next.replace("super.onCreate(", "enableEdgeToEdge()\n        super.onCreate(");
+    } else if (/class\s+MainActivity\b[^\{]*\{/.test(next)) {
+      const index = next.lastIndexOf("}");
+      const method = "\n    override fun onCreate(savedInstanceState: Bundle?) {\n        enableEdgeToEdge()\n        super.onCreate(savedInstanceState)\n    }\n";
+      next = next.slice(0, index) + method + next.slice(index);
+    } else {
+      console.log(`[splash] ${path} 结构无法补 edge-to-edge，已跳过`);
+      continue;
+    }
+    writeFileSync(path, next);
+    console.log(`[splash] ${path} 已补 enableEdgeToEdge`);
+  }
+}

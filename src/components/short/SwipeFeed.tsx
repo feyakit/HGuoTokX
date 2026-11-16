@@ -204,12 +204,23 @@ export default function SwipeFeed({
     });
   }, [slots, items, itemIndex, active, paused, applied, muted, volume, media]);
 
+  const [chromeGen, setChromeGen] = useState(0);
+  const dimRef = useRef(false);
+  dimRef.current = dim;
   useEffect(() => {
     if (paused || !active) { setDim(false); return; }
     setDim(false);
     const timer = window.setTimeout(() => setDim(true), 3000);
     return () => window.clearTimeout(timer);
-  }, [paused, active, itemIndex, series, boost, locked, sheet]);
+  }, [paused, active, itemIndex, series, boost, locked, sheet, chromeGen]);
+  useEffect(() => {
+    if (!active) {
+      delete document.documentElement.dataset.playbackChrome;
+      return;
+    }
+    document.documentElement.dataset.playbackChrome = dim ? "dim" : "on";
+    return () => { delete document.documentElement.dataset.playbackChrome; };
+  }, [active, dim]);
 
   const drag = useRef({ id: -1, x: 0, y: 0, t: 0, lastY: 0, lastT: 0, axis: "" as "" | "x" | "y" | "side", card: false, edge: false });
   const tap = useRef({ at: 0, x: 0, y: 0, timer: 0 });
@@ -236,7 +247,6 @@ export default function SwipeFeed({
       edge: event.clientX - (rootRef.current?.getBoundingClientRect().left || 0) < 28,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
-    setDim(false);
     window.clearTimeout(holdTimer.current);
     holdTimer.current = window.setTimeout(() => {
       setBoost(true);
@@ -256,6 +266,7 @@ export default function SwipeFeed({
     const dx = event.clientX - d.x;
     const dy = event.clientY - d.y;
     if (!d.axis && Math.hypot(dx, dy) > 10) {
+      setDim(false);
       const box = rootRef.current?.getBoundingClientRect();
       const landscape = !!box && box.width > box.height;
       const localX = box ? d.x - box.left : 0;
@@ -337,6 +348,13 @@ export default function SwipeFeed({
     const target = event.target as HTMLElement;
     if (target.closest("button, a, input")) return;
     const now = event.timeStamp;
+    if (dimRef.current) {
+      dimRef.current = false;
+      setDim(false);
+      setChromeGen(value => value + 1);
+      tap.current = { at: now, x: event.clientX, y: event.clientY, timer: 0 };
+      return;
+    }
     if (now - tap.current.at < 260 && Math.hypot(event.clientX - tap.current.x, event.clientY - tap.current.y) < 36) {
       window.clearTimeout(tap.current.timer);
       tap.current.at = 0;
@@ -392,7 +410,7 @@ export default function SwipeFeed({
 
   return (
     <div ref={rootRef} className={`db-feed ${dim ? "is-dim" : ""} ${series ? "is-series" : ""} ${boost || locked ? "is-boost" : ""}`} style={{ ...schemeStyle(currentScheme), paddingBottom: series ? 0 : bottomInset }}
-      data-short-feed={discover ? "discover" : "series"}>
+      data-short-feed={discover ? "discover" : "series"} data-accent={currentScheme.accent} data-accent-source={currentScheme.source}>
       {discover && !series && (
         <div className="db-top" data-gesture="none">
           <Button className="db-top-side" aria-label={muted ? "取消静音" : "静音"} onClick={() => setMuted(value => !value)}>{muted ? <IVolMute size={20} /> : <IVol size={20} />}</Button>
@@ -532,8 +550,9 @@ function Slide({
   const durationRef = useRef(0);
   const [slow, setSlow] = useState(false);
   const [framed, setFramed] = useState(false);
+  const [landscape, setLandscape] = useState(false);
   const [clock, setClock] = useState({ t: resume ? continueEp?.t || 0 : 0, d: 0 });
-  useEffect(() => { setFramed(false); const timer = window.setTimeout(() => setSlow(true), 600); return () => window.clearTimeout(timer); }, [item.key]);
+  useEffect(() => { setFramed(false); setLandscape(false); const timer = window.setTimeout(() => setSlow(true), 600); return () => window.clearTimeout(timer); }, [item.key]);
   const title = data?.detail.title || (loaded && "error" in loaded ? "加载失败" : "正在打开");
   const tags = data?.detail.tags?.slice(0, 2) || [];
   const total = data?.episodes.length || data?.detail.episode_count || 1;
@@ -542,13 +561,16 @@ function Slide({
   const shownT = shownD ? Math.min(clock.t, shownD) : clock.t;
   const fill = shownD > 0 ? Math.max(6, Math.min(100, (shownT / shownD) * 100)) : 12;
   return (
-    <section className={`db-slide ${framed ? "is-framed" : ""}`} style={{ transform: `translate3d(0,${offset * 100}%,0)`, ["--accent" as string]: scheme.accent, ["--accent-2" as string]: scheme.second, ["--deep" as string]: scheme.deep, ["--tag" as string]: scheme.tag }}>
+    <section className={`db-slide ${framed ? "is-framed" : ""} ${landscape ? "is-landscape" : ""}`} style={{ transform: `translate3d(0,${offset * 100}%,0)`, ["--accent" as string]: scheme.accent, ["--accent-2" as string]: scheme.second, ["--deep" as string]: scheme.deep, ["--tag" as string]: scheme.tag }}>
+      {data?.poster && <img className="db-poster-blur" src={data.poster} alt="" />}
       {data?.poster && <img className={`db-poster ${framed ? "is-gone" : ""}`} src={data.poster} alt="" />}
+      <div className="db-wash" />
       {data?.url && (
         <VideoSurface ref={handle => { handleRef.current = handle; onHandle(handle); }} src={data.url} poster={data.poster} active={active || preload} autoPlay={active && !paused}
-          muted={muted} volume={volume} rate={rate} fit="cover" className="db-video"
+          muted={muted} volume={volume} rate={rate} fit={landscape ? "contain" : "cover"} className="db-video"
           maxBufferLength={networkProfile().buffer} maxMaxBufferLength={networkProfile().buffer}
-          onPlaying={() => { if ((handleRef.current?.el()?.videoWidth || 0) > 0) setFramed(true); }} onEnded={() => { if (active) onEnded(); }}
+          onSize={(w, h) => { if (w > 0 && h > 0) setLandscape(w > h * 1.05); }}
+          onPlaying={() => { const el = handleRef.current?.el(); if ((el?.videoWidth || 0) > 0) { setFramed(true); setLandscape((el?.videoWidth || 0) > (el?.videoHeight || 1) * 1.05); } }} onEnded={() => { if (active) onEnded(); }}
           onTime={t => {
             const duration = durationRef.current;
             const el = bar.current;

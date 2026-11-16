@@ -138,7 +138,7 @@ try {
         });
         assert.equal(homeVideoMaterial.selected, "rgb(255, 255, 255)", "Selected tab uses white text on the dark dock");
         assert.equal(homeVideoMaterial.unselected, "rgb(184, 188, 200)", "Unselected tabs stay readable on the dark dock");
-        assert.equal(homeVideoMaterial.background, "rgba(14, 15, 19, 0.88)", "The dock keeps a dark glass surface over video");
+        assert.equal(homeVideoMaterial.background, "rgba(8, 10, 14, 0.42)", "The dock stays translucent over the swipe feed");
         check("home navigation text contrast on video in both themes");
       }
       await nav.getByRole("button", { name: searchTab, exact: true }).click();

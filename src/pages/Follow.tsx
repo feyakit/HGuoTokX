@@ -3,7 +3,7 @@ import { Button } from "../components/ios/controls";
 import { api, cover, fmtTime } from "../api";
 import type { Detail } from "../types";
 import { useStore } from "../store";
-import { useAccent } from "../useAccent";
+import { ambientStyle, useAccent, useAmbient } from "../useAccent";
 import { Empty } from "../components/ui";
 import { IPlayF, IStar } from "../icons";
 
@@ -29,6 +29,7 @@ export default function Follow({ active }: { active: boolean; wide?: boolean }) 
     return () => { cancel = true; };
   }, [active, idKey]);
   const [segment, setSegment] = useState<"follow" | "history">("follow");
+  const ambient = useAmbient();
   const latest = history[0];
   const latestDetail = latest ? cache[latest.id] : undefined;
   const list = segment === "follow" ? favs : history.map(item => item.id);
@@ -37,7 +38,7 @@ export default function Follow({ active }: { active: boolean; wide?: boolean }) 
     push({ kind: "series", videoId: id, startEp: ep, startTime: time, title: detail?.title || "追剧" });
   };
   return (
-    <div className="ios-page db-follow absolute inset-0 flex flex-col">
+    <div className="ios-page db-follow absolute inset-0 flex flex-col" style={ambientStyle(ambient)}>
       <div className="ios-page-heading shrink-0 px-4"><h1 className="ios-page-title">追剧</h1></div>
       <div className="flex-1 scroll-y px-4" style={{ paddingBottom: "calc(128px + var(--sab, 16px))" }}>
         {latestDetail && latest && (

@@ -22,7 +22,8 @@ export default defineConfig({
     hmr: host ? { protocol: "ws", host, port: 1421 } : undefined,
     watch: { ignored: ["**/src-tauri/**"] },
   },
-  envPrefix: ["VITE_", "TAURI_ENV_*"],
+  // Vite 的前缀是字面前缀，星号不会当通配符。写成 TAURI_ENV_ 才能把打包平台注入前端。
+  envPrefix: ["VITE_", "TAURI_ENV_"],
   build: {
     target: "es2021",
     minify: "esbuild",

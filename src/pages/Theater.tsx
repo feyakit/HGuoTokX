@@ -6,7 +6,7 @@ import { CollectionLink, CollectionLinks } from "../components/CollectionLink";
 import { api, cover } from "../api";
 import type { VideoCard } from "../types";
 import { useStore } from "../store";
-import { useAccent } from "../useAccent";
+import { ambientStyle, useAccent, useAmbient } from "../useAccent";
 import { IGlobe, IGrid } from "../icons";
 
 const CHIPS = ["全部", "都市", "古装", "玄幻", "悬疑"];
@@ -14,8 +14,9 @@ const CHIPS = ["全部", "都市", "古装", "玄幻", "悬疑"];
 /** 剧场把搜索、分类和热播收在同一页，原来的搜索页和分类页都还在。 */
 export default function Theater({ active, wide }: { active: boolean; wide: boolean }) {
   const [channels, setChannels] = useState(false);
+  const ambient = useAmbient();
   return (
-    <div className="absolute inset-0">
+    <div className="absolute inset-0" style={ambientStyle(ambient)}>
       <div className={channels ? "hidden" : "absolute inset-0"}>
         <Search active={active && !channels} wide={wide} title="剧场" extra={<Showcase active={active && !channels} onChannels={() => setChannels(true)} />} />
       </div>

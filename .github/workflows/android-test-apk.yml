@@ -2,6 +2,8 @@ name: Android test APK
 
 # 只给当前设计分支出真机测试包。手动触发，或这个文件本身被推上来时跑一次。
 # 不打 tag、不发 Release。产物只留在 Actions artifact。
+# 3.0.1 / versionCode 3000001：高于已发布的 3.0.0，覆盖安装才会换掉旧包。
+# 沉浸层：铺满、封面取色、播放淡出。推这个文件是为了再出一版测试包。
 on:
   workflow_dispatch:
   push:
