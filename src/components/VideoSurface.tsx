@@ -242,7 +242,7 @@ const VideoSurface = forwardRef<VideoHandle, Props>(function VideoSurface(
       muted={muted}
       loop={loop}
       onClick={onClick}
-      className={`w-full h-full bg-black ${fit === "cover" ? "object-cover" : "object-contain"} ${className}`}
+      className={`w-full h-full bg-transparent ${fit === "cover" ? "object-cover" : "object-contain"} ${className}`}
       style={{ opacity: ready ? 1 : 0, transition: "opacity .35s" }}
       onLoadedData={(e) => {
         const v = e.target as HTMLVideoElement;

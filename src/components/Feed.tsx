@@ -1139,7 +1139,14 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
       onPointerMove={() => { if (isDesktop || fs) wake(); }}
       onPointerDown={() => { if (!isDesktop && fs) wake(); }}>
       <div className="absolute inset-0" inert={controlsLocked}
-        style={{ "--accent": accent.accent, "--accent-soft": `${accent.accent}42`, "--accent-2": accent.second, "--bar-dim": barDim.toFixed(2) } as CSSProperties}>
+        style={{
+          "--accent": accent.accent, "--accent-soft": `${accent.accent}42`, "--accent-2": accent.second,
+          /* 留白衬底：deep 是同色相的暗底，两档透明度让黑边退成封面色 */
+          "--deep": accent.deep, "--stage-wash": `${accent.accent}8c`, "--stage-glow": `${accent.accent}3d`,
+          "--bar-dim": barDim.toFixed(2),
+        } as CSSProperties}>
+      {/* 留白衬底：宽高比不匹配时，视频四周不再是黑边，而是封面取到的颜色 */}
+      <div aria-hidden className="hg-stage-fill pointer-events-none absolute inset-0" />
       {/* 氛围背景 */}
       {!isDesktop && posterUrl && (
         <div className="absolute inset-0 scale-110 blur-3xl opacity-25 pointer-events-none">

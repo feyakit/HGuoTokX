@@ -433,6 +433,18 @@ input[type="range"].hg-range::-webkit-slider-thumb { -webkit-appearance: none; w
 .player-surface .player-root,
 .player-root { background: #15181d; }
 
+/* —— 留白衬底：视频不满屏（object-contain 留边）时，边缘用封面取到的颜色 ——
+   中间压暗、上下两头带封面色，这样视频还没解码完也不会整屏发亮；
+   满屏（cover）时视频自己盖住整层，看不出任何变化。 */
+.hg-stage-fill {
+  background-color: var(--deep, #100f2e);
+  background-image:
+    radial-gradient(135% 62% at 50% -6%, var(--stage-wash, transparent) 0%, transparent 76%),
+    radial-gradient(135% 62% at 50% 106%, var(--stage-wash, transparent) 0%, transparent 76%),
+    radial-gradient(150% 105% at 50% 50%, var(--stage-glow, transparent) 0%, transparent 72%);
+  transition: background-color .28s ease;
+}
+
 /* —— 移动端沉浸全屏：固定铺满视口，不受外层滚动容器影响 —— */
 .fs-immersive {
   position: fixed;

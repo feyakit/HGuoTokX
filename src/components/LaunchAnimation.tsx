@@ -2,8 +2,6 @@ import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 
 import { addPluginListener } from "@tauri-apps/api/core";
 import { platform } from "../api";
 import "../styles/launch.css";
-import UsageAgreement from "./UsageAgreement";
-import { hasAcceptedAgreement } from "../usageAgreement";
 
 // One reveal per WebView lifetime, including StrictMode and subsequent App remounts.
 let launchCompleted = false;
@@ -81,12 +79,10 @@ export function LaunchAnimation({ onFinish }: { onFinish: () => void }) {
   </div>;
 }
 
-/** Children mount only after the reveal and an explicitly accepted current agreement. */
+/** Children mount right after the reveal; there is no terms gate in front of the app. */
 export default function StartupGate({ children }: { children: ReactNode }) {
   const [finished, setFinished] = useState(() => launchCompleted);
-  const [agreed, setAgreed] = useState(() => hasAcceptedAgreement());
   const finish = useCallback(() => { launchCompleted = true; setFinished(true); }, []);
   if (!finished) return <LaunchAnimation onFinish={finish} />;
-  if (!agreed) return <UsageAgreement onAccept={() => setAgreed(true)} />;
   return children;
 }

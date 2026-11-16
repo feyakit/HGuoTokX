@@ -23,9 +23,6 @@ try {
     hasTouch: true,
   });
   await context.addInitScript(installFixture, { theme: "light", titles: ["城市与晚风", "重逢在夏日以后", "星河旅人"] });
-  await context.addInitScript(() => localStorage.setItem("hghubx_usage_agreement", JSON.stringify({
-    version: "2026-11-15-v1", accepted: true, acceptedAt: "2026-11-15T00:00:00.000Z",
-  })));
   const page = await context.newPage();
   page.on("pageerror", error => report.errors.push(error.message));
   await page.route("**/*", route => {

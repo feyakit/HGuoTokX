@@ -44,15 +44,15 @@ window.addEventListener("unhandledrejection", (e) => {
    不再用 JS 在启动时钉死 html 高度——启动瞬间 visualViewport.height 尚未
    完成布局，抓到错误值会把 html 高度锁死，正是「底部留白、旋转一次才恢复」的根因。 */
 
-/** Account restore, line probes and content requests begin only after agreement. */
-function AcceptedApplication() {
+/** Account restore, line probes and content requests start with the first paint. */
+function Application() {
   React.useEffect(() => { initAutoLine(); }, []);
   return <AppProvider><App /></AppProvider>;
 }
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <StartupGate><AcceptedApplication /></StartupGate>
+    <StartupGate><Application /></StartupGate>
   </React.StrictMode>,
 );
 installLayoutDiagnostics();

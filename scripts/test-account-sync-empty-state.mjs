@@ -21,9 +21,6 @@ try {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     await context.addInitScript(installFixture, { theme: "light", titles: ["城市与晚风", "重逢在夏日以后", "星河旅人"] });
     await context.addInitScript(options => {
-      localStorage.setItem("hghubx_usage_agreement", JSON.stringify({
-        version: "2026-11-15-v1", accepted: true, acceptedAt: "2026-11-15T00:00:00.000Z",
-      }));
       const original = window.__TAURI_INTERNALS__.invoke;
       const user = {
         id: 9, username: "fixture", nickname: "示例用户", avatar: "", avatar_color: "#63748b",

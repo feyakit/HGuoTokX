@@ -19,9 +19,6 @@ try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   page.on("pageerror", error => report.errors.push(error.message));
   await page.addInitScript(installFixture, { theme: "light", titles: ["城市与晚风", "重逢在夏日以后", "星河旅人"] });
-  await page.addInitScript(() => localStorage.setItem("hghubx_usage_agreement", JSON.stringify({
-    version: "2026-11-15-v1", accepted: true, acceptedAt: "2026-11-15T00:00:00.000Z",
-  })));
   await page.route("**/*", route => {
     const url = new URL(route.request().url());
     if (url.origin === new URL(origin).origin) return route.continue();
