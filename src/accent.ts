@@ -1,5 +1,7 @@
 /** 封面取色。32×57 的直方图在主线程就够，不必再开 Worker。 */
 
+import { EXTRA_STORAGE_KEYS } from "./storage";
+
 export type RGB = { r: number; g: number; b: number };
 export type HSL = { h: number; s: number; l: number };
 
@@ -20,7 +22,7 @@ export const FALLBACK_SCHEME: AccentScheme = {
   source: "fallback",
 };
 
-const CACHE_KEY = "hghubx_accent_cache_v1";
+const CACHE_KEY = EXTRA_STORAGE_KEYS.accentCache;
 const CACHE_MAX = 300;
 const memory = new Map<string, AccentScheme>();
 

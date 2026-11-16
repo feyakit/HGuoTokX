@@ -13,6 +13,8 @@ import { CommentsPanel } from "../Panels";
 import LinePicker from "../LinePicker";
 import { haptic, mediaKey, networkProfile } from "./runtime";
 import { invalidateMedia, loadMedia, type LoadedMedia } from "./media";
+import { TAP_MS, decideAxis, dampEdgeDrag, isDoubleTap, resolvePage, shouldLockBoost, stepValue } from "./gestures";
+import { EXTRA_STORAGE_KEYS } from "../../storage";
 
 type FeedTab = "follow" | "recommend";
 type Item = { id: number; ep: number; key: string };
@@ -85,15 +87,18 @@ export default function SwipeFeed({
     return () => setFs(false);
   }, [discover, series, active, setFs]);
 
+  // 收藏和历史都可能几百条，先建一次索引，避免在 map 里对每条都 find 一遍（O(n²)）。
+  const historyIndex = useMemo(() => new Map(history.map(row => [row.id, row])), [history]);
+
   const list = useMemo<Item[]>(() => {
     if (!discover || series) return [];
     const source = tab === "follow" ? favs : ids;
     return source.map(id => {
-      const saved = tab === "follow" ? history.find(row => row.id === id) : undefined;
+      const saved = tab === "follow" ? historyIndex.get(id) : undefined;
       const ep = saved?.ep || 1;
       return { id, ep, key: mediaKey(id, ep) };
     });
-  }, [discover, series, tab, favs, ids, history]);
+  }, [discover, series, tab, favs, ids, historyIndex]);
 
   const index = discover && !series ? Math.min(cursor[tab], Math.max(0, list.length - 1)) : 0;
   const currentItem: Item | null = series
@@ -222,9 +227,17 @@ export default function SwipeFeed({
     return () => { delete document.documentElement.dataset.playbackChrome; };
   }, [active, dim]);
 
-  const drag = useRef({ id: -1, x: 0, y: 0, t: 0, lastY: 0, lastT: 0, axis: "" as "" | "x" | "y" | "side", card: false, edge: false });
+  const drag = useRef({ id: -1, x: 0, y: 0, t: 0, lastY: 0, lastT: 0, axis: "" as "" | "x" | "y" | "side", card: false, edge: false, lockY: 0 });
   const tap = useRef({ at: 0, x: 0, y: 0, timer: 0 });
   const holdTimer = useRef(0);
+  // 进度写回历史每 5 秒一次；必须是每个实例自己的，否则推荐流和剧内页会互相吞掉对方的进度。
+  const historyTick = useRef(0);
+
+  // 手势里挂的定时器（长按、单击判定）在卸载时要清掉，否则退出页面后还会改已经卸掉的 state。
+  useEffect(() => () => {
+    window.clearTimeout(holdTimer.current);
+    window.clearTimeout(tap.current.timer);
+  }, []);
 
   const height = () => rootRef.current?.clientHeight || window.innerHeight;
   const resetTrack = (animate = false) => {
@@ -245,6 +258,7 @@ export default function SwipeFeed({
       lastY: event.clientY, lastT: event.timeStamp, axis: "",
       card: !!target.closest("[data-gesture=card]"),
       edge: event.clientX - (rootRef.current?.getBoundingClientRect().left || 0) < 28,
+      lockY: event.clientY,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
     window.clearTimeout(holdTimer.current);
@@ -252,8 +266,8 @@ export default function SwipeFeed({
       setBoost(true);
       haptic("hold");
       try {
-        if (!localStorage.getItem("hghubx_design_b_gesture_v1")) {
-          localStorage.setItem("hghubx_design_b_gesture_v1", "1");
+        if (!localStorage.getItem(EXTRA_STORAGE_KEYS.gestureHint)) {
+          localStorage.setItem(EXTRA_STORAGE_KEYS.gestureHint, "1");
           setShowGuide(true);
         }
       } catch { /* ignore */ }
@@ -265,25 +279,29 @@ export default function SwipeFeed({
     if (d.id !== event.pointerId) return;
     const dx = event.clientX - d.x;
     const dy = event.clientY - d.y;
-    if (!d.axis && Math.hypot(dx, dy) > 10) {
-      setDim(false);
+    if (!d.axis) {
       const box = rootRef.current?.getBoundingClientRect();
-      const landscape = !!box && box.width > box.height;
-      const localX = box ? d.x - box.left : 0;
-      if (landscape && Math.abs(dy) > Math.abs(dx) * 1.2 && box && (localX < box.width * 0.4 || localX > box.width * 0.6)) d.axis = "side";
-      else d.axis = Math.abs(dy) > Math.abs(dx) * 1.2 ? "y" : "x";
+      const axis = decideAxis({
+        dx, dy, startX: d.x,
+        boxLeft: box?.left || 0, boxWidth: box?.width || 0, boxHeight: box?.height || 0,
+      });
+      if (!axis) return;
+      d.axis = axis;
+      setDim(false);
       window.clearTimeout(holdTimer.current);
     }
-    if (boost && !locked && d.y - event.clientY > 64) { setLocked(true); haptic("hold"); }
+    // 锁定判定用按下时的基准点：侧滑改亮度会改写 d.y，用改写后的值算会误锁 2x。
+    if (shouldLockBoost({ boost, locked, baselineY: d.lockY, currentY: event.clientY })) { setLocked(true); haptic("hold"); }
     if (d.axis === "side") {
       const box = rootRef.current?.getBoundingClientRect();
       const localX = box ? d.x - box.left : 0;
-      const delta = (d.y - event.clientY) / Math.max(1, height());
+      // 向上拖动为正：亮度用小号（遮罩变淡 = 变亮），音量直接加。
+      const pull = (d.y - event.clientY) / Math.max(1, height());
       if (box && localX < box.width * 0.4) {
-        setVeil(v => Math.min(0.72, Math.max(0, v - delta)));
+        setVeil(v => stepValue({ value: v, delta: -pull, max: 0.72 }));
         setGesture("亮度");
       } else {
-        setVolume(Math.min(1, Math.max(0, volumeRef.current + delta)));
+        setVolume(stepValue({ value: volumeRef.current, delta: pull, max: 1 }));
         setGesture("音量");
       }
       d.y = event.clientY;
@@ -291,12 +309,10 @@ export default function SwipeFeed({
     }
     if (d.axis !== "y" || !trackRef.current) return;
     const h = height();
-    let y = dy;
-    const atStart = itemIndex <= 0 && y > 0;
-    const atEnd = itemIndex >= items.length - 1 && y < 0;
-    if (atStart || atEnd) y = Math.max(-h * 0.12, Math.min(h * 0.12, y * 0.35));
+    const atStart = itemIndex <= 0 && dy > 0;
+    const atEnd = itemIndex >= items.length - 1 && dy < 0;
     trackRef.current.style.transition = "none";
-    trackRef.current.style.transform = `translate3d(0,${y}px,0)`;
+    trackRef.current.style.transform = `translate3d(0,${dampEdgeDrag(dy, h, atStart, atEnd)}px,0)`;
     d.lastY = event.clientY;
     d.lastT = event.timeStamp;
   };
@@ -324,12 +340,10 @@ export default function SwipeFeed({
     }
     if (d.axis === "y") {
       const h = height();
-      const page = Math.abs(dy) > h * 0.18 || Math.abs(velocity) > 0.5;
-      const dir = dy < 0 ? 1 : -1;
+      const { page, dir, can } = resolvePage({ dy, velocity, height: h, index: itemIndex, total: items.length });
       if (page && items.length) {
         const el = trackRef.current;
         if (!el) { go(dir); return; }
-        const can = (dir === 1 && itemIndex < items.length - 1) || (dir === -1 && itemIndex > 0);
         if (!can) { resetTrack(true); haptic("edge"); return; }
         el.style.transition = "transform 280ms cubic-bezier(.2,.8,.2,1)";
         el.style.transform = `translate3d(0,${dir === 1 ? -h : h}px,0)`;
@@ -339,7 +353,7 @@ export default function SwipeFeed({
         resetTrack(true);
         if (series) setSheet(true);
         else if (currentItem) {
-          const saved = history.find(row => row.id === currentItem.id);
+          const saved = historyIndex.get(currentItem.id);
           enterSeries(currentItem.id, saved && (saved.ep > 1 || saved.t > 5) ? saved.ep : 1, saved?.t);
         }
       } else resetTrack(true);
@@ -355,13 +369,13 @@ export default function SwipeFeed({
       tap.current = { at: now, x: event.clientX, y: event.clientY, timer: 0 };
       return;
     }
-    if (now - tap.current.at < 260 && Math.hypot(event.clientX - tap.current.x, event.clientY - tap.current.y) < 36) {
+    if (isDoubleTap(tap.current, now, event.clientX, event.clientY)) {
       window.clearTimeout(tap.current.timer);
       tap.current.at = 0;
       likeAt(event.clientX, event.clientY, true);
       return;
     }
-    tap.current = { at: now, x: event.clientX, y: event.clientY, timer: window.setTimeout(() => setPaused(value => !value), 260) };
+    tap.current = { at: now, x: event.clientX, y: event.clientY, timer: window.setTimeout(() => setPaused(value => !value), TAP_MS) };
   };
 
   const likeAt = (x: number, y: number, forceOn: boolean) => {
@@ -459,7 +473,7 @@ export default function SwipeFeed({
               <Slide key={slot} slot={slot} offset={offset} item={item} loaded={loaded} active={active && offset === 0}
                 preload={net.current.preloadNext} paused={paused} rate={applied} muted={muted} volume={volume}
                 bottomInset={series ? 0 : bottomInset} series={!!series} interactive={offset === 0} liked={isLiked(item.id, item.ep)} faved={isFav(item.id)}
-                continueEp={history.find(row => row.id === item.id)}
+                continueEp={historyIndex.get(item.id)}
                 veil={offset === 0 ? veil : 0}
                 onHandle={handle => { handles.current[slot] = handle; }}
                 onEnded={onEnded}
@@ -472,7 +486,7 @@ export default function SwipeFeed({
                   }
                 }}
                 onOpenSeries={() => {
-                  const saved = history.find(row => row.id === item.id);
+                  const saved = historyIndex.get(item.id);
                   enterSeries(item.id, saved && (saved.ep > 1 || saved.t > 5) ? saved.ep : 1, saved?.t);
                 }}
                 onLike={() => likeAt((rootRef.current?.clientWidth || 0) / 2, (rootRef.current?.clientHeight || 0) / 2, false)}
@@ -509,13 +523,13 @@ export default function SwipeFeed({
         />
       )}
       {comments && currentItem && (
-        <div className="db-sheet-root" role="dialog" aria-label="评论" data-gesture="none">
+        <div className="db-sheet-root" role="dialog" aria-modal="true" aria-label="评论" data-gesture="none">
           <button type="button" className="db-sheet-mask" aria-label="关闭评论" onClick={() => setComments(false)} />
           <div className="db-sheet v3-panel"><CommentsPanel videoId={currentItem.id} ep={currentItem.ep} total={ready?.detail.counts.comment || 0} onClose={() => setComments(false)} /></div>
         </div>
       )}
       {more && (
-        <div className="db-sheet-root" role="dialog" aria-label="更多" data-gesture="none">
+        <div className="db-sheet-root" role="dialog" aria-modal="true" aria-label="更多" data-gesture="none">
           <button type="button" className="db-sheet-mask" aria-label="关闭更多" onClick={() => setMore(false)} />
           <div className="db-sheet v3-panel v3-more">
             <h2>更多</h2>
@@ -542,8 +556,6 @@ export default function SwipeFeed({
     </div>
   );
 }
-
-const historyTick = { current: 0 };
 
 function clockText(seconds: number) {
   const value = Math.max(0, Math.floor(seconds || 0));
@@ -644,9 +656,11 @@ function Slide({
               <input ref={bar} data-gesture="none" aria-label="播放进度" type="range" min={0} max={shownD || 0} step={0.1} defaultValue={shownT}
                 onPointerUp={event => {
                   const input = event.currentTarget;
-                  const surface = input.closest(".db-slide")?.querySelector("video");
-                  if (surface) surface.currentTime = Number(input.value);
-                  setClock(prev => ({ ...prev, t: Number(input.value) }));
+                  const value = Number(input.value);
+                  // 走播放器自己的 seek 通道：里面还要报诊断、处理 hls 的定位，
+                  // 直接改 video.currentTime 会绕过这些，也会让 .db-slide 的 DOM 结构变成隐性依赖。
+                  handleRef.current?.seek(value, "short_bar");
+                  setClock(prev => ({ ...prev, t: value }));
                 }} />
             </label>
           )}
@@ -671,7 +685,7 @@ function EpisodeSheet({ title, updated, episodes, current, onPick, onClose }: {
   const [group, setGroup] = useState(Math.floor((current - 1) / size));
   const slice = episodes.slice(group * size, group * size + size);
   return (
-    <div className="db-sheet-root" role="dialog" aria-label="选集" data-gesture="none">
+    <div className="db-sheet-root" role="dialog" aria-modal="true" aria-label="选集" data-gesture="none">
       <button type="button" className="db-sheet-mask" aria-label="关闭选集" onClick={onClose} />
       <div className="db-sheet">
         <div className="db-sheet-handle" />

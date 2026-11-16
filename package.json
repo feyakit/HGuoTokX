@@ -32,7 +32,8 @@
     "android:icons": "node scripts/sync-android-icons.mjs",
     "ios:icons": "node scripts/generate-ios-icons.mjs",
     "android:dev": "tauri android dev",
-    "android:build": "tauri android build"
+    "android:build": "tauri android build",
+    "test:short-gesture": "node --test tests/short-gesture.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",

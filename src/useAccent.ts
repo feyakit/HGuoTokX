@@ -1,7 +1,8 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { FALLBACK_SCHEME, readAccentCache, schemeFromPixels, writeAccentCache, type AccentScheme } from "./accent";
+import { EXTRA_STORAGE_KEYS } from "./storage";
 
-const AMBIENT_KEY = "hghubx_last_accent_v1";
+const AMBIENT_KEY = EXTRA_STORAGE_KEYS.lastAccent;
 
 type AccentDebug = AccentScheme & { id?: string | number; url?: string };
 

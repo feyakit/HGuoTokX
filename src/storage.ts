@@ -7,6 +7,16 @@ export const STORAGE_KEYS = {
 
 type StorageKey = typeof STORAGE_KEYS[keyof typeof STORAGE_KEYS];
 
+/**
+ * 不走升级迁移、但同样需要单一来源的本地键（刷剧页手势提示、封面取色）。
+ * 单独列出来是为了以后改前缀/清缓存时有地方可查，而不是散落在各组件里硬编码。
+ */
+export const EXTRA_STORAGE_KEYS = {
+  gestureHint: "hghubx_design_b_gesture_v1",
+  lastAccent: "hghubx_last_accent_v1",
+  accentCache: "hghubx_accent_cache_v1",
+} as const;
+
 // 旧键仅用于升级迁移，运行期始终向 STORAGE_KEYS 里的键写入（沿用上游 hghubx_ 前缀，改名不动它）。
 const LEGACY_KEYS: Record<StorageKey, string> = {
   hghubx_app_v1: "hghub_app_v1",
