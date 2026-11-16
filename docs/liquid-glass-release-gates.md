@@ -1,0 +1,107 @@
+# HGuoX Liquid Glass 2.0 — Release Gate & Device QA
+
+Status: **Draft PR / not cleared for production release**.
+
+This document separates **CI passing** from **native WebView acceptance**.
+GitHub Actions Chromium tests simulate platform CSS variants; they do NOT
+prove iOS WKWebView, Android System WebView, Windows WebView2, macOS WKWebView
+or Linux WebKitGTK performance.
+
+## Current release blockers
+
+1. **Mainline drift:** at the start of this QA pass, development was based on
+   app 2.1.0, while `main` identified itself as 3.0.0. The branches were
+   diverged. Rebase or merge the upstream changes with conflict review,
+   then re-run all smoke, playback and installer tests; do not override
+   3.0.0 with a 2.1.0 build. Confirm versions again at merge time.
+2. **Android identity and upgrade:** the app identifier is
+   `com.hguox.app`. This may be a different Android app from older package
+   identifiers. Changing this identifier can isolate app-local storage.
+   A new random preview signing key is generated for each preview run, so
+   different preview packages cannot be treated as safe in-place updates.
+3. **Logo fidelity:** the selected second dark-neon concept is represented
+   by reproducible SVG icon sources, but native OS launcher masks, tiny icon
+   legibility and any pixel-identical master artwork need visual review.
+4. **Native device testing:** each platform below needs an observed result,
+   including reduced-transparency, contrast, light/dark, rotation and video
+   playback behavior. No platform should be marked "verified" solely because
+   Chromium tests passed.
+5. **Signing/notarization:** unsigned iOS/macOS output, untrusted test-key
+   Android output and other preview archives are QA artifacts, not production
+   releases. Configure managed release signing/notarization separately.
+6. **Version/update channel:** ensure Android versionCode is monotonically
+   higher for the *same* package+signer upgrade path. Verify the updater's
+   published version, URL, package identity and signing expectations.
+
+## Generating an Android arm64 test artifact
+
+On pushes to `design/liquid-glass-brand-v1`, the independent
+`.github/workflows/preview-android.yml` job builds an APK from the exact
+branch commit. It uploads an artifact named
+`hguox-liquid-glass-arm64-preview` (retained for seven days).
+
+Artifact contents:
+- `HGuoX_<SHA>_arm64_TEST-KEY.apk`
+- `SHA256SUMS.txt`
+- `package-identity.txt`
+- `signature-verification.txt`
+- `README-TEST-APK.md`
+
+**Do not upgrade another app build with this APK.** Every build uses a fresh,
+untrusted certificate; Android will refuse mismatched signing keys.
+Uninstalling an app can destroy its local favorites, history and settings:
+back up/transfer data before doing so. Do not confuse a successful
+`apksigner verify` with a trusted publication signature.
+
+## Real-device acceptance matrix
+
+| Platform | Target | QA actions | Result |
+|---|---|---|---|
+| Android | arm64 System WebView | Open, back navigation, immersive video, 30+ seconds playing, orientation, switch Full/Low during playback, minimize/reopen, clear cache | Pending |
+| iOS | WKWebView | Safe areas, keyboard, swipe/back, portrait/landscape, glass legibility, accessibility, signed-device deployment | Pending |
+| Windows | WebView2 | DPI 100%/150%/200%, resizing, maximize, HLS playback, always-on-top overlays, portable/installer | Pending |
+| macOS | WKWebView | traffic lights, fullscreen, Retina scaling, backdrop priority, Apple Silicon installer and notarization expectations | Pending |
+| Linux | WebKitGTK | GTK distro compatibility, 100%/200% scaling, video decoder fallback, blur support/solid material, installer | Pending |
+
+### Required visual checks
+
+- Confirm the bottom bar never blocks interactive controls or safe areas.
+- Confirm the selected dark neon icon is clear at 32, 48, 128 and 512px,
+  including Android adaptive masks and Apple's system corner mask.
+- Open a dialog over live video; confirm text stays readable and video isn't
+  itself blurred or duplicated.
+- Toggle **自动 / 完整 / 省电**, then restart. Confirm saved choice and
+  system reduced-transparency, high-contrast and forced-colors overrides.
+- In Full mode, confirm video playback does not cause recurring long frames;
+  compare with Low mode on the same device and video. Use the optional
+  **检测玻璃流畅度** feature as *indicative UI cadence only*, not video FPS,
+  GPU usage, power draw or thermals.
+- Test poor network, HLS failure, blocked media, rapid page switches and
+  app background/foreground lifecycle. Confirm stale playback blur clears.
+- Verify the old app's local data does not silently disappear during a
+  package-name or signing-key change. Preserve pre-upgrade backups.
+
+### Evidence record (fill on real devices)
+
+| Field | Value |
+|---|---|
+| Device + OS build | Pending |
+| Browser engine / WebView version | Pending |
+| APK / IPA / package SHA-256 | Pending |
+| App commit SHA | Pending |
+| Screen scale and orientation | Pending |
+| Auto / Full / Low appearance screenshots | Pending |
+| Playback and overlay result | Pending |
+| UI cadence sample median / p95 (indicative) | Pending |
+| Crash/error log summary | Pending |
+| Accepted by / date | Pending |
+
+## Release decision
+
+Production release requires: current mainline reconciled, green CI on exact
+release commit, native installer and playback checks on all claimed supported
+platforms, stable release signing, version/upgrade migration strategy,
+license/brand review and a documented rollback path.
+
+Do not mark a platform complete without device evidence. Keep PR #1 in draft
+until these gates are satisfied.
