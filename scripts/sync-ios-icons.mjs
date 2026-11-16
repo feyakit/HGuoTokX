@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// tauri ios init writes template icons. Apply the tracked HGhubX artwork before actool runs.
+// tauri ios init writes template icons. Apply the tracked HGuoX artwork before actool runs.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
