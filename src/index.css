@@ -565,3 +565,51 @@ html.theme-light .ios-mobile-nav .ios-mobile-nav-item[aria-current=page] { color
   .ios-mobile-nav .hg-glass { background: rgba(20, 20, 24, .88); }
   html.theme-light .ios-mobile-nav .hg-glass { background: rgba(255, 252, 246, .92); }
 }
+
+/* -------------------------------------------------------------------
+   over-video：首页底栏压在视频上时，不管浅色深色一律用「深色 clear 玻璃」
+   原因：浅色主题原本给的是白玻璃 rgba(255,255,255,.3~.58)，
+        压在深色视频上会变成白雾（真机实测）。视频背后多为暗画面，
+        所以这里按 Apple 对 media 的建议固定走 clear + 白色 vibrant 标签。
+   ------------------------------------------------------------------- */
+.ios-mobile-nav[data-over-video=true] .hg-glass,
+html.theme-light .ios-mobile-nav[data-over-video=true] .hg-glass {
+  background: linear-gradient(180deg, rgba(16, 16, 20, .14) 0%, rgba(10, 10, 14, .30) 100%);
+  border-color: rgba(255, 255, 255, .20);
+  box-shadow:
+    0 10px 34px rgba(0, 0, 0, .34),
+    inset 0 1px 0 rgba(255, 255, 255, .26);
+}
+.ios-mobile-nav[data-over-video=true] .hg-glass::before,
+html.theme-light .ios-mobile-nav[data-over-video=true] .hg-glass::before {
+  background:
+    radial-gradient(120% 62% at 50% -18%, rgba(255, 255, 255, .18), transparent 62%),
+    linear-gradient(180deg, rgba(255, 255, 255, .07), transparent 44%);
+}
+.ios-mobile-nav[data-over-video=true] .ios-mobile-nav-item,
+html.theme-light .ios-mobile-nav[data-over-video=true] .ios-mobile-nav-item {
+  color: rgba(255, 255, 255, .94);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, .72), 0 0 2px rgba(0, 0, 0, .5);
+}
+.ios-mobile-nav[data-over-video=true] .ios-mobile-nav-item[aria-current=page],
+html.theme-light .ios-mobile-nav[data-over-video=true] .ios-mobile-nav-item[aria-current=page] {
+  color: #191919;
+  text-shadow: none;
+}
+.ios-mobile-nav[data-over-video=true] .hg-drop > .ios-liquid-fill,
+html.theme-light .ios-mobile-nav[data-over-video=true] .hg-drop > .ios-liquid-fill {
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .28);
+}
+
+/* 浅色页面（非视频页：搜索/分类/我的）：暖白玻璃 + 墨色字，别白底白字 */
+html.theme-light .ios-mobile-nav:not([data-over-video=true]) .hg-glass {
+  background: rgba(255, 253, 248, .72);
+  border-color: rgba(255, 255, 255, .92);
+}
+html.theme-light .ios-mobile-nav:not([data-over-video=true]) .ios-mobile-nav-item { color: #4e4a40; text-shadow: none; }
+html.theme-light .ios-mobile-nav:not([data-over-video=true]) .ios-mobile-nav-item[aria-current=page] { color: #16150f; }
+html.theme-light .ios-mobile-nav:not([data-over-video=true]) .hg-drop > .ios-liquid-fill {
+  background: rgba(0, 0, 0, .07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9);
+}
