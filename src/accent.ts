@@ -210,6 +210,11 @@ export function accentTokens(scheme: AccentScheme, light: boolean): Record<strin
     "--accent-on": onAccent(primary),
     "--accent-a1": `${primary}59`,
     "--accent-a2": `${primary}33`,
+    /* 页面浸染分档：搜索 8% / 分类榜单 12% / 我的 18%，都不做整屏铺色 */
+    "--accent-a05": `${primary}0d`,
+    "--accent-a08": `${primary}14`,
+    "--accent-a12": `${primary}1f`,
+    "--accent-a18": `${primary}2e`,
     "--deep": scheme.deep,
     /* 主题强调色（按钮、选中态、进度、焦点环） */
     "--p-primary": primary,

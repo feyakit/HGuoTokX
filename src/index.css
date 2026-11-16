@@ -105,7 +105,16 @@ html.theme-light input[type="range"].hg-range::-webkit-slider-thumb {
 .a-page-in { animation: kf-page-in .3s cubic-bezier(.2,0,0,1) both; }
 @keyframes kf-page-out { from{transform:translateX(0)} to{transform:translateX(100%)} }
 .a-page-out { animation: kf-page-out .22s cubic-bezier(.3,0,.8,.15) both; }
-.shimmer { background: linear-gradient(110deg, var(--p-s1) 0%, var(--p-s3) 50%, var(--p-s1) 100%); }
+/* 骨架块：底子是中性灰，扫过的一道微光用封面 8% —— 加载中也能看出“这是哪部剧” */
+.shimmer { position: relative; background: linear-gradient(110deg, var(--p-s1) 0%, var(--p-s3) 50%, var(--p-s1) 100%); }
+.shimmer::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(100deg, transparent 32%, var(--accent-a08, transparent) 50%, transparent 68%);
+  background-size: 220% 100%;
+  animation: hg-shimmer 1.9s linear infinite;
+}
+@keyframes hg-shimmer { from { background-position: 140% 0; } to { background-position: -60% 0; } }
+@media (prefers-reduced-motion: reduce) { .shimmer::after { animation: none; background: none; } }
 @keyframes kf-spin { to{transform:rotate(360deg)} }
 @keyframes kf-toast { from{opacity:0;transform:translateY(12px) scale(.96)} to{opacity:1;transform:translateY(0) scale(1)} }
 .a-toast { animation: kf-toast .26s cubic-bezier(.2,0,0,1) both; }
@@ -438,6 +447,18 @@ input[type="range"].hg-range::-webkit-slider-thumb { -webkit-appearance: none; w
    双线性放大本身就是柔和模糊，比大图 filter:blur(40px) 便宜一个数量级。
    再叠封面色着色 + 底部 40% 压到近黑，让控件区有底可压。
    满屏（cover）时这一层根本不渲染，视频自己盖住一切。 */
+/* —— 通用沉浸背景（剧集详情面板等）：顶部一条，向下渐隐 ——
+   与播放页同一套规格：封面小图放大 + 封面色着色 + 压暗。 */
+.hg-ambient {
+  position: absolute; inset: 0 0 auto; height: 40%; overflow: hidden;
+  pointer-events: none; z-index: 0;
+}
+.hg-ambient::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, rgba(14, 15, 19, 0) 0%, rgba(14, 15, 19, .45) 52%, var(--p-bg) 100%);
+}
+.hg-ambient-tint { position: absolute; inset: 0; pointer-events: none; background: var(--accent-a2, transparent); }
+
 .hg-stage-fill {
   overflow: hidden;
   background-color: var(--deep, #100f2e);
@@ -683,12 +704,20 @@ html.theme-light .ios-mobile-nav .ios-mobile-nav-item[aria-current=page] {
    径向渐变——background-image 画在背景色之上、内容之下，不用动层级。
    颜色由 App 根容器按当前剧的封面主色注入，退出播放页保持最后一次取色。
    ------------------------------------------------------------------- */
+/* 浸染分档：越偏列表/文字页越淡，只做角部，不铺整屏。
+   播放页（35%）是默认档，搜索 8% / 分类榜单 12% / 我的 18%，设置页不跟色。
+   默认值必须写在分档类之前，否则同元素上后声明的默认值会盖掉分档。 */
+.ios-page { --tint-a: var(--accent-a1); --tint-b: var(--accent-a2); }
+.ios-tint-08 { --tint-a: var(--accent-a08); --tint-b: transparent; }
+.ios-tint-12 { --tint-a: var(--accent-a12); --tint-b: var(--accent-a08); }
+.ios-tint-18 { --tint-a: var(--accent-a18); --tint-b: var(--accent-a12); }
 .ios-page {
   background-image:
-    radial-gradient(115% 58% at 8% -6%, var(--accent-a1, transparent) 0%, transparent 62%),
-    radial-gradient(95% 52% at 100% 104%, var(--accent-a2, transparent) 0%, transparent 66%);
+    radial-gradient(115% 58% at 8% -6%, var(--tint-a, transparent) 0%, transparent 62%),
+    radial-gradient(95% 52% at 100% 104%, var(--tint-b, transparent) 0%, transparent 66%);
   background-repeat: no-repeat;
 }
+
 /* 设置页不跟色：这里全是文字和分组，可读优先，退回纯 canvas + 实色分组 */
 .ios-settings-page { background-image: none; }
 

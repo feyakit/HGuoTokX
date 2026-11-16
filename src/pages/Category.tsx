@@ -83,7 +83,7 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
   }, [lineEpoch, loadPreview]);
 
   return (
-    <div className="ios-page absolute inset-0 bg-bg flex flex-col">
+    <div className="ios-page ios-tint-12 absolute inset-0 bg-bg flex flex-col">
       <div className="ios-page-heading shrink-0 px-4">
         <div className="flex items-end gap-2.5">
           <h1 className="ios-page-title text-on">分类</h1>
@@ -277,7 +277,7 @@ export function ChannelPage({ cate, name, onBack, wide }: { cate: string; name: 
   }, [page, pages, loading, err, replacing, filtering]);
 
   return (
-    <div className="ios-page absolute inset-0 bg-bg flex flex-col">
+    <div className="ios-page ios-tint-12 absolute inset-0 bg-bg flex flex-col">
       <div className="shrink-0 bg-s1" style={{ paddingTop: "var(--sat, 0px)" }}>
         <div className="px-3 pt-2 pb-3 flex items-center gap-2.5">
           <Button aria-label="返回" onClick={onBack} className="w-10 h-10 rounded-full flex items-center justify-center text-on hover:bg-s3 pressable"><IBack size={20} /></Button>

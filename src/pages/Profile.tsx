@@ -103,7 +103,7 @@ function ProfileContent({ wide }: { wide: boolean }) {
   };
 
   return (
-    <div className="ios-page absolute inset-0 bg-bg flex flex-col">
+    <div className="ios-page ios-tint-18 absolute inset-0 bg-bg flex flex-col">
       <div className="ios-page-heading shrink-0 px-4 flex items-center">
         <h1 className="ios-page-title text-on">我的</h1>
         {isMobile && (

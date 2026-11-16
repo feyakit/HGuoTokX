@@ -73,7 +73,7 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
   const querying = submitted.length > 0;
 
   return (
-    <div className="ios-page absolute inset-0 bg-bg flex flex-col">
+    <div className="ios-page ios-tint-08 absolute inset-0 bg-bg flex flex-col">
       <div className="ios-page-heading shrink-0"><h1 className="ios-page-title">搜索</h1></div>
       {/* 搜索栏 */}
       <div className="shrink-0 px-4 pb-3 flex items-center gap-2.5" >
@@ -233,7 +233,7 @@ export function RankPage({ onBack, wide }: { onBack: () => void; wide: boolean }
   const meta = RANK_TABS.find((t) => t.k === tab)!;
 
   return (
-    <div className="ios-page absolute inset-0 bg-bg flex flex-col">
+    <div className="ios-page ios-tint-08 absolute inset-0 bg-bg flex flex-col">
       <div className="shrink-0 relative overflow-hidden bg-s1" style={{ paddingTop: "var(--sat, 0px)" }}>
         <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(90% 120% at 100% 0%, var(--p-pc) 0%, transparent 60%)", opacity: 0.32 }} />
         <div className="relative pt-2 pb-4">
