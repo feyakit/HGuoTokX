@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  BOOST_LOCK_PULL, TAP_MS, decideAxis, dampEdgeDrag, isDoubleTap, resolvePage, shouldLockBoost, stepValue,
+  BOOST_LOCK_PULL, TAP_MS, decideAxis, dampEdgeDrag, isDoubleTap, resolvePage, shouldLockBoost, stepValue, resolveTap,
 } from "../src/components/short/gestures.ts";
 
 const phone = { boxLeft: 0, boxWidth: 390, boxHeight: 844 };
@@ -83,4 +83,11 @@ test("单击与双击的区分", () => {
   assert.equal(isDoubleTap(first, 1000 + TAP_MS + 1, 100, 200), false, "超时算两次单击");
   assert.equal(isDoubleTap(first, 1050, 100, 300), false, "位移太大不算双击");
   assert.equal(isDoubleTap({ at: 0, x: 0, y: 0 }, 1030, 0, 0), false, "第一下不能算双击");
+});
+
+test("单击/双击的最终动作", () => {
+  assert.equal(resolveTap({ paused: false, doubleTap: false }), "pause");
+  assert.equal(resolveTap({ paused: true, doubleTap: false }), "resume");
+  assert.equal(resolveTap({ paused: true, doubleTap: true }), "like");
+  assert.equal(resolveTap({ paused: false, doubleTap: true }), "like");
 });

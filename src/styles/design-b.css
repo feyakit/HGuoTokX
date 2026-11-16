@@ -92,14 +92,15 @@ html[data-glass-quality="low"] .db-shade.is-card .db-info { backdrop-filter: non
   box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 72%, transparent);
 }
 .db-progress { position: relative; display: block; margin-top: 14px; height: 22px; }
-.db-line { position: absolute; left: 0; right: 0; top: 9px; height: 3px; border-radius: 2px; background: rgba(255,255,255,.2); pointer-events: none; }
-.db-line i { display: block; height: 3px; border-radius: 2px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+.db-line { position: absolute; left: 0; right: 0; top: 8px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.34); box-shadow: 0 1px 2px rgba(0,0,0,.35); pointer-events: none; }
+.db-line i { display: block; height: 5px; border-radius: 3px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); box-shadow: 0 0 8px rgba(0,0,0,.45); }
 .db-progress input {
   position: absolute; inset: 0; appearance: none; width: 100%; height: 22px; margin: 0; background: transparent; opacity: 0;
 }
 .db-time { display: flex; justify-content: space-between; margin-top: 4px; color: #d5d8e0; font-size: 12px; }
 .db-top, .db-series-top { position: absolute; z-index: 4; left: 12px; right: 12px; top: max(10px, env(safe-area-inset-top)); display: flex; align-items: center; gap: 8px; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
 .db-top { justify-content: space-between; }
+.db-top::before { content: ""; position: absolute; left: -12px; right: -12px; top: -10px; height: 104px; background: linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,0)); pointer-events: none; z-index: -1; }
 .db-tabs { position: relative; display: flex; align-items: center; gap: 4px; }
 .db-feed .db-tabs button, .db-feed .db-top-side.ios-button { position: relative; z-index: 1; color: rgba(255,255,255,.72); background: transparent; border: 0; min-width: 44px; min-height: 44px; }
 .db-feed .db-tabs button { font-size: 17px; line-height: 22px; padding: 0 10px; }
@@ -108,7 +109,6 @@ html[data-glass-quality="low"] .db-shade.is-card .db-info { backdrop-filter: non
 .db-feed .db-tabs button.is-on::after { content: ""; position: absolute; left: 50%; bottom: 4px; width: 16px; height: 3px; margin-left: -8px; border-radius: 2px; background: #fff; }
 .db-ep-label { flex: 1; min-width: 0; text-align: center; font-size: 15px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .db-kicker { display: inline-flex; margin: 4px 0 8px; padding: 0; border: 0; background: transparent; color: #fff; font-size: 15px; font-weight: 650; }
-.db-guide { pointer-events: auto; }
 .db-feed.is-boost .db-top { visibility: hidden; }
 .db-series-top { justify-content: space-between; }
 .db-icon { width: 44px; height: 44px; color: #fff; display: grid; place-items: center; }
@@ -124,8 +124,9 @@ html[data-glass-quality="low"] .db-speed, html[data-glass-quality="low"] .db-boo
 .db-countdown .ios-button { color: var(--accent); min-height: 32px; padding: 0 8px; }
 .db-burst { position: absolute; z-index: 6; width: 72px; height: 72px; margin: -36px 0 0 -36px; color: #ff4d6a; pointer-events: none; animation: db-burst .6s ease-out forwards; }
 @keyframes db-burst { from { transform: scale(.6); opacity: 1; } to { transform: scale(1.35); opacity: 0; } }
-.db-guide { position: absolute; z-index: 7; left: 16px; right: 16px; top: 18%; display: flex; justify-content: space-between; gap: 8px; padding: 8px 4px 16px; color: #fff; text-align: center; pointer-events: none; }
+.db-guide { position: absolute; z-index: 7; left: 0; right: 0; top: 0; bottom: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 18vh 16px 16px; color: #fff; text-align: center; pointer-events: auto; background: linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,.28) 55%, transparent); }
 .db-guide div { flex: 1; }
+.db-guide-close { position: absolute; left: 50%; bottom: calc(28% + env(safe-area-inset-bottom)); transform: translateX(-50%); padding: 9px 20px; border-radius: 999px; border: 1px solid rgba(255,255,255,.28); background: rgba(20,22,28,.72); color: #fff; font-size: 14px; }
 .db-guide b { display: block; margin-top: 6px; font-size: 14px; } .db-guide span { color: #d5d8e0; font-size: 12px; }
 .db-gesture-toast { position: absolute; z-index: 6; top: 18%; left: 50%; transform: translateX(-50%); padding: 8px 14px; border-radius: 999px; background: rgba(0,0,0,.55); color: #fff; }
 .db-sheet-root { position: absolute; inset: 0; z-index: 8; }

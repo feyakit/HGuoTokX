@@ -13,7 +13,7 @@ import { CommentsPanel } from "../Panels";
 import LinePicker from "../LinePicker";
 import { haptic, mediaKey, networkProfile } from "./runtime";
 import { invalidateMedia, loadMedia, type LoadedMedia } from "./media";
-import { TAP_MS, decideAxis, dampEdgeDrag, isDoubleTap, resolvePage, shouldLockBoost, stepValue } from "./gestures";
+import { decideAxis, dampEdgeDrag, isDoubleTap, resolvePage, resolveTap, shouldLockBoost, stepValue } from "./gestures";
 import { EXTRA_STORAGE_KEYS } from "../../storage";
 
 type FeedTab = "follow" | "recommend";
@@ -230,6 +230,8 @@ export default function SwipeFeed({
   const drag = useRef({ id: -1, x: 0, y: 0, t: 0, lastY: 0, lastT: 0, axis: "" as "" | "x" | "y" | "side", card: false, edge: false, lockY: 0 });
   const tap = useRef({ at: 0, x: 0, y: 0, timer: 0 });
   const holdTimer = useRef(0);
+  // 单击暂停后若紧跟双击点赞，要把播放恢复回来（双击的第一下也会暂停）。
+  const pausedByTap = useRef(false);
   // 进度写回历史每 5 秒一次；必须是每个实例自己的，否则推荐流和剧内页会互相吞掉对方的进度。
   const historyTick = useRef(0);
 
@@ -362,19 +364,22 @@ export default function SwipeFeed({
     if (target.closest("button, a, input")) return;
     const now = event.timeStamp;
     if (dimRef.current) {
+      // 点一下就同时唤出界面并暂停，不再要求「先点亮、再点一下」——那样看起来像没反应。
       dimRef.current = false;
       setDim(false);
       setChromeGen(value => value + 1);
-      tap.current = { at: now, x: event.clientX, y: event.clientY, timer: 0 };
-      return;
     }
-    if (isDoubleTap(tap.current, now, event.clientX, event.clientY)) {
-      window.clearTimeout(tap.current.timer);
+    const outcome = resolveTap({ paused, doubleTap: isDoubleTap(tap.current, now, event.clientX, event.clientY) });
+    if (outcome === "like") {
       tap.current.at = 0;
+      // 第一下已经暂停了，双击点赞要把播放恢复回来，否则点个赞视频就停住了。
+      if (pausedByTap.current) { setPaused(false); pausedByTap.current = false; }
       likeAt(event.clientX, event.clientY, true);
       return;
     }
-    tap.current = { at: now, x: event.clientX, y: event.clientY, timer: window.setTimeout(() => setPaused(value => !value), TAP_MS) };
+    if (outcome === "pause") { setPaused(true); pausedByTap.current = true; }
+    else { setPaused(false); pausedByTap.current = false; }
+    tap.current = { at: now, x: event.clientX, y: event.clientY, timer: 0 };
   };
 
   const likeAt = (x: number, y: number, forceOn: boolean) => {
@@ -663,7 +668,7 @@ function Slide({
                 }} />
             </label>
           )}
-          {series && interactive && <div className="db-time"><span>{clockText(shownT)}</span><span>{clockText(shownD)}</span></div>}
+          {interactive && shownD > 0 && <div className="db-time"><span>{clockText(shownT)}</span><span>{clockText(shownD)}</span></div>}
         </div>
         {interactive && <div className="db-rail" data-gesture="none">
           <Button aria-label={liked ? "取消喜欢" : "喜欢"} onClick={onLike}><i className={liked ? "is-like" : ""}>{liked ? <IHeartF size={30} /> : <IHeart size={30} />}</i><span>{fmt(data?.detail.counts.like)}</span></Button>
@@ -722,12 +727,18 @@ function HeartBurst({ x, y }: { x: number; y: number }) {
 
 function GestureGuide({ onClose }: { onClose: () => void }) {
   const landscape = typeof window !== "undefined" && window.innerWidth > window.innerHeight;
+  // 只在第一次长按后出现，六秒自动收起：留着不走的浮层会一直压在视频上。
+  useEffect(() => {
+    const timer = window.setTimeout(onClose, 6000);
+    return () => window.clearTimeout(timer);
+  }, [onClose]);
   const hints = landscape
     ? [{ icon: <IVertSwap size={22} />, title: "左侧上下滑", sub: "调亮度" }, { icon: <IBoltF size={22} />, title: "长按 2 倍速", sub: "上滑锁定" }, { icon: <IVol size={22} />, title: "右侧上下滑", sub: "调音量" }]
     : [{ icon: <IBoltF size={22} />, title: "长按 2 倍速", sub: "松手恢复" }, { icon: <IHeart size={22} />, title: "双击喜欢", sub: "不会取消" }, { icon: <IVertSwap size={22} />, title: "上下滑换剧", sub: "进剧后换集" }];
   return (
     <div className="db-guide" data-gesture="none" onClick={onClose}>
       {hints.map(hint => <div key={hint.title}>{hint.icon}<b>{hint.title}</b><span>{hint.sub}</span></div>)}
+      <button type="button" className="db-guide-close" onClick={onClose}>知道了</button>
     </div>
   );
 }

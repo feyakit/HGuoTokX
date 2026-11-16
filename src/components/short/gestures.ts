@@ -84,7 +84,12 @@ export function stepValue({ value, delta, max }: { value: number; delta: number;
   return Math.min(max, Math.max(0, value + delta));
 }
 
-/** 双击点赞：同一位置、TAP_MS 内的第二下。 */
+/** 单击/双击之后到底该做什么：没暂停就暂停，暂停中就恢复，双击一律是点赞。 */
+export type TapOutcome = "pause" | "resume" | "like";
+export function resolveTap({ paused, doubleTap }: { paused: boolean; doubleTap: boolean }): TapOutcome {
+  if (doubleTap) return "like";
+  return paused ? "resume" : "pause";
+}
 export function isDoubleTap(prev: { at: number; x: number; y: number }, now: number, x: number, y: number): boolean {
   if (!prev.at) return false;
   return now - prev.at < TAP_MS && Math.hypot(x - prev.x, y - prev.y) < TAP_SLOP;
