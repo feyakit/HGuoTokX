@@ -1,4 +1,4 @@
-//! HGhubX 环境变量：新名称优先，旧前缀仅作为升级兼容入口。
+//! HGuoX 环境变量：新名称优先，旧前缀仅作为升级兼容入口。
 
 pub fn var(suffix: &str) -> Option<String> {
     read_with(suffix, |key| std::env::var(key).ok())
