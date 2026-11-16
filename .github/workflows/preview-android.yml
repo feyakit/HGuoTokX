@@ -1,0 +1,132 @@
+name: Liquid Glass Android preview (arm64)
+
+# Build a branch-specific installation candidate for real-device QA.
+# This is deliberately NOT a Release, and never uses production signing keys.
+on:
+  push:
+    branches: [design/liquid-glass-brand-v1]
+    paths:
+      - 'src/**'
+      - 'src-tauri/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/preview-android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lg-android-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    name: Android arm64 preview APK (test key)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CI: 'true'
+      CARGO_PROFILE_RELEASE_LTO: thin
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '4'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Android SDK and NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          SDKM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses > /dev/null 2>&1 || true
+          "$SDKM" --install "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
+          echo "NDK_HOME=$SDK/ndk/28.2.13676358" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: swatinem/rust-cache@v2.9.3
+        continue-on-error: true
+        timeout-minutes: 8
+        with:
+          workspaces: src-tauri -> target
+          key: lg-preview-arm64
+      - name: Install JavaScript dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Verify front-end and current branch brand
+        run: |
+          pnpm build
+          pnpm test:brand
+          pnpm test:rebrand
+      - name: Generate Android project
+        run: pnpm tauri android init --ci
+      - name: Build arm64 APK from this commit
+        run: pnpm tauri android build --apk --split-per-abi --target aarch64
+      - name: Sign with unique disposable test key and verify package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          mapfile -t APKS < <(find src-tauri/gen/android/app/build/outputs/apk -type f -name '*-release*.apk' | sort)
+          if [[ "${#APKS[@]}" != 1 ]]; then
+            echo "::error::Expected exactly one arm64 release APK; got ${#APKS[@]}"
+            exit 1
+          fi
+          APK="${APKS[0]}"
+          STORE="$RUNNER_TEMP/hguox-preview-${GITHUB_RUN_ID}.p12"
+          PASS="$(openssl rand -hex 18)"
+          trap 'rm -f "$STORE"' EXIT
+          keytool -genkeypair -keystore "$STORE" -storetype PKCS12 \
+            -alias preview -keyalg RSA -keysize 3072 -validity 3 \
+            -storepass "$PASS" -keypass "$PASS" \
+            -dname 'CN=HGuoX Test Preview, O=Untrusted Test Build, C=US' >/dev/null 2>&1
+          APKSIGNER="$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner"
+          AAPT2="$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt2"
+          OUT="artifacts/HGuoX_${GITHUB_SHA:0:8}_arm64_TEST-KEY.apk"
+          "$APKSIGNER" sign --ks "$STORE" --ks-key-alias preview \
+            --ks-pass "pass:$PASS" --key-pass "pass:$PASS" \
+            --v4-signing-enabled false --out "$OUT" "$APK"
+          "$APKSIGNER" verify --verbose --print-certs "$OUT" | tee artifacts/signature-verification.txt
+          "$AAPT2" dump badging "$OUT" | grep -m1 '^package:' | tee artifacts/package-identity.txt
+          grep -q "name='com.hguox.app'" artifacts/package-identity.txt
+          grep -q "versionCode='2001000'" artifacts/package-identity.txt
+          sha256sum "$OUT" | tee artifacts/SHA256SUMS.txt
+          {
+            echo "# HGuoX ARM64 Liquid Glass test preview"
+            echo
+            echo "Commit: `$GITHUB_SHA`"
+            echo "Workflow run: `$GITHUB_RUN_ID`"
+            echo "Package: `com.hguox.app`"
+            echo "Build: `2.1.0` / versionCode `2001000`"
+            echo
+            echo "**TEST KEY ONLY — NOT AN OFFICIAL RELEASE.**"
+            echo "Signing key is randomly regenerated every run. Do not install over another HGuoX build unless the signing certificate matches."
+            echo "Android may require uninstall first, which removes app-local data. Back up your data before switching builds."
+            echo "The development branch is not synchronized with the v3.0.0 mainline yet."
+            echo "No Android device tests are performed by this CI job."
+          } > artifacts/README-TEST-APK.md
+          {
+            echo "### ARM64 QA preview generated"
+            echo "Commit: `$GITHUB_SHA`"
+            echo "Unique disposable test signature; NOT a production/upgrade-safe package."
+            echo "Download the `hguox-liquid-glass-arm64-preview` artifact from this workflow run."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload verified preview and checksums
+        uses: actions/upload-artifact@v7
+        with:
+          name: hguox-liquid-glass-arm64-preview
+          path: artifacts/*
+          retention-days: 7
+          if-no-files-found: error
