@@ -22,8 +22,15 @@ const stripCascadeLayers = {
         if (at.nodes) at.replaceWith(at.nodes);
         else at.remove();
       });
-      if (!found) return;
+      if (!found) break;
     }
+    /* Tailwind 给每个半透明色都写成「hex 兜底 + @supports(color-mix) 增强」，
+       兜底值等价（#ffffff1a 就是 10% 白）。Chrome 87 不认 color-mix，
+       保留这段只会让产物里躺着用不上的特性，整块删掉，各内核看到同一套颜色。 */
+    root.walkAtRules("supports", (at: any) => {
+      const params = String(at.params || "");
+      if (params.includes("color-mix(")) at.remove();
+    });
   },
 };
 

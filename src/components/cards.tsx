@@ -15,10 +15,12 @@ export function MediaCard({ title, cover, subtitle, badge, progress, score, prio
   title: string; cover: string; subtitle?: string; badge?: string; progress?: string; score?: number; priority?: boolean; onOpen: () => void; blockedReason?: string | null;
 }) {
   if (blockedReason) return <Button onClick={onOpen} className="ios-poster" aria-label="该内容命中屏蔽标签，查看提示">
-    <span className="ios-poster-art flex flex-col items-center justify-center gap-3 px-3 text-center text-mut">
-      <span className="text-[14px] font-semibold">该内容命中屏蔽标签</span>
-      <span className="text-[12px] break-words">{blockedReason}</span>
-      <span className="text-[13px] text-primary">查看提示</span>
+    <span className="ios-poster-art">
+      <span className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-3 text-center text-mut">
+        <span className="text-[14px] font-semibold">该内容命中屏蔽标签</span>
+        <span className="text-[12px] break-words">{blockedReason}</span>
+        <span className="text-[13px] text-primary">查看提示</span>
+      </span>
     </span>
     <span className="ios-poster-title">已屏蔽内容</span>
     {progress && <span className="ios-poster-subtitle">{progress}</span>}

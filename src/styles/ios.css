@@ -92,7 +92,10 @@ html.theme-light {
 .ios-media-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px 14px; align-items:start; }
 .ios-media-grid.is-wide { grid-template-columns:repeat(auto-fill,minmax(164px,1fr)); gap:28px 22px; }
 .ios-poster { display:flex; flex-direction:column; align-items:stretch; text-align:left; padding:0; width:100%; min-width:0; background:none; border:0; border-radius:18px; }
-.ios-poster-art { position:relative; display:block; width:100%; aspect-ratio:3/4; border-radius:18px; overflow:hidden; background:var(--p-s3); box-shadow:0 4px 12px rgb(0 0 0 / .06); transform:translateZ(0); }
+/* 3:4 海报：用百分比 padding 撑高（Chrome 87 没有 aspect-ratio），
+   里面的图/角标本来就是绝对定位，撑起来的盒子照旧裁切 */
+.ios-poster-art { position:relative; display:block; width:100%; border-radius:18px; overflow:hidden; background:var(--p-s3); box-shadow:0 4px 12px rgb(0 0 0 / .06); transform:translateZ(0); }
+.ios-poster-art::before { content:""; display:block; padding-top:133.3333%; }
 .ios-poster-art::after { content:""; position:absolute; inset:0; pointer-events:none; border-radius:inherit; box-shadow:inset 0 0 0 .5px rgb(0 0 0 / .10); }
 .ios-poster-badge { position:absolute; top:9px; left:9px; max-width:calc(100% - 18px); padding:5px 8px; background:rgb(20 20 25 / .74); color:#fff; border:1px solid rgb(255 255 255 / .22); border-radius:999px; font-size:12px; line-height:1.25;  }
 .ios-poster-progress { position:absolute; inset:auto 0 0; display:flex; align-items:center; gap:4px; padding:24px 12px 11px; background:linear-gradient(transparent,rgb(0 0 0 / .8)); color:#fff; font-size:12px; }
@@ -431,7 +434,7 @@ html.theme-light {
 .ios-settings-fields>.ios-appearance-row { display:grid; grid-template-columns:36px minmax(0,1fr); column-gap:12px; row-gap:14px; padding:14px 18px; }
 .ios-appearance-picker { grid-column:1/-1; min-width:0; width:100%; }
 .ios-appearance-picker>.ios-segmented-items>.ios-button { padding-inline:8px; }
-@container (min-width:560px) {
+@media (min-width:560px) {
   .ios-settings-fields>.ios-appearance-row { grid-template-columns:36px minmax(0,1fr) auto; }
   .ios-appearance-picker { grid-column:auto; width:228px; }
 }
@@ -446,7 +449,7 @@ html.theme-light {
 .ios-collection-links .ios-collection-copy { min-width:0; overflow-wrap:anywhere; }
 /* Narrow category shortcuts give the subtitle a full row instead of squeezing
    it between the icon and arrow. Large text can still reflow without clipping. */
-@container (max-width:559px) {
+@media (max-width:559px) {
   .ios-category-links>.ios-collection-link { display:grid; grid-template-columns:36px minmax(0,1fr) 14px; column-gap:8px; row-gap:8px; align-content:start; }
   .ios-category-links .ios-collection-copy { display:contents; }
   .ios-category-links .ios-collection-icon { grid-column:1; grid-row:1; }
@@ -503,7 +506,7 @@ html.theme-light {
 .ios-search-hot-content { display:flex; flex:1; flex-direction:column; gap:4px; min-width:0; }
 .ios-search-hot-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; overflow-wrap:anywhere; font-size:14px; font-weight:600; line-height:1.4; color:var(--p-on); }
 .ios-search-hot-plays { display:flex; align-items:center; gap:4px; font-size:12px; line-height:1.4; color:var(--p-mut); }
-@container (min-width:560px) {
+@media (min-width:560px) {
   .ios-search-hot-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .ios-collection-links { gap:10px; }
 }

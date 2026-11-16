@@ -218,7 +218,7 @@ export default function Player({
       />
 
       {errMsg && (
-        <div role="alert" className="absolute left-2 top-2 z-30 max-w-[80%] rounded bg-black/70 px-2 py-1 text-[12px] leading-tight text-red-300 break-all">
+        <div role="alert" className="absolute left-2 top-2 z-30 max-w-[80%] rounded bg-black/70 px-2 py-1 text-[12px] leading-tight text-[#ff8e95] break-all">
           <span>{errMsg}</span>
           <Button onClick={retry} disabled={!active} className="ml-2 px-2 py-1 text-white">重试</Button>
         </div>

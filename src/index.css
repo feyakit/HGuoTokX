@@ -691,3 +691,7 @@ html.theme-light .ios-mobile-nav .ios-mobile-nav-item[aria-current=page] {
 }
 /* 设置页不跟色：这里全是文字和分组，可读优先，退回纯 canvas + 实色分组 */
 .ios-settings-page { background-image: none; }
+
+/* 3:4 骨架块：同样不用 aspect-ratio（Chrome 87 没有） */
+.skeleton-poster { position: relative; }
+.skeleton-poster::before { content: ""; display: block; padding-top: 133.3333%; }
