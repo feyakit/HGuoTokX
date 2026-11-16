@@ -2,12 +2,14 @@
  * 设计分支的毛玻璃分级。视频上方不叠实时模糊，只让底栏和面板在低配机上改纯色。
  * 偏好存在本机，不记录硬件标识。
  */
+import { EXTRA_STORAGE_KEYS } from "./storage";
+
 export type GlassPlatform = "android" | "ios" | "windows" | "macos" | "linux";
 export type GlassQuality = "full" | "low";
 export type GlassPreference = "auto" | "full" | "low";
 
 type MemoryNavigator = Navigator & { deviceMemory?: number };
-const STORAGE_KEY = "hguox_glass_preference_v1";
+const STORAGE_KEY = EXTRA_STORAGE_KEYS.glassPreference;
 export const GLASS_PREFERENCE_EVENT = "hguox:glass-preference";
 export const GLASS_QUALITY_EVENT = "hguox:glass-quality";
 

@@ -15,6 +15,7 @@ export const EXTRA_STORAGE_KEYS = {
   gestureHint: "hghubx_design_b_gesture_v1",
   lastAccent: "hghubx_last_accent_v1",
   accentCache: "hghubx_accent_cache_v1",
+  glassPreference: "hghubx_glass_preference_v1",
 } as const;
 
 // 旧键仅用于升级迁移，运行期始终向 STORAGE_KEYS 里的键写入（沿用上游 hghubx_ 前缀，改名不动它）。
