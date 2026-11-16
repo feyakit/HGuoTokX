@@ -124,9 +124,9 @@ function readThemePreference(): ThemePreference {
   try {
     const saved = readStorage(STORAGE_KEYS.theme);
     if (saved === "light" || saved === "dark" || saved === "system") return saved;
-    return "system";
+    return "dark";
   } catch {
-    return "system";
+    return "dark";
   }
 }
 
@@ -153,6 +153,9 @@ function beginThemeTransition() {
   window.clearTimeout(themeTransitionTimer);
   themeTransitionTimer = window.setTimeout(() => root.classList.remove("theme-transitioning"), 420);
 }
+
+import type { AccentScheme } from "./accent";
+import { FALLBACK_SCHEME } from "./accent";
 
 type Store = {
   platform: Platform;
@@ -190,6 +193,8 @@ type Store = {
   toasts: Toast[]; toast: (msg: string, icon?: Toast["icon"]) => void;
   /** 线路切换计数：变了就让列表页重挂载，重新拉一遍数据 */
   lineEpoch: number;
+  /** 当前剧集的封面取色：全局一份，供页背景浸染使用 */
+  accent: AccentScheme; setAccent: (a: AccentScheme) => void;
 };
 
 const Ctx = createContext<Store>(null as unknown as Store);
@@ -213,6 +218,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [loginOpen, setLoginOpen] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [lineEpoch, setLineEpoch] = useState(0);
+  const [accent, setAccentState] = useState<AccentScheme>(FALLBACK_SCHEME);
   const [theater, setTheaterState] = useState(false);
   const [fs, setFsState] = useState(false);
   const [clean, setCleanState] = useState(false);
@@ -413,10 +419,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     searchHist: p.searchHist, addSearch, clearSearchHist,
     strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity,
     toasts, toast, lineEpoch,
+    accent, setAccent: setAccentState,
   }), [theme, themePreference, setTheme, tab, setTab, stack, push, pop, user, loginOpen, logout,
     p, account,
     setMuted, setMuteOnStartup, setSwipeEp, setPreferHevc, setVolume, addSearch, clearSearchHist, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity,
-    toasts, toast, lineEpoch, theater, setTheater, fs, setFs, clean, setClean]);
+    toasts, toast, lineEpoch, theater, setTheater, fs, setFs, clean, setClean, accent]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -613,3 +613,16 @@ html.theme-light .ios-mobile-nav:not([data-over-video=true]) .hg-drop > .ios-liq
   background: rgba(0, 0, 0, .07);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9);
 }
+
+/* -------------------------------------------------------------------
+   C：封面色浸染（浓 35%）
+   页面壳自己的 bg-bg 是不透明底色，所以在 background-image 上再叠两层
+   径向渐变——background-image 画在背景色之上、内容之下，不用动层级。
+   颜色由 App 根容器按当前剧的封面主色注入，退出播放页保持最后一次取色。
+   ------------------------------------------------------------------- */
+.ios-page {
+  background-image:
+    radial-gradient(115% 58% at 8% -6%, var(--accent-a1, transparent) 0%, transparent 62%),
+    radial-gradient(95% 52% at 100% 104%, var(--accent-a2, transparent) 0%, transparent 66%);
+  background-repeat: no-repeat;
+}

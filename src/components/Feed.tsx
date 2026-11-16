@@ -335,6 +335,9 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
   const posterUrl = cover(meta.cover, 900);
   /* 封面取色：拿封面主色给播放页控件染色；读不到时回退品牌色 */
   const accent = useAccent(curId, posterUrl || undefined);
+  /* 推到全局：非视频页的背景浸染要用当前剧的封面色 */
+  const setAccent = useStore().setAccent;
+  useEffect(() => { setAccent(accent); }, [accent, setAccent]);
   /* 参照 Apple HIG：clear 玻璃压在亮内容上时要加约 35% 的暗色压光层 */
   const luma = Number.isFinite(accent.luma) ? accent.luma : 0.25;
   const barDim = Math.max(0, Math.min(0.35, (luma - 0.42) * 0.9));
