@@ -500,3 +500,11 @@ html.theme-light .article-body blockquote { background: rgba(43, 40, 36, .045); 
 
 
 }
+
+/* 播放页封面取色：顶部柔光用封面主色，读不到时退回品牌色 */
+.hg-accent-glow {
+  position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  background:
+    radial-gradient(120% 46% at 50% 0%, var(--accent-soft, rgba(121,119,255,.26)) 0%, transparent 62%);
+  transition: background 320ms ease;
+}

@@ -5,6 +5,12 @@ export const STORAGE_KEYS = {
   autoLine: "hghubx_auto_line",
 } as const;
 
+/** 非迁移键：新增功能的独立小键，不参与旧键迁移。 */
+export const EXTRA_STORAGE_KEYS = {
+  lastAccent: "hghubx_last_accent_v1",
+  accentCache: "hghubx_accent_cache_v1",
+} as const;
+
 type StorageKey = typeof STORAGE_KEYS[keyof typeof STORAGE_KEYS];
 
 // 旧键仅用于升级迁移，运行期始终向 STORAGE_KEYS 里的键写入（沿用上游 hghubx_ 前缀，改名不动它）。

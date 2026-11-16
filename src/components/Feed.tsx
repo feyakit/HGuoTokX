@@ -1,8 +1,9 @@
 import { Button, Image, SegmentedControl } from "./ios/controls";
 import { Loader } from "./ios/effects";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { api, cover, fmt, fmtTime, isMobile, logLine } from "../api";
+import { useAccent } from "../useAccent";
 import type { Detail, Episode, PlayInfo, Post, VideoCard } from "../types";
 import { useStore } from "../store";
 import { Img, Sheet } from "./ui";
@@ -332,6 +333,8 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
       };
 
   const posterUrl = cover(meta.cover, 900);
+  /* 封面取色：拿封面主色给播放页控件染色；读不到时回退品牌色 */
+  const accent = useAccent(curId, posterUrl || undefined);
   const articleHtml = kind === "post" && !post?.video_url ? (post?.content || "") : "";
 
   /* 分享：复制播放链接 */
@@ -1129,7 +1132,11 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
       onFocusCapture={() => { if (active && isDesktop) wake(); }}
       onPointerMove={() => { if (isDesktop || fs) wake(); }}
       onPointerDown={() => { if (!isDesktop && fs) wake(); }}>
-      <div className="absolute inset-0" inert={controlsLocked}>
+      <div className="absolute inset-0" inert={controlsLocked}
+        style={{ "--accent": accent.accent, "--accent-soft": `${accent.accent}42`, "--accent-2": accent.second } as CSSProperties}>
+      {/* 封面取色柔光（最底层装饰，不挡交互） */}
+      <div className="hg-accent-glow" aria-hidden />
+
       {/* 氛围背景 */}
       {!isDesktop && posterUrl && (
         <div className="absolute inset-0 scale-110 blur-3xl opacity-25 pointer-events-none">
@@ -1555,7 +1562,7 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
           <div ref={barRef} className="relative h-full" style={{ touchAction: "none" }}
             onPointerDown={onBarDown} onPointerMove={onBarMove} onPointerUp={onBarUp} onPointerCancel={onBarUp}>
             <div className="absolute inset-x-0 bottom-[8px] h-[2.5px] rounded-full" style={{ background: "rgba(255,255,255,.3)" }}>
-              <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} className="h-full rounded-full bg-white" />
+              <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} className="h-full rounded-full bg-[var(--accent,var(--p-primary))]" />
             </div>
           </div>
         </div>
