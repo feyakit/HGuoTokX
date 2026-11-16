@@ -24,11 +24,13 @@ export type FeedContext = {
   startTime?: number;
 };
 
+export type SettingsSectionName = "外观" | "播放" | "内容偏好" | "本地数据" | "网络" | "播放诊断" | "其他";
+
 export type Page =
   | FeedContext
   | { kind: "channel"; key: string; cate: string; name: string }
   | { kind: "ranks"; key: string }
-  | { kind: "settings"; key: string; section?: "内容偏好" }
+  | { kind: "settings"; key: string; section?: SettingsSectionName }
   | { kind: "posts"; key: string }
   | { kind: "post"; key: string; id: number }
   | { kind: "topics"; key: string }
@@ -43,7 +45,7 @@ export type PageInput =
   | { kind: "feed"; videoIds: number[]; index: number; title: string; source?: string; feedKind?: "video" | "post"; startEp?: number; startTime?: number }
   | { kind: "channel"; cate: string; name: string }
   | { kind: "ranks" }
-  | { kind: "settings"; section?: "内容偏好" }
+  | { kind: "settings"; section?: SettingsSectionName }
   | { kind: "posts" }
   | { kind: "post"; id: number }
   | { kind: "topics" }

@@ -15,9 +15,10 @@ import { formatNetDiag, shortVerdict } from "../netDiagReport";
 import { copyText } from "../clipboard";
 import { Loader } from "../components/ios/effects";
 import { IBack, IBoltF, IBroom, IChevR, IHeart, IInfo, ILink, ILockF, IMoon, IRefresh, ISun, IVolMute } from "../icons";
+import type { SettingsSectionName } from "../store";
 
 const SETTING_GROUPS = ["外观", "播放", "内容偏好", "本地数据", "网络", "播放诊断", "其他"] as const;
-type SettingGroup = typeof SETTING_GROUPS[number];
+type SettingGroup = SettingsSectionName;
 const GROUP_SUMMARIES: Record<SettingGroup, string> = {
   外观: "跟随系统、浅色与深色",
   播放: "启动静音与画质偏好",
@@ -30,7 +31,7 @@ const GROUP_SUMMARIES: Record<SettingGroup, string> = {
 
 /* 独立设置页：线路 / 外观 / 播放 / 本地数据 / 清理缓存 / 网络诊断 / 关于
    入口：Windows 侧栏「设置」、Android「我的」右上角齿轮 */
-export default function Settings({ onBack, initialSection }: { onBack: () => void; wide: boolean; initialSection?: "内容偏好" }) {
+export default function Settings({ onBack, initialSection }: { onBack: () => void; wide: boolean; initialSection?: SettingsSectionName }) {
   const { theme, themePreference, setTheme, favs, history, muteOnStartup, setMuteOnStartup, preferHevc, setPreferHevc, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity, toast } = useStore();
   const [about, setAbout] = useState(false);
   const [agreementOpen, setAgreementOpen] = useState(false);
@@ -129,6 +130,7 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
             <p className="text-[13px] text-mut mt-2">让 HGuoX 更合你的习惯</p>
           </div>
           {section("外观", <>
+            <p className="px-3.5 pt-3 text-[12px] text-mut">深色用来减眩光。没有到点自动关闭。</p>
             <div className="ios-appearance-row items-center">
               <span className="ios-setting-icon">{themePreference === "system" ? <IRefresh size={16} /> : theme === "dark" ? <IMoon size={16} /> : <ISun size={16} />}</span>
               <div className="flex-1">
@@ -147,6 +149,7 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
           </>)}
 
           {section("播放", <>
+            <p className="px-3.5 pt-3 text-[12px] text-mut">片源自带字幕时跟随系统，这里不另做字幕皮肤。</p>
             <div className="flex items-center gap-3 px-3.5 py-3">
               <span className="ios-setting-icon"><IVolMute size={16} /></span>
               <div className="flex-1 min-w-0">

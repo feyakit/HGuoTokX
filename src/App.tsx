@@ -251,7 +251,7 @@ function ShellInner({ collapsed, theater }: { collapsed: boolean; theater: boole
 function MobileShell() {
   const { platform } = useStore();
   return (
-    <div className={`absolute inset-0 flex flex-col bg-canvas plat-${platform}`}
+    <div className={`absolute inset-0 flex flex-col bg-canvas plat-${platform} v3-app`}
       style={{ "--sat": "max(env(safe-area-inset-top), 12px)", "--sab": platform === "android" ? "max(env(safe-area-inset-bottom), 24px)" : "max(env(safe-area-inset-bottom), 16px)" } as React.CSSProperties}>
       <div className="relative flex-1 min-h-0">
         <AppBody />

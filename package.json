@@ -1,7 +1,7 @@
 {
   "name": "hguox",
   "private": true,
-  "version": "3.0.1",
+  "version": "3.1.0",
   "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
   "scripts": {
@@ -24,6 +24,7 @@
     "test:line-selection": "node scripts/test-line-selection.mjs",
     "test:network-settings": "node scripts/test-network-settings.mjs",
     "test:design-b": "node scripts/test-design-b.mjs",
+    "test:feature-inventory": "node scripts/test-feature-inventory.mjs",
     "tauri": "tauri",
     "app:dev": "tauri dev",
     "app:build": "tauri build",

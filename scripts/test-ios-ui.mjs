@@ -136,9 +136,9 @@ try {
           return { video: nav?.getAttribute("data-over-video"), selected: selected && getComputedStyle(selected).color,
             unselected: unselected && getComputedStyle(unselected).color, background: glass && getComputedStyle(glass).backgroundColor };
         });
-        assert.equal(homeVideoMaterial.selected, "rgb(255, 255, 255)", "Selected tab uses white text on the dark dock");
-        assert.equal(homeVideoMaterial.unselected, "rgb(184, 188, 200)", "Unselected tabs stay readable on the dark dock");
-        assert.equal(homeVideoMaterial.background, "rgba(8, 10, 14, 0.42)", "The dock stays translucent over the swipe feed");
+        assert.equal(homeVideoMaterial.selected, "rgb(255, 244, 230)", "Selected tab uses warm white on the ember dock");
+        assert.equal(homeVideoMaterial.unselected, "rgb(217, 199, 180)", "Unselected tabs stay readable on the ember dock");
+        assert.equal(homeVideoMaterial.background, "rgba(48, 32, 24, 0.46)", "The dock stays a warm translucent glass over video");
         check("home navigation text contrast on video in both themes");
       }
       await nav.getByRole("button", { name: searchTab, exact: true }).click();

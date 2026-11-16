@@ -1,0 +1,113 @@
+/* 暖墨主题：只包在手机壳 .v3-app 上，桌面侧栏保持原来的浅色/深色。
+   底色是暖棕而不是纯黑，封面色继续叠在上面。 */
+
+.v3-app {
+  --v3-ink: #1a120e;
+  --v3-ember: #f0a36a;
+  --v3-paper: #fff4e6;
+  --v3-mute: #d9c7b4;
+  --v3-card: rgba(62, 42, 32, 0.78);
+  color: var(--v3-paper);
+  background:
+    radial-gradient(120% 42% at 50% -8%, rgba(240, 163, 106, 0.28), transparent 60%),
+    linear-gradient(180deg, #3a2418 0%, var(--v3-ink) 48%);
+}
+
+.v3-app .db-feed {
+  background:
+    radial-gradient(100% 36% at 50% 0%, color-mix(in srgb, var(--accent) 48%, var(--v3-ember)), transparent 68%),
+    linear-gradient(180deg, #4a2e22 0%, #1a120e 70%);
+}
+.v3-app .db-tabs {
+  padding: 2px;
+  border-radius: 999px;
+  background: rgba(42, 26, 18, 0.55);
+  border: 1px solid rgba(240, 196, 150, 0.28);
+}
+.v3-app .db-rail {
+  padding: 10px 4px;
+  border-radius: 28px;
+  background: rgba(42, 26, 18, 0.46);
+  border: 1px solid rgba(240, 196, 150, 0.28);
+  backdrop-filter: blur(16px);
+}
+.v3-app .db-feed .db-watch.ios-button {
+  background: color-mix(in srgb, var(--accent) 72%, var(--v3-ember));
+  color: #2a160c;
+}
+.v3-app .db-shade.is-card .db-info {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 46%, rgba(42, 26, 18, 0.72)), rgba(42, 26, 18, 0.88));
+  border-color: rgba(240, 196, 150, 0.28);
+}
+
+.v3-app .ios-mobile-nav.db-dock .hg-glass {
+  background: rgba(48, 32, 24, 0.72) !important;
+  background-color: rgba(48, 32, 24, 0.72) !important;
+  border: 1px solid rgba(240, 196, 150, 0.28);
+  box-shadow: 0 10px 30px rgba(26, 14, 8, 0.35);
+}
+.v3-app .ios-mobile-nav.db-dock[data-over-video="true"] .hg-glass {
+  background: rgba(48, 32, 24, 0.46) !important;
+  background-color: rgba(48, 32, 24, 0.46) !important;
+}
+.v3-app .ios-mobile-nav.db-dock .ios-mobile-nav-item { color: rgb(217, 199, 180) !important; }
+.v3-app .ios-mobile-nav.db-dock .ios-mobile-nav-item[aria-current=page] { color: rgb(255, 244, 230) !important; }
+.v3-app .ios-mobile-nav.db-dock .hg-drop > .ios-liquid-fill { background: var(--v3-ember) !important; }
+
+.v3-app .db-theater,
+.v3-app .db-follow,
+.v3-app .db-me,
+.v3-app .ios-page {
+  background-color: transparent;
+}
+.v3-app .db-theater::before,
+.v3-app .db-follow::before,
+.v3-app .db-me::before {
+  background: radial-gradient(120% 90% at 50% -10%, color-mix(in srgb, var(--ambient, var(--v3-ember)) 70%, transparent), transparent 72%);
+}
+.v3-app .ios-page-title { letter-spacing: -0.03em; }
+.v3-app .ios-search-form,
+.v3-app .ios-account-card,
+.v3-app .db-continue,
+.v3-app .db-menu,
+.v3-app .ios-setting-group {
+  background: var(--v3-card);
+  border: 1px solid rgba(240, 196, 150, 0.18);
+  border-radius: 18px;
+}
+
+.v3-bento {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.v3-bento button {
+  min-height: 84px;
+  padding: 10px;
+  border: 1px solid rgba(240, 196, 150, 0.28);
+  border-radius: 16px;
+  background: rgba(62, 42, 32, 0.72);
+  color: var(--v3-paper, #fff4e6);
+  text-align: left;
+}
+.v3-bento b { display: block; margin-top: 8px; font-size: 14px; }
+.v3-bento span { display: block; margin-top: 2px; color: var(--v3-mute, #d9c7b4); font-size: 11px; }
+
+.v3-dest { margin-top: 16px; border-radius: 18px; background: rgba(62, 42, 32, 0.72); border: 1px solid rgba(240, 196, 150, 0.18); overflow: hidden; }
+.v3-dest > p { margin: 0; padding: 12px 14px 4px; color: var(--v3-ember, #f0a36a); font-size: 12px; letter-spacing: 0.12em; }
+.v3-app .v3-dest .ios-button {
+  width: 100%;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  color: var(--v3-paper, #fff4e6);
+  background: transparent;
+  border: 0;
+  border-top: 1px solid rgba(255, 244, 230, 0.08);
+  border-radius: 0;
+  box-shadow: none;
+}
+.v3-app .v3-dest .ios-button span { flex: 1; text-align: left; }

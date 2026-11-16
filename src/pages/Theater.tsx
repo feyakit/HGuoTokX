@@ -7,7 +7,7 @@ import { api, cover } from "../api";
 import type { VideoCard } from "../types";
 import { useStore } from "../store";
 import { ambientStyle, useAccent, useAmbient } from "../useAccent";
-import { IGlobe, IGrid } from "../icons";
+import { IComment, IGlobe, IGrid, ITrophy } from "../icons";
 
 const CHIPS = ["全部", "都市", "古装", "玄幻", "悬疑"];
 
@@ -51,6 +51,11 @@ function Showcase({ active, onChannels }: { active: boolean; onChannels: () => v
   }, [slides.length]);
   return (
     <div className="mb-4">
+      <div className="v3-bento" aria-label="发现入口">
+        <button type="button" aria-label="打开热播榜" onClick={() => push({ kind: "ranks" })}><ITrophy size={18} /><b>打开热播榜</b><span>热度、推荐、潜力</span></button>
+        <button type="button" aria-label="打开分类" onClick={onChannels}><IGrid size={18} /><b>打开分类</b><span>频道和排序</span></button>
+        <button type="button" aria-label="吃瓜" onClick={() => push({ kind: "posts" })}><IComment size={18} /><b>吃瓜</b><span>帖子和讨论</span></button>
+      </div>
       {!!slides.length && (
         <div className="db-carousel">
           {slides.map((item, index) => (
@@ -80,8 +85,8 @@ function Showcase({ active, onChannels }: { active: boolean; onChannels: () => v
         {items.slice(0, 3).map((item, index) => <RankCard key={item.id} item={item} index={index} onOpen={() => push({ kind: "series", videoId: item.id, title: item.title })} />)}
       </div>
       <CollectionLinks className="ios-category-links mt-4 mb-2">
-        <CollectionLink icon={<IGrid size={18} />} title="专题" subtitle="精选专辑合集" onClick={() => push({ kind: "topics" })} />
-        <CollectionLink icon={<IGlobe size={18} />} title="标签" subtitle="按题材找片" onClick={() => push({ kind: "tags" })} />
+        <CollectionLink aria-label="专题" icon={<IGrid size={18} />} title="专题" subtitle="精选专辑合集" onClick={() => push({ kind: "topics" })} />
+        <CollectionLink aria-label="标签" icon={<IGlobe size={18} />} title="标签" subtitle="按题材找片" onClick={() => push({ kind: "tags" })} />
       </CollectionLinks>
     </div>
   );
