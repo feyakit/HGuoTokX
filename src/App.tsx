@@ -245,7 +245,10 @@ function MobileShell() {
   const { platform } = useStore();
   return (
     <div className={`absolute inset-0 flex flex-col bg-canvas plat-${platform}`}
-      style={{ "--sat": "max(env(safe-area-inset-top), 12px)", "--sab": platform === "android" ? "max(env(safe-area-inset-bottom), 24px)" : "max(env(safe-area-inset-bottom), 16px)" } as React.CSSProperties}>
+      /* Android：系统栏改透明后 WebView 会铺到屏幕底，而 Android 上的
+         env(safe-area-inset-bottom) 常常报 0（它反映的是刘海，不是系统栏），
+         所以按三键导航栏实测高度 44dp 兜底取 48，避免底栏被系统键压住。 */
+      style={{ "--sat": "max(env(safe-area-inset-top), 12px)", "--sab": platform === "android" ? "max(env(safe-area-inset-bottom), 48px)" : "max(env(safe-area-inset-bottom), 16px)" } as React.CSSProperties}>
       <div className="relative flex-1 min-h-0">
         <AppBody />
       </div>
