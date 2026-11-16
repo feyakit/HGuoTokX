@@ -246,7 +246,6 @@ export default function SwipeFeed({
     el.style.transition = animate ? "transform 220ms cubic-bezier(.2,.8,.2,1)" : "none";
     el.style.transform = "translate3d(0,0,0)";
   };
-  const clearHold = () => { window.clearTimeout(holdTimer.current); if (!locked) setBoost(false); };
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!event.isPrimary || sheet) return;
