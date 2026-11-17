@@ -34,7 +34,7 @@ function Highlight({ text, keyword }: { text: string; keyword: string }) {
 }
 
 export default function Search({ active, wide }: { active: boolean; wide: boolean }) {
-  const { push, searchHist, addSearch, clearSearchHist, removeSearchHist, lineEpoch, accountScope } = useStore();
+  const { push, toast, searchHist, addSearch, clearSearchHist, removeSearchHist, lineEpoch, accountScope } = useStore();
   const [q, setQ] = useState("");
   const [submitted, setSubmitted] = useState("");
   const [tab, setTab] = useState<"video" | "post">("video");
@@ -270,10 +270,14 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
               {result && <>「{result.keyword}」已加载 <span className="text-primary font-bold">{count}{result.total !== null ? ` / ${result.total}` : ""}</span> 条{result.kind === "post" ? "帖子" : "视频"}</>}
             </div>
             {tab === "video" && count > 0 && (
-              <div className="flex gap-2 mb-3" role="group" aria-label="结果排序">
-                {([["default", "综合"], ["latest", "最新"], ["hot", "最热"]] as const).map(([key, label]) => (
-                  <Button key={key} className="ios-filter-pill" aria-pressed={sortBy === key} onClick={() => setSortBy(key)}>{label}</Button>
-                ))}
+              <div className="flex items-center gap-2 mb-3">
+                <div className="flex gap-2" role="group" aria-label="结果排序">
+                  {([["default", "综合"], ["latest", "最新"], ["hot", "最热"]] as const).map(([key, label]) => (
+                    <Button key={key} className="ios-filter-pill" aria-pressed={sortBy === key}
+                      onClick={() => { if (key === sortBy) return; setSortBy(key); if (key !== "default") toast("排序只对已加载的结果生效"); }}>{label}</Button>
+                  ))}
+                </div>
+                {sortBy !== "default" && <span className="ml-auto text-[11px] text-dim">仅排已加载 {count} 条</span>}
               </div>
             )}
             {err && <div role="alert" className="flex flex-wrap items-center gap-2 mb-3 text-[13px] text-danger">
