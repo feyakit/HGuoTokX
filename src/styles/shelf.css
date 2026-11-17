@@ -299,8 +299,8 @@
   mask-image: linear-gradient(to right, #000 calc(100% - 24px), rgba(0, 0, 0, 0));
 }
 
-/* 底栏：图三是近实底，不是高透 */
-.ios-mobile-nav .hg-glass { background: rgb(18 18 24 / .94); }
+/* 底栏：图三是近实底的「面板色」（agreed_spec surface #242A40），不是近黑 */
+.ios-mobile-nav .hg-glass { background: rgb(36 42 64 / .94); }
 
 /* Hot 角标用 accent（数据里 is_hot=1 才画） */
 .hg-poster-badge.is-hot { background: var(--accent, var(--hg-accent-fallback)); color: var(--accent-on, #fff); }

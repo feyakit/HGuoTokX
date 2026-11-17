@@ -166,9 +166,9 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
           <div className="hg-section-head">
             <h2 className="hg-section-title">为你推荐</h2>
           </div>
-          <div className="hg-grid">
+          <div className="hg-grid-c3">
             {grid.map(v => (
-              <Button key={v.id} className="hg-poster is-grid" onClick={() => openSeries(v.id)}>
+              <Button key={v.id} className="hg-poster is-c3" onClick={() => openSeries(v.id)}>
                 <span className="hg-poster-art">
                   <Img src={v.cover} alt="" />
                   {v.is_finished && <span className="hg-poster-badge">已完结</span>}
