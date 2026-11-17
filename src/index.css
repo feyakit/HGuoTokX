@@ -767,7 +767,8 @@ html.theme-light .ios-mobile-nav .ios-mobile-nav-item[aria-current=page] {
   color: var(--p-on); font-size: 14px; line-height: 1.45; font-weight: 600;
 }
 .hg-gossip-meta { display: block; margin-top: 4px; color: var(--p-dim); font-size: 11px; }
-.hg-gossip-thumb { flex: none; width: 88px; height: 66px; overflow: hidden; border-radius: 10px; background: var(--p-s3); }
+/* 必须 relative：封面组件是 absolute inset-0，父级没定位会相对整页铺满，把列表全遮住 */
+.hg-gossip-thumb { position: relative; flex: none; width: 88px; height: 66px; overflow: hidden; border-radius: 10px; background: var(--p-s3); }
 
 /* —— 长视频卡：16:9 封面 + 右下角时长 + 两行标题 —— */
 .lg-card-art {
