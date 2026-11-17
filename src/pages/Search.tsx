@@ -1,6 +1,7 @@
 import { Button, Form, Input, SegmentedControl, Surface } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
 import { useEffect, useRef, useState } from "react";
+import type { ReactElement } from "react";
 import { api, fmt, isMobile } from "../api";
 import type { HotSearchWord, Post, RankItem, VideoCard } from "../types";
 import { useStore } from "../store";
@@ -10,6 +11,27 @@ import { Empty } from "../components/ui";
 import { useSearchResults } from "../useSearchResults";
 import { SearchTags } from "../components/SearchTags";
 import { IBack, IChevR, IClose, IFireF, IRefresh, ISearch, ITrophy } from "../icons";
+
+/** 把命中的片段标出来：联想词里和输入重合的部分加粗。 */
+function Highlight({ text, keyword }: { text: string; keyword: string }) {
+  const k = keyword.trim();
+  if (!k) return <>{text}</>;
+  const lower = text.toLowerCase();
+  const key = k.toLowerCase();
+  const parts: (string | ReactElement)[] = [];
+  let from = 0;
+  let at = lower.indexOf(key);
+  let guard = 0;
+  while (at >= 0 && guard < 20) {
+    if (at > from) parts.push(text.slice(from, at));
+    parts.push(<strong key={`${at}-${guard}`} className="font-bold text-primary">{text.slice(at, at + k.length)}</strong>);
+    from = at + k.length;
+    at = lower.indexOf(key, from);
+    guard += 1;
+  }
+  if (from < text.length) parts.push(text.slice(from));
+  return <>{parts}</>;
+}
 
 export default function Search({ active, wide }: { active: boolean; wide: boolean }) {
   const { push, searchHist, addSearch, clearSearchHist, lineEpoch, accountScope } = useStore();
@@ -27,6 +49,33 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
   const [hotError, setHotError] = useState<string | null>(null);
   const hotBusy = useRef(false);
   const hotLoadedAt = useRef(0);
+  /* —— 联想：输入为空不请求，250~300ms 防抖，最多 8 条 —— */
+  const [suggest, setSuggest] = useState<string[]>([]);
+  const [suggestPending, setSuggestPending] = useState(false);
+  const suggestSeq = useRef(0);
+
+  useEffect(() => {
+    const keyword = q.trim();
+    const seq = ++suggestSeq.current;
+    if (!keyword) { setSuggest([]); setSuggestPending(false); return; }
+    setSuggestPending(true);
+    const timer = setTimeout(() => {
+      api.searchSuggest(keyword)
+        .then(res => {
+          if (seq !== suggestSeq.current) return;
+          const words: string[] = [];
+          for (const item of res?.content ?? []) {
+            const title = (item?.title ?? "").trim();
+            if (title && !words.includes(title)) words.push(title);
+            if (words.length >= 8) break;
+          }
+          setSuggest(words);
+        })
+        .catch(() => { if (seq === suggestSeq.current) setSuggest([]); })
+        .finally(() => { if (seq === suggestSeq.current) setSuggestPending(false); });
+    }, 280);
+    return () => clearTimeout(timer);
+  }, [q]);
 
   /* 移动端进入搜索页不自动聚焦：iOS 会立刻弹键盘遮住内容（#20）。
      桌面端没有软键盘，聚焦便于直接打字。 */
@@ -71,6 +120,8 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
   };
 
   const querying = submitted.length > 0;
+  /* 有字但还没提交 → 输入态（联想词 + 题材 chips）；提交后改字也回到输入态 */
+  const typing = q.trim().length > 0 && q.trim() !== submitted;
 
   return (
     <div className="ios-page ios-tint-08 absolute inset-0 bg-bg flex flex-col">
@@ -91,7 +142,30 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
       </div>
 
       <div className="flex-1 scroll-y px-4 pb-24">
-        {!querying ? (
+        {typing ? (
+          <>
+            <section aria-label="搜索联想" className="mt-1 a-rise">
+              {suggest.length > 0 ? (
+                <ul className="ios-suggest-list">
+                  {suggest.map((word) => (
+                    <li key={word}>
+                      <Button className="ios-suggest-item" onClick={() => submit(word)} aria-label={`搜索 ${word}`}>
+                        <ISearch size={15} className="text-dim shrink-0" />
+                        <span className="flex-1 min-w-0 truncate text-[14px] text-on"><Highlight text={word} keyword={q} /></span>
+                        <IChevR size={14} className="text-dim shrink-0" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p role="status" className="px-1 py-2 text-[12px] text-mut">
+                  {suggestPending ? "正在联想…" : "没有匹配的剧名，回车直接搜「" + q.trim() + "」"}
+                </p>
+              )}
+            </section>
+            <SearchTags key={JSON.stringify([lineEpoch, accountScope])} active={active} />
+          </>
+        ) : !querying ? (
           <>
             <Surface role="region" aria-label="热搜榜" className="mt-1 rounded-(--r-md) bg-s2 p-3.5 a-rise">
                 <div className="flex items-center justify-between">
