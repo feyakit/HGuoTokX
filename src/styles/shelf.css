@@ -533,16 +533,20 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
   background: none; border: 0; color: var(--p-on);
 }
 
-/* 胶囊 tab 行：pill 高 33、全圆、gap 10；选中 = 半透明蓝紫底 + 1px 亮边（实心胶囊） */
+/* 胶囊 tab 行：按参考像素轮廓重测（W12）
+   参考「All Shows」外框 65×23 img px（1 img px = 1.19 CSS）→ 77.4×27.4 CSS；
+   转角从轮廓拟合 r≈6–8 img px = 7–9.5 CSS，取阶梯值 8（**不是半圆**，之前的 999px 是错的）；
+   文字墨到框边 9–10 img px ≈ 11 CSS；相邻两项文字墨距 32–34 img px ≈ 38–40 CSS
+   → 2×11 + gap = 39 ⇒ gap 17 */
 .hg-pill-row {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 17px;
   overflow-x: auto; overflow-y: hidden;
   padding: 4px 0 8px; scrollbar-width: none; -ms-overflow-style: none;
 }
 .hg-pill-row::-webkit-scrollbar { display: none; }
 .hg-pill {
-  flex: none; height: 29px; padding: 0 16px;
-  border-radius: 999px; border: 1.5px solid transparent; background: none;
+  flex: none; height: 27px; padding: 0 9px;
+  border-radius: 8px; border: 2px solid transparent; background: none;
   color: #9294AD;                        /* 参考取色：未选中文字 rgb(146,148,173)，冷灰蓝，不是暖灰 */
   font-size: 13px; font-weight: 600; line-height: 1;
   white-space: nowrap;
@@ -644,7 +648,7 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 /* 这些按钮用 card（= data-card）绕开 .ios-button 的 44px 触控最小尺寸与默认圆角，
    尺寸一律按 v3 实测值写死 */
 .ios-button.hg-hero { border-radius: 15px; }
-.ios-button.hg-pill { min-block-size: 0; min-inline-size: 0; height: 29px; border-radius: 999px; }
+.ios-button.hg-pill { min-block-size: 0; min-inline-size: 0; height: 27px; border-radius: 8px; }
 .ios-button.hg-icon-plain { min-block-size: 0; min-inline-size: 0; width: 36px; height: 36px; border-radius: 50%; }
 .ios-button.hg-rail-card { min-block-size: 0; border-radius: 0; }
 .ios-button.hg-continue-play { min-block-size: 0; min-inline-size: 0; width: 36px; height: 36px; border-radius: 999px; }
