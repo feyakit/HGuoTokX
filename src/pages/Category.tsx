@@ -16,7 +16,7 @@ import { siteChannels, siteSorts, FALLBACK_CHANNELS, type ChannelEntry } from ".
 
 /* ================= 分类第一层：题材广场 ================= */
 /** 每个题材取一张代表封面 + 总数，做 2 列大卡；点进去是该题材的频道页。 */
-type CoverMeta = { cover: string; count: number };
+type CoverMeta = { cover: string; count: number; offline?: boolean };
 
 export default function Category({ wide, active }: { wide: boolean; active: boolean }) {
   const { push, lineEpoch, setTab } = useStore();
@@ -53,8 +53,10 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
             ? await api.originalVideos("all", 1, 1, sort || "new")
             : await api.category(c.cate, 1, 1, sort || undefined);
           const first = res?.items?.[0];
-          if (first) next[c.cate] = { cover: first.cover, count: res?.pagination?.total ?? 0 };
-        } catch { /* 单个题材失败不影响整体，卡片留占位 */ }
+          next[c.cate] = first
+            ? { cover: first.cover, count: res?.pagination?.total ?? 0 }
+            : { cover: "", count: 0 };
+        } catch { /* 单个题材失败不影响整体：标记该题材不可用，卡片照常占位 */ next[c.cate] = { cover: "", count: 0, offline: true }; }
       }));
       if (my !== seq.current) return;
       setMetas(next);
@@ -86,11 +88,14 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
           {channels.map((c) => {
             const meta = metas[c.cate];
             return (
-              <Button key={c.cate} className="hg-cat-card" aria-label={`${c.name} ${meta?.count ?? 0} 部`}
-                onClick={() => push({ kind: "channel", cate: c.cate, name: c.name })}>
+              <Button key={c.cate} className={`hg-cat-card${meta?.offline ? " is-offline" : ""}`}
+                aria-label={meta?.offline ? `${c.name} 内容已下线` : `${c.name} ${meta?.count ?? 0} 部`}
+                aria-disabled={meta?.offline || undefined}
+                onClick={() => { if (!meta?.offline) push({ kind: "channel", cate: c.cate, name: c.name }); }}>
                 {meta?.cover ? <Img src={meta.cover} alt="" /> : <span className="hg-cat-blank shimmer" aria-hidden="true" />}
                 <span className="hg-cat-veil" aria-hidden="true" />
-                {!!meta?.count && <span className="hg-cat-count">{fmt(meta.count)} 部</span>}
+                {meta?.offline ? <span className="hg-cat-count">已下线</span>
+                  : !!meta?.count && <span className="hg-cat-count">{fmt(meta.count)} 部</span>}
                 <span className="hg-cat-copy">
                   <span className="hg-cat-name">{c.name}</span>
                   {c.desc && <span className="hg-cat-sub">{c.desc}</span>}

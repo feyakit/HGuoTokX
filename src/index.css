@@ -834,3 +834,6 @@ html.theme-light .ios-mobile-nav .ios-mobile-nav-item[aria-current=page] {
 .hg-cat-entry { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 16px; padding: 13px 14px; border: 1px solid var(--ios-edge); border-radius: 16px; background: var(--p-s2); color: var(--p-on); }
 .hg-cat-entry-title { font-size: 15px; font-weight: 650; }
 .hg-cat-entry-sub { flex: 1; min-width: 0; color: var(--p-dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 已下线的题材：不可点、压暗、角标提示，别让用户点进空页面 */
+.hg-cat-card.is-offline { opacity: .55; }
+.hg-cat-card.is-offline .hg-cat-veil { background: linear-gradient(180deg, rgb(0 0 0 / .55), rgb(0 0 0 / .82)); }

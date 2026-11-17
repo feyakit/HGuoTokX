@@ -838,14 +838,22 @@ pub async fn api_category(
         Some(s) if !s.trim().is_empty() => format!("&sort={s}"),
         _ => String::new(),
     };
-    /* 老路径 /api/videos/category/{slug} 对 AI魔改、AI换脸 会回 410「内容已下线」
-       （2026-11 实测：ai-mogai / ai-huanlian 都是 410，而 ai-manju / ai-duanju 正常）。
-       查询式 /api/videos?category={slug} 四类都能拿到内容，统一走这一条。 */
+    /* 必须用路径式路由：/api/videos?category={slug} 会被服务端**完全忽略**，
+       四个题材都返回同一份全站列表（实测 total 恒为 1771 = 116 + 1655），
+       页面看起来「筛选了」其实是假的。路径式对 ai-manju / ai-duanju 正常，
+       ai-mogai / ai-huanlian 回 410「内容已下线」——那种情况要如实报给 UI。 */
     state
         .get(&format!(
-            "/api/videos?category={cate}&page={page}&size={size}{sort}"
+            "/api/videos/category/{cate}?page={page}&size={size}{sort}"
         ))
         .await
+        .map_err(|error| {
+            if error.contains("410") || error.contains("下线") {
+                "该题材内容已下线".to_string()
+            } else {
+                error
+            }
+        })
 }
 
 #[tauri::command]
