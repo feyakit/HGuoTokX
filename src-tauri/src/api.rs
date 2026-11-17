@@ -1089,6 +1089,18 @@ pub async fn api_post_comments(
         .await
 }
 
+/// 长视频：`/api/videos/long` 分页，卡片结构与短剧一致（duration 单位秒）。
+#[tauri::command]
+pub async fn api_long_videos(
+    state: State<'_, Api>,
+    page: u32,
+    size: u32,
+) -> Result<Value, String> {
+    state
+        .get(&format!("/api/videos/long?page={page}&size={size}"))
+        .await
+}
+
 /// 视频题材：`/api/site/categories/video` 返回 data.items（name/route/sort）。
 #[tauri::command]
 pub async fn api_site_categories(state: State<'_, Api>) -> Result<Value, String> {

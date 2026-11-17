@@ -179,6 +179,8 @@ export const api = {
   postCollect: (id: number, on: boolean, identity?: AccountIdentity) => invoke<unknown>("api_post_collect", { id, on, expectedUserId: identity?.expectedUserId, expectedOrigin: identity?.expectedOrigin }),
   postComments: (id: number, page: number, size: number) => call<CommentPage>("api_post_comments", { id, page, size }),
   postCategories: () => call<{ items: PostCategory[] }>("api_post_categories"),
+  /** 长视频（16:9 长片）：与短剧同一套卡片结构，duration 为秒。 */
+  longVideos: (page = 1, size = 20) => call<Paged<VideoCard>>("api_long_videos", { page, size }),
   /** 视频题材（题材广场数据源）：AI魔改 / AI换脸 / 漫剧 / 短剧。 */
   siteCategories: () => call<{ items: SiteItem[] }>("api_site_categories"),
   /** 排序口径：最近更新 / 当前最热 / 正在播放 / 小蓝原创。 */

@@ -9,6 +9,7 @@ import { Empty } from "../components/ui";
 import { Button } from "../components/ios/controls";
 import { useContentPreferences } from "../contentPreferences";
 import { PreferenceStorageNotice } from "../components/PreferenceStorageNotice";
+import LongVideoList from "../components/LongVideoList";
 
 /* Fisher-Yates 洗牌：首页第一页随机打乱，避免每次进来都停在同一个 top1 */
 function shuffle<T>(arr: T[]): T[] {
@@ -142,20 +143,10 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
         <PreferenceStorageNotice />
       </div>}
       <div className="relative flex-1 min-h-0">
-      {/* 长视频段：本批先出骨架（16:9 卡片占位），列表下一批接 */}
+      {/* 长视频段：16:9 双列，首屏 20 条，滑到底续页 */}
       {segment === "long" && (
-        <div className="absolute inset-0 bg-bg scroll-y px-4 pb-24" style={{ paddingTop: "calc(var(--sat, 0px) + 56px)" }}>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-4">
-            {[0, 1, 2, 3, 4, 5].map(index => (
-              <div key={index} aria-hidden="true">
-                <div className="shimmer w-full rounded-[16px]" style={{ paddingTop: "56.25%" }} />
-                <div className="shimmer mt-2 h-[13px] w-4/5 rounded-full" />
-                <div className="shimmer mt-2 h-[11px] w-1/2 rounded-full" />
-              </div>
-            ))}
-          </div>
-          <p className="mt-6 text-center text-[12px] text-dim">长视频列表下一批接入</p>
-        </div>
+        <LongVideoList active={active && segment === "long"}
+          onOpen={v => push({ kind: "feed", videoIds: [v.id], index: 0, title: v.title })} />
       )}
       <div className="absolute inset-0" style={{ display: segment === "short" ? "block" : "none" }}>
       {ids.length > 0 && (active || feedMounted) ? (
