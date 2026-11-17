@@ -261,7 +261,6 @@ pub fn run() {
             api::api_post_like,
             api::api_post_collect,
             api::api_post_comments,
-            api::api_long_videos,
             api::api_site_categories,
             api::api_site_sorts,
             api::api_site_menus,
