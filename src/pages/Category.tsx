@@ -2,14 +2,14 @@ import { Button } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, fmt } from "../api";
-import type { Post, VideoCard } from "../types";
+import type { Post, TagGroup, VideoCard } from "../types";
 import { useStore } from "../store";
 import { MediaCard, Masonry, RowCard } from "../components/cards";
 import { FilteredContent } from "../components/FilteredContent";
 import { useContentPreferences } from "../contentPreferences";
 import { CollectionLink, CollectionLinks } from "../components/CollectionLink";
 import { InplaceSearch } from "../components/InplaceSearch";
-import { Empty } from "../components/ui";
+import { Empty, Img } from "../components/ui";
 import { IBack, IChevR, IGlobe, IGrid, ISearch, ITrophy } from "../icons";
 
 export const CHANNELS = [
@@ -18,158 +18,157 @@ export const CHANNELS = [
   { cate: "original", name: "原创", desc: "原创 · 独家好剧" },
 ] as const;
 
-/* ================= 分类总览 ================= */
+/* ================= 分类（片库） ================= */
+/**
+ * 图三第 2 屏：顶搜索框 → 一级 tab（题材）→ 二级类型 chips → 3 列网格。
+ * 角标只用真实数据：New = created_at 在 7 天内；Hot 需要 is_hot 字段，接口没给 → 不画（不编）。
+ * 播放量用 hot 字段真值。
+ */
+const TABS = [
+  { cate: "", name: "全部" },
+  { cate: "ai-duanju", name: "短剧" },
+  { cate: "ai-manju", name: "漫剧" },
+  { cate: "original", name: "原创" },
+] as const;
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const isNew = (v: VideoCard) => {
+  const raw = v.created_at;
+  if (!raw) return false;
+  const t = Date.parse(raw.replace(" ", "T"));
+  return Number.isFinite(t) && Date.now() - t < WEEK_MS;
+};
+
 export default function Category({ wide, active }: { wide: boolean; active: boolean }) {
-  const { push, lineEpoch } = useStore();
-  const [rows, setRows] = useState<Record<string, VideoCard[]>>({});
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState<Record<string, boolean>>({});
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const mounted = useRef(false);
-  const started = useRef(false);
-  const pending = useRef(new Set<string>());
-  const errorsRef = useRef(errors);
-  errorsRef.current = errors;
-  const lineEpochRef = useRef(lineEpoch);
-  lineEpochRef.current = lineEpoch;
-  const retryKeys = useRef(new Set<string>());
+  const { push, lineEpoch, setTab } = useStore();
+  const [cate, setCate] = useState<string>("");
+  /* 二级 chips：用站点真实标签（api.tags 的第一个分组），选中的标签走 api.tagVideos 真筛选 */
+  const [tags, setTags] = useState<string[]>([]);
+  const [tag, setTag] = useState<string>("");
+  const [items, setItems] = useState<VideoCard[]>([]);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+  const [err, setErr] = useState("");
+  const loadingRef = useRef(false);
+  const seq = useRef(0);
 
   useEffect(() => {
-    mounted.current = true;
-    return () => { mounted.current = false; };
-  }, []);
-
-  const loadPreview = useCallback(async (key: string): Promise<void> => {
-    if (pending.current.has(key)) return;
-    const requestEpoch = lineEpochRef.current;
-    pending.current.add(key);
-    setLoading(m => ({ ...m, [key]: true }));
-    setErrors(m => ({ ...m, [key]: "" }));
-    try {
-      if (key === "posts") {
-        const result = await api.postCategory("remen-chigua", 1, 8, "latest");
-        if (mounted.current) setPosts(result?.items || []);
-      } else {
-        const result = key === "original"
-          ? await api.originalVideos("all", 1, 8, "new")
-          : await api.category(key, 1, 8, "latest");
-        if (mounted.current) setRows(m => ({ ...m, [key]: result?.items || [] }));
+    let cancelled = false;
+    /* 二级 chips：从 /api/videos 拉 3 页统计 tags 频次取前 8（不硬编码）；
+       失败时降级成「全部 + 短剧 + 漫剧」，不白屏 */
+    void (async () => {
+      try {
+        const pages = await Promise.all([1, 2, 3].map(p => api.feed(p, 30)));
+        if (cancelled) return;
+        const freq = new Map<string, number>();
+        for (const res of pages) {
+          for (const v of res?.items ?? []) {
+            for (const tag of v.tags ?? []) freq.set(tag, (freq.get(tag) ?? 0) + 1);
+          }
+        }
+        const top = [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name]) => name);
+        setTags(top);
+      } catch {
+        if (!cancelled) setTags(["短剧", "漫剧"]);
       }
-    } catch (error) {
-      const stale = requestEpoch !== lineEpochRef.current;
-      if (mounted.current && !stale) setErrors(m => ({ ...m, [key]: (error as Error).message || "加载失败" }));
-      /* 请求在旧线路上发出、期间线路已切换：等 finally 里用新线路补拉一次 */
-      if (stale) retryKeys.current.add(key);
+    })();
+    return () => { cancelled = true; };
+  }, [lineEpoch]);
+
+  const load = useCallback(async (p: number) => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    setLoading(true);
+    setErr("");
+    const my = ++seq.current;
+    try {
+      const res = tag
+        ? await api.tagVideos(tag, p, 24)
+        : cate === "original"
+          ? await api.originalVideos("all", p, 24, "new")
+          : cate
+            ? await api.category(cate, p, 24)
+            : await api.feed(p, 24);
+      if (my !== seq.current) return;
+      const rows = (res?.items ?? []).filter(v => v && v.cover);
+      setItems(prev => p === 1 ? rows : [...prev, ...rows.filter(r => !prev.some(x => x.id === r.id))]);
+      setPage(p);
+      setDone(!rows.length || !!(res?.pagination && p >= (res.pagination.pages || 1)));
+    } catch (e) {
+      if (my === seq.current) setErr((e as Error)?.message || "加载失败");
     } finally {
-      pending.current.delete(key);
-      if (mounted.current) setLoading(m => ({ ...m, [key]: false }));
-      const retry = retryKeys.current.delete(key);
-      if (retry && mounted.current) void loadPreview(key);
+      if (my === seq.current) { setLoading(false); loadingRef.current = false; }
     }
-  }, []);
+  }, [cate, tag]);
 
   useEffect(() => {
-    // 首次打开分类才加载，避免启动时后台频道请求/封面与首页视频竞争网络。
-    if (!active || started.current) return;
-    started.current = true;
-    CHANNELS.forEach(c => { void loadPreview(c.cate); });
-    void loadPreview("posts");
-  }, [active, loadPreview]);
-
-  /* 线路切换后：已打开过的分类里，加载失败的栏目在新线路上重试一次 */
-  useEffect(() => {
-    if (!lineEpoch || !started.current) return;
-    Object.entries(errorsRef.current).forEach(([key, msg]) => { if (msg) void loadPreview(key); });
-  }, [lineEpoch, loadPreview]);
+    if (!active) return;
+    setItems([]); setDone(false);
+    void load(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, cate, tag, lineEpoch]);
 
   return (
-    <div className="ios-page absolute inset-0 bg-bg flex flex-col">
-      <div className="ios-page-heading shrink-0 px-4">
-        <div className="flex items-end gap-2.5">
-          <h1 className="ios-page-title text-on">分类</h1>
-          <span className="text-[12px] text-mut pb-0.5">{CHANNELS.length + 1} 个频道 · 每周持续上新</span>
-        </div>
+    <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
+      {/* 顶部搜索框（点进搜索页，不在这里输入） */}
+      <div className="shrink-0 hg-page-x pb-2 relative z-10" style={{ paddingTop: "calc(var(--sat, 0px) + 6px)" }}>
+        <Button className="hg-searchbar" aria-label="搜索" onClick={() => setTab("search")}>
+          <ISearch size={16} /><span>搜索短剧、演员、题材</span>
+        </Button>
       </div>
 
-      <div className="flex-1 scroll-y pb-24 pt-2">
-        {/* 排行榜入口：只在移动端显示（底部导航没有排行榜，桌面侧栏已有） */}
-        {!wide && (
-          <CollectionLink icon={<ITrophy size={18} />} title="排行榜" subtitle="热播榜 · 推荐榜 · 潜力榜"
-            onClick={() => push({ kind: "ranks" })} className="mb-2.5 w-full" />
+      {/* 一级 tab：题材 */}
+      <div className="shrink-0 hg-page-x pb-1 flex gap-4 overflow-x-auto hg-chip-row relative z-10">
+        {TABS.map(t => (
+          <Button key={t.cate} className={`hg-tab${cate === t.cate ? " is-on" : ""}`}
+            aria-selected={cate === t.cate} onClick={() => setCate(t.cate)}>{t.name}</Button>
+        ))}
+      </div>
+
+      {/* 二级 chips：站点类型（真数据，来自 api_site_sorts） */}
+      {tags.length > 0 && (
+        <div className="shrink-0 hg-page-x pb-2 flex gap-2 overflow-x-auto hg-chip-row relative z-10">
+          <Button aria-pressed={!tag} onClick={() => setTag("")} className="hg-sort-chip" data-on={String(!tag)}>综合</Button>
+          {tags.map(t => (
+            <Button key={t} aria-pressed={tag === t} onClick={() => setTag(tag === t ? "" : t)}
+              className="hg-sort-chip" data-on={String(tag === t)}>{t}</Button>
+          ))}
+        </div>
+      )}
+
+      <div className="flex-1 scroll-y relative z-10"
+        style={{ paddingBottom: "calc(56px + 24px + var(--sab, 0px))" }}>
+        {err && <p role="alert" className="py-4 text-center text-[12px] text-danger">{err}</p>}
+        {!items.length && loading && <div className="flex justify-center py-10"><Loader className="w-7 h-7 spinner" /></div>}
+        {!items.length && !loading && !err && done && (
+          <Empty icon={<IGrid size={26} />} title="这个题材还没有内容" sub="换个题材或类型看看" />
         )}
 
-        {/* 专题 + 标签入口 */}
-        <CollectionLinks className="ios-category-links mb-5">
-          <CollectionLink icon={<IGrid size={18} />} title="专题" subtitle="精选专辑合集"
-            onClick={() => push({ kind: "topics" })} />
-          <CollectionLink icon={<IGlobe size={18} />} title="标签" subtitle="按题材找片"
-            onClick={() => push({ kind: "tags" })} />
-        </CollectionLinks>
+        <div className="hg-grid-c3">
+          {items.map(v => (
+            <Button key={v.id} className="hg-poster is-c3" onClick={() => push({ kind: "series", id: v.id })}>
+              <span className="hg-poster-art">
+                <Img src={v.cover} alt="" />
+                <span className="hg-poster-veil" aria-hidden="true" />
+                {v.is_hot === 1
+                  ? <span className="hg-poster-badge is-hot">Hot</span>
+                  : isNew(v) ? <span className="hg-poster-badge">New</span> : null}
+                <span className="hg-poster-plays">{fmt(v.hot)}</span>
+              </span>
+              <span className="hg-poster-name">{v.title}</span>
+            </Button>
+          ))}
+        </div>
 
-        <p className="mb-3 text-[12px] text-mut">频道卡片可左右滑动浏览 · 点击“全部”查看完整频道</p>
-        {CHANNELS.map((c, ci) => {
-          const list = rows[c.cate] || [];
-          return (
-            <section key={c.cate} aria-label={c.name} className="mb-5 a-rise" style={{ animationDelay: `${Math.min(ci * 50, 300)}ms` }}>
-              <Button onClick={() => push({ kind: "channel", cate: c.cate, name: c.name })}
-                className="w-full flex items-center gap-2.5 mb-2.5 text-left pressable group">
-                <span className="w-[36px] h-[36px] rounded-(--r-sm) tonal flex items-center justify-center shrink-0 text-primary">
-                  <IGrid size={19} strokeWidth={1.9} />
-                </span>
-                <span className="flex-1 min-w-0">
-                  <span role="heading" aria-level={2} className="block text-[15.5px] font-semibold text-on leading-tight">{c.name}</span>
-                  <span className="block text-[12px] text-mut mt-0.5 truncate">{c.desc}</span>
-                </span>
-                <span className="flex items-center gap-0.5 text-[12px] text-mut group-hover:text-primary transition-colors">
-                  全部<IChevR size={14} />
-                </span>
-              </Button>
-              <FilteredContent items={list} scopeKey={c.cate}>{visible => <div className="scroll-x flex gap-2.5 snap-x" role="group" aria-label={`${c.name}影片预览`}>
-                {visible.map((v) => (
-                  <RowCard key={v.id} v={v} onOpen={() => push({ kind: "feed", videoIds: list.map((x) => x.id), index: list.findIndex((x) => x.id === v.id), title: c.name })} />
-                ))}
-                {!list.length && <PreviewStatus name={c.name} loading={loading[c.cate] !== false} error={errors[c.cate]} onRetry={() => void loadPreview(c.cate)} />}
-              </div>}</FilteredContent>
-            </section>
-          );
-        })}
-
-        {/* 吃瓜 */}
-        <section aria-label="吃瓜" className="mb-5 a-rise">
-          <Button onClick={() => push({ kind: "posts" })}
-            className="w-full flex items-center gap-2.5 mb-2.5 text-left pressable group">
-            <span className="w-[36px] h-[36px] rounded-(--r-sm) tonal flex items-center justify-center shrink-0 text-primary">
-              <IGrid size={19} strokeWidth={1.9} />
-            </span>
-            <span className="flex-1 min-w-0">
-              <span role="heading" aria-level={2} className="block text-[15.5px] font-semibold text-on leading-tight">吃瓜</span>
-              <span className="block text-[12px] text-mut mt-0.5 truncate">圈内爆料 · 每日更新</span>
-            </span>
-            <span className="flex items-center gap-0.5 text-[12px] text-mut group-hover:text-primary transition-colors">
-              全部<IChevR size={14} />
-            </span>
+        {items.length > 0 && !done && (
+          <Button className="hg-loadmore" onClick={() => void load(page + 1)} disabled={loading}>
+            {loading ? "加载中…" : "加载更多"}
           </Button>
-          <FilteredContent items={posts} scopeKey="posts">{visible => <div className="scroll-x flex gap-2.5 snap-x" role="group" aria-label="吃瓜内容预览">
-            {visible.map((post) => (
-              <div key={post.id} className="ios-row-card"><MediaCard title={post.title} cover={post.cover}
-                subtitle={`${fmt(post.hot)} 次浏览`} onOpen={() => push({ kind: "post", id: post.id })} /></div>
-            ))}
-            {!posts.length && <PreviewStatus name="吃瓜" loading={loading.posts !== false} error={errors.posts} onRetry={() => void loadPreview("posts")} />}
-          </div>}</FilteredContent>
-        </section>
-
-        <div className="text-center text-[12px] text-dim pt-1">— 已展示全部频道 —</div>
+        )}
       </div>
-      {wide && <div />}
     </div>
   );
-}
-
-function PreviewStatus({ name, loading, error, onRetry }: { name: string; loading: boolean; error?: string; onRetry: () => void }) {
-  return <div role="status" aria-busy={loading} className="h-[150px] flex flex-col justify-center items-start gap-2 text-[12px] text-dim px-1">
-    <span>{loading ? "加载中…" : error || "暂无内容"}</span>
-    {!loading && error && <Button aria-label={`重试${name}`} onClick={onRetry} className="text-primary pressable">重试</Button>}
-  </div>;
 }
 
 /* ================= 频道详情页 ================= */

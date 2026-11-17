@@ -17,6 +17,8 @@ export type VideoCard = {
   is_finished: boolean;
   is_original: number;
   created_at?: string;
+  /** 站点标记的热门（接口真字段，1 = 热） */
+  is_hot?: number;
   last_ep_at?: number;
   new_at?: number;
   author?: Author;

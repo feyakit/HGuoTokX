@@ -44,14 +44,15 @@
      想试 1:2（0.50）只改这一行：133.3333% = 3:4 / 150% = 2:3 / 200% = 1:2 */
   --poster-ratio-pt: 150%;
 
-  /* 颜色：agreed_spec 的深底与面（实测 bg #040404 过黑，surface #17171B 更接近图 2 质感） */
-  --hg-canvas: #0D0D10;
+  /* 画布：#08080F（图三实测的深黑蓝），不再让 accent 浸染整页 */
+  --hg-canvas: #08080F;
   --hg-surface: #17171B;
   --hg-accent-fallback: #FF4D8D;
 
   /* 发光层：颜色永远取当前封面 accent（紫粉只是某张封面碰巧紫），强度取图 2 的观感 */
   --hg-aura: var(--accent, var(--hg-accent-fallback));
-  --hg-aura-strength: .12;
+  /* ≤ 8%：只在 Hero / 卡片背后可见，整页看不出渐变（图三就是这样） */
+  --hg-aura-strength: .08;
 }
 
 /* ------------------------------------------------------------------
@@ -261,3 +262,48 @@
 /* 上游把页边写死在 --ios-page-inset:18px（.ios-page > .scroll-y 用它），
    按 agreed_spec 的 page_margin_css=16 覆盖一次，全站统一 16。 */
 .ios-page { --ios-page-inset: var(--space-page); }
+
+/* ------------------------------------------------------------------
+   分类（片库）：搜索框、排序 chip、3 列网格、播放量角标
+   ------------------------------------------------------------------ */
+.hg-searchbar {
+  display: flex; align-items: center; gap: 6px; width: 100%; height: 36px;
+  padding: 0 12px; border: 0; border-radius: 10px;
+  background: var(--hg-surface); color: var(--p-dim); font-size: 13px;
+}
+.hg-sort-chip {
+  flex: none; padding: 6px 12px; border: 0; border-radius: 999px;
+  background: var(--hg-surface); color: var(--p-mut);
+  font-size: 12px; line-height: 1.2; white-space: nowrap;
+}
+.hg-sort-chip[data-on="true"] { background: var(--accent, var(--p-primary)); color: var(--accent-on, #fff); }
+
+.hg-grid-c3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: var(--space-col); row-gap: var(--space-row); }
+.hg-poster.is-c3 { width: auto; }
+.hg-poster-plays {
+  position: absolute; left: 6px; bottom: 6px;
+  font-size: 10px; line-height: 1.2; color: #fff;
+  text-shadow: 0 1px 3px rgb(0 0 0 / .8);
+}
+
+/* 卡底 40% 渐变：播放量压在封面上也要够对比（图三做法） */
+.hg-poster-veil {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 40%;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, .72));
+  pointer-events: none;
+}
+
+/* 横滑行右边缘 24px 渐隐，提示可滑（Chrome 87 支持 -webkit-mask-image） */
+.hg-chip-row {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), rgba(0, 0, 0, 0));
+  mask-image: linear-gradient(to right, #000 calc(100% - 24px), rgba(0, 0, 0, 0));
+}
+
+/* 底栏：图三是近实底，不是高透 */
+.ios-mobile-nav .hg-glass { background: rgb(18 18 24 / .94); }
+
+/* Hot 角标用 accent（数据里 is_hot=1 才画） */
+.hg-poster-badge.is-hot { background: var(--accent, var(--hg-accent-fallback)); color: var(--accent-on, #fff); }
+
+/* 画布硬定 #08080F（图三的深黑蓝）：深色主题下直接覆盖上游的 #101012 / #191919 */
+html:not(.theme-light) { --p-canvas: #08080F; --p-bg: #08080F; }
