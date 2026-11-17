@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import type { AccountHistoryItem, AccountIdentity, AccountInteractions, User } from "./types";
 import type { WatchProgress } from "./store";
+import { migrateLegacyKey } from "./legacyKeys";
 
 type Kind = "video" | "post";
 export type GuestData = {
@@ -64,6 +65,7 @@ export function useAccountData(initialGuest: GuestData, saveGuest: (data: GuestD
   const guest = useRef(sanitize(initialGuest));
   if (!state.current) {
     try {
+      migrateLegacyKey(ACCOUNT_KEY, "accounts_v1");
       const saved = JSON.parse(localStorage.getItem(ACCOUNT_KEY) || "{}");
       if (saved.version === 1 && saved.accounts && typeof saved.accounts === "object") {
         accounts.current = Object.fromEntries(Object.entries(saved.accounts).map(([key, data]) => [key, sanitize(data as AccountData)]));

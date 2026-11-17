@@ -1,7 +1,10 @@
+import { migrateLegacyKey } from "./legacyKeys";
+
 export const USAGE_AGREEMENT_VERSION = "2026-11-15-v1";
 export const USAGE_AGREEMENT_KEY = "hguox_usage_agreement";
 
 export function hasAcceptedAgreement() {
+  migrateLegacyKey(USAGE_AGREEMENT_KEY, "usage_agreement");
   try {
     const record: unknown = JSON.parse(localStorage.getItem(USAGE_AGREEMENT_KEY) || "null");
     if (!record || typeof record !== "object") return false;

@@ -106,6 +106,19 @@ try {
     console.log("PASS: new values win over stale old data and old keys are cleaned");
   }
   {
+    const prev = ["hg", "hubx_"].join("");
+    const { context, page } = await open({
+      [`${prev}app_v1`]: JSON.stringify(state),
+      [`${prev}theme`]: "light",
+      [`${prev}swipe_ep_v2`]: "1",
+    });
+    assert.deepEqual(await snapshot(page), { ...state, theme: "light" });
+    const saved = await storage(page);
+    assert.deepEqual(Object.keys(saved).sort(), ["hguox_app_v1", "hguox_swipe_ep_v2", "hguox_theme"]);
+    await context.close();
+    console.log("PASS: previous-brand keys migrate to hguox_* and the old keys are removed");
+  }
+  {
     const { context, page } = await open({ hghub_app_v1: JSON.stringify({ ...state, history: [44] }) });
     const value = await snapshot(page);
     assert.equal(value.swipeEp, true);

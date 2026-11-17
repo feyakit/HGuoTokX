@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from "react";
+import { migrateLegacyKey } from "./legacyKeys";
 
 export const MOBILE_HOLD_GUIDE_KEY = "hguox_mobile_hold_guide_v1";
+migrateLegacyKey(MOBILE_HOLD_GUIDE_KEY, "mobile_hold_guide_v1");
 
 function readSeen(): boolean | null {
   try { return localStorage.getItem(MOBILE_HOLD_GUIDE_KEY) === "1"; }

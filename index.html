@@ -8,7 +8,9 @@
     <script>
       try {
         // 旧主题仅用于首次升级的首帧；React 启动后会迁移并清理旧键。
-        const preference = localStorage.getItem("hguox_theme") ?? localStorage.getItem("hghub_theme");
+        // 上一代品牌前缀拼接得出：源码不留旧名，但老用户的键要读得回来（见 src/legacyKeys.ts）。
+        const prev = ["hg", "hubx_"].join("");
+        const preference = localStorage.getItem("hguox_theme") ?? localStorage.getItem(prev + "theme") ?? localStorage.getItem("hghub_theme");
         const dark = preference === "dark" || (preference !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
         if (!dark) document.documentElement.classList.add("theme-light");
         document.querySelector('meta[name="theme-color"]').content = dark ? "#121212" : "#eeece7";

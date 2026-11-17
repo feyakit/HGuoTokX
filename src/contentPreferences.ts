@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { migrateLegacyKey } from "./legacyKeys";
 
 export type ContentPreferences = { blockedTags: string[]; paused: boolean; hideUntagged: boolean };
 export const CONTENT_PREFERENCES_KEY = "hguox_content_preferences_v1";
@@ -24,6 +25,7 @@ function normalizePreferences(value: unknown): ContentPreferences {
   return { blockedTags: tagList(data.blockedTags), paused: data.paused === true, hideUntagged: data.hideUntagged === true };
 }
 function readPreferences(): ContentPreferences {
+  migrateLegacyKey(CONTENT_PREFERENCES_KEY, "content_preferences_v1");
   try { return normalizePreferences(JSON.parse(localStorage.getItem(CONTENT_PREFERENCES_KEY) || "null")); }
   catch { return normalizePreferences(null); }
 }
