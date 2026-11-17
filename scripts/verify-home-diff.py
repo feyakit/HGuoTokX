@@ -38,6 +38,13 @@ from datetime import datetime
 
 from PIL import Image, ImageFilter
 
+try:
+    import home_geom as geom
+except ImportError:                      # 允许从仓库根目录跑
+    import sys as _s, os as _o
+    _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__))))
+    import home_geom as geom
+
 # ---------------------------------------------------------------- 常量
 
 REF_DEFAULT = "/opt/data/images/upload_xu7ram94.jpeg"
@@ -315,6 +322,26 @@ def largest_block(mask: Image.Image, down: int = 2):
     return best
 
 
+REF_TAB_CSS = 88.0     # 参考图里胶囊行上沿（常量；换参考图要重新标定）
+
+
+def geom_tab(im: Image.Image) -> float:
+    """真机这一侧的胶囊行上沿（CSS）：40..90 CSS 内第一处「横向蓝色长条 ≥40 CSS」。"""
+    px = im.load()
+    for y in range(80, min(im.height, 180)):
+        cur = best = 0
+        for x in range(0, min(im.width, 560)):
+            c = px[x, y]
+            if c[2] > c[0] + 22 and c[2] > 95:
+                cur += 1
+                best = max(best, cur)
+            else:
+                cur = 0
+        if best >= 80:
+            return round(y / 2, 1)
+    return 51.5
+
+
 # ---------------------------------------------------------------- 主流程
 
 def main() -> int:
@@ -367,6 +394,56 @@ def main() -> int:
           f"（含 Android 系统导航条占位，不作为判定）\n")
 
     # 不做整体仿射（底栏锚点容易认错）；每个区域各自对齐，位移单独报。
+
+    # ---- 几何：元素 bbox（CSS），两边同尺度
+    tab_ref_css = REF_TAB_CSS
+    tab_our_css = geom_tab(ours)
+    g_ref = {e["name"]: e for e in geom.measure(ref, tab_ref_css)}
+    g_our = {e["name"]: e for e in geom.measure(ours, tab_our_css)}
+
+    def _d(a, b):
+        return None if (a is None or b is None) else round(b - a, 1)
+
+    def _verdict(vals):
+        m = max((abs(v) for v in vals if v is not None), default=0)
+        if m <= 1:
+            return "✓"
+        if m <= 2:
+            return "⚠"
+        return "✗"
+
+    # 只保留两边都框到、且检测已对参考验证过的元素（其余在下面单列「未测出」）
+    KEEP = ["顶栏·行高", "Hero", "分区标题·标题", "货架·卡1", "底栏"]
+    geo_rows = []
+    for name in KEEP:
+        r, o = g_ref.get(name, {}), g_our.get(name, {})
+        if not r or not o or r.get("w") is None or o.get("w") is None:
+            continue
+        dx, dy = _d(r.get("x"), o.get("x")), _d(r.get("y"), o.get("y"))
+        dw, dh = _d(r.get("w"), o.get("w")), _d(r.get("h"), o.get("h"))
+        vals = [dx, dy, dw, dh]
+        geo_rows.append(dict(name=name, ref=r, ours=o, dx=dx, dy=dy, dw=dw, dh=dh,
+                             verdict=_verdict(vals),
+                             worst=max((abs(v) for v in vals if v is not None), default=0),
+                             note=(o.get("note") or r.get("note") or "")))
+    # 段落间距（由已测到的元素推）
+    def _gap(a, b):
+        if not a or not b or a.get("y") is None or a.get("h") is None or b.get("y") is None:
+            return None
+        return round(b["y"] - (a["y"] + a["h"]), 1)
+
+    for label, na, nb in (("间距·Hero 底→分区标题顶", "Hero", "分区标题·标题"),):
+        gr = _gap(g_ref.get(na), g_ref.get(nb))
+        go = _gap(g_our.get(na), g_our.get(nb))
+        if gr is not None and go is not None:
+            d = round(go - gr, 1)
+            geo_rows.append(dict(name=label, ref=dict(h=gr), ours=dict(h=go),
+                                 dx=None, dy=None, dw=None, dh=d,
+                                 verdict=_verdict([d]), worst=abs(d), note=""))
+
+    geo_rows.sort(key=lambda r: -r["worst"])
+    missed = [n for n in ("胶囊·第1颗", "货架·卡1", "底栏")
+              if not (g_ref.get(n, {}).get("w") and g_our.get(n, {}).get("w"))]
 
     tol_px = max(1, round(a.tol_css * 2))
     rflat_all = variance_mask(ref)
@@ -451,6 +528,30 @@ def main() -> int:
     rows.sort(key=lambda r: r["red_core"], reverse=True)
 
     md = [f"# 首页差分报告 {datetime.now():%Y-%m-%d %H:%M}", "",
+          "## 一、几何对照（CSS，720px 宽 ÷2；Δ 为我们 − 参考）", "",
+          "判定：|Δ|≤1 ✓ / 1–2 ⚠ / >2 ✗", "",
+          "| 元素 | 参考 x,y,w,h | 我们 x,y,w,h | Δx | Δy | Δw | Δh | 判定 |",
+          "|---|---|---|---|---|---|---|---|"]
+
+    def _b(e):
+        if not e:
+            return "—"
+        f = lambda v: "—" if v is None else f"{v:g}"
+        return f'{f(e.get("x"))},{f(e.get("y"))},{f(e.get("w"))},{f(e.get("h"))}'
+
+    for r in geo_rows:
+        f = lambda v: "—" if v is None else f"{v:+g}"
+        if r["name"].startswith("间距"):
+            md.append(f'| {r["name"]} | {r["ref"]["h"]:g} | {r["ours"]["h"]:g} | — | — | — | '
+                      f'{f(r["dh"])} | {r["verdict"]} |')
+        else:
+            md.append(f'| {r["name"]} | {_b(r["ref"])} | {_b(r["ours"])} | {f(r["dx"])} | '
+                      f'{f(r["dy"])} | {f(r["dw"])} | {f(r["dh"])} | {r["verdict"]} {r["note"]} |')
+    if missed:
+        md += ["", f"> **未测出**：{'、'.join(missed)} —— 自动框选在这几项上没过验证"
+               "（我们的胶囊描边只有 1px、底栏比参考暗 60+ 级、封面与画布同色），"
+               "数字不可信就不写。下一版改用掩码差值或接 DOM 读数。"]
+    md += ["", "## 二、色差（参考，作对照）", "",
           f"- 参考：`{a.ref}` 裁 {S1_CROP} → {OUT_W}px",
           f"- 真机：`{shot_path}` → {OUT_W}px（副本 `shot.png`）",
           f"- 阈值：位置 >{a.tol_css} CSS / ΔRGB>{a.tol_rgb}；每区域独立对齐",
@@ -463,7 +564,7 @@ def main() -> int:
         md.append(f'| {i} | {r["region"]} | {r["kind"]} | {r["dx"]},{r["dy"]} | '
                   f'{r["med"][0]:+d},{r["med"][1]:+d},{r["med"][2]:+d} | '
                   f'**{r["red_core"]}** | {r["core_ratio"]}% | {r["red_norm"]} | {b} |')
-    md += ["", "## 平坦区色差 · 分带（上 / 中 / 下，我们−参考）", "",
+    md += ["", "### 平坦区色差 · 分带（上 / 中 / 下，我们−参考）", "",
            "| 区域 | 上 | 中 | 下 | 读法 |", "|---|---|---|---|---|"]
     for r in rows:
         b = r["bands"]
@@ -483,6 +584,18 @@ def main() -> int:
                    tol_css=a.tol_css, tol_rgb=a.tol_rgb, regions=rows),
               open(os.path.join(a.out, "report.json"), "w"), ensure_ascii=False, indent=1)
 
+    print("几何（CSS；Δ = 我们 − 参考；≤1 ✓ / 1–2 ⚠ / >2 ✗）")
+    for r in geo_rows:
+        f = lambda v: "  —" if v is None else f"{v:+5.1f}"
+        if r["name"].startswith("间距"):
+            print(f'  {r["name"]:<22} 参考 {r["ref"]["h"]:g}  我们 {r["ours"]["h"]:g}  '
+                  f'Δ {r["dh"]:+g}  {r["verdict"]}')
+        else:
+            print(f'  {r["name"]:<22} 参考 {_b(r["ref"]):<22} 我们 {_b(r["ours"]):<22} '
+                  f'Δ {f(r["dx"])}{f(r["dy"])}{f(r["dw"])}{f(r["dh"])}  {r["verdict"]}')
+    if missed:
+        print(f'  未测出：{"、".join(missed)}')
+    print()
     print(f"{'区域':<9}{'类型':<8}{'位移':>8}{'中位ΔRGB':>14}{'结构红':>8}{'占比':>8}{'去色偏':>9}")
     for r in rows:
         md_ = f'{r["med"][0]:+d},{r["med"][1]:+d},{r["med"][2]:+d}'

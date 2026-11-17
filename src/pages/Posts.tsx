@@ -142,9 +142,11 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
             <IFireF size={12} />{fmt(info?.hot ?? p.hot)}
           </span>
         </span>
-        <span className="hg-post-title">{p.title}</span>
-        <span className="hg-post-art">
-          <Img src={p.cover} alt="" />
+        <span className="hg-post-body">
+          <span className="hg-post-title">{p.title}</span>
+          <span className="hg-post-art">
+            <Img src={p.cover} alt="" />
+          </span>
         </span>
         <span className="hg-post-stats">
           <span className="hg-post-stat"><IHeart size={13} />{fmt(info?.like ?? 0)}</span>

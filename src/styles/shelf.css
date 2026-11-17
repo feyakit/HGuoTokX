@@ -749,3 +749,28 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
   pointer-events: none;
   background: linear-gradient(180deg, rgba(10, 11, 20, 0) 0%, rgba(10, 11, 20, .92) 62%, rgba(10, 11, 20, 1) 100%);
 }
+
+/* ===== W7 实测值校正（2026-11-18，来源 参考实测.json v3.per_screen） ===== */
+
+/* S2 分类：列宽 100.1 / 卡距 13.5 / 页边 15.5–17.9；海报 100.1×133.5（0.75） */
+.hg-grid-c3 { column-gap: 13.5px; margin-inline: 2.35px; }
+.hg-poster.is-c3 { width: auto; }
+.hg-poster-badge { padding: 2px 8px; border-radius: 7px; font-size: 10.5px; line-height: 12.7px; }
+
+/* S3 榜单：行高 116.2 / 行距 152（pitch）/ 缩略图 83.4×119.2 / 页边 15.5 */
+.hg-rank-row { min-height: 116.2px; padding: 0; margin-inline: 1.5px; }
+.hg-rank-row + .hg-rank-row { margin-top: 35.8px; }
+.hg-rank-thumb, .hg-rank-row img { width: 83.4px; height: 119.2px; object-fit: cover; border-radius: 8px; }
+
+/* S4 我的：头像 71.5 / 菜单行高 59.6 / 菜单图标 23.8 / chevron 7.2×11.9 */
+.hg-profile-avatar { width: 71.5px; height: 71.5px; }
+.hg-menu-row.ios-button { min-height: 59.6px; height: 59.6px; }
+.hg-menu-icon { width: 23.8px; height: 23.8px; }
+.hg-menu-row svg.hg-chevron, .hg-menu-chevron { width: 7.2px; height: 11.9px; }
+
+/* S7 吃瓜：卡片 238.4 高 / 缩略图 97.7×85.8（右侧）/ 卡间距 23.8 / tab 高 23.8、间距 23.8 */
+.hg-post-card { min-height: 238.4px; margin-top: 23.8px; }
+.hg-post-body { display: flex; gap: 12px; margin-top: 10px; align-items: flex-start; }
+.hg-post-body > .hg-post-title { flex: 1; min-width: 0; }
+.hg-post-art { flex: none; width: 97.7px; height: 85.8px; margin-top: 0; }
+.hg-post-art::before { display: none; }
