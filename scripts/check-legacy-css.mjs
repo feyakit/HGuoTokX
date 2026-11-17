@@ -8,8 +8,9 @@
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const DIR = new URL("../dist/assets/", import.meta.url);
+const DIR = fileURLToPath(new URL("../dist/assets/", import.meta.url));
 const BANNED = [
   { name: "@layer", test: /@layer\b/g, hint: "CSS 级联层要摊平（见 vite.config.ts 的 postcss 插件）" },
   { name: "color-mix()", test: /color-mix\(/g, hint: "改用 8 位 hex 或 rgba()" },
@@ -33,7 +34,7 @@ if (!files.length) {
 
 const hits = [];
 for (const file of files) {
-  const text = readFileSync(join(DIR.pathname, file), "utf8");
+  const text = readFileSync(join(DIR, file), "utf8");
   for (const rule of BANNED) {
     const count = (text.match(rule.test) || []).length;
     if (count) hits.push(`${file}: ${rule.name} ×${count} —— ${rule.hint}`);
