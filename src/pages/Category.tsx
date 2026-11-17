@@ -9,173 +9,109 @@ import { FilteredContent } from "../components/FilteredContent";
 import { useContentPreferences } from "../contentPreferences";
 import { CollectionLink, CollectionLinks } from "../components/CollectionLink";
 import { InplaceSearch } from "../components/InplaceSearch";
-import { Empty } from "../components/ui";
+import { Empty, Img } from "../components/ui";
 import { IBack, IChevR, IGlobe, IGrid, ISearch, ITrophy } from "../icons";
-import { siteChannels, FALLBACK_CHANNELS, type ChannelEntry } from "../siteCatalog";
+import { siteChannels, siteSorts, FALLBACK_CHANNELS, type ChannelEntry } from "../siteCatalog";
 
 
-/* ================= 分类总览 ================= */
+/* ================= 分类第一层：题材广场 ================= */
+/** 每个题材取一张代表封面 + 总数，做 2 列大卡；点进去是该题材的频道页。 */
+type CoverMeta = { cover: string; count: number };
+
 export default function Category({ wide, active }: { wide: boolean; active: boolean }) {
-  const { push, lineEpoch } = useStore();
-  const [rows, setRows] = useState<Record<string, VideoCard[]>>({});
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState<Record<string, boolean>>({});
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  /* 题材由 /api/site/categories/video 下发，失败回落内置列表（不白屏） */
+  const { push, lineEpoch, setTab } = useStore();
   const [channels, setChannels] = useState<ChannelEntry[]>(FALLBACK_CHANNELS);
-  const mounted = useRef(false);
-  const started = useRef(false);
-  const pending = useRef(new Set<string>());
-  const errorsRef = useRef(errors);
-  errorsRef.current = errors;
-  const lineEpochRef = useRef(lineEpoch);
-  lineEpochRef.current = lineEpoch;
-  const retryKeys = useRef(new Set<string>());
+  const [sorts, setSorts] = useState<ChannelEntry[]>([]);
+  const [sort, setSort] = useState<string>("");
+  const [metas, setMetas] = useState<Record<string, CoverMeta>>({});
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(true);
+  const seq = useRef(0);
 
   useEffect(() => {
-    mounted.current = true;
-    return () => { mounted.current = false; };
-  }, []);
-
-  const loadPreview = useCallback(async (key: string): Promise<void> => {
-    if (pending.current.has(key)) return;
-    const requestEpoch = lineEpochRef.current;
-    pending.current.add(key);
-    setLoading(m => ({ ...m, [key]: true }));
-    setErrors(m => ({ ...m, [key]: "" }));
-    try {
-      if (key === "posts") {
-        const result = await api.postCategory("remen-chigua", 1, 8, "latest");
-        if (mounted.current) setPosts(result?.items || []);
-      } else {
-        const result = key === "original"
-          ? await api.originalVideos("all", 1, 8, "new")
-          : await api.category(key, 1, 8, "latest");
-        if (mounted.current) setRows(m => ({ ...m, [key]: result?.items || [] }));
-      }
-    } catch (error) {
-      const stale = requestEpoch !== lineEpochRef.current;
-      if (mounted.current && !stale) setErrors(m => ({ ...m, [key]: (error as Error).message || "加载失败" }));
-      /* 请求在旧线路上发出、期间线路已切换：等 finally 里用新线路补拉一次 */
-      if (stale) retryKeys.current.add(key);
-    } finally {
-      pending.current.delete(key);
-      if (mounted.current) setLoading(m => ({ ...m, [key]: false }));
-      const retry = retryKeys.current.delete(key);
-      if (retry && mounted.current) void loadPreview(key);
-    }
-  }, []);
-
-  useEffect(() => {
-    // 首次打开分类才加载，避免启动时后台频道请求/封面与首页视频竞争网络。
-    if (!active || started.current) return;
-    started.current = true;
+    let cancelled = false;
     void (async () => {
-      const list = await siteChannels();
-      if (!mounted.current) return;
-      setChannels(list);
-      list.forEach(c => { void loadPreview(c.cate); });
+      const [list, sortList] = await Promise.all([siteChannels(), siteSorts()]);
+      if (cancelled) return;
+      setChannels(list.length ? list : FALLBACK_CHANNELS);
+      setSorts(sortList);
     })();
-    void loadPreview("posts");
-  }, [active, loadPreview]);
+    return () => { cancelled = true; };
+  }, [lineEpoch]);
 
-  /* 线路切换后：已打开过的分类里，加载失败的栏目在新线路上重试一次 */
+  /* 封面随快筛变化：换排序就重取每个题材的第一部，顺带拿到总数 */
   useEffect(() => {
-    if (!lineEpoch || !started.current) return;
-    Object.entries(errorsRef.current).forEach(([key, msg]) => { if (msg) void loadPreview(key); });
-  }, [lineEpoch, loadPreview]);
+    if (!active && Object.keys(metas).length) return;
+    const my = ++seq.current;
+    setLoading(true);
+    setErr("");
+    void (async () => {
+      const next: Record<string, CoverMeta> = {};
+      await Promise.all(channels.map(async (c) => {
+        try {
+          const res = c.cate === "original"
+            ? await api.originalVideos("all", 1, 1, sort || "new")
+            : await api.category(c.cate, 1, 1, sort || undefined);
+          const first = res?.items?.[0];
+          if (first) next[c.cate] = { cover: first.cover, count: res?.pagination?.total ?? 0 };
+        } catch { /* 单个题材失败不影响整体，卡片留占位 */ }
+      }));
+      if (my !== seq.current) return;
+      setMetas(next);
+      setLoading(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channels, sort, active, lineEpoch]);
 
   return (
     <div className="ios-page ios-tint-12 absolute inset-0 bg-bg flex flex-col">
-      <div className="ios-page-heading shrink-0 px-4">
-        <div className="flex items-end gap-2.5">
-          <h1 className="ios-page-title text-on">分类</h1>
-          <span className="text-[12px] text-mut pb-0.5">{channels.length + 1} 个频道 · 每周持续上新</span>
-        </div>
+      <div className="ios-page-heading shrink-0 px-4 pb-1">
+        <h1 className="ios-page-title">分类</h1>
+        <p className="text-[12px] text-mut mt-0.5">{channels.length} 个题材 · 每周持续上新</p>
       </div>
 
-      <div className="flex-1 scroll-y pb-24 pt-2">
-        {/* 排行榜入口：只在移动端显示（底部导航没有排行榜，桌面侧栏已有） */}
-        {!wide && (
-          <CollectionLink icon={<ITrophy size={18} />} title="排行榜" subtitle="热播榜 · 推荐榜 · 潜力榜"
-            onClick={() => push({ kind: "ranks" })} className="mb-2.5 w-full" />
-        )}
+      <div className="shrink-0 px-4 pb-3 flex flex-wrap gap-2">
+        <Button aria-pressed={!sort} onClick={() => setSort("")} className="ios-filter-pill">全部</Button>
+        {sorts.map((s) => (
+          <Button aria-pressed={sort === s.cate} key={s.cate} onClick={() => setSort(s.cate)} className="ios-filter-pill">
+            {s.name}
+          </Button>
+        ))}
+      </div>
 
-        {/* 专题 + 标签入口 */}
-        <CollectionLinks className="ios-category-links mb-5">
-          <CollectionLink icon={<IGrid size={18} />} title="专题" subtitle="精选专辑合集"
-            onClick={() => push({ kind: "topics" })} />
-          <CollectionLink icon={<IGlobe size={18} />} title="标签" subtitle="按题材找片"
-            onClick={() => push({ kind: "tags" })} />
-        </CollectionLinks>
-
-        <p className="mb-3 text-[12px] text-mut">频道卡片可左右滑动浏览 · 点击“全部”查看完整频道</p>
-        {channels.map((c, ci) => {
-          const list = rows[c.cate] || [];
-          return (
-            <section key={c.cate} aria-label={c.name} className="mb-5 a-rise" style={{ animationDelay: `${Math.min(ci * 50, 300)}ms` }}>
-              <Button onClick={() => push({ kind: "channel", cate: c.cate, name: c.name })}
-                className="w-full flex items-center gap-2.5 mb-2.5 text-left pressable group">
-                <span className="w-[36px] h-[36px] rounded-(--r-sm) tonal flex items-center justify-center shrink-0 text-primary">
-                  <IGrid size={19} strokeWidth={1.9} />
-                </span>
-                <span className="flex-1 min-w-0">
-                  <span role="heading" aria-level={2} className="block text-[15.5px] font-semibold text-on leading-tight">{c.name}</span>
-                  <span className="block text-[12px] text-mut mt-0.5 truncate">{c.desc}</span>
-                </span>
-                <span className="flex items-center gap-0.5 text-[12px] text-mut group-hover:text-primary transition-colors">
-                  全部<IChevR size={14} />
+      <div className="flex-1 scroll-y px-4 pb-24">
+        <CollectionLinks />
+        {err && <p role="alert" className="mb-3 text-[12px] text-danger">{err}</p>}
+        <div className="hg-cat-grid">
+          {channels.map((c) => {
+            const meta = metas[c.cate];
+            return (
+              <Button key={c.cate} className="hg-cat-card" aria-label={`${c.name} ${meta?.count ?? 0} 部`}
+                onClick={() => push({ kind: "channel", cate: c.cate, name: c.name })}>
+                {meta?.cover ? <Img src={meta.cover} alt="" /> : <span className="hg-cat-blank shimmer" aria-hidden="true" />}
+                <span className="hg-cat-veil" aria-hidden="true" />
+                {!!meta?.count && <span className="hg-cat-count">{fmt(meta.count)} 部</span>}
+                <span className="hg-cat-copy">
+                  <span className="hg-cat-name">{c.name}</span>
+                  {c.desc && <span className="hg-cat-sub">{c.desc}</span>}
                 </span>
               </Button>
-              <FilteredContent items={list} scopeKey={c.cate}>{visible => <div className="scroll-x ios-rail flex gap-3 snap-x" role="group" aria-label={`${c.name}影片预览`}>
-                {visible.map((v) => (
-                  <MediaCard key={v.id} title={v.title} cover={v.cover} score={v.score}
-                    onOpen={() => push({ kind: "feed", videoIds: list.map((x) => x.id), index: list.findIndex((x) => x.id === v.id), title: c.name })}
-                    badge={v.is_finished ? "完结" : `${v.episode_count} 集`}
-                    subtitle={v.score ? `${v.score.toFixed(1)} 分 · ${v.tags?.[0] || "短剧"}` : v.tags?.slice(0, 2).join(" · ")} />
-                ))}
-                {!list.length && <PreviewStatus name={c.name} loading={loading[c.cate] !== false} error={errors[c.cate]} onRetry={() => void loadPreview(c.cate)} />}
-              </div>}</FilteredContent>
-            </section>
-          );
-        })}
+            );
+          })}
+        </div>
+        {loading && <div className="flex justify-center py-4"><Loader className="w-6 h-6 spinner" /></div>}
 
-        {/* 吃瓜 */}
-        <section aria-label="吃瓜" className="mb-5 a-rise">
-          <Button onClick={() => push({ kind: "posts" })}
-            className="w-full flex items-center gap-2.5 mb-2.5 text-left pressable group">
-            <span className="w-[36px] h-[36px] rounded-(--r-sm) tonal flex items-center justify-center shrink-0 text-primary">
-              <IGrid size={19} strokeWidth={1.9} />
-            </span>
-            <span className="flex-1 min-w-0">
-              <span role="heading" aria-level={2} className="block text-[15.5px] font-semibold text-on leading-tight">吃瓜</span>
-              <span className="block text-[12px] text-mut mt-0.5 truncate">圈内爆料 · 每日更新</span>
-            </span>
-            <span className="flex items-center gap-0.5 text-[12px] text-mut group-hover:text-primary transition-colors">
-              全部<IChevR size={14} />
-            </span>
-          </Button>
-          <FilteredContent items={posts} scopeKey="posts">{visible => <div className="scroll-x ios-rail flex gap-3 snap-x" role="group" aria-label="吃瓜内容预览">
-            {visible.map((post) => (
-              <MediaCard key={post.id} title={post.title} cover={post.cover}
-                subtitle={`${fmt(post.hot)} 次浏览`} onOpen={() => push({ kind: "post", id: post.id })} />
-            ))}
-            {!posts.length && <PreviewStatus name="吃瓜" loading={loading.posts !== false} error={errors.posts} onRetry={() => void loadPreview("posts")} />}
-          </div>}</FilteredContent>
-        </section>
+        <Button onClick={() => push({ kind: "posts" })} className="hg-cat-entry">
+          <span className="hg-cat-entry-title">吃瓜</span>
+          <span className="hg-cat-entry-sub">圈内爆料 · 每日更新</span>
+          <IChevR size={14} />
+        </Button>
 
-        <div className="text-center text-[12px] text-dim pt-1">— 已展示全部频道 —</div>
+        <p className="mt-3 text-center text-[12px] text-dim">没有想看的？去<Button className="text-primary px-1 pressable" onClick={() => setTab("search")}>搜索</Button>找找</p>
       </div>
       {wide && <div />}
     </div>
   );
-}
-
-function PreviewStatus({ name, loading, error, onRetry }: { name: string; loading: boolean; error?: string; onRetry: () => void }) {
-  return <div role="status" aria-busy={loading} className="h-[150px] flex flex-col justify-center items-start gap-2 text-[12px] text-dim px-1">
-    <span>{loading ? "加载中…" : error || "暂无内容"}</span>
-    {!loading && error && <Button aria-label={`重试${name}`} onClick={onRetry} className="text-primary pressable">重试</Button>}
-  </div>;
 }
 
 /* ================= 频道详情页 ================= */
@@ -205,6 +141,7 @@ export function ChannelPage({ cate, name, onBack, wide }: { cate: string; name: 
   const items = pageItems.flat();
   const [page, setPage] = useState(0);
   const [pages, setPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const filterKey = (sort: string, original: string) => `${cate}:${cate === "original" ? original : sort}`;
@@ -236,6 +173,7 @@ export function ChannelPage({ cate, name, onBack, wide }: { cate: string; name: 
       setDisplayedFilter(filterKey(sortOverride, originalCateOverride));
       setPage(next);
       setPages(res?.pagination?.pages || next);
+      if (reset) setTotal(res?.pagination?.total ?? 0);
       setErr(null);
     } catch (e) {
       if (seq === requestSeq.current) setErr((e as Error).message || "加载失败");
@@ -290,7 +228,7 @@ export function ChannelPage({ cate, name, onBack, wide }: { cate: string; name: 
           <span className="w-[40px] h-[40px] rounded-(--r-sm) bg-pc text-on-pc flex items-center justify-center"><IGrid size={21} strokeWidth={1.9} /></span>
           <div className="flex-1 min-w-0">
             <h1 className="text-[17px] font-bold text-on leading-tight">{name}</h1>
-            <div role="status" className="text-[12px] text-mut">{replacing ? (loading ? "正在更新筛选结果…" : "筛选更新失败") : `已加载 ${items.length} 部 · ${page}/${Math.max(pages, 1)} 页`}</div>
+            <div role="status" className="text-[12px] text-mut">{replacing ? (loading ? "正在更新筛选结果…" : "筛选更新失败") : `共 ${total || items.length} 部 · 已加载 ${items.length} · ${page}/${Math.max(pages, 1)} 页`}</div>
           </div>
           <Button onClick={() => setSearching(true)} aria-label={cate === "original" ? "搜索原创" : "搜索短剧"} className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-on hover:bg-s3 pressable"><ISearch size={19} /></Button>
         </div>
@@ -316,7 +254,7 @@ export function ChannelPage({ cate, name, onBack, wide }: { cate: string; name: 
         {items.length > 0 && err && <div role="status" className="mb-3 flex flex-wrap items-center gap-2 text-[12px] text-mut"><span>{err}</span><Button className="px-3 text-primary" onClick={() => void loadMore(replacing)}>重试</Button></div>}
         {items.length ? (
           <div inert={replacing || undefined} className={replacing ? "opacity-60" : undefined}>
-            <Masonry videos={items} scopeKey={filterKey(serverSort, originalCate)} wide={wide} onOpen={(v) => { if (!replacing) push({ kind: "feed", videoIds: items.map((x) => x.id), index: items.findIndex((x) => x.id === v.id), title: name }); }} />
+            <Masonry videos={items} cols={wide ? undefined : 3} scopeKey={filterKey(serverSort, originalCate)} wide={wide} onOpen={(v) => { if (!replacing) push({ kind: "feed", videoIds: items.map((x) => x.id), index: items.findIndex((x) => x.id === v.id), title: name }); }} />
           </div>
         ) : err ? (
           <Empty icon={<IGrid size={26} />} title="加载失败" sub={err} action="重试" onAction={() => void loadMore(true)} />

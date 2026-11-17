@@ -47,10 +47,10 @@ export function WaterfallCard({ v, onOpen, priority = false }: { v: VideoCard; o
     progress={`${fmt(v.hot)} 次播放`} />;
 }
 
-export function Masonry({ videos, onOpen, wide = false, scopeKey }: {
-  videos: VideoCard[]; onOpen: (v: VideoCard) => void; wide?: boolean; gap?: string; scopeKey?: string | number;
+export function Masonry({ videos, onOpen, wide = false, cols, scopeKey }: {
+  videos: VideoCard[]; onOpen: (v: VideoCard) => void; wide?: boolean; cols?: 2 | 3; gap?: string; scopeKey?: string | number;
 }) {
-  return <FilteredContent items={videos} scopeKey={scopeKey}>{visible => <div className={`ios-media-grid ${wide ? "is-wide" : ""}`} data-ui="media-grid">
+  return <FilteredContent items={videos} scopeKey={scopeKey}>{visible => <div className={`ios-media-grid ${wide ? "is-wide" : ""} ${cols === 3 ? "is-3col" : ""}`} data-ui="media-grid">
     {visible.map((v, index) => <WaterfallCard key={v.id} v={v} priority={index < 2} onOpen={() => onOpen(v)} />)}
   </div>}</FilteredContent>;
 }
