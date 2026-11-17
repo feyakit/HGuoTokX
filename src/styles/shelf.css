@@ -240,7 +240,7 @@
 }
 
 /* 选集（自定屏规范 2.4）：5 列 56×56、圆角 10、间距 11、13/600 */
-.hg-ep-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 11px; }
+.hg-ep-grid { display: grid; grid-template-columns: repeat(5, 56px); gap: 11px; justify-content: space-between; }  /* 规范：5 列 56×56 / gap 11 */
 .hg-ep-cell {
   height: 56px; border-radius: 10px; border: 0;
   background: var(--hg-surface); color: var(--p-on);
@@ -294,7 +294,7 @@
 }
 .hg-detail-head { flex: 1; min-width: 0; padding-bottom: 2px; }
 .hg-detail-title {
-  font-size: 24px; font-weight: 750; line-height: 1.2; color: #fff;
+  font-size: 20px; font-weight: 700; line-height: 1.25; color: #fff;   /* 设计规范-自定屏：标题 20/700 */
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   text-shadow: 0 1px 6px rgb(0 0 0 / .55);
 }
