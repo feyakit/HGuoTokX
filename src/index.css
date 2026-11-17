@@ -721,14 +721,25 @@ html.theme-light .ios-mobile-nav .ios-mobile-nav-item[aria-current=page] {
 /* 设置页不跟色：这里全是文字和分组，可读优先，退回纯 canvas + 实色分组 */
 .ios-settings-page { background-image: none; }
 
-/* —— 首页顶栏：轻量文字分段 + 吃瓜入口 ——
-   不做胶囊底，选中只靠白字 + 2px 封面色指示条；压在画面之上不占版面。 */
+/* —— 首页顶部压光：必须从屏幕最上沿 y=0 起，覆盖系统状态栏那条 + 顶栏，下沿渐隐到 0 ——
+   之前压光挂在 .hg-segbar 上、从 --sat+2px 才开始，于是它上面那一条（状态栏区域）没有压光，
+   交界处是一刀硬边：真机 720×1280 实测 y=0–27 亮度 41、y=28 起掉到 32，用户说的「最上面分层」就是它。
+   现在整块压光贴住 y=0，顶部 alpha 即最大值、向下单调减到 0，上沿没有台阶、下沿没有边界。 */
+.hg-top-veil {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 44;
+  height: calc(var(--sat, 0px) + 56px);
+  background: linear-gradient(180deg,
+    rgba(0, 0, 0, .30) 0%,
+    rgba(0, 0, 0, .20) 45%,
+    rgba(0, 0, 0, .06) 78%,
+    rgba(0, 0, 0, 0) 100%);
+  pointer-events: none;
+}
+
 .hg-segbar {
   position: absolute; top: calc(var(--sat, 0px) + 2px); left: 0; right: 0; z-index: 45;
   display: flex; align-items: center; height: 36px; padding: 0 16px;
-  /* 只在压住画面时给一点极轻的压光；不再是 98% 实色黑带（那样等于给视频顶上加了一条黑边）。
-     可读性交给文字的 text-shadow，不加 backdrop-filter——老内核上两层模糊会掉帧。 */
-  background: linear-gradient(180deg, rgba(0, 0, 0, .22), rgba(0, 0, 0, .10) 62%, rgba(0, 0, 0, 0));
+  /* 压光交给 .hg-top-veil（从 y=0 起）；这里不再自带背景，否则又会在 --sat 处多出一条边。 */
   pointer-events: none;
 }
 .hg-segbar > * { pointer-events: auto; }

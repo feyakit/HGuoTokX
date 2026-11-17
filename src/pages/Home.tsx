@@ -122,8 +122,9 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
 
   return (
     <div className="absolute inset-0 bg-black flex flex-col">
-      {/* 顶栏：轻量文字分段（等宽 72）+ 右上角吃瓜入口，压在画面之上 */}
-      {/* 顶栏：两项轻量文字（短剧 / 吃瓜），2px accent 指示条固定在「短剧」下 */}
+      {/* 顶栏：两项轻量文字（短剧 / 吃瓜），2px accent 指示条固定在「短剧」下。
+          压光单独一层、从屏幕最上沿 y=0 起（见 .hg-top-veil）——挂在顶栏上会在 --sat 处留硬边。 */}
+      <div className="hg-top-veil" aria-hidden />
       <div className="hg-segbar">
         <button type="button" className="hg-seg-tab is-on" aria-pressed>短剧</button>
         <button type="button" className="hg-seg-tab" onClick={() => push({ kind: "gossip" })}>吃瓜</button>
