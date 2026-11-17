@@ -104,7 +104,8 @@ html.theme-light {
 .ios-poster:active .ios-poster-art { opacity:.8; }
 .ios-poster-title { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; margin-top:10px; color:var(--p-on); font-size:15px; line-height:1.4; font-weight:600; letter-spacing:-.2px; }
 .ios-poster-subtitle { color:var(--p-mut); display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; line-height:1.5; margin-top:4px; }
-.ios-row-card { flex:none; width:clamp(136px,12vw,180px); scroll-snap-align:start; min-width:0; }
+.ios-rail { scroll-padding-inline:16px; }
+.ios-rail>* { flex:none; width:132px; scroll-snap-align:start; min-width:0; }
 .ios-rank-row { display:flex; align-items:center; gap:14px; text-align:left; padding:16px; width:100%; border-radius:22px; background:var(--p-s1); margin-bottom:12px; }
 .ios-rank-number { font-size:22px; color:var(--p-dim); font-variant-numeric:tabular-nums; flex:none; width:30px; }
 .ios-rank-number.is-top { color:var(--p-primary); font-weight:700; }
@@ -559,7 +560,7 @@ html.theme-transitioning .ios-account-card { backdrop-filter:none; -webkit-backd
 }
 @media(prefers-reduced-motion:reduce) {
   .ios-mobile-nav .hg-drop>.ios-liquid-fill::after,.ios-mobile-nav .ios-mobile-nav-item[aria-current=page] { animation:none!important; }
-  .ios-media-grid>a,.ios-media-grid>button,.ios-media-grid>.ios-row-card { animation:none!important; }
+  .ios-media-grid>a,.ios-media-grid>button { animation:none!important; }
   .ios-page { animation:none!important; }
   html.theme-transitioning::after { display:none; }
   .ios-switch:not(:disabled):active .ios-switch-thumb { scale:1; }
@@ -572,4 +573,28 @@ html.theme-transitioning .ios-account-card { backdrop-filter:none; -webkit-backd
   .ios-switch[data-state=on] .ios-switch-thumb { background:Canvas; color:ButtonText; border-color:ButtonText; }
   .ios-mobile-nav .hg-drop>.ios-liquid-fill,.ios-segmented-indicator { background:Highlight; }
   .ios-mobile-nav .ios-mobile-nav-item[aria-current=page],.ios-mobile-nav[data-over-video=true] .ios-mobile-nav-item[aria-current=page],.ios-segmented-items>[aria-pressed=true] { color:HighlightText!important; }
+}
+
+/* —— P2-1 卡片规格锁死（首页/搜索/分类/我的 共用 MediaCard，长视频 16:9 是唯一例外）——
+   封面 3:4 · 圆角 18 · 角标右上 11px · 标题 2 行 14px/1.4 · 副信息 1 行 12px · 卡片间距 12 · 网格边距 16 */
+.ios-poster { border-radius:18px; }
+.ios-poster-art { border-radius:18px; box-shadow:0 4px 12px rgb(0 0 0 / .08); }
+.ios-poster-badge {
+  top:8px; right:8px; left:auto; max-width:calc(100% - 16px);
+  padding:4px 7px; font-size:11px; line-height:1.3; border-radius:999px;
+  background:rgb(20 20 25 / .74); color:#fff; border:1px solid rgb(255 255 255 / .2);
+}
+.ios-score-badge { top:8px; right:8px; font-size:11px; min-height:22px; padding:3px 7px; }
+.ios-poster-title { margin-top:8px; font-size:14px; line-height:1.4; font-weight:600; letter-spacing:0; }
+.ios-poster-subtitle { margin-top:2px; font-size:12px; line-height:1.5; color:var(--p-dim); }
+.ios-media-grid { gap:12px; }
+@media(max-width:479px) {
+  .ios-media-grid { gap:12px; }
+  .ios-poster-title { font-size:14px; }
+}
+
+/* 详情页封面卡：真浮起（方案 A），不要「半浮半平」的中间态 */
+.video-details-cover {
+  border-radius:22px; border:0;
+  box-shadow:0 18px 40px rgb(0 0 0 / .45), inset 0 1px 0 rgb(255 255 255 / .18);
 }

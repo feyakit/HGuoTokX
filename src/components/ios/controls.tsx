@@ -8,7 +8,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   children, className = "", type = "button", variant, disabled, ...props
 }, ref) {
   const intent = variant ?? (/(^|\s)(bg-primary|brand-grad)(\s|$)/.test(className) ? "primary" : "ghost");
-  const card = (props.style?.paddingTop !== undefined || props.style?.aspectRatio !== undefined) || /(?:ios-poster|ios-row-card|ios-rank-row|ios-account-card|ios-collection-link|ios-topic-card)/.test(className);
+  const card = (props.style?.paddingTop !== undefined || props.style?.aspectRatio !== undefined) || /(?:ios-poster|ios-rank-row|ios-account-card|ios-collection-link|ios-topic-card)/.test(className);
   return <button {...props} ref={ref} type={type} disabled={disabled}
     data-ui="button" data-variant={intent} data-card={card || undefined}
     className={cn("ios-button", `ios-button-${intent}`, className)}>

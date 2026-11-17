@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, fmt } from "../api";
 import type { Post, VideoCard } from "../types";
 import { useStore } from "../store";
-import { MediaCard, Masonry, RowCard } from "../components/cards";
+import { MediaCard, Masonry } from "../components/cards";
 import { FilteredContent } from "../components/FilteredContent";
 import { useContentPreferences } from "../contentPreferences";
 import { CollectionLink, CollectionLinks } from "../components/CollectionLink";
@@ -127,9 +127,12 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
                   全部<IChevR size={14} />
                 </span>
               </Button>
-              <FilteredContent items={list} scopeKey={c.cate}>{visible => <div className="scroll-x flex gap-2.5 snap-x" role="group" aria-label={`${c.name}影片预览`}>
+              <FilteredContent items={list} scopeKey={c.cate}>{visible => <div className="scroll-x ios-rail flex gap-3 snap-x" role="group" aria-label={`${c.name}影片预览`}>
                 {visible.map((v) => (
-                  <RowCard key={v.id} v={v} onOpen={() => push({ kind: "feed", videoIds: list.map((x) => x.id), index: list.findIndex((x) => x.id === v.id), title: c.name })} />
+                  <MediaCard key={v.id} title={v.title} cover={v.cover} score={v.score}
+                    onOpen={() => push({ kind: "feed", videoIds: list.map((x) => x.id), index: list.findIndex((x) => x.id === v.id), title: c.name })}
+                    badge={v.is_finished ? "完结" : `${v.episode_count} 集`}
+                    subtitle={v.score ? `${v.score.toFixed(1)} 分 · ${v.tags?.[0] || "短剧"}` : v.tags?.slice(0, 2).join(" · ")} />
                 ))}
                 {!list.length && <PreviewStatus name={c.name} loading={loading[c.cate] !== false} error={errors[c.cate]} onRetry={() => void loadPreview(c.cate)} />}
               </div>}</FilteredContent>
@@ -152,10 +155,10 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
               全部<IChevR size={14} />
             </span>
           </Button>
-          <FilteredContent items={posts} scopeKey="posts">{visible => <div className="scroll-x flex gap-2.5 snap-x" role="group" aria-label="吃瓜内容预览">
+          <FilteredContent items={posts} scopeKey="posts">{visible => <div className="scroll-x ios-rail flex gap-3 snap-x" role="group" aria-label="吃瓜内容预览">
             {visible.map((post) => (
-              <div key={post.id} className="ios-row-card"><MediaCard title={post.title} cover={post.cover}
-                subtitle={`${fmt(post.hot)} 次浏览`} onOpen={() => push({ kind: "post", id: post.id })} /></div>
+              <MediaCard key={post.id} title={post.title} cover={post.cover}
+                subtitle={`${fmt(post.hot)} 次浏览`} onOpen={() => push({ kind: "post", id: post.id })} />
             ))}
             {!posts.length && <PreviewStatus name="吃瓜" loading={loading.posts !== false} error={errors.posts} onRetry={() => void loadPreview("posts")} />}
           </div>}</FilteredContent>

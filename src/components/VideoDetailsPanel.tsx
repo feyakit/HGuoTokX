@@ -5,7 +5,7 @@ import { Button, Surface } from "./ios/controls";
 import { Avatar, Img } from "./ui";
 import { ContentTags } from "./ContentTags";
 import { FilteredContent } from "./FilteredContent";
-import { RowCard } from "./cards";
+import { MediaCard } from "./cards";
 import StageBackdrop from "./StageBackdrop";
 import "../styles/video-details.css";
 
@@ -69,8 +69,10 @@ export default function VideoDetailsPanel({ meta, videoId, episodeCount, related
 
       {related.length > 0 && <section className="video-details-section">
         <h3 className="video-details-section-heading">相关推荐</h3>
-        <FilteredContent items={related.slice(0, 12)} scopeKey={videoId}>{visible => <div className="scroll-x flex gap-2.5 snap-x">
-          {visible.map(video => <RowCard key={video.id} v={video} onOpen={() => onRelated(video)} />)}
+        <FilteredContent items={related.slice(0, 12)} scopeKey={videoId}>{visible => <div className="scroll-x ios-rail flex gap-3 snap-x">
+          {visible.map(video => <MediaCard key={video.id} title={video.title} cover={video.cover} onOpen={() => onRelated(video)}
+            badge={video.is_finished ? "完结" : `${video.episode_count} 集`}
+            subtitle={video.score ? `${video.score.toFixed(1)} 分 · ${video.tags?.[0] || "短剧"}` : video.tags?.slice(0, 2).join(" · ")} />)}
         </div>}</FilteredContent>
       </section>}
     </div>
