@@ -838,9 +838,12 @@ pub async fn api_category(
         Some(s) if !s.trim().is_empty() => format!("&sort={s}"),
         _ => String::new(),
     };
+    /* 老路径 /api/videos/category/{slug} 对 AI魔改、AI换脸 会回 410「内容已下线」
+       （2026-11 实测：ai-mogai / ai-huanlian 都是 410，而 ai-manju / ai-duanju 正常）。
+       查询式 /api/videos?category={slug} 四类都能拿到内容，统一走这一条。 */
     state
         .get(&format!(
-            "/api/videos/category/{cate}?page={page}&size={size}{sort}"
+            "/api/videos?category={cate}&page={page}&size={size}{sort}"
         ))
         .await
 }
