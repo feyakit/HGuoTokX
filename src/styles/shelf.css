@@ -18,6 +18,12 @@
   /* 页边：agreed_spec 16（实测左 8.8 / 右 28.1，n=2，跨度 0–56 不可用） */
   --space-page: 14px;
 
+  /* 胶囊 tab 的项间距（盒子到盒子）——**数值待定，先别改别处**：
+     W12 从参考图量得文字墨距 32–34 img px（≈38–40.5 CSS），减两侧各 ≈11.9 CSS 的内边距
+     ⇒ 14.3–16.7，取 17；
+     W7 复量给的是 24（区间 21.5–28.6）。两边差 7px，正在对齐量法，定调后只改这一行。 */
+  --hg-pill-gap: 17px;
+
   /* 卡距（横滑货架与网格同一档）：agreed_spec 10
      实测 3.7–4.8（n=2），是「概念稿缩略图」里的像素缝，按 1 图px≈1.7 CSS 换算后偏小，
      故不采信；如需改为实测值，把下面改成 4px 并同步 compare 口径 */
@@ -534,12 +540,12 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 }
 
 /* 胶囊 tab 行：按参考像素轮廓重测（W12）
-   参考「All Shows」外框 65×23 img px（1 img px = 1.19 CSS）→ 77.4×27.4 CSS；
+   参考「All Shows」外框 65×23 img px（1 img px = 1.192 CSS）→ 77.4×27.4 CSS；
    转角从轮廓拟合 r≈6–8 img px = 7–9.5 CSS，取阶梯值 8（**不是半圆**，之前的 999px 是错的）；
-   文字墨到框边 9–10 img px ≈ 11 CSS；相邻两项文字墨距 32–34 img px ≈ 38–40 CSS
-   → 2×11 + gap = 39 ⇒ gap 17 */
+   文字墨到框边 9–10 img px ≈ 11 CSS（含 2px 描边）。
+   项间距不写死：用 --hg-pill-gap（见 :root，W12 量 17 / W7 量 24，数值待定）。 */
 .hg-pill-row {
-  display: flex; align-items: center; gap: 17px;
+  display: flex; align-items: center; gap: var(--hg-pill-gap);
   overflow-x: auto; overflow-y: hidden;
   padding: 4px 0 8px; scrollbar-width: none; -ms-overflow-style: none;
 }
