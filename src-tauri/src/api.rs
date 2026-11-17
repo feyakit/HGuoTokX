@@ -743,9 +743,19 @@ pub async fn api_account_history_delete(state: State<'_, Api>, expected_user_id:
 /* ───────────────────────── 列表 ───────────────────────── */
 
 #[tauri::command]
-pub async fn api_feed(state: State<'_, Api>, page: u32, size: u32) -> Result<Value, String> {
+pub async fn api_feed(
+    state: State<'_, Api>,
+    page: u32,
+    size: u32,
+    sort: Option<String>,
+) -> Result<Value, String> {
+    // sort=new 是站点支持的「最新上架」，首页「最新」胶囊与最新上架横滑都用它
+    let sort = match sort.as_deref() {
+        Some(s) if !s.trim().is_empty() => format!("&sort={s}"),
+        _ => String::new(),
+    };
     state
-        .get(&format!("/api/videos?page={page}&size={size}"))
+        .get(&format!("/api/videos?page={page}&size={size}{sort}"))
         .await
 }
 

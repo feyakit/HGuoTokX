@@ -134,7 +134,8 @@ export const api = {
   accountHistoryRecord: (identity: AccountIdentity, videoId: number, ep: number) => call<unknown>("api_account_history_record", { expectedUserId: identity.expectedUserId, expectedOrigin: identity.expectedOrigin, videoId, ep }),
   accountHistoryDelete: (identity: AccountIdentity, ids: number[]) => call<unknown>("api_account_history_delete", { expectedUserId: identity.expectedUserId, expectedOrigin: identity.expectedOrigin, ids }),
 
-  feed: (page = 1, size = 20) => call<Paged<VideoCard>>("api_feed", { page, size }),
+  /** `sort="new"` = 站点「最新上架」（/api/videos?sort=new，实测有效）。 */
+  feed: (page = 1, size = 20, sort?: "new") => call<Paged<VideoCard>>("api_feed", { page, size, sort: sort ?? null }),
   topics: () => call<{ items: TopicCard[] }>("api_topics"),
   topic: (slug: string, page = 1, size = 20) => call<TopicDetail>("api_topic", { slug, page, size }),
   tags: () => call<{ categories: TagGroup[] }>("api_tags"),

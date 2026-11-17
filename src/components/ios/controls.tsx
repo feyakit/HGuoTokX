@@ -3,12 +3,14 @@ import { cn } from "../../cn";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "ghost" | "danger";
+  /** 卡片型按钮：跳过 .ios-button 的 44px 触控最小尺寸与默认圆角，尺寸完全由 className 决定 */
+  card?: boolean;
 };
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({
-  children, className = "", type = "button", variant, disabled, ...props
+  children, className = "", type = "button", variant, disabled, card: cardProp, ...props
 }, ref) {
   const intent = variant ?? (/(^|\s)(bg-primary|brand-grad)(\s|$)/.test(className) ? "primary" : "ghost");
-  const card = (props.style?.paddingTop !== undefined || props.style?.aspectRatio !== undefined) || /(?:ios-poster|ios-row-card|ios-rank-row|ios-account-card|ios-collection-link|ios-topic-card)/.test(className);
+  const card = cardProp === true || (props.style?.paddingTop !== undefined || props.style?.aspectRatio !== undefined) || /(?:ios-poster|ios-row-card|ios-rank-row|ios-account-card|ios-collection-link|ios-topic-card|hg-hero|hg-pill|hg-rail-card|hg-icon-plain|hg-continue|hg-section-more)/.test(className);
   return <button {...props} ref={ref} type={type} disabled={disabled}
     data-ui="button" data-variant={intent} data-card={card || undefined}
     className={cn("ios-button", `ios-button-${intent}`, className)}>
