@@ -311,3 +311,13 @@ html:not(.theme-light) { --p-canvas: #161E40; --p-bg: #161E40; }
 /* 角标配色（v2：New #5C54FC / Hot #A8562A） */
 .hg-poster-badge { background: #5C54FC; color: #fff; }
 .hg-poster-badge.is-hot { background: #A8562A; color: #fff; }
+
+/* 榜单：标题 1 行 + 标签/简介 2 行（v2 rank_row_height 116 / pitch 152） */
+.hg-rank-row { min-height: 116px; }
+.hg-rank-desc {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  margin-top: 4px; font-size: var(--fs-meta); line-height: 1.4; color: var(--p-dim);
+}
+
+/* 底栏浮岛（v2 tabbar：宽占 0.6=180、高 57、圆角胶囊），玻璃质感保留 */
+.ios-mobile-nav .hg-glass { height: 57px; width: 180px; border-radius: 999px; }

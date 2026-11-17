@@ -62,12 +62,14 @@ export function RankRow({ item, onOpen, metricMax }: {
   item: { rank: number; video_id: number; title: string; cover: string; tags: string[]; score: number; metric_value: number; metric_label: string };
   onOpen: () => void; metricMax: number;
 }) {
-  return <Button className="ios-rank-row" onClick={onOpen}>
-    <span className={`ios-rank-number ${item.rank < 4 ? "is-top" : ""}`}>{String(item.rank).padStart(2, "0")}</span>
-    <span className="ios-rank-cover"><Img src={item.cover} />{typeof item.score === "number" && <ScoreBadge score={item.score} />}</span>
-    <span className="ios-rank-copy"><strong>{item.title}</strong><span>{item.tags?.slice(0, 2).join(" · ")}</span>
-      <span className="ios-rank-meter" aria-hidden="true"><span style={{ width: `${Math.max(6, item.metric_value / Math.max(1, metricMax) * 100)}%` }} /></span>
+  /* v2 榜单行：大数字（ink 45）+ 83×119 竖版缩略图 + 标题 + 两行简介（标签）+ 热度 */
+  return <Button className="hg-rank-row" onClick={onOpen}>
+    <span className="hg-rank-no">{item.rank}</span>
+    <span className="hg-rank-cover"><Img src={item.cover} /></span>
+    <span className="hg-rank-copy">
+      <span className="hg-rank-title">{item.title}</span>
+      <span className="hg-rank-desc">{item.tags?.length ? item.tags.join(" · ") : item.metric_label}</span>
     </span>
-    <span className="ios-rank-metric"><IHeartF size={13} />{fmt(item.metric_value)}</span>
+    <span className="hg-rank-heat"><IHeartF size={12} />{fmt(item.metric_value)}</span>
   </Button>;
 }
