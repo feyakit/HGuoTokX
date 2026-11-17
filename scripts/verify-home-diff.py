@@ -325,6 +325,9 @@ def main() -> int:
     ap.add_argument("--tol-css", type=float, default=TOL_CSS)
     ap.add_argument("--tol-rgb", type=int, default=TOL_RGB)
     ap.add_argument("--no-capture", action="store_true")
+    ap.add_argument("--dy", type=int, default=None,
+                    help="手工指定全局垂直位移（720 坐标 px）。自动锚点在顶部结构不同时会锁错，"
+                         "看图确认后可用这个覆盖；区域级仍会各自微调 ±28px")
     a = ap.parse_args()
 
     os.makedirs(a.out, exist_ok=True)
@@ -353,6 +356,9 @@ def main() -> int:
     t_ref = top_anchor(ref)
     t_our = top_anchor(ours)
     g_dy = t_our - t_ref
+    if a.dy is not None:
+        print(f"！使用手工位移 dy={a.dy}（自动锚点给出 {g_dy}）")
+        g_dy = a.dy
     b_ref, b_our = bar_top(ref, skip_bottom=0), bar_top(ours)
 
     print(f"顶部锚点（胶囊 tab 行上沿）：ref y={t_ref} / ours y={t_our} → 全局位移 {g_dy:+d}px"
@@ -448,7 +454,7 @@ def main() -> int:
           f"- 参考：`{a.ref}` 裁 {S1_CROP} → {OUT_W}px",
           f"- 真机：`{shot_path}` → {OUT_W}px（副本 `shot.png`）",
           f"- 阈值：位置 >{a.tol_css} CSS / ΔRGB>{a.tol_rgb}；每区域独立对齐",
-          f"- 整页锚点：胶囊 tab 行 ours 与 ref 相差 **{g_dy:+d}px（{g_dy / 2:+.1f} CSS）**；"
+          f"- 整页锚点：{'手工指定' if a.dy is not None else '自动检测'} dy=**{g_dy:+d}px（{g_dy / 2:+.1f} CSS）**；"
           f"底栏上沿 ours 比 ref {b_our - b_ref:+d}px（含 Android 系统导航条占位，仅参考）", "",
           "| # | 区域 | 类型 | 本区位移 dx,dy | 平坦区中位色差(我们-参考) | 结构红 | 占平坦区 | 去掉色偏后红 | 最大结构红块 |",
           "|---|---|---|---|---|---|---|---|---|"]
