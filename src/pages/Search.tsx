@@ -64,11 +64,14 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
         .then(res => {
           if (seq !== suggestSeq.current) return;
           const words: string[] = [];
-          for (const item of res?.content ?? []) {
-            const title = (item?.title ?? "").trim();
-            if (title && !words.includes(title)) words.push(title);
-            if (words.length >= 8) break;
-          }
+          const push = (raw?: string) => {
+            const word = (raw ?? "").trim();
+            if (word && !words.includes(word) && words.length < 8) words.push(word);
+          };
+          /* 联想词在 phrases；只有它为空的旧数据才退回影片标题 */
+          const phrases = res?.phrases ?? res?.items ?? [];
+          if (phrases.length) phrases.forEach(push);
+          else (res?.content ?? []).forEach(item => push(item?.title));
           setSuggest(words);
         })
         .catch(() => { if (seq === suggestSeq.current) setSuggest([]); })

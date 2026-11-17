@@ -159,8 +159,8 @@ export const api = {
       "api_search", { q, page, size, kind: "post" },
     ),
   searchHot: () => call<{ items: HotSearchWord[] }>("api_search_hot"),
-  /** 联想：接口下发的是影片对象，前端只取标题当词；q 为空不该调用。 */
-  searchSuggest: (q: string) => call<{ content: VideoCard[] }>("api_search_suggest", { q }),
+  /** 联想：`phrases` 才是联想词（8 条），`content` 是影片对象——phrases 空时才退回标题。 */
+  searchSuggest: (q: string) => call<{ phrases?: string[]; items?: string[]; content?: VideoCard[] }>("api_search_suggest", { q }),
   posts: (page = 1, size = 20, sort?: string) =>
     call<Paged<Post>>("api_posts", { page, size, sort: sort ?? null }),
   post: (id: number) => call<Post & { content?: string; video_url?: string }>("api_post", { id }),
@@ -182,7 +182,6 @@ export const api = {
   postComments: (id: number, page: number, size: number) => call<CommentPage>("api_post_comments", { id, page, size }),
   postCategories: () => call<{ items: PostCategory[] }>("api_post_categories"),
   /** 长视频（16:9 长片）：与短剧同一套卡片结构，duration 为秒。 */
-  longVideos: (page = 1, size = 20) => call<Paged<VideoCard>>("api_long_videos", { page, size }),
   /** 视频题材（题材广场数据源）：AI魔改 / AI换脸 / 漫剧 / 短剧。 */
   siteCategories: () => call<{ items: SiteItem[] }>("api_site_categories"),
   /** 排序口径：最近更新 / 当前最热 / 正在播放 / 小蓝原创。 */
