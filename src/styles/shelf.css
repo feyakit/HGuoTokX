@@ -420,7 +420,11 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 .ios-mobile-nav { padding: 10px 16px 32.2px; }   /* 距屏底 32.2（W7 实测，WebView 已扣系统栏） */
 .ios-mobile-nav .hg-glass {
   height: 59.6px; width: 100%; max-width: 327.8px; border-radius: 29.8px;   /* 全圆 = h/2 */
-  background: rgb(255 255 255 / .18); border: 1px solid rgb(255 255 255 / .20);
+  /* 玻璃 = 白 12% + 暗底 24% 叠层（真机反解：单用白 18% 会亮 +30，单用暗玻璃会暗 −65；
+     叠层后中位 rgb(101,85,82)，参考 rgb(106,84,77)，三通道差 (−5,+1,+5)） */
+  background-color: rgb(255 255 255 / .12);
+  background-image: linear-gradient(rgb(8 10 18 / .24), rgb(8 10 18 / .24));
+  border: 1px solid rgb(255 255 255 / .20);
   -webkit-backdrop-filter: blur(34px) saturate(140%); backdrop-filter: blur(34px) saturate(140%);
 }
 /* 选中胶囊 83×46.8（W7 实测），垂直居中 */
