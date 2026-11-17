@@ -543,13 +543,16 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 .hg-pill {
   flex: none; height: 29px; padding: 0 16px;
   border-radius: 999px; border: 1.5px solid transparent; background: none;
-  color: var(--p-dim); font-size: 13px; font-weight: 600; line-height: 1;
+  color: #9294AD;                        /* 参考取色：未选中文字 rgb(146,148,173)，冷灰蓝，不是暖灰 */
+  font-size: 13px; font-weight: 600; line-height: 1;
   white-space: nowrap;
 }
-/* 选中态（W7 逐像素重测，推翻 v3 初版的 "solid"）：1.5px 亮蓝描边 + 8% 半透明白填充 */
+/* 选中态：参考取色是「蓝紫调半透明填充 + 亮蓝紫描边」，不是中性白 8%
+   （白 8% 在 #0A0B14 上几乎不可见；参考内部 ≈ rgb(49,77,122) 对背景 rgb(43,55,93)，约 22–26% 的 accent 紫） */
 .hg-pill[aria-selected="true"] {
-  background: rgb(255 255 255 / .08);
+  background: rgb(92 84 252 / .26);
   border-color: #8B9AF9;
+  border-width: 2px;
   color: #fff;
 }
 
