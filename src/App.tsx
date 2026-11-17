@@ -14,7 +14,7 @@ import { ToastHost } from "./components/ui";
 import { DesktopRail, DesktopTitleBar } from "./components/DesktopChrome";
 import ResizeHandles from "./components/ResizeHandles";
 import { tracePlayback } from "./playbackDiagnostics";
-import { IGrid, IGridF, IHome, IHomeF, ISearch, IUser, IUserF } from "./icons";
+import { IComment, ICommentF, IGrid, IGridF, IHome, IHomeF, ISearch, IUser, IUserF } from "./icons";
 
 // Local chunks load on first visit; visited tabs stay mounted as before.
 const Search = lazy(() => import("./pages/Search"));
@@ -43,7 +43,8 @@ function TabBar() {
   const { tab, setTab, platform } = useStore();
   const items = [
     { key: "home", label: "首页", Icon: IHome, Active: IHomeF },
-    { key: "search", label: "搜索", Icon: ISearch, Active: ISearch },
+    /* 搜索不再占底栏位：左上角/顶栏图标与桌面快捷键进 search 页（tab 仍存在，只是没有入口） */
+    { key: "posts", label: "吃瓜", Icon: IComment, Active: ICommentF },
     { key: "category", label: "分类", Icon: IGrid, Active: IGridF },
     { key: "profile", label: "我的", Icon: IUser, Active: IUserF },
   ] as const;
@@ -108,6 +109,7 @@ function MainTabs({ wide, pageActive, bottomInset }: { wide: boolean; pageActive
   return <>
     <div className={visible("home")} inert={!pageActive || tab !== "home"} aria-hidden={!pageActive || tab !== "home"}>{mounted("home") && <Home active={pageActive && tab === "home"} bottomInset={bottomInset} />}</div>
     <div className={visible("search")} inert={!pageActive || tab !== "search"} aria-hidden={!pageActive || tab !== "search"}>{mounted("search") && <Suspense fallback={<PageLoading />}><Search active={pageActive && tab === "search"} wide={wide} /></Suspense>}</div>
+    <div className={visible("posts")} inert={!pageActive || tab !== "posts"} aria-hidden={!pageActive || tab !== "posts"}>{mounted("posts") && <Suspense fallback={<PageLoading />}><PostsPage wide={wide} embedded /></Suspense>}</div>
     <div className={visible("category")} inert={!pageActive || tab !== "category"} aria-hidden={!pageActive || tab !== "category"}>{mounted("category") && <Suspense fallback={<PageLoading />}><Category wide={wide} active={pageActive && tab === "category"} /></Suspense>}</div>
     <div className={visible("profile")} inert={!pageActive || tab !== "profile"} aria-hidden={!pageActive || tab !== "profile"}>{mounted("profile") && <Suspense fallback={<PageLoading />}><Profile wide={wide} /></Suspense>}</div>
   </>;

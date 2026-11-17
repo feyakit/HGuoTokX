@@ -17,7 +17,7 @@ import { useContentPreferences } from "../contentPreferences";
 import { postHot } from "../postData";
 
 /* ================= 吃瓜列表 ================= */
-export function PostsPage({ onBack, wide }: { onBack: () => void; wide: boolean }) {
+export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => void; wide: boolean; embedded?: boolean }) {
   const { push } = useStore();
   const { preferences } = useContentPreferences();
   const filtering = !preferences.paused && (preferences.blockedTags.length > 0 || preferences.hideUntagged);
@@ -69,7 +69,7 @@ export function PostsPage({ onBack, wide }: { onBack: () => void; wide: boolean 
   return (
     <div className="ios-page absolute inset-0 bg-bg flex flex-col">
       <div className="shrink-0 flex items-center gap-2 px-2 bg-s1" style={{ paddingTop: "var(--sat, 0px)" }}>
-        <Button aria-label="返回" onClick={onBack} className="w-9 h-9 rounded-full flex items-center justify-center text-on hover:bg-s3 pressable"><IBack size={19} /></Button>
+        {!embedded && onBack && <Button aria-label="返回" onClick={onBack} className="w-9 h-9 rounded-full flex items-center justify-center text-on hover:bg-s3 pressable"><IBack size={19} /></Button>}
         <h1 className="text-[15px] font-bold text-on">吃瓜</h1>
         <span className="text-[12px] text-mut ml-1">圈内爆料 · 每日更新</span>
         <Button onClick={() => setSearching(true)} aria-label="搜索吃瓜" className="ml-auto w-9 h-9 rounded-full flex items-center justify-center text-on hover:bg-s3 pressable"><ISearch size={19} /></Button>

@@ -25,7 +25,7 @@ function shuffle<T>(arr: T[]): T[] {
  * 尺寸全部来自 styles/shelf.css 的 token；点卡片进剧集详情页，播放从详情页发起。
  */
 export default function Home({ active, bottomInset }: { active: boolean; bottomInset: number }) {
-  const { push, lineEpoch } = useStore();
+  const { push, lineEpoch, setTab } = useStore();
   const { preferences, storageError, blockReason } = useContentPreferences();
   const [items, setItems] = useState<VideoCard[]>([]);
   const [rank, setRank] = useState<RankItem[]>([]);
@@ -89,7 +89,7 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
           <Button role="tab" aria-selected="false" className="hg-tab" onClick={() => push({ kind: "posts" })}>吃瓜</Button>
         </div>
         <span className="flex-1" />
-        <Button className="ios-icon-button" aria-label="搜索" onClick={() => push({ kind: "tags" })}><ISearch size={18} /></Button>
+        <Button className="ios-icon-button" aria-label="搜索" onClick={() => setTab("search")}><ISearch size={18} /></Button>
       </div>
 
       <div className="flex-1 scroll-y hg-page-x relative z-10"
