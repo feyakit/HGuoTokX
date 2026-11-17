@@ -815,3 +815,25 @@ html.theme-light .ios-mobile-nav .ios-mobile-nav-item[aria-current=page] {
 /* 已下线的题材：不可点、压暗、角标提示，别让用户点进空页面 */
 .hg-cat-card.is-offline { opacity: .55; }
 .hg-cat-card.is-offline .hg-cat-veil { background: linear-gradient(180deg, rgb(0 0 0 / .55), rgb(0 0 0 / .82)); }
+
+
+/* —— 字号层级 token：现有只有 34 / 12 两级，补齐四级 ——
+   22 页面标题 · 17 卡片标题/副标题 · 14 正文 · 12 辅助 */
+:root { --fs-h1: 22px; --fs-title: 17px; --fs-body: 14px; --fs-sub: 12px; }
+.ios-page-title { font-size: var(--fs-h1); line-height: 1.25; letter-spacing: -.2px; }
+.ios-page-heading .ios-page-title { font-weight: 750; }
+
+/* —— 题材广场卡：16:9、圆角 14、底部渐变蒙层，题材名与「共 N 部」在左下 —— */
+.hg-cat-card { border-radius: 14px; }
+.hg-cat-card::before { padding-top: 56.25%; }
+.hg-cat-veil { background: linear-gradient(180deg, rgb(0 0 0 / 0) 34%, rgb(0 0 0 / .42) 66%, rgb(0 0 0 / .7) 100%); }
+.hg-cat-copy { left: 12px; right: 12px; bottom: 10px; }
+.hg-cat-name { font-size: 17px; line-height: 1.25; }
+.hg-cat-sub { margin-top: 4px; font-size: 12px; line-height: 1.5; }
+
+/* —— 频道页：2 列 + 标题严格单行省略 —— */
+.ios-media-grid.is-dense { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 12px; }
+.ios-media-grid.is-dense .ios-poster-title {
+  display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  -webkit-line-clamp: unset; font-size: 14px;
+}

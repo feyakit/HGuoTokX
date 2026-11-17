@@ -79,16 +79,16 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
         <p className="text-[12px] text-mut mt-0.5">{live.length} 个题材 · 每周持续上新</p>
       </div>
 
-      <div className="shrink-0 px-4 pb-3 flex flex-wrap gap-2">
-        <Button aria-pressed={!sort} onClick={() => setSort("")} className="ios-filter-pill">全部</Button>
+      <div className="shrink-0 px-4 pb-3 flex gap-2 overflow-x-auto hg-chip-row">
+        <Button aria-pressed={!sort} onClick={() => setSort("")} className="ios-filter-pill shrink-0">全部</Button>
         {sorts.map((s) => (
-          <Button aria-pressed={sort === s.cate} key={s.cate} onClick={() => setSort(s.cate)} className="ios-filter-pill">
+          <Button aria-pressed={sort === s.cate} key={s.cate} onClick={() => setSort(s.cate)} className="ios-filter-pill shrink-0">
             {s.name}
           </Button>
         ))}
       </div>
 
-      <div className="flex-1 scroll-y px-4 pb-24">
+      <div className="flex-1 scroll-y px-4 pb-32">
         <CollectionLinks />
         {err && <p role="alert" className="mb-3 text-[12px] text-danger">{err}</p>}
         <div className="hg-cat-grid">
@@ -99,10 +99,9 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
                 onClick={() => push({ kind: "channel", cate: c.cate, name: c.name })}>
                 {meta?.cover ? <Img src={meta.cover} alt="" /> : <span className="hg-cat-blank shimmer" aria-hidden="true" />}
                 <span className="hg-cat-veil" aria-hidden="true" />
-                {!!meta?.count && <span className="hg-cat-count">{fmt(meta.count)} 部</span>}
                 <span className="hg-cat-copy">
                   <span className="hg-cat-name">{c.name}</span>
-                  {c.desc && <span className="hg-cat-sub">{c.desc}</span>}
+                  <span className="hg-cat-sub">{meta?.count ? `共 ${fmt(meta.count)} 部` : c.desc}</span>
                 </span>
               </Button>
             );
@@ -237,7 +236,7 @@ export function ChannelPage({ cate, name, onBack, wide }: { cate: string; name: 
           <span className="w-[40px] h-[40px] rounded-(--r-sm) bg-pc text-on-pc flex items-center justify-center"><IGrid size={21} strokeWidth={1.9} /></span>
           <div className="flex-1 min-w-0">
             <h1 className="text-[17px] font-bold text-on leading-tight">{name}</h1>
-            <div role="status" className="text-[12px] text-mut">{replacing ? (loading ? "正在更新筛选结果…" : "筛选更新失败") : `共 ${total || items.length} 部 · 已加载 ${items.length} · ${page}/${Math.max(pages, 1)} 页`}</div>
+            <div role="status" className="text-[12px] text-mut">{replacing ? (loading ? "正在更新筛选结果…" : "筛选更新失败") : `共 ${total || items.length} 部`}</div>
           </div>
           <Button onClick={() => setSearching(true)} aria-label={cate === "original" ? "搜索原创" : "搜索短剧"} className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-on hover:bg-s3 pressable"><ISearch size={19} /></Button>
         </div>
@@ -263,7 +262,7 @@ export function ChannelPage({ cate, name, onBack, wide }: { cate: string; name: 
         {items.length > 0 && err && <div role="status" className="mb-3 flex flex-wrap items-center gap-2 text-[12px] text-mut"><span>{err}</span><Button className="px-3 text-primary" onClick={() => void loadMore(replacing)}>重试</Button></div>}
         {items.length ? (
           <div inert={replacing || undefined} className={replacing ? "opacity-60" : undefined}>
-            <Masonry videos={items} cols={wide ? undefined : 3} scopeKey={filterKey(serverSort, originalCate)} wide={wide} onOpen={(v) => { if (!replacing) push({ kind: "feed", videoIds: items.map((x) => x.id), index: items.findIndex((x) => x.id === v.id), title: name }); }} />
+            <Masonry videos={items} dense={!wide} scopeKey={filterKey(serverSort, originalCate)} wide={wide} onOpen={(v) => { if (!replacing) push({ kind: "feed", videoIds: items.map((x) => x.id), index: items.findIndex((x) => x.id === v.id), title: name }); }} />
           </div>
         ) : err ? (
           <Empty icon={<IGrid size={26} />} title="加载失败" sub={err} action="重试" onAction={() => void loadMore(true)} />
