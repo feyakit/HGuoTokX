@@ -258,7 +258,18 @@ function MobileShell() {
 
 /* ============ 入口 ============ */
 export default function App() {
-  const { platform, accent, theme, loginOpen, setLoginOpen, tab, setTab, stack, pop, fs, setFs } = useStore();
+  const { platform, accent, theme, loginOpen, setLoginOpen, tab, setTab, stack, pop, push, fs, setFs } = useStore();
+
+  /* 深链：?series=<id> 直接进剧集详情页（也方便截图脚本与外部跳转） */
+  const __hguoxDeepLink = useRef(false);
+  useEffect(() => {
+    if (__hguoxDeepLink.current) return;
+    __hguoxDeepLink.current = true;
+    try {
+      const id = Number(new URLSearchParams(location.search).get("series"));
+      if (id > 0) push({ kind: "series", id });
+    } catch { /* ignore */ }
+  }, [push]);
 
   /* 全站强调色只跟封面走：换剧才换色，换集不动；浅色主题走压深变体（保证 ≥4.5:1）。 */
   useEffect(() => {
