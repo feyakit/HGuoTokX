@@ -726,11 +726,16 @@ html.theme-light .ios-mobile-nav .ios-mobile-nav-item[aria-current=page] {
 .hg-segbar {
   position: absolute; top: calc(var(--sat, 0px) + 2px); left: 0; right: 0; z-index: 45;
   display: flex; align-items: center; height: 36px; padding: 0 16px;
-  background: linear-gradient(180deg, rgba(14, 15, 19, .98), rgba(14, 15, 19, .86) 58%, rgba(14, 15, 19, 0));
+  /* 只在压住画面时给一点极轻的压光；不再是 98% 实色黑带（那样等于给视频顶上加了一条黑边）。
+     可读性交给文字的 text-shadow，不加 backdrop-filter——老内核上两层模糊会掉帧。 */
+  background: linear-gradient(180deg, rgba(0, 0, 0, .22), rgba(0, 0, 0, .10) 62%, rgba(0, 0, 0, 0));
+  pointer-events: none;
 }
+.hg-segbar > * { pointer-events: auto; }
 .hg-seg-tab {
   flex: none; width: 72px; height: 36px; padding: 0; border: 0; background: transparent;
   color: var(--p-dim); font-size: 14px; font-weight: 600; line-height: 36px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .55);
   transition: color .2s ease; -webkit-tap-highlight-color: transparent;
 }
 .hg-seg-tab.is-on { color: #fff; font-weight: 700; }
