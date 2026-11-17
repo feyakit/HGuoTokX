@@ -52,7 +52,7 @@ export function LaunchAnimation({ onFinish }: { onFinish: () => void }) {
     return () => { disposed = true; void listener?.unregister().catch(() => {}); };
   }, [finish]);
 
-  return <div className="hg-launch" role="dialog" aria-modal="true" aria-label="HGhubX 启动动画"
+  return <div className="hg-launch" role="dialog" aria-modal="true" aria-label="HGuoX 启动动画"
     onAnimationEnd={event => { if (event.target === event.currentTarget && event.animationName === "launch-exit") finish(); }}>
     <div className="hg-launch-stage" aria-hidden="true">
       <div className="hg-launch-orbit" />
@@ -75,7 +75,7 @@ export function LaunchAnimation({ onFinish }: { onFinish: () => void }) {
           <path className="hg-launch-x" d="M46.7 11.3 52.5 17.1M52.5 11.3 46.7 17.1" stroke="#b1f5dc" strokeWidth="2.9" strokeLinecap="round" />
         </svg>
       </div>
-      <div className="hg-launch-wordmark"><span>HGhub</span><span className="hg-launch-word-x">X</span></div>
+      <div className="hg-launch-wordmark"><span>HGuoX</span></div>
     </div>
     <span className="hg-launch-footnote" aria-hidden="true">PRESS PLAY. FEEL MORE.</span>
   </div>;
