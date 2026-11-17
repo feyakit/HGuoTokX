@@ -12,6 +12,10 @@ import { useSearchResults } from "../useSearchResults";
 import { SearchTags } from "../components/SearchTags";
 import { IBack, IChevR, IClose, IFireF, IRefresh, ISearch, ITrophy } from "../icons";
 
+/** 只留含中日韩字符的词：联想库里混着海外站的英文词，在中文短剧场景是噪音。 */
+const CJK = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
+const hasCJK = (text: string) => CJK.test(text);
+
 /** 把命中的片段标出来：联想词里和输入重合的部分加粗。 */
 function Highlight({ text, keyword }: { text: string; keyword: string }) {
   const k = keyword.trim();
@@ -64,14 +68,15 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
         .then(res => {
           if (seq !== suggestSeq.current) return;
           const words: string[] = [];
-          const push = (raw?: string) => {
+          const add = (raw?: string) => {
             const word = (raw ?? "").trim();
-            if (word && !words.includes(word) && words.length < 8) words.push(word);
+            if (word && hasCJK(word) && !words.includes(word) && words.length < 8) words.push(word);
           };
-          /* 联想词在 phrases；只有它为空的旧数据才退回影片标题 */
+          /* 联想词在 phrases，但这个库里混着海外站的英文词（airbnb、人名），
+             纯 ASCII 的直接丢；丢完不足 3 条再用影片标题补。 */
           const phrases = res?.phrases ?? res?.items ?? [];
-          if (phrases.length) phrases.forEach(push);
-          else (res?.content ?? []).forEach(item => push(item?.title));
+          phrases.forEach(add);
+          if (words.length < 3) (res?.content ?? []).forEach(item => add(item?.title));
           setSuggest(words);
         })
         .catch(() => { if (seq === suggestSeq.current) setSuggest([]); })
@@ -172,8 +177,8 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
       <div className="flex-1 scroll-y px-4 pb-24">
         {typing ? (
           <>
-            <section aria-label="搜索联想" className="mt-1 a-rise">
-              {suggest.length > 0 ? (
+            {suggest.length > 0 ? (
+              <section aria-label="搜索联想" className="mt-1 a-rise">
                 <ul className="ios-suggest-list">
                   {suggest.map((word) => (
                     <li key={word}>
@@ -185,12 +190,10 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
                     </li>
                   ))}
                 </ul>
-              ) : (
-                <p role="status" className="px-1 py-2 text-[12px] text-mut">
-                  {suggestPending ? "正在联想…" : "没有匹配的剧名，回车直接搜「" + q.trim() + "」"}
-                </p>
-              )}
-            </section>
+              </section>
+            ) : suggestPending ? (
+              <p role="status" className="px-1 py-2 text-[12px] text-mut">正在联想…</p>
+            ) : null}
             <SearchTags key={JSON.stringify([lineEpoch, accountScope])} active={active} />
           </>
         ) : !querying ? (
