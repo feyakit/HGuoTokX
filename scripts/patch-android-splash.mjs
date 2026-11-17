@@ -29,8 +29,29 @@ if (!existsSync(res)) {
 
 // 与 src/styles/launch.css 的 --launch-bg、index.html 首帧背景一致
 const BRAND = "#071218";
-const THEME = "Theme.hghubx";
 const valuesDir = join(res, "values");
+
+/* 主题名是 tauri android init 按 productName 生成的（改品牌名就会从 Theme.hghubx 变成
+   Theme.hguox 之类），这里不再写死：优先认 values/styles.xml 里继承 MaterialComponents 的
+   那个 App 主题，认不到再退回 productName 的 slug。 */
+function detectTheme() {
+  if (existsSync(valuesDir)) {
+    for (const name of readdirSync(valuesDir).filter(n => n.endsWith(".xml")).sort()) {
+      const xml = readFileSync(join(valuesDir, name), "utf8").replace(/<!--[\s\S]*?-->/g, "");
+      const hit = /<style\b[^>]*\bname\s*=\s*["'](Theme\.[A-Za-z0-9_]+)["'][^>]*\bparent\s*=\s*["']Theme\.MaterialComponents[^"']*["']/.exec(xml);
+      if (hit) return hit[1];
+    }
+  }
+  let slug = "hghubx";
+  try {
+    const conf = JSON.parse(readFileSync(join(root, "src-tauri", "tauri.conf.json"), "utf8"));
+    slug = String(conf.productName || slug).toLowerCase().replace(/[^a-z0-9]/g, "") || slug;
+  } catch { /* 配置读不到就按老名字试 */ }
+  return `Theme.${slug}`;
+}
+
+const THEME = detectTheme();
+const THEME_RE = THEME.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const colorsPath = join(valuesDir, "colors.xml");
 const pending = new Map();
 let themeCount = 0;
@@ -71,8 +92,8 @@ for (const directory of directories) {
   for (const path of files) {
     const original = readFileSync(path, "utf8");
     let xml = original;
-    const themeOpenings = matches(xml, /<style\b[^>]*\sname\s*=\s*["']Theme\.hghubx["'][^>]*>/g);
-    const themes = matches(xml, /(<style\b[^>]*\sname\s*=\s*["']Theme\.hghubx["'][^>]*>)([\s\S]*?)(<\/style\s*>)/g);
+    const themeOpenings = matches(xml, new RegExp(`<style\\b[^>]*\\sname\\s*=\\s*["']${THEME_RE}["'][^>]*>`, "g"));
+    const themes = matches(xml, new RegExp(`(<style\\b[^>]*\\sname\\s*=\\s*["']${THEME_RE}["'][^>]*>)([\\s\\S]*?)(<\\/style\\s*>)`, "g"));
     if (themes.length !== themeOpenings.length) fail(path, `${THEME} 缺少结束标签`);
     directoryThemes += themes.length;
     if (directoryThemes > 1) fail(path, `${directory} 重复定义 ${THEME}`);

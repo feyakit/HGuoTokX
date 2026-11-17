@@ -467,14 +467,15 @@ html:not(.theme-light) { --p-canvas: #161E40; --p-bg: #161E40; }
 }
 .hg-pill-row::-webkit-scrollbar { display: none; }
 .hg-pill {
-  flex: none; height: 33px; padding: 0 16px;
-  border-radius: 999px; border: 1px solid transparent; background: none;
+  flex: none; height: 29px; padding: 0 16px;
+  border-radius: 999px; border: 1.5px solid transparent; background: none;
   color: var(--p-dim); font-size: 13px; font-weight: 600; line-height: 1;
   white-space: nowrap;
 }
+/* 选中态（W7 逐像素重测，推翻 v3 初版的 "solid"）：1.5px 亮蓝描边 + 8% 半透明白填充 */
 .hg-pill[aria-selected="true"] {
-  background: rgb(44 68 124 / .55);            /* v3.pill_selected_fill (半透明蓝紫底) */
-  border-color: rgb(124 142 246 / .55);        /* 1px 亮边 */
+  background: rgb(255 255 255 / .08);
+  border-color: #8B9AF9;
   color: #fff;
 }
 
@@ -564,7 +565,7 @@ html:not(.theme-light) { --p-canvas: #161E40; --p-bg: #161E40; }
 /* 这些按钮用 card（= data-card）绕开 .ios-button 的 44px 触控最小尺寸与默认圆角，
    尺寸一律按 v3 实测值写死 */
 .ios-button.hg-hero { border-radius: 15px; }
-.ios-button.hg-pill { min-block-size: 0; min-inline-size: 0; height: 33px; border-radius: 999px; }
+.ios-button.hg-pill { min-block-size: 0; min-inline-size: 0; height: 29px; border-radius: 999px; }
 .ios-button.hg-icon-plain { min-block-size: 0; min-inline-size: 0; width: 36px; height: 36px; border-radius: 50%; }
 .ios-button.hg-rail-card { min-block-size: 0; border-radius: 0; }
 .ios-button.hg-continue-play { min-block-size: 0; min-inline-size: 0; width: 34px; height: 34px; border-radius: 999px; }
