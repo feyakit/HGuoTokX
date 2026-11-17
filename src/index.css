@@ -828,11 +828,11 @@ html.theme-light .ios-mobile-nav .ios-mobile-nav-item[aria-current=page] {
 .ios-page-title { font-size: var(--fs-h1); line-height: 1.25; letter-spacing: -.2px; }
 .ios-page-heading .ios-page-title { font-weight: 750; }
 
-/* —— 题材广场卡：16:9、圆角 14、底部渐变蒙层，题材名与「共 N 部」在左下 —— */
+/* —— 题材广场卡：3:4 竖版（封面都是竖的，横卡会把海报裁成一条）、圆角 14、底部渐变蒙层 —— */
 .hg-cat-card { border-radius: 14px; }
-.hg-cat-card::before { padding-top: 56.25%; }
-.hg-cat-veil { background: linear-gradient(180deg, rgb(0 0 0 / 0) 34%, rgb(0 0 0 / .42) 66%, rgb(0 0 0 / .7) 100%); }
-.hg-cat-copy { left: 12px; right: 12px; bottom: 10px; }
+.hg-cat-card::before { padding-top: 133.3333%; }
+.hg-cat-veil { background: linear-gradient(180deg, rgb(0 0 0 / 0) 46%, rgb(0 0 0 / .40) 72%, rgb(0 0 0 / .72) 100%); }
+.hg-cat-copy { left: 12px; right: 12px; bottom: 12px; }
 .hg-cat-name { font-size: 17px; line-height: 1.25; }
 .hg-cat-sub { margin-top: 4px; font-size: 12px; line-height: 1.5; }
 
