@@ -59,7 +59,12 @@ function pngInfo(data) {
   return { width, height };
 }
 
-if (!existsSync(source)) throw new Error(`Missing iOS source: ${source}`);
+/* 上游同步（1d7b825）之后仓库只带生成好的 PNG、没有矢量源；此时沿用已跟踪的图标，
+   不要再抛错把整个 beforeBuildCommand 打断（安卓/iOS 打包都挂在它上面）。 */
+if (!existsSync(source)) {
+  console.log(`[icons] 跳过 iOS 图标生成：缺少 ${source}，沿用仓库里已生成的 PNG`);
+  process.exit(0);
+}
 const sourceSvg = readFileSync(source, "utf8");
 if (/\brx\s*=|\bstroke\s*=/.test(sourceSvg.split("<g", 1)[0])) {
   throw new Error("iOS background must be square and unmasked; remove background rx/stroke");
