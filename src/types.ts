@@ -152,8 +152,8 @@ export type TagGroup = {
   tags: TagItem[];
 };
 
-/** 官网搜索页的影片热搜榜；plays 保留上游的播放量单位。 */
-export type HotSearchVideo = { video_id: number; title: string; plays: string };
+/** 站点 `/api/search/hot` 下发的热搜词；heat 是相对热度值。 */
+export type HotSearchWord = { word: string; heat: number };
 
 export type PostCategory = { id: number; name: string; route: string; intro?: string; sort?: number };
 

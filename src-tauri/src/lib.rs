@@ -21,7 +21,6 @@ mod net;
 mod network_policy;
 mod playback_log;
 mod proxy;
-mod search_hot;
 mod session;
 
 use api::Api;
@@ -254,6 +253,7 @@ pub fn run() {
             api::api_rank,
             api::api_search,
             api::api_search_hot,
+            api::api_search_suggest,
             api::cache_clear,
             api::api_posts,
             api::api_post,

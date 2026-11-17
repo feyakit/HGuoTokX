@@ -880,10 +880,19 @@ pub async fn api_search(
         .await
 }
 
-/// 热搜榜：解析官网搜索页服务端渲染的热搜影片列表。
+/// 热搜榜：站点接口 `/api/search/hot`（`{data:{items:[{word,heat}]}}`）。
+///
+/// 以前是抓 `/search/` 页面 HTML 再解析，站点改版就全线失效；现在直接吃接口。
 #[tauri::command]
-pub async fn api_search_hot(_state: State<'_, Api>) -> Result<Value, String> {
-    crate::search_hot::fetch().await
+pub async fn api_search_hot(state: State<'_, Api>) -> Result<Value, String> {
+    state.get("/api/search/hot").await
+}
+
+/// 搜索联想：`/api/search/suggest?q=...`，返回的是影片对象列表（取标题当联想词）。
+#[tauri::command]
+pub async fn api_search_suggest(state: State<'_, Api>, q: String) -> Result<Value, String> {
+    let encoded: String = url::form_urlencoded::byte_serialize(q.as_bytes()).collect();
+    state.get(&format!("/api/search/suggest?q={encoded}")).await
 }
 
 #[tauri::command]

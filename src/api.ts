@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { tracePlayback } from "./playbackDiagnostics";
 import type {
-  AccountHistoryPage, AccountIdentity, AccountSnapshot, CommentPage, Detail, HotSearchVideo, Paged, PlayInfo, Post, PostCategory, RankItem, SiteItem, SiteMenuItem, TagGroup, TopicCard, TopicDetail, User, UserProfile, VideoCard,
+  AccountHistoryPage, AccountIdentity, AccountSnapshot, CommentPage, Detail, HotSearchWord, Paged, PlayInfo, Post, PostCategory, RankItem, SiteItem, SiteMenuItem, TagGroup, TopicCard, TopicDetail, User, UserProfile, VideoCard,
 } from "./types";
 
 /* ── 运行环境 ───────────────────────────────────────────── */
@@ -158,7 +158,9 @@ export const api = {
     call<{ items: Post[]; pagination: Paged<Post>["pagination"]; keyword: string }>(
       "api_search", { q, page, size, kind: "post" },
     ),
-  searchHot: () => call<{ items: HotSearchVideo[] }>("api_search_hot"),
+  searchHot: () => call<{ items: HotSearchWord[] }>("api_search_hot"),
+  /** 联想：接口下发的是影片对象，前端只取标题当词；q 为空不该调用。 */
+  searchSuggest: (q: string) => call<{ content: VideoCard[] }>("api_search_suggest", { q }),
   posts: (page = 1, size = 20, sort?: string) =>
     call<Paged<Post>>("api_posts", { page, size, sort: sort ?? null }),
   post: (id: number) => call<Post & { content?: string; video_url?: string }>("api_post", { id }),

@@ -2,14 +2,14 @@ import { Button, Form, Input, SegmentedControl, Surface } from "../components/io
 import { Loader } from "../components/ios/effects";
 import { useEffect, useRef, useState } from "react";
 import { api, fmt, isMobile } from "../api";
-import type { HotSearchVideo, Post, RankItem, VideoCard } from "../types";
+import type { HotSearchWord, Post, RankItem, VideoCard } from "../types";
 import { useStore } from "../store";
 import { MediaCard, Masonry, RankRow } from "../components/cards";
 import { FilteredContent } from "../components/FilteredContent";
 import { Empty } from "../components/ui";
 import { useSearchResults } from "../useSearchResults";
 import { SearchTags } from "../components/SearchTags";
-import { IBack, IChevR, IClose, IFireF, IPlayF, IRefresh, ISearch, ITrophy } from "../icons";
+import { IBack, IChevR, IClose, IFireF, IRefresh, ISearch, ITrophy } from "../icons";
 
 export default function Search({ active, wide }: { active: boolean; wide: boolean }) {
   const { push, searchHist, addSearch, clearSearchHist, lineEpoch, accountScope } = useStore();
@@ -22,7 +22,7 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
   const posts = result?.kind === "post" ? result.items as Post[] : [];
   const count = result?.items.length ?? 0;
   const inputRef = useRef<HTMLInputElement>(null);
-  const [hotVideos, setHotVideos] = useState<HotSearchVideo[]>([]);
+  const [hotWords, setHotWords] = useState<HotSearchWord[]>([]);
   const [hotLoading, setHotLoading] = useState(false);
   const [hotError, setHotError] = useState<string | null>(null);
   const hotBusy = useRef(false);
@@ -41,7 +41,7 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
     setHotError(null);
     try {
       const res = await api.searchHot();
-      setHotVideos(res.items);
+      setHotWords(res.items ?? []);
       hotLoadedAt.current = Date.now();
     } catch (e) {
       setHotError(e instanceof Error ? e.message : "热搜榜加载失败，请重试");
@@ -102,25 +102,25 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
                   </Button>
                 </div>
                 {hotError && <p role="status" className="mt-2 text-[12px] text-mut leading-relaxed">
-                  {hotVideos.length > 0 ? "刷新失败，保留上次榜单。" : "热搜榜暂不可用。"}{hotError}
+                  {hotWords.length > 0 ? "刷新失败，保留上次榜单。" : "热搜榜暂不可用。"}{hotError}
                 </p>}
-                {hotVideos.length > 0 ? (
+                {hotWords.length > 0 ? (
                   <ol className="ios-search-hot-grid mt-3" aria-busy={hotLoading}>
-                    {hotVideos.map((video, i) => (
-                      <li key={video.video_id} className="min-w-0">
-                        <Button aria-label={`播放 ${video.title}`} title={video.title} className="ios-search-hot-item"
-                          onClick={() => push({ kind: "feed", videoIds: hotVideos.map(item => item.video_id), index: i, title: "热搜榜" })}>
+                    {hotWords.map((item, i) => (
+                      <li key={`${item.word}-${i}`} className="min-w-0">
+                        <Button aria-label={`搜索 ${item.word}`} title={item.word} className="ios-search-hot-item"
+                          onClick={() => submit(item.word)}>
                           <span aria-hidden="true" className={`ios-search-hot-rank ${i < 3 ? "text-primary" : "text-mut"}`}>{String(i + 1).padStart(2, "0")}</span>
                           <span className="ios-search-hot-content">
-                            <span className="ios-search-hot-title">{video.title}</span>
-                            {video.plays && <span className="ios-search-hot-plays"><IPlayF size={10} />{video.plays}</span>}
+                            <span className="ios-search-hot-title">{item.word}</span>
+                            {Number.isFinite(item.heat) && item.heat > 0 && <span className="ios-search-hot-plays">{fmt(item.heat)} 热度</span>}
                           </span>
                           <IChevR size={15} className="text-mut" />
                         </Button>
                       </li>
                     ))}
                   </ol>
-                ) : !hotError && <p role="status" className="mt-3 text-[12px] text-mut">{hotLoading ? "加载中…" : "暂无热搜影片"}</p>}
+                ) : !hotError && <p role="status" className="mt-3 text-[12px] text-mut">{hotLoading ? "加载中…" : "暂无热搜词"}</p>}
               </Surface>
 
             {searchHist.length > 0 && (
