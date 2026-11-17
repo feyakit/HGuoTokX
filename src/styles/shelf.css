@@ -774,3 +774,14 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 .hg-post-body > .hg-post-title { flex: 1; min-width: 0; }
 .hg-post-art { flex: none; width: 97.7px; height: 85.8px; margin-top: 0; }
 .hg-post-art::before { display: none; }
+
+/* ===== 首页顶部三层按参考重排（参考：品牌行 23..76 / 胶囊 88.5..116 / Hero 127.5..405） ===== */
+.hg-brand-row {
+  height: 53px;                       /* 参考行高 53（v3 总表「顶栏 0,23,360,53」） */
+  padding-top: var(--sat, 0px);       /* 状态栏 24（Android WebView env() 恒 0，靠 JS 注入） */
+  box-sizing: content-box;            /* padding 不占 53，内容区仍是 53 */
+}
+.hg-chip-row { padding-top: 11.5px; }  /* 品牌行底 77 → 胶囊顶 88.5 */
+.hg-pill-row { padding: 0; }           /* 行高 = 胶囊 27.5，不再带 4/8 内边距 */
+.hg-home-page .hg-hero { margin: 11.5px auto 0; width: calc(100% - 3.5px); }  /* 胶囊底 116 → Hero 127.5；宽 328.5 */
+.hg-home-page .hg-section { margin-top: 12.5px; }  /* Hero 底 405.5 → 分区标题 434（参考 28.5 间距） */

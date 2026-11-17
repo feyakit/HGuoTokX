@@ -124,8 +124,7 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
       <span className="hg-aura" aria-hidden="true" />
 
       {/* 顶栏第 2 层：品牌行（左 HGuoX 文字标，右 搜索 21） */}
-      <div className="shrink-0 hg-page-x hg-brand-row relative z-10"
-        style={{ paddingTop: "calc(var(--sat, 0px) + 2px)" }}>
+      <div className="shrink-0 hg-page-x hg-brand-row relative z-10">
         <span className="hg-brand">HGuoX</span>
         <span className="flex-1" />
         <Button card className="hg-icon-plain" aria-label="搜索" onClick={() => setTab("search")}><ISearch size={21} /></Button>
