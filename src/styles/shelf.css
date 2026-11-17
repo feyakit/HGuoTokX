@@ -596,5 +596,19 @@ html:not(.theme-light) { --p-canvas: #161E40; --p-bg: #161E40; }
 .scroll-y { scrollbar-width: none; -ms-overflow-style: none; }
 .scroll-y::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
+/* 榜单顶栏：v3 S3 是 332 全宽搜索框 + 胶囊 tab；返回/刷新用 36px 圆形热区压在搜索框两端，
+   搜索框本身仍是 332×41，文字内缩 42 不跟图标打架 */
+.hg-rank-top { position: relative; }
+.hg-rank-top .hg-searchbar { padding-left: 42px; padding-right: 42px; }
+.ios-button.hg-rank-edge {
+  position: absolute; top: 50%; margin-top: -18px;
+  width: 36px; height: 36px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 0; color: var(--p-on);
+  min-block-size: 0; min-inline-size: 0; padding: 0;
+}
+.hg-rank-edge.is-back { left: 3px; }
+.hg-rank-edge.is-refresh { right: 3px; color: var(--p-mut); }
+
 /* 「More ›」是纯文字链接：不要 .ios-button 的 44px 触控盒，否则会把分区标题行撑高 */
 .ios-button.hg-section-more { min-block-size: 0; min-inline-size: 0; padding: 0; background: none; border: 0; }

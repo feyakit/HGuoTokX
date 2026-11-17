@@ -234,18 +234,23 @@ export function RankPage({ onBack, wide }: { onBack: () => void; wide: boolean }
 
   return (
     <div className="ios-page absolute inset-0 bg-bg flex flex-col">
-      {/* 顶栏（v3.top_bar S3 同款骨架）：状态栏 → 搜索行（返回 + 全宽胶囊搜索框）→ 胶囊 tab */}
+      {/* 顶栏（v3.top_bar S3）：状态栏 → 全宽胶囊搜索框 332×41 → 胶囊 tab（Ranking 选中）。
+          返回/刷新压进搜索框内部左右两端（参考图是顶层 tab 页、没有返回键，我们是栈页必须能退，
+          这样搜索框仍然是 v3 的 332 全宽，不额外多一层）。二级筛选行 v3 有，但 /api/ranks/hot 不吃
+          任何筛选参数，按「服务端不认的参数不渲染成控件」不做。 */}
       <div className="shrink-0 hg-canvas relative z-10" style={{ paddingTop: "calc(var(--sat, 0px) + 6px)" }}>
-        <div className="hg-page-x flex items-center gap-2 pb-2">
-          <Button aria-label="返回" onClick={onBack} className="hg-icon-plain"><IBack size={20} /></Button>
-          <Button className="hg-searchbar" aria-label="搜索" onClick={() => setAppTab("search")}>
-            <ISearch size={16} /><span>搜索短剧、演员、题材</span>
-          </Button>
-          <Button aria-label="刷新榜单" disabled={loading} onClick={() => void load(tab)} className="hg-icon-plain">
-            {loading ? <Loader label="正在更新榜单" className="w-4 h-4" /> : <IRefresh size={18} />}
-          </Button>
+        <div>
+          <div className="hg-rank-top">
+            <Button className="hg-searchbar" aria-label="搜索" onClick={() => setAppTab("search")}>
+              <ISearch size={16} /><span>搜索短剧、演员、题材</span>
+            </Button>
+            <Button card className="hg-rank-edge is-back" aria-label="返回" onClick={onBack}><IBack size={18} /></Button>
+            <Button card className="hg-rank-edge is-refresh" aria-label="刷新榜单" disabled={loading} onClick={() => void load(tab)}>
+              {loading ? <Loader label="正在更新榜单" className="w-4 h-4" /> : <IRefresh size={18} />}
+            </Button>
+          </div>
         </div>
-        <div className="hg-page-x">
+        <div>
           <div className="hg-pill-row" role="tablist" aria-label="榜单类型">
             {RANK_TABS.map((t) => (
               <Button card key={t.k} role="tab" aria-selected={tab === t.k} className="hg-pill"
