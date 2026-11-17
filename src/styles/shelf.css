@@ -759,7 +759,7 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 
 /* S3 榜单：行高 116.2 / 行距 152（pitch）/ 缩略图 83.4×119.2 / 页边 15.5 */
 .hg-rank-row { min-height: 116.2px; padding: 0; margin-inline: 1.5px; }
-.hg-rank-row + .hg-rank-row { margin-top: 35.8px; }
+.hg-rank-row + .hg-rank-row { margin-top: 33px; }   /* pitch 152 = 行 119 + 33 */
 .hg-rank-thumb, .hg-rank-row img { width: 83.4px; height: 119.2px; object-fit: cover; border-radius: 8px; }
 
 /* S4 我的：头像 71.5 / 菜单行高 59.6 / 菜单图标 23.8 / chevron 7.2×11.9 */
@@ -769,7 +769,7 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 .hg-menu-row svg.hg-chevron, .hg-menu-chevron { width: 7.2px; height: 11.9px; }
 
 /* S7 吃瓜：卡片 238.4 高 / 缩略图 97.7×85.8（右侧）/ 卡间距 23.8 / tab 高 23.8、间距 23.8 */
-.hg-post-card { min-height: 238.4px; margin-top: 23.8px; }
+.hg-post-card { min-height: 238.4px !important; margin-top: 23.8px; }  /* 触屏规则 .ios-button:not([data-card]) 用 min-block-size:44px（0,4,0）压过普通选择器，这里必须 !important */
 .hg-post-body { display: flex; gap: 12px; margin-top: 10px; align-items: flex-start; }
 .hg-post-body > .hg-post-title { flex: 1; min-width: 0; }
 .hg-post-art { flex: none; width: 97.7px; height: 85.8px; margin-top: 0; }
