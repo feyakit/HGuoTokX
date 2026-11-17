@@ -23,7 +23,7 @@ type AccountData = GuestData & {
   localHistory: number[];
 };
 type SyncState = { busy: boolean; error: string; lastSynced: number; favoritesKnown: boolean };
-const ACCOUNT_KEY = "hghubx_accounts_v1";
+const ACCOUNT_KEY = "hguox_accounts_v1";
 const empty = (): AccountData => ({ likes: [], favs: [], follows: [], history: [], postLikes: [], postFavs: [], dirtyHistory: {}, localHistory: [] });
 const ids = (value: unknown): number[] => Array.isArray(value)
   ? [...new Set(value.filter((id): id is number => Number.isSafeInteger(id) && id > 0))] : [];

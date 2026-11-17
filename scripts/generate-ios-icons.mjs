@@ -70,7 +70,7 @@ if (/\brx\s*=|\bstroke\s*=/.test(sourceSvg.split("<g", 1)[0])) {
   throw new Error("iOS background must be square and unmasked; remove background rx/stroke");
 }
 
-const temp = mkdtempSync(join(tmpdir(), "hghubx-ios-icons-"));
+const temp = mkdtempSync(join(tmpdir(), "hguox-ios-icons-"));
 try {
   // Invoke the installed Tauri CLI through the current Node process. Spawning
   // A package-manager wrapper from a Tauri beforeBuildCommand returns EINVAL on Windows runners.

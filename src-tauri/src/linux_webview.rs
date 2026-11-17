@@ -13,9 +13,9 @@ pub(crate) fn configure(webview: &tauri::Webview) {
             // or system settings. The manager also covers future media requests.
             manager.set_network_proxy_settings(NetworkProxyMode::NoProxy, None);
         } else {
-            eprintln!("[hghubx] WebKit website data manager unavailable");
+            eprintln!("[hguox] WebKit website data manager unavailable");
         }
     }) {
-        eprintln!("[hghubx] WebKit local media routing setup failed: {error}");
+        eprintln!("[hguox] WebKit local media routing setup failed: {error}");
     }
 }

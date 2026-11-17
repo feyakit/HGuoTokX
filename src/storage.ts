@@ -1,24 +1,24 @@
 export const STORAGE_KEYS = {
-  app: "hghubx_app_v1",
-  swipeEp: "hghubx_swipe_ep_v2",
-  theme: "hghubx_theme",
-  autoLine: "hghubx_auto_line",
+  app: "hguox_app_v1",
+  swipeEp: "hguox_swipe_ep_v2",
+  theme: "hguox_theme",
+  autoLine: "hguox_auto_line",
 } as const;
 
 /** 封面色链路用的额外键（不属于上游 STORAGE_KEYS 的命名空间） */
 export const EXTRA_STORAGE_KEYS = {
-  lastAccent: "hghubx_last_accent_v1",
-  accentCache: "hghubx_accent_cache_v1",
+  lastAccent: "hguox_last_accent_v1",
+  accentCache: "hguox_accent_cache_v1",
 } as const;
 
 type StorageKey = typeof STORAGE_KEYS[keyof typeof STORAGE_KEYS];
 
 // 旧键仅用于升级迁移，运行期始终向 STORAGE_KEYS 里的键写入。
 const LEGACY_KEYS: Record<StorageKey, string> = {
-  hghubx_app_v1: "hghub_app_v1",
-  hghubx_swipe_ep_v2: "hghub_swipe_ep_v2",
-  hghubx_theme: "hghub_theme",
-  hghubx_auto_line: "hg.autoLine",
+  hguox_app_v1: "hghub_app_v1",
+  hguox_swipe_ep_v2: "hghub_swipe_ep_v2",
+  hguox_theme: "hghub_theme",
+  hguox_auto_line: "hg.autoLine",
 };
 
 /** 新键优先；确认旧数据已写入新键后才删除旧键。存储写入失败仍可读取旧数据。 */

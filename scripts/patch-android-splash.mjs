@@ -31,7 +31,7 @@ if (!existsSync(res)) {
 const BRAND = "#071218";
 const valuesDir = join(res, "values");
 
-/* 主题名是 tauri android init 按 productName 生成的（改品牌名就会从 Theme.hghubx 变成
+/* 主题名是 tauri android init 按 productName 生成的（改品牌名就会从 Theme.hguox 变成
    Theme.hguox 之类），这里不再写死：优先认 values/styles.xml 里继承 MaterialComponents 的
    那个 App 主题，认不到再退回 productName 的 slug。 */
 function detectTheme() {
@@ -42,7 +42,7 @@ function detectTheme() {
       if (hit) return hit[1];
     }
   }
-  let slug = "hghubx";
+  let slug = "hguox";
   try {
     const conf = JSON.parse(readFileSync(join(root, "src-tauri", "tauri.conf.json"), "utf8"));
     slug = String(conf.productName || slug).toLowerCase().replace(/[^a-z0-9]/g, "") || slug;

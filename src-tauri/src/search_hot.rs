@@ -105,7 +105,7 @@ async fn fetch_html() -> Result<String, String> {
     tokio::time::timeout(REQUEST_TIMEOUT, async {
         let referer = format!("{base}/");
         let url = format!(
-            "{}/search/?_hghubx_hot={}",
+            "{}/search/?_hguox_hot={}",
             base,
             cache_bust_value()
         );

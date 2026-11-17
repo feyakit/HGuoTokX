@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 export type ContentPreferences = { blockedTags: string[]; paused: boolean; hideUntagged: boolean };
-export const CONTENT_PREFERENCES_KEY = "hghubx_content_preferences_v1";
+export const CONTENT_PREFERENCES_KEY = "hguox_content_preferences_v1";
 export const MAX_BLOCKED_TAGS = 200;
 export const MAX_TAG_LENGTH = 64;
 

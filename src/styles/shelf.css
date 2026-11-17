@@ -551,16 +551,30 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
   font-size: 13px; font-weight: 600; line-height: 1;
   white-space: nowrap;
 }
-/* 选中态（按参考图像素反解，不是拍脑袋）：
-   目标合成色 rgb(49,77,122)，真机胶囊背后背景 rgb(45,33,35) →
-   蓝基色 rgb(55,140,250) @ .42 合成出 (48,77,125)，三通道与参考差 (-1,0,+3)；
-   描边取参考描边最强的 rgb(70,82,200)。改完在真机重新取色验证过。 */
+/* 选中态（按参考图像素反解，背景是下面那条固定冷蓝画布 rgb(28,59,101)）：
+   目标合成 rgb(49,77,122) → rgb(112,131,185) @ .30 合成出 (52,76,121)，三通道差 (3,-1,-1)；
+   描边取参考描边最强像素 rgb(70,82,200)。真机取色验证过。 */
 .hg-pill[aria-selected="true"] {
-  background: rgb(55 140 250 / .42);
+  background: rgb(112 131 185 / .30);
   border-color: rgb(70 82 200);
   border-width: 2px;
   color: #fff;
 }
+
+/* 首页画布：固定冷蓝，不再被封面 accent 浸染（用户定调：accent 只留给控件）
+   渐变按参考图左边缘四点取色拟合：9.2% (26,53,93) / 18.4% (34,77,125) / 46% (15,20,49) / 92% (5,8,21) */
+.ios-page.hg-home-page {
+  background-color: rgb(5 8 21);
+  background-image: linear-gradient(180deg,
+    rgb(18 34 62) 0%,
+    rgb(26 53 93) 9.2%,
+    rgb(34 77 125) 18.4%,
+    rgb(15 20 49) 46%,
+    rgb(8 11 29) 75%,
+    rgb(5 8 21) 92%,
+    rgb(4 7 19) 100%);
+}
+.hg-home-page .hg-aura { display: none; }
 
 /* Hero 下方的轮播圆点：v3.hero.dots（3 个、6 CSS、卡外居中、距卡底 10） */
 .hg-dots { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 10px; }

@@ -32,7 +32,7 @@ def run_probe(mode):
     hits = {"proxy": 0, "media": 0}
     events = []
     outcome = {"played": False, "blocked": False, "frames": 0}
-    with tempfile.TemporaryDirectory(prefix="hghubx-webkit-test-") as directory:
+    with tempfile.TemporaryDirectory(prefix="hguox-webkit-test-") as directory:
         fixture = pathlib.Path(directory)
         subprocess.run(
             ["ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "lavfi",

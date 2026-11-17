@@ -1,5 +1,5 @@
 //! App-local upstream proxy preferences. WebView loopback routing is separate.
-//! Adopted from zhujinrun/HGhubX, with atomic state/persistence and URL validation.
+//! Adopted from an upstream fork (see LICENSE), with atomic state/persistence and URL validation.
 
 use once_cell::sync::Lazy;
 use serde_json::{json, Value};
@@ -234,7 +234,7 @@ mod tests {
             .unwrap()
             .as_nanos();
         let dir =
-            std::env::temp_dir().join(format!("hghubx-proxy-{}-{unique}", std::process::id()));
+            std::env::temp_dir().join(format!("hguox-proxy-{}-{unique}", std::process::id()));
         std::fs::create_dir(&dir).unwrap();
         dir
     }

@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-export const MOBILE_HOLD_GUIDE_KEY = "hghubx_mobile_hold_guide_v1";
+export const MOBILE_HOLD_GUIDE_KEY = "hguox_mobile_hold_guide_v1";
 
 function readSeen(): boolean | null {
   try { return localStorage.getItem(MOBILE_HOLD_GUIDE_KEY) === "1"; }

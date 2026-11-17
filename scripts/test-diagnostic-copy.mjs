@@ -70,7 +70,7 @@ try {
   await page.waitForFunction(() => window.diagnosticCopyFixture.nativeCopies.length === 1);
   const first = await page.evaluate(() => window.diagnosticCopyFixture);
   assert.equal(first.webCopies, 0);
-  assert(first.nativeCopies[0].includes("【HGhubX 网络诊断】") && first.nativeCopies[0].includes('"status": 200'));
+  assert(first.nativeCopies[0].includes("【HGuoX 网络诊断】") && first.nativeCopies[0].includes('"status": 200'));
   assert(first.nativeCopies[0].includes("直连探测（绕过应用 HTTP 代理） · IPv6 · 超时"));
   assert(first.nativeCopies[0].includes("检测到匹配的应用 HTTP 代理配置"));
   assert(first.nativeCopies[0].includes("── 应用代理") && first.nativeCopies[0].includes("自定义代理"));

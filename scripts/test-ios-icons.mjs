@@ -11,7 +11,7 @@ const root = process.argv[2] ? resolve(process.argv[2]) : join(here, "..");
 // Tauri CLI 2.10.1 templates/mobile/ios/Assets.xcassets/AppIcon.appiconset/Contents.json.
 const contents = readFileSync(join(here, "fixtures", "ios-appicon-contents.json"));
 const manifest = JSON.parse(contents);
-const temp = mkdtempSync(join(tmpdir(), "hghubx-ios-icons-"));
+const temp = mkdtempSync(join(tmpdir(), "hguox-ios-icons-"));
 
 try {
   const script = join(root, "scripts", "sync-ios-icons.mjs");

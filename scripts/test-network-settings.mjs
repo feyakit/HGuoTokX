@@ -27,8 +27,8 @@ try {
       report.external.push(route.request().url()); return route.abort();
     });
     await page.addInitScript(({ theme }) => {
-      localStorage.setItem("hghubx_auto_line", "off");
-      localStorage.setItem("hghubx_theme", theme);
+      localStorage.setItem("hguox_auto_line", "off");
+      localStorage.setItem("hguox_theme", theme);
       const MAIN = "https://main.fixture.invalid";
       const fixture = { base: MAIN, custom: false, loggedIn: true, calls: [], proxyChanges: 0, lineChanges: 0,
         failState: false, failSave: false, holdTest: false, releaseTest: null,

@@ -1,5 +1,5 @@
 export const USAGE_AGREEMENT_VERSION = "2026-11-15-v1";
-export const USAGE_AGREEMENT_KEY = "hghubx_usage_agreement";
+export const USAGE_AGREEMENT_KEY = "hguox_usage_agreement";
 
 export function hasAcceptedAgreement() {
   try {

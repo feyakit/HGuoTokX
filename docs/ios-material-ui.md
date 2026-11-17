@@ -1,4 +1,4 @@
-# HGhubX iOS 材质界面
+# HGuoX iOS 材质界面
 
 这套界面使用现有 React、Tailwind 和系统字体，通过 CSS 实现接近 iOS 的圆角、半透明材质、边缘高光和浮动导航。没有增加 UI 库、着色器或字体下载；它是跨平台 WebView 实现，不调用 UIKit 的原生 Liquid Glass API。
 

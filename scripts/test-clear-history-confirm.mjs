@@ -21,7 +21,7 @@ try {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     await context.addInitScript(installFixture, { theme: "light", titles: ["城市与晚风", "重逢在夏日以后", "星河旅人"] });
     await context.addInitScript(loggedIn => {
-      localStorage.setItem("hghubx_usage_agreement", JSON.stringify({
+      localStorage.setItem("hguox_usage_agreement", JSON.stringify({
         version: "2026-11-15-v1", accepted: true, acceptedAt: "2026-11-15T00:00:00.000Z",
       }));
       if (!loggedIn) return;
@@ -65,15 +65,15 @@ try {
     await page.getByRole("button", { name: "观看历史", exact: true }).click();
     const clear = page.getByRole("button", { name: "清空观看历史", exact: true });
     await clear.waitFor();
-    const before = await page.evaluate(() => localStorage.getItem("hghubx_app_v1"));
+    const before = await page.evaluate(() => localStorage.getItem("hguox_app_v1"));
     await clear.click();
     const dialog = page.getByRole("dialog", { name: "清空观看历史", exact: true });
     await dialog.waitFor();
     assert.equal(await dialog.getByRole("heading", { name: "清空观看历史" }).isVisible(), true);
-    assert.equal(await page.evaluate(() => localStorage.getItem("hghubx_app_v1")), before, "Opening confirmation must not delete guest history");
+    assert.equal(await page.evaluate(() => localStorage.getItem("hguox_app_v1")), before, "Opening confirmation must not delete guest history");
     await dialog.getByRole("button", { name: "取消", exact: true }).click();
     await dialog.waitFor({ state: "detached" });
-    assert.equal(await page.evaluate(() => localStorage.getItem("hghubx_app_v1")), before, "Cancel must preserve guest history");
+    assert.equal(await page.evaluate(() => localStorage.getItem("hguox_app_v1")), before, "Cancel must preserve guest history");
     assert.equal(await clear.isVisible(), true, "Guest history remains after cancel");
     report.checks.push("guest clear action opens confirmation and cancel preserves history");
     await context.close();

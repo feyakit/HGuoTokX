@@ -76,20 +76,20 @@ try {
     assert.equal(await page.evaluate(() => window.storageMigrationFixture.getThemePreference()), "light");
     assert.equal(await page.evaluate(() => window.initialTheme), true);
     const saved = await storage(page);
-    assert.deepEqual(Object.keys(saved).sort(), ["hghubx_app_v1", "hghubx_swipe_ep_v2", "hghubx_theme"]);
-    assert.deepEqual(JSON.parse(saved.hghubx_app_v1), state);
+    assert.deepEqual(Object.keys(saved).sort(), ["hguox_app_v1", "hguox_swipe_ep_v2", "hguox_theme"]);
+    assert.deepEqual(JSON.parse(saved.hguox_app_v1), state);
     await page.evaluate(() => window.storageMigrationFixture.setTheme("system"));
-    await page.waitForFunction(() => localStorage.getItem("hghubx_theme") === "system");
+    await page.waitForFunction(() => localStorage.getItem("hguox_theme") === "system");
     await page.emulateMedia({ colorScheme: "dark" });
     await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
     await page.emulateMedia({ colorScheme: "light" });
     await page.waitForFunction(() => document.documentElement.dataset.theme === "light");
-    assert.equal(await page.evaluate(() => localStorage.getItem("hghubx_theme")), "system");
+    assert.equal(await page.evaluate(() => localStorage.getItem("hguox_theme")), "system");
     await page.evaluate(() => {
       window.storageMigrationFixture.setTheme("dark");
       window.storageMigrationFixture.clearHistory();
     });
-    await page.waitForFunction(() => localStorage.getItem("hghubx_theme") === "dark" && JSON.parse(localStorage.getItem("hghubx_app_v1")).history.length === 0);
+    await page.waitForFunction(() => localStorage.getItem("hguox_theme") === "dark" && JSON.parse(localStorage.getItem("hguox_app_v1")).history.length === 0);
     await page.reload();
     await page.waitForFunction(() => window.storageMigrationFixture?.strictSecurityReady);
     assert.deepEqual(await snapshot(page), { ...state, history: [], theme: "dark" });
@@ -98,10 +98,10 @@ try {
   }
   {
     const newer = { ...state, favs: [99], history: [] };
-    const { context, page } = await open({ ...oldData, hghubx_app_v1: JSON.stringify(newer), hghubx_theme: "dark", hghubx_swipe_ep_v2: "1" });
+    const { context, page } = await open({ ...oldData, hguox_app_v1: JSON.stringify(newer), hguox_theme: "dark", hguox_swipe_ep_v2: "1" });
     assert.deepEqual(await snapshot(page), { ...newer, theme: "dark" });
     assert.equal(await page.evaluate(() => window.initialTheme), false);
-    assert(Object.keys(await storage(page)).every(key => key.startsWith("hghubx_")));
+    assert(Object.keys(await storage(page)).every(key => key.startsWith("hguox_")));
     await context.close();
     console.log("PASS: new values win over stale old data and old keys are cleaned");
   }
@@ -140,7 +140,7 @@ try {
   {
     const { context, page } = await open({ hghub_swipe_ep_v2: "1" });
     const saved = await storage(page);
-    assert.equal(saved.hghubx_swipe_ep_v2, "1");
+    assert.equal(saved.hguox_swipe_ep_v2, "1");
     assert.equal(saved.hghub_swipe_ep_v2, undefined);
     await context.close();
   }

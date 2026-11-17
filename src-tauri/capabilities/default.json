@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "HGhubX 默认能力",
+  "description": "HGuoX 默认能力",
   "windows": ["main"],
   "permissions": [
     "core:default",

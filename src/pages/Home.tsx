@@ -120,7 +120,7 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
   const play = (id: number, ep = 1) => push({ kind: "feed", videoIds: [id], index: 0, title: "", startEp: ep });
 
   return (
-    <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
+    <div className="ios-page hg-home-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
 
       {/* 顶栏第 2 层：品牌行（左 HGuoX 文字标，右 搜索 21） */}

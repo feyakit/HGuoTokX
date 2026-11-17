@@ -1,11 +1,11 @@
-//! HGhubX 环境变量：新名称优先，旧前缀仅作为升级兼容入口。
+//! HGuoX 环境变量：新名称优先，旧前缀仅作为升级兼容入口。
 
 pub fn var(suffix: &str) -> Option<String> {
     read_with(suffix, |key| std::env::var(key).ok())
 }
 
 fn read_with(suffix: &str, mut read: impl FnMut(&str) -> Option<String>) -> Option<String> {
-    read(&format!("HGHUBX_{suffix}")).or_else(|| read(&format!("HGHUB_{suffix}")))
+    read(&format!("HGUOX_{suffix}")).or_else(|| read(&format!("HGHUB_{suffix}")))
 }
 
 #[cfg(test)]
@@ -21,7 +21,7 @@ mod tests {
             "TEST_MEDIA_URL",
             "TEST_MEDIA_OUTPUT",
         ] {
-            let current = format!("HGHUBX_{suffix}");
+            let current = format!("HGUOX_{suffix}");
             let legacy = format!("HGHUB_{suffix}");
             let resolve = |new: Option<&str>, old: Option<&str>| {
                 read_with(suffix, |key| {

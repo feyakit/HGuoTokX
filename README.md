@@ -6,9 +6,9 @@
 
 <div align="center">
 
-<img src="hghubx.svg" alt="HGhubX" width="128" height="128" />
+<img src="hguox.svg" alt="HGuoX" width="128" height="128" />
 
-# HGhubX
+# HGuoX
 
 **第三方客户端 · Rust + Tauri 2**
 
@@ -42,7 +42,7 @@ Windows / macOS / Linux / Android / iOS · iOS 圆角与玻璃材质 · 沉浸�
 > 该仓库与本项目无关，是在旧版本源码基础上擅自加入**卡密验证、VIP 付费解锁**等变现功能的修改版，
 > 代码改动不透明、安全性无法验证。**请勿下载、勿注册、勿付费**；如已安装，建议立即卸载，改用官方 Release 包安装。
 >
-> 本项目**从未、也不会**加入任何卡密 / VIP / 付费解锁 / 广告功能。如果你遇到的「HGhubX」要求输入卡密或付费开通，那一定不是官方版本。
+> 本项目**从未、也不会**加入任何卡密 / VIP / 付费解锁 / 广告功能。如果你遇到的「HGuoX」要求输入卡密或付费开通，那一定不是官方版本。
 
 ## 免责声明
 
@@ -53,9 +53,9 @@ Windows / macOS / Linux / Android / iOS · iOS 圆角与玻璃材质 · 沉浸�
 
 ## 升级兼容
 
-- 本地收藏、观看记录、偏好、切集迁移标记和主题使用 `hghubx_*` 存储键。首次启动时，当前 WebView 存储中的旧 `hghub_*` 数据会迁移到新键；已有新数据优先，确认写入成功后才清理对应旧键。写入失败时保留并读取旧数据，下次启动重试。此迁移针对同一存储空间，不会跨应用标识或跨浏览器配置目录读取其他安装的数据。
-- 环境变量统一使用 `HGHUBX_PROXY`、`HGHUBX_STRICT`、`HGHUBX_TEST_COVER_URL`、`HGHUBX_TEST_MEDIA_URL` 和 `HGHUBX_TEST_MEDIA_OUTPUT`。旧 `HGHUB_*` 名称继续兼容；新变量未设置时才回退旧变量，显式设置的新值（包括空值）优先。安全模式的命令行参数仍优先于环境变量。
-- 网络诊断中的显式代理字段统一为 `HGHUBX_PROXY`，展示兼容读取后的有效值并保持脱敏。
+- 本地收藏、观看记录、偏好、切集迁移标记和主题使用 `hguox_*` 存储键。首次启动时，当前 WebView 存储中的旧 `hghub_*` 数据会迁移到新键；已有新数据优先，确认写入成功后才清理对应旧键。写入失败时保留并读取旧数据，下次启动重试。此迁移针对同一存储空间，不会跨应用标识或跨浏览器配置目录读取其他安装的数据。
+- 环境变量统一使用 `HGUOX_PROXY`、`HGUOX_STRICT`、`HGUOX_TEST_COVER_URL`、`HGUOX_TEST_MEDIA_URL` 和 `HGUOX_TEST_MEDIA_OUTPUT`。旧 `HGHUB_*` 名称继续兼容；新变量未设置时才回退旧变量，显式设置的新值（包括空值）优先。安全模式的命令行参数仍优先于环境变量。
+- 网络诊断中的显式代理字段统一为 `HGUOX_PROXY`，展示兼容读取后的有效值并保持脱敏。
 
 ## License
 

@@ -34,7 +34,7 @@ const policies = [
 const targets = [mediaOrigin, "http://127.0.0.1:17651", "http://localhost:17650", "https://outside.fixture.invalid"];
 const output = join(root, "test-results", "linux-media-policy", new Date().toISOString().replace(/[:.]/g, "-"));
 await mkdir(output, { recursive: true });
-const temporary = await mkdtemp(join(tmpdir(), "hghubx-csp-media-"));
+const temporary = await mkdtemp(join(tmpdir(), "hguox-csp-media-"));
 const report = {
   environment: "Chromium enforces the actual default Tauri CSP; local generated video; all target requests intercepted. Existing Linux production override already allowed this origin; installed-package policy is not inferred by this test.",
   passed: [], violations: [], errors: [], intercepted: [], unexpected: [],
