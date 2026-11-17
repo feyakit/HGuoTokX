@@ -36,6 +36,7 @@ export type Page =
   | { kind: "post"; key: string; id: number }
   | { kind: "topics"; key: string }
   | { kind: "topic"; key: string; slug: string; name: string }
+  | { kind: "series"; key: string; id: number }
   | { kind: "tags"; key: string }
   | { kind: "tag"; key: string; tag: string; name: string }
   | { kind: "following"; key: string }
@@ -50,6 +51,7 @@ export type PageInput =
   | { kind: "post"; id: number }
   | { kind: "topics" }
   | { kind: "topic"; slug: string; name: string }
+  | { kind: "series"; id: number }
   | { kind: "tags" }
   | { kind: "tag"; tag: string; name: string }
   | { kind: "following" }

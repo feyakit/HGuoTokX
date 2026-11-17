@@ -1,6 +1,7 @@
 import { LiquidIndicator, Loader } from "./components/ios/effects";
 import { Button } from "./components/ios/controls";
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
+import SeriesDetail from "./pages/SeriesDetail";
 import { useStore, type Page, type Tab } from "./store";
 import { accentTokens } from "./accent";
 import { isMobile, selfTest } from "./api";
@@ -86,6 +87,7 @@ function StackPageContent({ page, onBack, wide, top, bottomInset }: {
   if (page.kind === "post") return <PostDetail id={page.id} onBack={onBack} active={top} />;
   if (page.kind === "topics") return <TopicsPage onBack={onBack} wide={wide} />;
   if (page.kind === "topic") return <TopicPage slug={page.slug} name={page.name} onBack={onBack} wide={wide} />;
+  if (page.kind === "series") return <SeriesDetail id={page.id} onBack={onBack} />;
   if (page.kind === "tags") return <TagsPage onBack={onBack} wide={wide} />;
   if (page.kind === "tag") return <TagPage tag={page.tag} name={page.name} onBack={onBack} wide={wide} />;
   if (page.kind === "following") return <FollowingPage onBack={onBack} wide={wide} />;
