@@ -12,7 +12,7 @@ import type { Detail, VideoCard } from "../types";
    下面依次是标签胶囊、简介、选集（5 列 56×56）、相关推荐；底部主 CTA 332×41.7 全圆、距底 32。
    颜色只用 v3 六色：--p-bg / --hg-surface / accent / #8B9AF9 / #fff / rgba(255,255,255,.58)。 */
 export default function SeriesDetail({ id, onBack }: { id: number; onBack: () => void }) {
-  const { push, lineEpoch } = useStore();
+  const { push, lineEpoch, history } = useStore();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [related, setRelated] = useState<VideoCard[]>([]);
   const [err, setErr] = useState("");
@@ -98,11 +98,16 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
               </div>
               {episodes.length === 0 && <p className="py-2 text-[12px] text-dim">暂无分集信息</p>}
               <div className="hg-ep-grid">
-                {episodes.map(ep => (
-                  <Button key={ep.ep_num} card className="hg-ep-cell" onClick={() => openPlayer(ep.ep_num)}>
-                    {ep.ep_num}
-                  </Button>
-                ))}
+                {episodes.map(ep => {
+                  /* 当前集 = 观看记录里的进度集；没有记录时默认第 1 集（规范要求「当前播放集中态」） */
+                  const cur = (history.find(h => String(h.id) === String(detail?.id))?.ep ?? 1) === ep.ep_num;
+                  return (
+                    <Button key={ep.ep_num} card className="hg-ep-cell" aria-current={cur ? "true" : undefined}
+                      onClick={() => openPlayer(ep.ep_num)}>
+                      {ep.ep_num}
+                    </Button>
+                  );
+                })}
               </div>
             </section>
 
