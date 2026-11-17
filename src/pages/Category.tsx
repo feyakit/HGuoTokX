@@ -118,21 +118,24 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
         </Button>
       </div>
 
-      {/* 一级 tab：题材 */}
-      <div className="shrink-0 hg-page-x pb-1 flex gap-4 overflow-x-auto hg-chip-row relative z-10">
-        {TABS.map(t => (
-          <Button key={t.cate} className={`hg-tab${cate === t.cate ? " is-on" : ""}`}
-            aria-selected={cate === t.cate} onClick={() => setCate(t.cate)}>{t.name}</Button>
-        ))}
+      {/* 顶栏第 3 层：胶囊 tab（v3.top_bar S2，选中=实心胶囊） */}
+      <div className="shrink-0 hg-page-x relative z-10">
+        <div className="hg-pill-row" role="tablist" aria-label="题材分栏">
+          {TABS.map(t => (
+            <Button card key={t.cate} role="tab" aria-selected={cate === t.cate} className="hg-pill"
+              onClick={() => setCate(t.cate)}>{t.name}</Button>
+          ))}
+        </div>
       </div>
 
-      {/* 二级 chips：站点类型（真数据，来自 api_site_sorts） */}
+      {/* 顶栏第 4 层：二级文字筛选行（v3：文字，不是胶囊） */}
       {tags.length > 0 && (
-        <div className="shrink-0 hg-page-x pb-2 flex gap-2 overflow-x-auto hg-chip-row relative z-10">
-          <Button aria-pressed={!tag} onClick={() => setTag("")} className="hg-sort-chip" data-on={String(!tag)}>综合</Button>
+        <div className="shrink-0 hg-page-x pb-2 flex gap-4 overflow-x-auto hg-chip-row relative z-10">
+          <Button className="hg-filter-text" aria-pressed={!tag} data-on={String(!tag)}
+            onClick={() => setTag("")}>综合</Button>
           {tags.map(t => (
-            <Button key={t} aria-pressed={tag === t} onClick={() => setTag(tag === t ? "" : t)}
-              className="hg-sort-chip" data-on={String(tag === t)}>{t}</Button>
+            <Button key={t} className="hg-filter-text" aria-pressed={tag === t} data-on={String(tag === t)}
+              onClick={() => setTag(tag === t ? "" : t)}>{t}</Button>
           ))}
         </div>
       )}
