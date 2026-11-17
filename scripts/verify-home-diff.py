@@ -57,11 +57,15 @@ REGIONS = [
     ("分区标题行",  356, 392, "chrome"),
     ("货架",       392, 510, "content"),
     ("继续观看",    512, 574, "content"),
-    ("底栏",       574, 640, "chrome"),
+    ("底栏",       574, 628, "chrome"),
 ]
 
-SEARCH_DY = 120   # 局部对齐搜索范围（720 坐标 px）
-SEARCH_DX = 24
+SEARCH_DY = 28    # 局部对齐搜索范围（720 坐标 px），围绕顶部锚点
+SEARCH_DX = 10
+
+# 参考侧的锚点是常数（参考图永远不变）：胶囊 tab 行上沿 / 底栏上沿（S1 图 px）
+REF_TAB_Y_PX = 74
+REF_BAR_Y_PX = 575
 
 
 # ---------------------------------------------------------------- 取图
@@ -76,83 +80,119 @@ def capture_device() -> str:
         "adb -s 192.168.31.106:5555 shell 'settings put system accelerometer_rotation 0; "
         "settings put system user_rotation 0'; "
         "adb -s 192.168.31.106:5555 shell input keyevent 224; "
+        "adb -s 192.168.31.106:5555 shell am force-stop com.hguox.app; sleep 1; "
         "adb -s 192.168.31.106:5555 shell am start -n com.hguox.app/.MainActivity >/dev/null; "
-        "sleep 8; "
+        "sleep 14; "
         f"adb -s 192.168.31.106:5555 exec-out screencap -p > {remote}; ls -l {remote}"
     )
-    subprocess.run(["ssh", "-o", "ConnectTimeout=15", "projbox", script], check=True)
-    with open(local, "wb") as f:
-        subprocess.run(["ssh", "-o", "ConnectTimeout=15", "projbox", f"cat {remote}"],
-                       check=True, stdout=f)
-    if os.path.getsize(local) < 50_000:
-        sys.exit(f"截图失败或过小：{local}")
+    for attempt in range(5):
+        subprocess.run(["ssh", "-o", "ConnectTimeout=15", "projbox", script], check=True)
+        with open(local, "wb") as f:
+            subprocess.run(["ssh", "-o", "ConnectTimeout=15", "projbox", f"cat {remote}"],
+                           check=True, stdout=f)
+        if os.path.getsize(local) < 50_000:
+            sys.exit(f"截图失败或过小：{local}")
+        # 校验：首页的胶囊 tab 行应该落在 y≈120..260（720 坐标）。不在就按返回重来。
+        im = Image.open(local).convert("RGB")
+        im = im.resize((720, round(im.height * 720 / im.width)), Image.LANCZOS)
+        y = top_anchor(im)
+        if 150 <= y <= 205:
+            print(f"截图 OK（tab 行 y={y}，第 {attempt + 1} 次）")
+            return local
+        import time as _t
+        if y > 260:      # 明显不是首页（详情页/别的 tab）：按返回
+            print(f"截图不是首页（tab 行 y={y}），按返回重试…")
+            subprocess.run(["ssh", "-o", "ConnectTimeout=15", "projbox",
+                            "export PATH=$PREFIX/bin:$PATH; adb -s 192.168.31.106:5555 shell input keyevent 4"],
+                           check=False)
+            _t.sleep(3)
+        else:            # 首屏还在加载（tab 行偏高）：等一会再拍
+            print(f"首屏还在加载（tab 行 y={y}），等 5s 重拍…")
+            _t.sleep(5)
     return local
 
 
 # ---------------------------------------------------------------- 对齐
 
-def accent_top(im: Image.Image, y0: int, y1: int) -> int | None:
-    px = im.load()
-    for y in range(y0, y1):
-        n = 0
-        for x in range(0, im.width, 2):
-            c = px[x, y]
-            if all(abs(c[i] - ACCENT[i]) <= 55 for i in range(3)):
-                n += 1
-                if n > 6:
-                    return y
-    return None
-
-
-def bar_top(im: Image.Image) -> int:
+def top_anchor(im: Image.Image, y0: int = 140, y1: int = 420, thr: float = 0.9) -> int:
+    """顶部锚点：第一条「横向 90% 都与左边缘背景不同」的行（胶囊 tab 行的上沿）。"""
     px = im.load()
     W, H = im.size
-    for y in range(H - 6, int(H * 0.6), -1):
-        bright = sum(1 for x in range(W // 6, W * 5 // 6, 6)
-                     if 0.299 * px[x, y][0] + 0.587 * px[x, y][1] + 0.114 * px[x, y][2] > 70)
-        if bright < 40:
-            return y + 1
-    return H
+    for y in range(y0, min(y1, H)):
+        bg = px[4, y]
+        n = sum(1 for x in range(40, W - 20, 4)
+                if max(abs(px[x, y][i] - bg[i]) for i in range(3)) > 22)
+        if n / ((W - 60) // 4) > thr:
+            return y
+    return y0
 
 
-def _mean_abs(ref: Image.Image, ours: Image.Image, box, dx: int, dy: int, step: int = 4) -> float:
-    """区域内平均 |Δ|（步长采样），用于搜最佳位移。"""
+def trim_system_nav(im: Image.Image) -> Image.Image:
+    """裁掉 Android 系统导航条（底部整行很亮的带），避免它冒充 App 底栏。"""
+    px = im.load()
+    W, H = im.size
+    y = H - 1
+    while y > int(H * 0.8):
+        row = [px[x, y] for x in range(0, W, 4)]
+        if sum(0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2] for c in row) / len(row) < 170:
+            break
+        y -= 1
+    return im.crop((0, 0, W, max(int(H * 0.8), y + 1)))
+
+
+def bar_top(im: Image.Image, skip_bottom: int = 80) -> int:
+    """真机底栏上沿：跳过底部系统导航条，往上找第一条横向强边缘。"""
+    px = im.load()
+    W, H = im.size
+    for y in range(H - skip_bottom - 1, int(H * 0.6), -1):
+        s = 0
+        for x in range(W // 8, W * 7 // 8, 4):
+            a, b = px[x, y], px[x, y - 3]
+            s += abs(a[0] - b[0]) + abs(a[1] - b[1]) + abs(a[2] - b[2])
+        if s / (W * 3 // 4 / 4) > 16:
+            return y
+    return H - skip_bottom
+
+
+def _score(ref: Image.Image, ours: Image.Image, box, dx: int, dy: int,
+           rflat: Image.Image, oflat: Image.Image, step: int = 4) -> float:
+    """在「两边都平坦」的像素上算平均 |Δ| —— 对齐由 UI 面驱动，不被照片带跑。"""
     x0, y0, x1, y1 = box
-    r = ref.crop(box).load()
-    o = ours.load()
+    r = ref.crop(box)
+    rp, op = r.load(), ours.load()
+    rf, of = rflat.crop(box).load(), oflat.load()
     W, H = ours.size
-    s = 0
+    tot = 0
     n = 0
-    for y in range(y0, y1, step):
-        yy = y + dy
+    for y in range(0, r.height, step):
+        yy = y0 + y + dy
         if yy < 0 or yy >= H:
-            s += 255 * step
             continue
-        for x in range(x0, x1, step):
-            xx = x + dx
-            if xx < 0 or xx >= W:
-                s += 255
-                n += 1
+        for x in range(0, r.width, step):
+            if not rf[x, y]:
                 continue
-            a, b = r[x - x0, y - y0], o[xx, yy]
-            s += max(abs(a[0] - b[0]), abs(a[1] - b[1]), abs(a[2] - b[2]))
+            xx = x0 + x + dx
+            if xx < 0 or xx >= W or not of[xx, yy]:
+                continue
+            a, b = rp[x, y], op[xx, yy]
+            tot += max(abs(a[0] - b[0]), abs(a[1] - b[1]), abs(a[2] - b[2]))
             n += 1
-    return s / max(1, n)
+    return tot / n if n > 200 else 999.0
 
 
-def best_offset(ref, ours, box, base=(0, 0)):
+def best_offset(ref, ours, box, rflat, oflat, base=(0, 0)):
     """粗搜 + 细化，返回 (dx, dy, 平均 |Δ|)。"""
     bdx, bdy = base
-    best = (bdx, bdy, _mean_abs(ref, ours, box, bdx, bdy, step=6))
-    for dy in range(bdy - SEARCH_DY, bdy + SEARCH_DY + 1, 6):
-        for dx in range(bdx - SEARCH_DX, bdx + SEARCH_DX + 1, 6):
-            v = _mean_abs(ref, ours, box, dx, dy, step=6)
+    best = (bdx, bdy, _score(ref, ours, box, bdx, bdy, rflat, oflat, step=4))
+    for dy in range(bdy - SEARCH_DY, bdy + SEARCH_DY + 1, 4):
+        for dx in range(bdx - SEARCH_DX, bdx + SEARCH_DX + 1, 4):
+            v = _score(ref, ours, box, dx, dy, rflat, oflat, step=4)
             if v < best[2]:
                 best = (dx, dy, v)
     dx0, dy0 = best[0], best[1]
-    for dy in range(dy0 - 6, dy0 + 7, 2):
-        for dx in range(dx0 - 6, dx0 + 7, 2):
-            v = _mean_abs(ref, ours, box, dx, dy, step=2)
+    for dy in range(dy0 - 4, dy0 + 5):
+        for dx in range(dx0 - 4, dx0 + 5):
+            v = _score(ref, ours, box, dx, dy, rflat, oflat, step=2)
             if v < best[2]:
                 best = (dx, dy, v)
     return best
@@ -301,26 +341,34 @@ def main() -> int:
     if not shot_path:
         sys.exit("没有截图：给 --shot 或去掉 --no-capture")
     shot = Image.open(shot_path).convert("RGB")
+    try:                                   # 留一份在输出目录，报告可复现
+        shot.save(os.path.join(a.out, "shot.png"))
+    except Exception:
+        pass
     ours = shot.resize((OUT_W, round(shot.height * OUT_W / shot.width)), Image.LANCZOS)
     H = min(ref.height, ours.height)
     ref, ours = ref.crop((0, 0, OUT_W, H)), ours.crop((0, 0, OUT_W, H))
 
     # 3) 全局锚点（只用来报「整体差多少」，每个区域还会各自对齐）
-    t_ref = accent_top(ref, int(60 * s2), int(130 * s2)) or 0
-    t_our = accent_top(ours, int(60 * s2), int(130 * s2)) or 0
+    t_ref = top_anchor(ref)
+    t_our = top_anchor(ours)
     g_dy = t_our - t_ref
-    g_dx = 0
-    bar_res = (bar_top(ours) - g_dy) - bar_top(ref)
+    b_ref, b_our = bar_top(ref, skip_bottom=0), bar_top(ours)
 
-    print(f"全局锚点：胶囊 tab 行 ref y={t_ref} / ours y={t_our} → 整页下移 {g_dy}px"
-          f"（{g_dy / 2:.1f} CSS）；底栏固定，残余 {bar_res}px（{bar_res / 2:.1f} CSS）")
-    print(f"          底栏上沿 ref y={bar_top(ref)} / ours y={bar_top(ours)}\n")
+    print(f"顶部锚点（胶囊 tab 行上沿）：ref y={t_ref} / ours y={t_our} → 全局位移 {g_dy:+d}px"
+          f"（{g_dy / 2:+.1f} CSS）")
+    print(f"底栏上沿：ref y={b_ref} / ours y={b_our} → {b_our - b_ref:+d}px"
+          f"（含 Android 系统导航条占位，不作为判定）\n")
+
+    # 不做整体仿射（底栏锚点容易认错）；每个区域各自对齐，位移单独报。
 
     tol_px = max(1, round(a.tol_css * 2))
+    rflat_all = variance_mask(ref)
+    oflat_all = variance_mask(ours)
     rows = []
     for name, y0, y1, kind in REGIONS:
         box = (0, round(y0 * s2), OUT_W, round(y1 * s2))
-        dx, dy, _ = best_offset(ref, ours, box)
+        dx, dy, _ = best_offset(ref, ours, box, rflat_all, oflat_all, base=(0, g_dy))
         r = ref.crop(box)
         o = ours.crop((box[0] + dx, box[1] + dy, box[2] + dx, box[3] + dy))
         m = diff_mask(r, o, a.tol_rgb)
@@ -328,19 +376,44 @@ def main() -> int:
             m = m.filter(ImageFilter.MinFilter(2 * tol_px + 1))
 
         vm = variance_mask(r)
-        big, small = components(vm, thr_area=400, big_area=2500)
-        # 结构红 = 总红 − 素材红 − 文字红
-        core = m.copy()
-        cp, bp, sp = core.load(), big.load(), small.load()
-        for y in range(core.height):
-            for x in range(core.width):
-                if cp[x, y] and (bp[x, y] or sp[x, y]):
-                    cp[x, y] = 0
+        vo = variance_mask(o)
+        # 平坦区（两边都是低方差）= 能真正比出设计差异的地方：底色/描边/圆角/间距/不透明度。
+        # 照片和字形在这里被排除，因为它们两边本来就不一样。
+        flat = Image.new("L", r.size, 0)
+        fp, vp, wp = flat.load(), vm.load(), vo.load()
+        for y in range(r.height):
+            for x in range(r.width):
+                if not vp[x, y] and not wp[x, y]:
+                    fp[x, y] = 255
+        core = Image.new("L", r.size, 0)
+        cp, mp_, fp2 = core.load(), m.load(), flat.load()
+        for y in range(r.height):
+            for x in range(r.width):
+                if mp_[x, y] and fp2[x, y]:
+                    cp[x, y] = 255
+        # 平坦区的中位色差（带符号）：比红区百分比更能说明「是偏暗还是偏亮」
+        ds = [[], [], []]
+        for y in range(0, r.height, 2):
+            for x in range(0, r.width, 2):
+                if fp2[x, y]:
+                    rp_, op_ = r.getpixel((x, y)), o.getpixel((x, y))
+                    for i in range(3):
+                        ds[i].append(op_[i] - rp_[i])
+        med = tuple(sorted(d)[len(d) // 2] if d else 0 for d in ds)
+        # 去掉整区中位色偏后再数一次：把「整片偏色」和「局部形状不对」分开
+        n_norm = 0
+        for y in range(0, r.height, 2):
+            for x in range(0, r.width, 2):
+                if fp2[x, y]:
+                    rp_, op_ = r.getpixel((x, y)), o.getpixel((x, y))
+                    if max(abs((op_[i] - med[i]) - rp_[i]) for i in range(3)) > a.tol_rgb:
+                        n_norm += 1
+        red_norm = n_norm * 4
         red, red_core = count(m), count(core)
+        flat_px = count(flat)
         red_mat = sum(1 for y in range(m.height) for x in range(m.width)
-                      if m.getpixel((x, y)) and big.getpixel((x, y)))
-        red_txt = sum(1 for y in range(m.height) for x in range(m.width)
-                      if m.getpixel((x, y)) and small.getpixel((x, y)) and not big.getpixel((x, y)))
+                      if m.getpixel((x, y)) and not flat.getpixel((x, y)))
+        red_txt = 0
         blk = largest_block(core)
 
         # heatmap：左参考 / 右我们压暗 + 红区（深红=素材/文字，亮红=结构）
@@ -359,36 +432,42 @@ def main() -> int:
         o.save(os.path.join(a.out, f"{name}-ours.png"))
 
         rows.append(dict(region=name, kind=kind, dx=dx, dy=dy, red=red, red_core=red_core,
-                         red_mat=red_mat, red_txt=red_txt, total=m.width * m.height,
-                         core_ratio=round(red_core / (m.width * m.height) * 100, 2),
+                         red_mat=red_mat, flat_px=flat_px, med=med, red_norm=red_norm,
+                         total=m.width * m.height,
+                         core_ratio=round(red_core / max(1, flat_px) * 100, 2),
                          block=blk[1], block_px=blk[0]))
 
     rows.sort(key=lambda r: r["red_core"], reverse=True)
 
     md = [f"# 首页差分报告 {datetime.now():%Y-%m-%d %H:%M}", "",
           f"- 参考：`{a.ref}` 裁 {S1_CROP} → {OUT_W}px",
-          f"- 真机：`{shot_path}` → {OUT_W}px",
+          f"- 真机：`{shot_path}` → {OUT_W}px（副本 `shot.png`）",
           f"- 阈值：位置 >{a.tol_css} CSS / ΔRGB>{a.tol_rgb}；每区域独立对齐",
-          f"- 整页锚点：胶囊 tab 行 ours 比 ref 低 **{g_dy}px（{g_dy / 2:.1f} CSS）**；"
-          f"底栏固定，残余 {bar_res}px（{bar_res / 2:.1f} CSS）", "",
-          "| # | 区域 | 类型 | 本区位移 dx,dy | 结构红(必须=0) | 素材红 | 文字红 | 最大结构红块 |",
-          "|---|---|---|---|---|---|---|---|"]
+          f"- 整页锚点：胶囊 tab 行 ours 与 ref 相差 **{g_dy:+d}px（{g_dy / 2:+.1f} CSS）**；"
+          f"底栏上沿 ours 比 ref {b_our - b_ref:+d}px（含 Android 系统导航条占位，仅参考）", "",
+          "| # | 区域 | 类型 | 本区位移 dx,dy | 平坦区中位色差(我们-参考) | 结构红 | 占平坦区 | 去掉色偏后红 | 最大结构红块 |",
+          "|---|---|---|---|---|---|---|---|---|"]
     for i, r in enumerate(rows, 1):
         b = f'{r["block"][2]}×{r["block"][3]}' if r["block"] else "—"
         md.append(f'| {i} | {r["region"]} | {r["kind"]} | {r["dx"]},{r["dy"]} | '
-                  f'**{r["red_core"]}** | {r["red_mat"]} | {r["red_txt"]} | {b} |')
-    md += ["", "> 结构红 = 底色/描边/圆角/间距/控件尺寸的差，这是要清零的。",
-           "> 素材红、文字红来自「两边的剧和文案不同」，不参与判定。"]
+                  f'{r["med"][0]:+d},{r["med"][1]:+d},{r["med"][2]:+d} | '
+                  f'**{r["red_core"]}** | {r["core_ratio"]}% | {r["red_norm"]} | {b} |')
+    md += ["",
+           "> **结构红** = 两边都平坦的区域里对不上的像素（底色/描边/圆角/间距/不透明度），这是要清零的。",
+           "> 封面照片和字形被排除在外——两边本来就不是同一部剧、同一种文字。",
+           "> **中位色差** 为整区的中位数（我们−参考），说明是偏暗还是偏亮；**去掉色偏后红** 用来区分",
+           "> 「整片偏色」（一条就能修）和「局部形状不对」（要逐个查）。",
+           "> 底栏的位移含 Android 系统导航条占位，不作为判定。"]
     open(os.path.join(a.out, "report.md"), "w").write("\n".join(md))
-    json.dump(dict(ref=a.ref, shot=shot_path, global_dy=g_dy, bar_residual=bar_res,
+    json.dump(dict(ref=a.ref, shot=shot_path, global_dy=g_dy, bar_delta=b_our - b_ref,
                    tol_css=a.tol_css, tol_rgb=a.tol_rgb, regions=rows),
               open(os.path.join(a.out, "report.json"), "w"), ensure_ascii=False, indent=1)
 
-    print(f"{'区域':<9}{'类型':<8}{'位移':>9}{'结构红':>8}{'素材红':>8}{'文字红':>8}  最大结构红块")
+    print(f"{'区域':<9}{'类型':<8}{'位移':>8}{'中位ΔRGB':>14}{'结构红':>8}{'占比':>8}{'去色偏':>9}")
     for r in rows:
-        b = f'{r["block"][2]}×{r["block"][3]}' if r["block"] else "—"
-        print(f'{r["region"]:<9}{r["kind"]:<8}{r["dx"]:>4},{r["dy"]:<4}{r["red_core"]:>8}'
-              f'{r["red_mat"]:>8}{r["red_txt"]:>8}  {b}')
+        md_ = f'{r["med"][0]:+d},{r["med"][1]:+d},{r["med"][2]:+d}'
+        print(f'{r["region"]:<9}{r["kind"]:<8}{r["dx"]:>4},{r["dy"]:<4}{md_:>14}'
+              f'{r["red_core"]:>8}{r["core_ratio"]:>7.2f}%{r["red_norm"]:>9}')
     print(f"\n图与报告：{a.out}")
     return 0
 
