@@ -128,7 +128,7 @@
 }
 .hg-rank-no {
   flex: none; width: 40px; text-align: center;
-  font-size: 32px; font-weight: 800; line-height: 1;
+  font-size: 40px; font-weight: 800; line-height: 1;
   font-variant-numeric: tabular-nums;
   color: var(--accent, var(--p-primary));           /* 兜底：纯 accent 色 */
 }
@@ -228,3 +228,36 @@
   background: var(--accent, var(--p-primary)); color: var(--accent-on, #fff);
   font-size: 15px; font-weight: 700;
 }
+
+/* ------------------------------------------------------------------
+   首页：顶栏 Tab、双列网格、加载更多
+   ------------------------------------------------------------------ */
+.hg-tabs { display: flex; align-items: center; gap: 16px; }
+.hg-tab {
+  background: none; border: 0; padding: 2px 0; font-size: 16px; font-weight: 600;
+  color: var(--p-dim); line-height: 1.2;
+}
+.hg-tab.is-on { color: var(--p-on); }
+
+/* 网格：两列，列距 10（--space-col）、行距 14（--space-row） */
+.hg-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--space-col); row-gap: var(--space-row); }
+.hg-poster.is-grid { width: auto; }
+
+.hg-loadmore {
+  display: block; width: 100%; height: 38px; margin-top: var(--space-row);
+  border: 0; border-radius: 10px; background: var(--hg-surface);
+  color: var(--p-mut); font-size: 13px;
+}
+
+.hg-hero-sub { display: block; margin-top: 3px; font-size: var(--fs-meta); color: rgb(255 255 255 / .68); }
+
+/* 货架卡宽：agreed_spec 的 rail_visible_cards=3.5
+   360 - 16*2(页边) - 10*3(三个卡缝) = 298 → 298/3.5 ≈ 85 */
+.hg-poster { width: 85px; }
+
+/* 页边：必须走 token（Tailwind 的 px-4 在本项目里算成 18px，落在 16 上差 12.5%，超验收 8%） */
+.hg-page-x { padding-left: var(--space-page); padding-right: var(--space-page); }
+
+/* 上游把页边写死在 --ios-page-inset:18px（.ios-page > .scroll-y 用它），
+   按 agreed_spec 的 page_margin_css=16 覆盖一次，全站统一 16。 */
+.ios-page { --ios-page-inset: var(--space-page); }
