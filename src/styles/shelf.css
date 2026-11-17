@@ -1,0 +1,181 @@
+/* ===================================================================
+   设计基座：全站唯一的卡/货架/分区/榜单/焦点图原语
+   —— 页面只准用这里的类，不许再各写一套尺寸。
+   约束：Chrome 87 可用的写法（无 aspect-ratio / color-mix / :has / @container / @layer）
+   =================================================================== */
+
+:root {
+  /* 圆角：海报 10（复刻设计图 8–12 取中），面板与焦点图 14 */
+  --radius-poster: 10px;
+  --radius-hero: 14px;
+  --radius-panel: 14px;
+
+  /* 间距：页边 16 / 列距 10 / 行距 14 / 块间 22 */
+  --space-page: 16px;
+  --space-col: 10px;
+  --space-row: 14px;
+  --space-block: 22px;
+
+  /* 字级与字重：页面标题 26/750、分区标题 16/700、卡名 13/500、元信息 11 */
+  --fs-page: 26px;
+  --fw-page: 750;
+  --fs-section: 16px;
+  --fw-section: 700;
+  --fs-card: 13px;
+  --fw-card: 500;
+  --fs-meta: 11px;
+}
+
+/* —— 画布：深色底不用纯黑（#101012 由 ios.css 的 --p-canvas 提供），
+      这里只声明光照层的默认强度，颜色永远来自封面色 —— */
+:root {
+  --hg-aura: var(--accent, var(--p-primary));
+  --hg-aura-strength: .12;
+  /* 画布：深紫黑（不是纯黑），页面壳用它打底 */
+  --hg-canvas: #0C0A12;
+}
+.hg-canvas { background-color: var(--hg-canvas); }
+
+/* ------------------------------------------------------------------
+   分区：标题 16/700 + 右侧「全部」12 灰，块间 22
+   ------------------------------------------------------------------ */
+.hg-section { display: block; margin-top: var(--space-block); }
+.hg-section:first-child { margin-top: 0; }
+.hg-section-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.hg-section-title {
+  font-size: var(--fs-section); font-weight: var(--fw-section);
+  line-height: 1.3; color: var(--p-on); letter-spacing: -.1px;
+}
+.hg-section-more {
+  display: inline-flex; align-items: center; gap: 2px;
+  font-size: 12px; line-height: 1.2; color: var(--p-dim);
+  padding: 4px 0 4px 8px;
+}
+
+/* ------------------------------------------------------------------
+   货架：横滑容器，右边缘故意留白露出半张卡（提示还能滑）
+   ------------------------------------------------------------------ */
+.hg-shelf {
+  display: flex; gap: var(--space-col);
+  overflow-x: auto; overflow-y: hidden;
+  padding-right: var(--space-page); scroll-padding-right: var(--space-page);
+  scrollbar-width: none; -ms-overflow-style: none;
+  scroll-snap-type: x proximity;
+}
+.hg-shelf::-webkit-scrollbar { display: none; }
+
+/* ------------------------------------------------------------------
+   海报卡：3:4（百分比 padding，老内核可用）+ 卡名在图外单行
+   宽 110 是货架卡；网格里用 .hg-poster 由容器决定宽度
+   ------------------------------------------------------------------ */
+.hg-poster { flex: none; width: 98px; text-align: left; background: none; border: 0; padding: 0; box-shadow: none; }
+.hg-poster-art {
+  position: relative; display: block; width: 100%;
+  border-radius: var(--radius-poster); overflow: hidden;
+  background: var(--p-s2); transform: translateZ(0);
+  box-shadow: none;              /* 设计图没有黑投影 */
+  border: 0;                     /* 也没有 1px 白描边 */
+}
+.hg-poster-art::before { content: ""; display: block; padding-top: 150%; } /* 2:3，复刻设计图（接受裁切） */
+.hg-poster-art > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+/* 角标只占一个位置，不叠两个 */
+.hg-poster-badge {
+  position: absolute; top: 8px; right: 8px;
+  padding: 3px 6px; border-radius: 7px;
+  background: rgb(0 0 0 / .62); color: #fff;
+  font-size: 10px; line-height: 1.3; font-weight: 500;
+}
+.hg-poster-name {
+  display: block; margin-top: 8px;
+  font-size: var(--fs-card); font-weight: var(--fw-card); line-height: 1.35;
+  color: var(--p-on);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hg-poster-meta {
+  display: block; margin-top: 3px;
+  font-size: var(--fs-meta); line-height: 1.35; color: var(--p-dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ------------------------------------------------------------------
+   榜单行：大数字序号 + 54×72 封面 + 两行字 + 右侧热度
+   数字用 accent→透明渐变；不支持 background-clip:text 时退回纯 accent 色
+   ------------------------------------------------------------------ */
+.hg-rank-row {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 8px 0; text-align: left; background: none; border: 0;
+}
+.hg-rank-no {
+  flex: none; width: 40px; text-align: center;
+  font-size: 32px; font-weight: 800; line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent, var(--p-primary));           /* 兜底：纯 accent 色 */
+}
+@supports (-webkit-background-clip: text) {
+  .hg-rank-no {
+    background-image: linear-gradient(180deg, var(--accent, var(--p-primary)) 0%, rgba(0, 0, 0, 0) 92%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+  }
+}
+.hg-rank-cover {
+  position: relative; flex: none; width: 54px;
+  border-radius: 8px; overflow: hidden; background: var(--p-s2);
+  box-shadow: none;
+}
+.hg-rank-cover::before { content: ""; display: block; padding-top: 133.3333%; } /* 3:4 → 54×72 */
+.hg-rank-cover > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.hg-rank-copy { flex: 1; min-width: 0; }
+.hg-rank-title {
+  font-size: var(--fs-card); font-weight: var(--fw-card); line-height: 1.35; color: var(--p-on);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hg-rank-meta { margin-top: 3px; font-size: var(--fs-meta); color: var(--p-dim); }
+.hg-rank-heat {
+  flex: none; font-size: var(--fs-meta); color: var(--p-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------
+   焦点图（Hero）：3:2，底部 40% 渐变承载标题；装饰位允许裁切
+   ------------------------------------------------------------------ */
+.hg-hero {
+  position: relative; display: block; width: 100%;
+  border-radius: var(--radius-hero); overflow: hidden; background: var(--p-s2);
+}
+.hg-hero::before { content: ""; display: block; padding-top: 66.6667%; } /* 3:2 */
+.hg-hero > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.hg-hero-veil {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 40%;
+  background: linear-gradient(180deg, rgb(0 0 0 / 0), rgb(0 0 0 / .82));
+}
+.hg-hero-copy { position: absolute; left: 12px; right: 12px; bottom: 10px; }
+.hg-hero-title {
+  font-size: 18px; font-weight: 700; line-height: 1.25; color: #fff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ------------------------------------------------------------------
+   发光层：radial 渐变直接画，不用 blur 伪元素（低端机 blur 掉帧）
+   颜色永远取 var(--accent)，紫粉只是某张封面碰巧紫
+   ------------------------------------------------------------------ */
+.hg-aura {
+  position: absolute; left: 0; right: 0; top: 0; height: 260px;
+  pointer-events: none; z-index: 0; opacity: var(--hg-aura-strength);
+  background: radial-gradient(72% 100% at 50% 0, var(--hg-aura) 0%, rgba(0, 0, 0, 0) 70%);
+}
+
+/* ------------------------------------------------------------------
+  卡片背后的首屏发光：一层 radial 渐变垫在内容下面（不用 blur 伪元素）
+  用法：容器 position:relative + <span class="hg-glow"> 作第一个子元素
+   ------------------------------------------------------------------ */
+.hg-glow {
+  position: absolute; inset: 0 0 auto; height: 320px; pointer-events: none;
+  background:
+    radial-gradient(58% 46% at 22% 6%, var(--hg-aura) 0%, rgba(0, 0, 0, 0) 68%),
+    radial-gradient(52% 42% at 88% 2%, var(--accent-2, var(--hg-aura)) 0%, rgba(0, 0, 0, 0) 70%);
+  opacity: var(--hg-aura-strength);
+}
