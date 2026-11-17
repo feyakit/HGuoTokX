@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, APP_VERSION, fmt, fmtTime, isMobile, platform } from "../api";
 import type { Detail } from "../types";
 import { useStore } from "../store";
-import { Avatar, Empty, Modal } from "../components/ui";
+import { Empty, Img, Modal } from "../components/ui";
 import { MediaCard } from "../components/cards";
 import { useContentPreferences } from "../contentPreferences";
 import { CollectionLink, CollectionLinks } from "../components/CollectionLink";
@@ -36,6 +36,7 @@ function ProfileContent({ wide }: { wide: boolean }) {
   const [clearError, setClearError] = useState("");
   const clearing = useRef(false);
   const mounted = useRef(true);
+  const contentRef = useRef<HTMLDivElement>(null);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const ids = tab === "fav" ? favs : history.map((h) => h.id);
@@ -71,6 +72,12 @@ function ProfileContent({ wide }: { wide: boolean }) {
     return () => { alive = false; };
   }, [idsKey, tab, reload]);
 
+  /* 菜单里的观看历史/收藏：切到对应分栏并把列表滚进视野（不再另开一页，数据都在本页） */
+  const openSection = (next: "fav" | "history") => {
+    setTab(next);
+    contentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   const confirmLogout = async () => {
     if (logoutPending.current) return;
     logoutPending.current = true;
@@ -103,51 +110,47 @@ function ProfileContent({ wide }: { wide: boolean }) {
   };
 
   return (
-    <div className="ios-page absolute inset-0 bg-bg flex flex-col">
-      <div className="ios-page-heading shrink-0 px-4 flex items-center">
-        <h1 className="ios-page-title text-on">我的</h1>
+    <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
+      <span className="hg-aura" aria-hidden="true" />
+      <div className="shrink-0 hg-page-x flex items-center relative z-10"
+        style={{ paddingTop: "calc(var(--sat, 0px) + 6px)", paddingBottom: 6 }}>
+        {/* 设计图这一屏没有页面标题（身份区自己带层级），但主导航/无障碍还要这个 heading */}
+        <h1 className="sr-only">我的</h1>
         {isMobile && (
-          <Button onClick={() => push({ kind: "settings" })} aria-label="设置"
+          <Button onClick={() => push({ kind: "settings" })} aria-label="打开设置"
             className="ios-icon-button ml-auto">
             <ISettings size={17} strokeWidth={1.7} />
           </Button>
         )}
       </div>
 
-      <div className="ios-page-body flex-1 scroll-y px-4 pt-2 pb-24">
-        {/* 资料卡：已登录 / 未登录（点开登录抽屉） */}
+      <div className="ios-page-body flex-1 scroll-y hg-page-x relative z-10"
+        style={{ paddingBottom: "calc(84px + var(--sab, 0px))" }}>
+        {/* 身份区：头像 + 昵称（不画关注数/VIP/金币）*/}
         {user ? (
-          <Surface className="ios-account-card flex items-center gap-3.5 a-rise">
-            <Avatar size={56} name={user.nickname} hue={280} ring />
-            <div className="flex-1 min-w-0">
-              <div className="text-[16px] font-bold text-on truncate">{user.nickname}</div>
-              <div className="text-[12px] text-mut mt-0.5">@{user.username} · ID {user.id}</div>
-              <div className="flex gap-3 mt-2 text-[12px] text-mut">
-                <span>点赞 <b className="text-on">{fmt(user.counts?.like)}</b></span>
-                <span>收藏 <b className="text-on">{fmt(user.counts?.collect)}</b></span>
-                <span>关注 <b className="text-on">{fmt(user.counts?.following)}</b></span>
-              </div>
-            </div>
+          <div className="hg-profile-head a-rise">
+            <span className="hg-profile-avatar">
+              {user.avatar ? <Img src={user.avatar} eager /> : (user.nickname || "我").trim().charAt(0)}
+            </span>
+            <span className="hg-profile-meta">
+              <span className="hg-profile-name">{user.nickname}</span>
+              <span className="hg-profile-sub">@{user.username} · ID {user.id}</span>
+            </span>
             <Button onClick={() => { setLogoutError(""); setLogoutOpen(true); }}
               className="ios-icon-button" aria-label="退出登录">
               <ILogout size={17} />
             </Button>
-          </Surface>
+          </div>
         ) : (
           <Button onClick={() => setLoginOpen(true)}
-            className="ios-account-card w-full text-left flex items-center gap-3.5 pressable a-rise">
-            <Avatar size={56} icon={<IUser size={26} />} hue={220} ring />
-            <div className="flex-1 min-w-0">
-              <div className="text-[16px] font-bold text-on">未登录</div>
-              <div className="text-[12px] text-mut mt-0.5">登录后查看账号收藏、关注和观看记录</div>
-              <div className="flex gap-3 mt-2 text-[12px] text-mut">
-                <span>收藏 <b className="text-on">{favs.length}</b></span>
-                <span>观看 <b className="text-on">{history.length}</b></span>
-              </div>
-            </div>
-            <span className="flex items-center gap-0.5 h-8 pl-3 pr-2 rounded-full bg-primary text-on-primary text-[12px] font-semibold">
-              登录<IChevR size={13} />
+            className="hg-profile-head w-full text-left pressable a-rise"
+            aria-label="未登录，登录后同步收藏与观看记录">
+            <span className="hg-profile-avatar is-guest"><IUser size={24} /></span>
+            <span className="hg-profile-meta">
+              <span className="hg-profile-name">未登录</span>
+              <span className="hg-profile-sub">登录后同步收藏与观看记录</span>
             </span>
+            <span className="hg-profile-login">登录<IChevR size={13} /></span>
           </Button>
         )}
 
@@ -156,6 +159,27 @@ function ProfileContent({ wide }: { wide: boolean }) {
           <Button disabled={accountSync.busy} onClick={() => { void syncAccount().catch(() => {}); }}
             className="mt-1 min-h-11 px-3 text-on">{accountSync.busy ? "正在重试…" : "重试同步"}</Button>
         </div>}
+
+        {/* 菜单：全部指向已有页面，不画没有接口的入口 */}
+        <div className="hg-menu">
+          <Button className="hg-menu-row" aria-label={`观看历史，${history.length} 条`} onClick={() => openSection("history")}>
+            <span className="hg-menu-icon"><IClock size={16} /></span>
+            <span className="hg-menu-label">观看历史</span>
+            <span className="hg-menu-meta">{history.length}</span>
+            <IChevR size={13} />
+          </Button>
+          <Button className="hg-menu-row" aria-label={`我的收藏，${favs.length} 部`} onClick={() => openSection("fav")}>
+            <span className="hg-menu-icon"><IStar size={16} /></span>
+            <span className="hg-menu-label">我的收藏</span>
+            <span className="hg-menu-meta">{favs.length}</span>
+            <IChevR size={13} />
+          </Button>
+          <Button className="hg-menu-row" onClick={() => push({ kind: "settings" })}>
+            <span className="hg-menu-icon"><ISettings size={16} /></span>
+            <span className="hg-menu-label">设置</span>
+            <IChevR size={13} />
+          </Button>
+        </div>
 
         {/* 关注 / 我的主页 */}
         {user && (
@@ -168,11 +192,13 @@ function ProfileContent({ wide }: { wide: boolean }) {
         )}
 
         {/* 我的内容 */}
+        <div ref={contentRef}>
         <SegmentedControl className="mt-4" aria-label="我的内容" activeIndex={tab === "fav" ? 0 : 1}>
           {([["fav", "我的收藏"], ["history", "观看历史"]] as const).map(([k, l]) => (
             <Button aria-pressed={tab === k} key={k} onClick={() => setTab(k)}>{l}</Button>
           ))}
         </SegmentedControl>
+        </div>
 
         <div className="mt-3" aria-busy={loading || syncingFavorites}>
           {favoriteSyncFailed ? (
