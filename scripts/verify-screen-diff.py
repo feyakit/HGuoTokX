@@ -36,6 +36,7 @@ OUT_ROOT = "/opt/data/hguox-redesign"
 
 # 参考裁切框（x, y, w, h，原图 px）+ 真机操作
 SCREENS = {
+    "s1": dict(title="首页", crop=(90, 302, 302, 653), tap=(135, 2190), tab="首页"),
     "s2": dict(title="分类", crop=(410, 301, 302, 653), tap=(680, 2190), tab="分类"),
     "s3": dict(title="榜单", crop=(729, 301, 302, 647), tap=(750, 195), tab="榜单"),
     "s4": dict(title="我的", crop=(1049, 302, 302, 653), tap=(950, 2190), tab="我的"),
@@ -266,12 +267,23 @@ def run_screen(key: str, shot_path: str | None, reuse: bool = False) -> dict:
         return out
 
     mr, mo = modules(ref), modules(ours)
-    pairs = []
-    for i in range(min(len(mr), len(mo))):
-        a, b = mr[i], mo[i]
-        pairs.append(dict(idx=i + 1, ref=a, ours=b,
-                          dx=round(b["x"] - a["x"], 1), dy=round(b["y"] - a["y"], 1),
-                          dw=round(b["w"] - a["w"], 1), dh=round(b["h"] - a["h"], 1)))
+    # 按「最近的 y」配对（不比按序号配，两边模块数不同时更稳）；差 >60 CSS 视为配不上
+    pairs, used = [], set()
+    for a in mr:
+        best = None
+        for j, b in enumerate(mo):
+            if j in used:
+                continue
+            d = abs(b["y"] - a["y"])
+            if d <= 60 and (best is None or d < best[0]):
+                best = (d, j, b)
+        if best:
+            used.add(best[1])
+            b = best[2]
+            pairs.append(dict(idx=len(pairs) + 1, ref=a, ours=b,
+                              dx=round(b["x"] - a["x"], 1), dy=round(b["y"] - a["y"], 1),
+                              dw=round(b["w"] - a["w"], 1), dh=round(b["h"] - a["h"], 1)))
+    unmatched = (len(mr) - len(pairs)) + (len(mo) - len(used))
     for p in pairs:
         p["worst"] = max(abs(p["dx"]), abs(p["dy"]), abs(p["dw"]), abs(p["dh"]))
         p["verdict"] = "✓" if p["worst"] <= 1 else ("⚠" if p["worst"] <= 2 else "✗")
@@ -300,7 +312,8 @@ def run_screen(key: str, shot_path: str | None, reuse: bool = False) -> dict:
 
     ratios = sorted(h["ratio"] for h in heat)
     med_ratio = ratios[len(ratios) // 2]
-    comparable = med_ratio < 60
+    # 可比的判据：模块带能配上（配上的比例 > 60%）且配上的里至少一半 Δy≤6
+    comparable = bool(pairs) and len(pairs) / max(1, max(len(mr), len(mo))) > 0.6
 
     # 5) 报告
     md = [f"# S{key[1]} {cfg['title']} —— 几何 + 差分", "",
@@ -318,7 +331,7 @@ def run_screen(key: str, shot_path: str | None, reuse: bool = False) -> dict:
                   f'{f(p["dx"])} | {f(p["dy"])} | {f(p["dw"])} | {f(p["dh"])} | {p["verdict"]} |')
     if not comparable:
         md = [x for x in md if not x.startswith("| ")]
-        md += ["", f"> **这一屏和我们不是同一套结构**：四个水平带的偏差像素中位数 **{med_ratio:.0f}%**。",
+        md += ["", f"> **模块带配不上**：参考 {len(mr)} 段 / 我们 {len(mo)} 段，只配上 {len(pairs)} 段。",
                "> 模块不是「差几个像素」，而是整屏内容/配色都不同（参考有 VIP/金币/统计栏，我们没有；",
                "> 我们的「我的」还是浅色主题）。这种情况下逐项 Δ 没有意义，先定设计再谈还原。",
                "> 下面只保留并排图与偏差占比，几何表不输出。", ""]
@@ -338,7 +351,8 @@ def run_screen(key: str, shot_path: str | None, reuse: bool = False) -> dict:
           f"{pairs[0]['worst'] if pairs else 0:g} CSS，红像素 "
           f"{sum(h['red'] for h in heat)}")
     return dict(screen=key, title=cfg["title"], out=out, pairs=pairs, bands=band_rows,
-                heat=heat, comparable=comparable, med_ratio=med_ratio)
+                heat=heat, comparable=comparable, med_ratio=med_ratio,
+                n_ref=len(mr), n_our=len(mo), unmatched=unmatched)
 
 
 def main() -> int:
@@ -356,20 +370,26 @@ def main() -> int:
         time.sleep(1)
 
     # 总表
-    md = [f"# 验收总表 {datetime.now():%Y-%m-%d %H:%M}", "",
-          "| 屏 | 模块数 | 最大偏差 CSS | top3 偏差项 | 达 Δ≤1 |", "|---|---|---|---|---|"]
+    import subprocess as _sp
+    commit = _sp.run(["git", "-C", os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                      "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip()
+    md = [f"# 验收总表 {datetime.now():%Y-%m-%d %H:%M}（跑图 commit {commit}）", "",
+          "| 屏 | 最大偏差元素 | Δ | 达 Δ≤2 | 未解项数 |", "|---|---|---|---|---|"]
     for r in res:
         top = "；".join(
             f'模块{p["idx"]} y{p["ref"]["y"]}→Δy{p["dy"]:+g}/Δh{p["dh"]:+g}'
             for p in r["pairs"][:3]) or "—"
         ok = "是" if (r.get("comparable", True) and r["pairs"]
                       and all(p["worst"] <= 1 for p in r["pairs"])) else "否"
-        if not r.get("comparable", True):
-            md.append(f'| S{r["screen"][1]} {r["title"]} | — | — | 结构不同（偏差中位 '
-                      f'{r["med_ratio"]:.0f}%），几何不可比 | 否 |')
+        p0 = r["pairs"][0] if r["pairs"] else None
+        if not p0:
+            md.append(f'| S{r["screen"][1]} {r["title"]} | 模块带配不上 | — | 否 | '
+                      f'{r["n_ref"] + r["n_our"]} |')
         else:
-            md.append(f'| S{r["screen"][1]} {r["title"]} | {len(r["pairs"])} | '
-                      f'{r["pairs"][0]["worst"] if r["pairs"] else 0:g} | {top} | {ok} |')
+            md.append(f'| S{r["screen"][1]} {r["title"]} | 模块 y{p0["ref"]["y"]} '
+                      f'（{p0["ref"]["w"]}×{p0["ref"]["h"]}） | Δy {p0["dy"]:+g} / '
+                      f'Δh {p0["dh"]:+g} | {"是" if p0["worst"] <= 2 else "否"} | '
+                      f'{r["unmatched"]} |')
     md += ["", "明细见各屏目录的 `report.md` 与 `01-并排.png`。"]
     open(os.path.join(OUT_ROOT, "验收-总表.md"), "w").write("\n".join(md))
     print(f"\n总表：{OUT_ROOT}/验收-总表.md")
