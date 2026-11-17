@@ -1086,6 +1086,24 @@ pub async fn api_post_comments(
         .await
 }
 
+/// 视频题材：`/api/site/categories/video` 返回 data.items（name/route/sort）。
+#[tauri::command]
+pub async fn api_site_categories(state: State<'_, Api>) -> Result<Value, String> {
+    state.get("/api/site/categories/video").await
+}
+
+/// 排序口径：`/api/site/sorts/video` 返回 data.items（name/route/sort）。
+#[tauri::command]
+pub async fn api_site_sorts(state: State<'_, Api>) -> Result<Value, String> {
+    state.get("/api/site/sorts/video").await
+}
+
+/// 站点导航：`/api/site/menus` 返回 data.category（含 children）。
+#[tauri::command]
+pub async fn api_site_menus(state: State<'_, Api>) -> Result<Value, String> {
+    state.get("/api/site/menus").await
+}
+
 /// 吃瓜分类：`/api/site/categories/post` 返回 data.items（name/route）。
 #[tauri::command]
 pub async fn api_post_categories(state: State<'_, Api>) -> Result<Value, String> {

@@ -157,6 +157,10 @@ export type HotSearchVideo = { video_id: number; title: string; plays: string };
 
 export type PostCategory = { id: number; name: string; route: string; intro?: string; sort?: number };
 
+/** 站点导航配置：题材 / 排序 / 一级菜单，均由服务端下发，客户端只做渲染。 */
+export type SiteItem = { id?: number; index?: number; name: string; route: string; sort?: number; intro?: string };
+export type SiteMenuItem = { name: string; url?: string; cat_code?: string; icon_name?: string; children?: SiteMenuItem[] };
+
 export type UserProfile = {
   id: number;
   username: string;

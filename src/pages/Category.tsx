@@ -11,12 +11,8 @@ import { CollectionLink, CollectionLinks } from "../components/CollectionLink";
 import { InplaceSearch } from "../components/InplaceSearch";
 import { Empty } from "../components/ui";
 import { IBack, IChevR, IGlobe, IGrid, ISearch, ITrophy } from "../icons";
+import { siteChannels, FALLBACK_CHANNELS, type ChannelEntry } from "../siteCatalog";
 
-export const CHANNELS = [
-  { cate: "ai-duanju", name: "AI成人短剧", desc: "高能反转 · 一口气看完" },
-  { cate: "ai-manju", name: "AI成人漫剧", desc: "国创漫剧 · 每周更新" },
-  { cate: "original", name: "原创", desc: "原创 · 独家好剧" },
-] as const;
 
 /* ================= 分类总览 ================= */
 export default function Category({ wide, active }: { wide: boolean; active: boolean }) {
@@ -25,6 +21,8 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  /* 题材由 /api/site/categories/video 下发，失败回落内置列表（不白屏） */
+  const [channels, setChannels] = useState<ChannelEntry[]>(FALLBACK_CHANNELS);
   const mounted = useRef(false);
   const started = useRef(false);
   const pending = useRef(new Set<string>());
@@ -72,7 +70,12 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
     // 首次打开分类才加载，避免启动时后台频道请求/封面与首页视频竞争网络。
     if (!active || started.current) return;
     started.current = true;
-    CHANNELS.forEach(c => { void loadPreview(c.cate); });
+    void (async () => {
+      const list = await siteChannels();
+      if (!mounted.current) return;
+      setChannels(list);
+      list.forEach(c => { void loadPreview(c.cate); });
+    })();
     void loadPreview("posts");
   }, [active, loadPreview]);
 
@@ -87,7 +90,7 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
       <div className="ios-page-heading shrink-0 px-4">
         <div className="flex items-end gap-2.5">
           <h1 className="ios-page-title text-on">分类</h1>
-          <span className="text-[12px] text-mut pb-0.5">{CHANNELS.length + 1} 个频道 · 每周持续上新</span>
+          <span className="text-[12px] text-mut pb-0.5">{channels.length + 1} 个频道 · 每周持续上新</span>
         </div>
       </div>
 
@@ -107,7 +110,7 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
         </CollectionLinks>
 
         <p className="mb-3 text-[12px] text-mut">频道卡片可左右滑动浏览 · 点击“全部”查看完整频道</p>
-        {CHANNELS.map((c, ci) => {
+        {channels.map((c, ci) => {
           const list = rows[c.cate] || [];
           return (
             <section key={c.cate} aria-label={c.name} className="mb-5 a-rise" style={{ animationDelay: `${Math.min(ci * 50, 300)}ms` }}>

@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { tracePlayback } from "./playbackDiagnostics";
 import type {
-  AccountHistoryPage, AccountIdentity, AccountSnapshot, CommentPage, Detail, HotSearchVideo, Paged, PlayInfo, Post, PostCategory, RankItem, TagGroup, TopicCard, TopicDetail, User, UserProfile, VideoCard,
+  AccountHistoryPage, AccountIdentity, AccountSnapshot, CommentPage, Detail, HotSearchVideo, Paged, PlayInfo, Post, PostCategory, RankItem, SiteItem, SiteMenuItem, TagGroup, TopicCard, TopicDetail, User, UserProfile, VideoCard,
 } from "./types";
 
 /* ── 运行环境 ───────────────────────────────────────────── */
@@ -179,6 +179,12 @@ export const api = {
   postCollect: (id: number, on: boolean, identity?: AccountIdentity) => invoke<unknown>("api_post_collect", { id, on, expectedUserId: identity?.expectedUserId, expectedOrigin: identity?.expectedOrigin }),
   postComments: (id: number, page: number, size: number) => call<CommentPage>("api_post_comments", { id, page, size }),
   postCategories: () => call<{ items: PostCategory[] }>("api_post_categories"),
+  /** 视频题材（题材广场数据源）：AI魔改 / AI换脸 / 漫剧 / 短剧。 */
+  siteCategories: () => call<{ items: SiteItem[] }>("api_site_categories"),
+  /** 排序口径：最近更新 / 当前最热 / 正在播放 / 小蓝原创。 */
+  siteSorts: () => call<{ items: SiteItem[] }>("api_site_sorts"),
+  /** 站点导航：category[]（长视频、博客两条子入口）。 */
+  siteMenus: () => call<{ category?: SiteMenuItem[] }>("api_site_menus"),
   postCategory: (route: string, page = 1, size = 20, sort?: string) =>
     call<Paged<Post>>("api_post_category", { route, page, size, sort: sort ?? null }),
   related: (id: number) => call<{ items: VideoCard[] }>("api_related", { id }),
