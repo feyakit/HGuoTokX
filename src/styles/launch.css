@@ -17,7 +17,8 @@
   animation: launch-exit 180ms 2020ms ease-in both;
 }
 .hg-launch-stage { position: relative; display: grid; justify-items: center; padding: 32px; transform: translateY(-8px); }
-.hg-launch-mark { position: relative; width: clamp(108px, 28vw, 152px); aspect-ratio: 1; }
+.hg-launch-mark { position: relative; width: clamp(108px, 28vw, 152px); }
+.hg-launch-mark::before { content:""; display:block; padding-top:100%; }
 .hg-launch-svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .hg-launch-tile, .hg-launch-stroke, .hg-launch-play, .hg-launch-x { transform-box: fill-box; transform-origin: center; }
 .hg-launch-tile { animation: launch-tile 780ms 500ms both; }

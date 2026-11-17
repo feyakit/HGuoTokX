@@ -8,6 +8,8 @@
    应用语义色映射：颜色与控件样式由 ios.css 统一维护
    =================================================================== */
 @theme inline {
+  /* 清空 Tailwind 默认调色板：老内核不认 oklch()，产物里一条都不留 */
+  --color-*: initial;
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", "Roboto", "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", "Noto Sans SC", "Noto Sans CJK SC", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji";
   --color-canvas: var(--p-canvas);
   --color-bg: var(--p-bg);
@@ -500,3 +502,24 @@ html.theme-light .article-body blockquote { background: rgba(43, 40, 36, .045); 
 
 
 }
+
+
+/* —— 封面色浸染：页面壳在 background-image 上叠两层径向渐变 ——
+   颜色来自 App 根节点按当前封面注入的 --accent*；分档只做角部，不铺整屏。
+   默认值必须写在分档类之前，否则同元素上后声明的默认值会盖掉分档。 */
+.ios-page { transition: background-color .35s ease; }
+.ios-page { --tint-a: var(--accent-a1, transparent); --tint-b: var(--accent-a2, transparent); }
+.ios-tint-08 { --tint-a: var(--accent-a08, transparent); --tint-b: transparent; }
+.ios-tint-12 { --tint-a: var(--accent-a12, transparent); --tint-b: var(--accent-a08, transparent); }
+.ios-tint-18 { --tint-a: var(--accent-a18, transparent); --tint-b: var(--accent-a12, transparent); }
+.ios-page {
+  background-image:
+    radial-gradient(115% 58% at 8% -6%, var(--tint-a, transparent) 0%, transparent 62%),
+    radial-gradient(95% 52% at 100% 104%, var(--tint-b, transparent) 0%, transparent 66%);
+  background-repeat: no-repeat;
+}
+/* 设置页不跟色：全是文字和分组，可读优先 */
+.ios-settings-page { background-image: none; }
+
+/* 3:4 骨架块（Chrome 87 无 aspect-ratio，用百分比 padding 撑高） */
+.hg-skel-poster::before { content:""; display:block; padding-top:133.3333%; }

@@ -26,6 +26,7 @@ import {
   IBack, IBoltF, IChevR, IChevronDown, IChevronUp, IClose, ICommentF, ICompress, IExpand, IFileText, IHeart, IHeartF, IMore,
   ILink, IList, ILockF, IPauseF, IPlayF, ISearch, IStar, IStarF, IVertSwap, IVol, IVolMute,
 } from "../icons";
+import { useAccent } from "../useAccent";
 
 type Props = {
   videoIds: number[];
@@ -332,6 +333,10 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
       };
 
   const posterUrl = cover(meta.cover, 900);
+  /* 封面色链路：这一屏的主视觉决定了全站强调色（换剧才换色） */
+  const accentScheme = useAccent(curId, posterUrl || undefined);
+  const setAccent = useStore().setAccent;
+  useEffect(() => { setAccent(accentScheme); }, [accentScheme, setAccent]);
   const articleHtml = kind === "post" && !post?.video_url ? (post?.content || "") : "";
 
   /* 分享：复制播放链接 */

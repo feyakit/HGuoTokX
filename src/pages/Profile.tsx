@@ -263,7 +263,7 @@ function FavoriteSyncState({ wide }: { wide: boolean }) {
     <div aria-hidden="true" className={`ios-media-grid ${wide ? "is-wide" : ""}`}>
       {[0, 1, 2, 3].map(index => (
         <div key={index} className="min-w-0">
-          <div className="aspect-[3/4] w-full rounded-[22px] bg-s3 animate-pulse" />
+          <div className="hg-skel-poster w-full rounded-[22px] bg-s3 animate-pulse" />
           <div className="mt-2.5 h-3.5 w-4/5 rounded-full bg-s3 animate-pulse" />
           <div className="mt-2 h-3 w-1/2 rounded-full bg-s2 animate-pulse" />
         </div>

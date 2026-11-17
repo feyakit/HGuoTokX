@@ -1,5 +1,6 @@
 /* Bounded content scrolling keeps dismiss and confirmation controls visible. */
-.ios-dialog:has(>.content-tag-menu) { overflow:hidden; }
+/* 原本用 :has() 判断对话框里有标签菜单；Chrome 87 没有 :has，改由组件挂 .is-clipped */
+.ios-dialog.is-clipped > .content-tag-menu, .ios-dialog.is-clipped { overflow:hidden; }
 .content-tag-menu { display:flex; flex-direction:column; min-height:0; max-height:min(360px,55dvh,calc(100dvh - max(env(safe-area-inset-top),24px) - max(env(safe-area-inset-bottom),12px) - 52px)); }
 .content-tag-menu[data-expanded=true] { max-height:min(560px,70dvh,calc(100dvh - max(env(safe-area-inset-top),24px) - max(env(safe-area-inset-bottom),12px) - 52px)); }
 .content-tag-menu-header { display:flex; align-items:center; justify-content:space-between; gap:12px; flex:none; padding:4px 18px; }

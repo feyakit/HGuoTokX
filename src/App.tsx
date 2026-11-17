@@ -2,6 +2,7 @@ import { LiquidIndicator, Loader } from "./components/ios/effects";
 import { Button } from "./components/ios/controls";
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useStore, type Page, type Tab } from "./store";
+import { accentTokens } from "./accent";
 import { isMobile, selfTest } from "./api";
 import { addPluginListener, invoke } from "@tauri-apps/api/core";
 import { runBack } from "./back";
@@ -255,7 +256,15 @@ function MobileShell() {
 
 /* ============ 入口 ============ */
 export default function App() {
-  const { platform, loginOpen, setLoginOpen, tab, setTab, stack, pop, fs, setFs } = useStore();
+  const { platform, accent, theme, loginOpen, setLoginOpen, tab, setTab, stack, pop, fs, setFs } = useStore();
+
+  /* 全站强调色只跟封面走：换剧才换色，换集不动；浅色主题走压深变体（保证 ≥4.5:1）。 */
+  useEffect(() => {
+    const root = document.documentElement;
+    for (const [key, value] of Object.entries(accentTokens(accent, theme === "light"))) {
+      root.style.setProperty(key, value);
+    }
+  }, [accent, theme]);
   useEffect(() => {
     tracePlayback("navigation.change", { tab, stack: stack.map(p => ({ page: p.kind, key: p.key })), login_open: loginOpen });
   }, [tab, stack, loginOpen]);

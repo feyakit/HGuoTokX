@@ -3,6 +3,9 @@ import { api, platform as envPlatform } from "./api";
 import { isStrictSecurity, setStrictSecurity as setHtmlStrictSecurity } from "./html";
 import type { User } from "./types";
 import { readStorage, STORAGE_KEYS } from "./storage";
+import type { AccentScheme } from "./accent";
+import { FALLBACK_SCHEME } from "./accent";
+import { readAmbient } from "./useAccent";
 import { pickGuestData, useAccountData, type GuestData } from "./accountData";
 
 export type Platform = "android" | "ios" | "windows" | "macos" | "linux";
@@ -190,6 +193,8 @@ type Store = {
   toasts: Toast[]; toast: (msg: string, icon?: Toast["icon"]) => void;
   /** 线路切换计数：变了就让列表页重挂载，重新拉一遍数据 */
   lineEpoch: number;
+  /** 当前封面取色（全站 accent 的唯一来源） */
+  accent: AccentScheme; setAccent: (a: AccentScheme) => void;
 };
 
 const Ctx = createContext<Store>(null as unknown as Store);
@@ -213,6 +218,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [loginOpen, setLoginOpen] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [lineEpoch, setLineEpoch] = useState(0);
+  const [accent, setAccentState] = useState<AccentScheme>(() => readAmbient());
   const [theater, setTheaterState] = useState(false);
   const [fs, setFsState] = useState(false);
   const [clean, setCleanState] = useState(false);
@@ -412,10 +418,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     preferHevc: p.preferHevc, setPreferHevc,
     searchHist: p.searchHist, addSearch, clearSearchHist,
     strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity,
+    accent, setAccent: setAccentState,
     toasts, toast, lineEpoch,
   }), [theme, themePreference, setTheme, tab, setTab, stack, push, pop, user, loginOpen, logout,
     p, account,
     setMuted, setMuteOnStartup, setSwipeEp, setPreferHevc, setVolume, addSearch, clearSearchHist, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity,
+    accent, setAccentState,
     toasts, toast, lineEpoch, theater, setTheater, fs, setFs, clean, setClean]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { isMobile } from "../api";
 import { MAX_BLOCKED_TAGS, MAX_TAG_LENGTH, normalizeTag, useContentPreferences } from "../contentPreferences";
 import { ICheck, IClose } from "../icons";
@@ -28,7 +28,16 @@ export function TagBlockMenu({ open, tags, onClose, onSettings }: {
   const capacity = Math.max(0, MAX_BLOCKED_TAGS - preferences.blockedTags.length);
   const validSelected = selected.filter(tag => !isTagBlocked(tag) && tag.trim().length <= MAX_TAG_LENGTH).slice(0, capacity);
   const visibleOptions = expanded ? options : options.slice(0, 4);
-  const content = <div className="content-tag-menu" data-expanded={expanded}>
+  /* 老内核没有 :has()：标签菜单出现时由组件自己给外层对话框挂 is-clipped，
+     让 .ios-dialog.is-clipped 接管 overflow（原来靠 .ios-dialog:has(> .content-tag-menu)） */
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const dialog = menuRef.current?.closest(".ios-dialog") as HTMLElement | null;
+    if (!dialog) return;
+    dialog.classList.add("is-clipped");
+    return () => { dialog.classList.remove("is-clipped"); };
+  }, [open]);
+  const content = <div className="content-tag-menu" data-expanded={expanded} ref={menuRef}>
     <header className="content-tag-menu-header">
       <div className="min-w-0">
         <h2 className="text-[18px] font-bold text-on">不感兴趣</h2>
