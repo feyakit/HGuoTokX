@@ -2,7 +2,7 @@ import { Button } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, fmt } from "../api";
-import type { Post, VideoCard } from "../types";
+import type { Post, RankItem, VideoCard } from "../types";
 import { useStore } from "../store";
 import { MediaCard, Masonry } from "../components/cards";
 import { FilteredContent } from "../components/FilteredContent";
@@ -27,6 +27,15 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
   const seq = useRef(0);
+  /* 排行榜只展示前 5；二级页复用现有 RankPage（固定 20 条，接口不支持翻页） */
+  const [hotRank, setHotRank] = useState<RankItem[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    api.rank("hot")
+      .then(res => { if (!cancelled) setHotRank((res?.items ?? []).slice(0, 5)); })
+      .catch(() => { if (!cancelled) setHotRank([]); });
+    return () => { cancelled = true; };
+  }, [lineEpoch]);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,6 +117,27 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
           })}
         </div>
         {loading && <div className="flex justify-center py-4"><Loader className="w-6 h-6 spinner" /></div>}
+
+        {hotRank.length > 0 && (
+          <section className="hg-sec" aria-label="排行榜">
+            <div className="hg-sec-head">
+              <h2 className="hg-sec-title">排行榜</h2>
+              <Button className="hg-sec-more" onClick={() => push({ kind: "ranks" })}>查看全部<IChevR size={13} /></Button>
+            </div>
+            <ol className="hg-rank-mini">
+              {hotRank.map((item) => (
+                <li key={item.video_id}>
+                  <Button className="hg-rank-mini-row"
+                    onClick={() => push({ kind: "feed", videoIds: hotRank.map(x => x.video_id), index: hotRank.findIndex(x => x.video_id === item.video_id), title: "热播榜" })}>
+                    <span className={`hg-rank-mini-no${item.rank <= 3 ? " is-top" : ""}`}>{String(item.rank).padStart(2, "0")}</span>
+                    <span className="hg-rank-mini-title">{item.title}</span>
+                    <span className="hg-rank-mini-metric">{fmt(item.metric_value)}</span>
+                  </Button>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
 
         <Button onClick={() => push({ kind: "posts" })} className="hg-cat-entry">
           <span className="hg-cat-entry-title">吃瓜</span>

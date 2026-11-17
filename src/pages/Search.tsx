@@ -416,6 +416,7 @@ export function RankPage({ onBack, wide }: { onBack: () => void; wide: boolean }
             <Empty icon={<ITrophy size={26} />} title="榜单暂时为空" sub="稍后再来看看，或者去首页刷刷推荐" />
           )}
         </section>
+        {items.length > 0 && <p className="py-4 text-center text-[12px] text-dim">榜单仅提供 {items.length} 条</p>}
         {wide && <div className="h-2" />}
       </div>
     </div>

@@ -850,3 +850,23 @@ html.theme-light .ios-mobile-nav .ios-mobile-nav-item[aria-current=page] {
 
 /* —— 搜索热搜：序号弱化成 12px 灰字（前 3 名才用 accent，且不比标题醒目） —— */
 .ios-search-hot-rank { min-width: 20px; font-size: 12px; font-weight: 650; }
+
+
+/* —— 分类页模块通用：块间距 24、块标题 17、右侧「更多 ›」14 灰 —— */
+.hg-sec { margin-top: 24px; }
+.hg-sec-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.hg-sec-title { font-size: var(--fs-title); font-weight: 700; color: var(--p-on); line-height: 1.3; }
+.hg-sec-more { display: inline-flex; align-items: center; gap: 2px; font-size: 14px; color: var(--p-dim); padding: 4px 0 4px 8px; }
+
+/* —— 排行榜（前 5）：序号 + 标题 + 热度，一行一条 —— */
+.hg-rank-mini { display: flex; flex-direction: column; }
+.hg-rank-mini-row {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 11px 0; border: 0; background: transparent; text-align: left;
+  border-bottom: 1px solid var(--ios-edge);
+}
+.hg-rank-mini-row:last-child { border-bottom: 0; }
+.hg-rank-mini-no { flex: none; width: 22px; font-size: 13px; font-weight: 700; color: var(--p-dim); font-variant-numeric: tabular-nums; }
+.hg-rank-mini-no.is-top { color: var(--p-primary); }
+.hg-rank-mini-title { flex: 1; min-width: 0; font-size: 14px; color: var(--p-on); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hg-rank-mini-metric { flex: none; font-size: 12px; color: var(--p-dim); font-variant-numeric: tabular-nums; }
