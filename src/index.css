@@ -837,3 +837,11 @@ html.theme-light .ios-mobile-nav .ios-mobile-nav-item[aria-current=page] {
   display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   -webkit-line-clamp: unset; font-size: 14px;
 }
+/* —— 筛选 chips：选中 accent 实心；未选中只是灰字，不要描边和底色 —— */
+.ios-filter-pill { border: 0; background: transparent; color: var(--p-dim); padding: 7px 12px; }
+.ios-filter-pill[aria-pressed=true] { background: var(--p-primary); border-color: transparent; color: var(--p-on-primary); }
+.hg-chip-row { scrollbar-width: none; -ms-overflow-style: none; }
+.hg-chip-row::-webkit-scrollbar { display: none; }
+
+/* —— 搜索热搜：序号弱化成 12px 灰字（前 3 名才用 accent，且不比标题醒目） —— */
+.ios-search-hot-rank { min-width: 20px; font-size: 12px; font-weight: 650; }

@@ -1,4 +1,4 @@
-import { Button, Form, Input, SegmentedControl, Surface } from "../components/ios/controls";
+import { Button, Form, Input, SegmentedControl } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
@@ -174,7 +174,7 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
         </Button>
       </div>
 
-      <div className="flex-1 scroll-y px-4 pb-24">
+      <div className="flex-1 scroll-y px-4 pb-32">
         {typing ? (
           <>
             {suggest.length > 0 ? (
@@ -215,8 +215,8 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
               </div>
             )}
 
-            <Surface role="region" aria-label="热搜榜" className="mt-1 rounded-(--r-md) bg-s2 p-3.5 a-rise">
-                <div className="flex items-center justify-between">
+            <section aria-label="热搜榜" className="mt-1 a-rise">
+                <div className="flex items-center justify-between px-1">
                   <h2 className="flex items-center gap-1.5 text-[14px] font-semibold text-on/90"><IFireF size={15} className="text-primary" />热搜榜</h2>
                   <Button onClick={() => void refreshHot()} disabled={hotLoading} aria-label="刷新热搜榜"
                     className="flex items-center gap-1 px-2 text-[12px] text-mut pressable">
@@ -242,8 +242,8 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
                       </li>
                     ))}
                   </ol>
-                ) : !hotError && <p role="status" className="mt-3 text-[12px] text-mut">{hotLoading ? "加载中…" : "暂无热搜词"}</p>}
-              </Surface>
+                ) : !hotError && <p role="status" className="mt-3 px-1 text-[12px] text-mut">{hotLoading ? "加载中…" : "暂无热搜词"}</p>}
+              </section>
 
             {youMayLike.length > 0 && (
               <section aria-label="猜你想看" className="mt-5 a-rise">
