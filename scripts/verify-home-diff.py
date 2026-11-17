@@ -391,15 +391,19 @@ def main() -> int:
             for x in range(r.width):
                 if mp_[x, y] and fp2[x, y]:
                     cp[x, y] = 255
-        # 平坦区的中位色差（带符号）：比红区百分比更能说明「是偏暗还是偏亮」
-        ds = [[], [], []]
+        # 平坦区的中位色差（带符号）：比红区百分比更能说明「是偏暗还是偏亮」。
+        # 同时按高度切成上/中/下三段各算一次 —— 能区分「整区偏暗」和「顶部渐变不对、底部对」。
+        bands = [[[], [], []] for _ in range(3)]
         for y in range(0, r.height, 2):
+            bi = min(2, y * 3 // max(1, r.height))
             for x in range(0, r.width, 2):
                 if fp2[x, y]:
                     rp_, op_ = r.getpixel((x, y)), o.getpixel((x, y))
                     for i in range(3):
-                        ds[i].append(op_[i] - rp_[i])
-        med = tuple(sorted(d)[len(d) // 2] if d else 0 for d in ds)
+                        bands[bi][i].append(op_[i] - rp_[i])
+        band_med = [tuple(sorted(d)[len(d) // 2] if d else 0 for d in b) for b in bands]
+        allv = [[v for b in bands for v in b[i]] for i in range(3)]
+        med = tuple(sorted(v)[len(v) // 2] if v else 0 for v in allv)
         # 去掉整区中位色偏后再数一次：把「整片偏色」和「局部形状不对」分开
         n_norm = 0
         for y in range(0, r.height, 2):
@@ -433,6 +437,7 @@ def main() -> int:
 
         rows.append(dict(region=name, kind=kind, dx=dx, dy=dy, red=red, red_core=red_core,
                          red_mat=red_mat, flat_px=flat_px, med=med, red_norm=red_norm,
+                         bands=band_med,
                          total=m.width * m.height,
                          core_ratio=round(red_core / max(1, flat_px) * 100, 2),
                          block=blk[1], block_px=blk[0]))
@@ -452,6 +457,15 @@ def main() -> int:
         md.append(f'| {i} | {r["region"]} | {r["kind"]} | {r["dx"]},{r["dy"]} | '
                   f'{r["med"][0]:+d},{r["med"][1]:+d},{r["med"][2]:+d} | '
                   f'**{r["red_core"]}** | {r["core_ratio"]}% | {r["red_norm"]} | {b} |')
+    md += ["", "## 平坦区色差 · 分带（上 / 中 / 下，我们−参考）", "",
+           "| 区域 | 上 | 中 | 下 | 读法 |", "|---|---|---|---|---|"]
+    for r in rows:
+        b = r["bands"]
+        fmt = lambda t: f"{t[0]:+d},{t[1]:+d},{t[2]:+d}"
+        spread = max(abs(b[0][i] - b[2][i]) for i in range(3))
+        note = "整区同向偏色" if spread <= 6 else "上下不一致 → 渐变/辉光"
+        md.append(f'| {r["region"]} | {fmt(b[0])} | {fmt(b[1])} | {fmt(b[2])} | {note} |')
+
     md += ["",
            "> **结构红** = 两边都平坦的区域里对不上的像素（底色/描边/圆角/间距/不透明度），这是要清零的。",
            "> 封面照片和字形被排除在外——两边本来就不是同一部剧、同一种文字。",
@@ -468,6 +482,12 @@ def main() -> int:
         md_ = f'{r["med"][0]:+d},{r["med"][1]:+d},{r["med"][2]:+d}'
         print(f'{r["region"]:<9}{r["kind"]:<8}{r["dx"]:>4},{r["dy"]:<4}{md_:>14}'
               f'{r["red_core"]:>8}{r["core_ratio"]:>7.2f}%{r["red_norm"]:>9}')
+    print("\n分带中位色差（上 / 中 / 下，我们−参考）：")
+    for r in rows:
+        b = r["bands"]
+        print(f'  {r["region"]:<9} {b[0][0]:+4d},{b[0][1]:+4d},{b[0][2]:+4d} | '
+              f'{b[1][0]:+4d},{b[1][1]:+4d},{b[1][2]:+4d} | '
+              f'{b[2][0]:+4d},{b[2][1]:+4d},{b[2][2]:+4d}')
     print(f"\n图与报告：{a.out}")
     return 0
 
