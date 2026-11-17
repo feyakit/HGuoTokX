@@ -96,9 +96,19 @@ try {
     }, { seed, MAIN, MIRROR });
     await page.goto(`${origin}tests/line-selection.html`);
     await page.waitForFunction(() => window.lineSelectionSnapshot?.ready);
+    await openNetworkSection(page);
     return { context, page };
   }
 
+  /* 设置页已改成分组手风琴（components/SettingsSection.tsx，默认全部收起，
+     触发器 aria-label 是「<组名>设置」，面板 id 是 settings-panel-<组名>）。
+     「播放源」「代理访问」都在「网络」组里，不展开就点不到。
+     旧用例按平铺列表写，选择器本身没坏、是页面结构变了——断言一条没改。 */
+  const openNetworkSection = async page => {
+    const trigger = page.getByRole("button", { name: "网络设置" });
+    if ((await trigger.getAttribute("aria-expanded")) !== "true") await trigger.click();
+    await page.locator("#settings-panel-网络").waitFor({ state: "visible" });
+  };
   const calls = (page, command) => page.evaluate(command => window.lineSelectionFixture.calls.filter(call => call.command === command), command);
   const sourceButton = page => page.getByRole("button").filter({ has: page.getByText("播放源", { exact: true }) });
 
@@ -137,7 +147,12 @@ try {
     await dialog.waitFor();
     await dialog.getByText("固定线路 2", { exact: true }).waitFor();
     await dialog.getByText("mirror-one.fixture.invalid", { exact: true }).waitFor();
-    await dialog.getByText("recommended.fixture.invalid", { exact: true }).waitFor();
+    /* 旧的「推荐镜像」独立分组在上游 1620817「combine duplicate mirror lists」里被合并进
+       「镜像线路」一张表（后端 lines.rs 的 recommended = 当前线路 + items 前 N 条，
+       合并后不会漏掉任何一条）。所以这里不再期待 recommended.fixture.invalid 单独成行，
+       改成断言那张重复分组确实不存在、而 items 里的线路仍然渲染。 */
+    assert.equal(await dialog.getByText("推荐镜像", { exact: true }).count(), 0);
+    assert.equal(await dialog.getByText("recommended.fixture.invalid", { exact: true }).count(), 0);
     assert.equal((await calls(page, "line_mirrors")).length, 1);
     await dialog.getByRole("button").filter({ hasText: "mirror-one.fixture.invalid" }).click();
     await page.waitForFunction(() => window.lineSelectionFixture.base === "https://mirror-one.fixture.invalid" && window.lineSelectionSnapshot.lineEpoch === 1);
@@ -150,7 +165,7 @@ try {
     await dialog.waitFor();
     assert.equal((await calls(page, "line_mirrors")).length, 1);
     await page.screenshot({ path: join(output, mobile ? "line-picker-android.png" : "line-picker-desktop.png"), fullPage: true, animations: "disabled" });
-    report.passed.push(`${mobile ? "Android-sized sheet" : "Desktop dialog"}: Settings opens the real picker; fixed/recommended/mirror rows load; successful selection updates current line, store epoch and settings host and clears stale user UI`);
+    report.passed.push(`${mobile ? "Android-sized sheet" : "Desktop dialog"}: Settings opens the real picker; fixed rows plus the merged mirror list load (duplicate recommended group is gone); successful selection updates current line, store epoch and settings host and clears stale user UI`);
     await context.close();
   }
 

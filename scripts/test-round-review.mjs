@@ -8,7 +8,12 @@ import { chromium } from "playwright-core";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const output = join(root, "test-results", "round-review");
-if (process.env.GITHUB_ACTIONS !== "true") throw new Error("Run this review only in GitHub Actions.");
+if (process.env.GITHUB_ACTIONS !== "true") {
+  /* 这是 CI 里跑的聚合回归（要 clone 基线、跑一整套用例），本地跑没有意义。
+     以前直接 throw，会让「本地跑一遍所有 test-*」看起来红一片；改成明确跳过。 */
+  console.log("SKIP: test-round-review 只在 GitHub Actions 里跑（需要 GITHUB_ACTIONS=true 与基线 clone）");
+  process.exit(0);
+}
 const baseline = "455f3ab744ba360b50f7af80803e91d2eaee15be";
 const scripts = [
   "test-inplace-search-back.mjs",

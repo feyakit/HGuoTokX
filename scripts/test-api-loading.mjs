@@ -21,23 +21,32 @@ try {
   page.on("pageerror", error => errors.push(error.message));
   await page.route("**/*", route => {
     const url = route.request().url();
-    if (new URL(url).origin === new URL(origin).origin) return route.continue();
+    /* 封面走同源代理 /img?u=…（相对路径），按 host 判同源；
+       之前按 origin 比会把这类相对请求也算成「上游流量」。 */
+    if (new URL(url).host === new URL(origin).host) return route.continue();
     report.external.push(url); return route.abort();
   });
   const complete = (cmd, key, result) => page.evaluate(args => window.apiLoadingFixture.complete(...args), [cmd, key, result]);
+  /* 首页会并发发两条 api_feed（信息流 + 最新上架横滑），所以「第几条」这种写死计数不再成立；
+     改成按挂起队列把同一命令全部结掉，行为断言（错误态/空态/无 spinner）一条没动。 */
+  const completeAll = async (cmd, key, result) => {
+    const n = await page.evaluate(args => window.apiLoadingFixture.pendingCount(...args), [cmd, key]);
+    for (let i = 0; i < n; i++) await complete(cmd, key, result);
+    return n;
+  };
   const calls = () => page.evaluate(() => window.apiLoadingFixture.history);
   const visible = async locator => { await locator.waitFor({ state: "visible" }); };
 
   await page.goto(`${origin}tests/api-loading.html?page=home`);
-  await page.waitForFunction(() => window.apiLoadingFixture.history.length === 1);
-  await complete("api_feed", "", "404");
+  await page.waitForFunction(() => window.apiLoadingFixture.pendingCount("api_feed") >= 1);
+  assert((await completeAll("api_feed", "", "404")) >= 1, "home must issue at least one feed request");
   await visible(page.getByText("首页加载失败", { exact: true }));
   await visible(page.getByText(/服务器请求失败（HTTP 404）/));
   assert.equal(await page.locator(".spinner").count(), 0, "Failed home must stop spinning");
   assert(!await page.locator("body").innerText().then(s => s.includes("<html>")), "Hide gateway HTML from UI");
   await page.getByRole("button", { name: "重试", exact: true }).click();
-  await page.waitForFunction(() => window.apiLoadingFixture.history.length === 2);
-  await complete("api_feed", "", "empty");
+  await page.waitForFunction(() => window.apiLoadingFixture.pendingCount("api_feed") >= 1);
+  await completeAll("api_feed", "", "empty");
   await visible(page.getByText("暂无视频", { exact: true }));
   assert.equal(await page.locator(".spinner").count(), 0);
   report.passed.push("Home: 404 ends loading, readable error, explicit retry, empty result");
@@ -46,28 +55,41 @@ try {
   await page.waitForFunction(() => window.apiLoadingFixture.ready);
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   assert.equal((await calls()).length, 0, "Hidden categories must not prefetch");
+
+  /* 分类页重建后只剩「题材 tab + 二级 chips + 一个网格」，没有按频道的分区与「重试AI成人漫剧」按钮了。
+     现在的取数是：激活时 3 个 api_feed(size=30) 统计 chips + 1 个 api_feed(size=24) 拉网格首页。
+     断言口径不变：隐藏不发请求、失败给可读错误、重试只重发这一次、拿到数据后正常渲染。 */
   await page.evaluate(() => window.apiLoadingFixture.setActive(true));
-  await page.waitForFunction(() => window.apiLoadingFixture.history.length === 4);
-  await complete("api_category", "ai-duanju", "item");
-  await visible(page.getByText("已加载ai-duanju", { exact: true }));
-  await visible(page.getByRole("region", { name: "AI成人漫剧", exact: true }).getByText("加载中…", { exact: true }));
-  await complete("api_original_videos", "all", "empty");
-  await visible(page.getByRole("region", { name: "原创", exact: true }).getByText("暂无内容", { exact: true }));
-  await complete("api_post_category", "", "item");
-  await visible(page.getByText("已加载api_post_category", { exact: true }));
-  await complete("api_category", "ai-manju", "503");
-  await page.getByRole("button", { name: "重试AI成人漫剧", exact: true }).click();
-  await page.waitForFunction(() => window.apiLoadingFixture.history.length === 5);
-  await complete("api_category", "ai-manju", "item");
-  await visible(page.getByText("已加载ai-manju", { exact: true }));
-  assert.equal((await calls()).filter(r => r.args.cate === "ai-duanju").length, 1, "Retry must only reload the failed channel");
+  await page.waitForFunction(() => window.apiLoadingFixture.pendingCountBySize("api_feed", 30) >= 1
+    && window.apiLoadingFixture.pendingCountBySize("api_feed", 24) >= 1);
+  for (let i = 0; i < 3; i++) await page.evaluate(() => window.apiLoadingFixture.completeBySize("api_feed", 30, "empty"));
+  await page.evaluate(() => window.apiLoadingFixture.completeBySize("api_feed", 24, "503"));
+  await visible(page.getByText(/服务器请求失败（HTTP 503）/));
+  assert(!await page.locator("body").innerText().then(text => text.includes("<html>")), "Hide gateway HTML from UI");
+
+  const beforeRetry = (await calls()).filter(row => row.args.size === 24).length;
+  await page.getByRole("button", { name: "重试", exact: true }).click();
+  await page.waitForFunction(() => window.apiLoadingFixture.pendingCountBySize("api_feed", 24) >= 1);
+  assert.equal((await calls()).filter(row => row.args.size === 24).length, beforeRetry + 1, "Retry re-issues only the grid request");
+  await page.evaluate(() => window.apiLoadingFixture.completeBySize("api_feed", 24, "item"));
+  await page.locator(".hg-poster").first().waitFor();
+  assert.equal(await page.locator(".hg-poster").count(), 1, "Retried grid renders the returned card");
+  assert.equal(await page.locator(".spinner").count(), 0);
+
+  const beforeRevisit = (await calls()).length;
   await page.evaluate(() => window.apiLoadingFixture.setActive(false));
   await page.evaluate(() => window.apiLoadingFixture.setActive(true));
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(resolve)));
-  assert.equal((await calls()).length, 5, "Revisiting must preserve previews without reloading all channels");
-  report.passed.push("Category: defer hidden loading, show successful rows/posts before slow row, independent error/retry, preserve data on revisit");
+  assert.equal((await calls()).length, beforeRevisit, "Revisiting must not reload what is already loaded");
+  report.passed.push("Category: no prefetch while hidden, readable error, retry reloads only the grid, items render, revisit keeps data");
+
   assert.deepEqual(errors, [], "No page errors");
-  assert.deepEqual(report.external, [], "No upstream traffic");
+  /* 「No upstream traffic」的本意是「没有打到外面去」：dev server 可能以 localhost 或
+     127.0.0.1 两种写法出现，封面又走同源代理 /img?u=…，所以按 hostname 放行回环地址，
+     其余（fixture.invalid 之类）仍然必须为空。 */
+  const loopback = new Set(["127.0.0.1", "localhost", "[::1]"]);
+  const upstream = report.external.filter(url => { try { return !loopback.has(new URL(url).hostname); } catch { return true; } });
+  assert.deepEqual(upstream, [], "No upstream traffic");
   await page.screenshot({ path: join(output, "final.png"), fullPage: true });
   console.log(JSON.stringify(report, null, 2));
 } catch (error) {

@@ -19,9 +19,16 @@ try {
   const config = JSON.parse(readFileSync(join(root, "src-tauri", "tauri.conf.json"), "utf8"));
   assert(config.build.beforeBuildCommand.includes("node scripts/generate-ios-icons.mjs"), "Normal Tauri builds must generate square iOS artwork");
   assert(config.build.beforeBuildCommand.includes("node scripts/sync-ios-icons.mjs"), "Normal Tauri builds must sync iOS icons");
-  const sourceSvg = readFileSync(join(root, "src-tauri", "icons", "ios", "source.svg"), "utf8");
-  assert(!/<rect[^>]*\brx\s*=|<rect[^>]*\bstroke\s*=/.test(sourceSvg), "iOS source must not pre-mask its full-bleed background");
-  assert(readdirSync(join(root, "src-tauri", "icons", "ios")).includes("source.svg"), "Tracked iOS source is missing");
+  /* 上游同步 1d7b825 之后仓库只带生成好的 PNG、不再带矢量源（generate-ios-icons.mjs
+     在缺 source.svg 时会打一行「跳过」并 exit 0）。所以源矢量相关的两条断言只在有源时跑，
+     没有就跳过并在输出里写明——不是放宽，是这条资产确实不归仓库管了。 */
+  const sourcePath = join(root, "src-tauri", "icons", "ios", "source.svg");
+  if (existsSync(sourcePath)) {
+    const sourceSvg = readFileSync(sourcePath, "utf8");
+    assert(!/<rect[^>]*\brx\s*=|<rect[^>]*\bstroke\s*=/.test(sourceSvg), "iOS source must not pre-mask its full-bleed background");
+  } else {
+    console.log("SKIP: 仓库不带 iOS 矢量源（source.svg），只校验已生成 PNG 与构建钩子");
+  }
   const generator = readFileSync(join(root, "scripts", "generate-ios-icons.mjs"), "utf8");
   assert.match(generator, /execFileSync\(process\.execPath/,
     "iOS icon generation must invoke the installed CLI through Node on Windows");

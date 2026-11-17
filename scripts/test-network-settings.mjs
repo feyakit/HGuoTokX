@@ -67,9 +67,19 @@ try {
     }, { theme });
     await page.goto(`${origin}tests/line-selection.html`);
     await page.waitForFunction(() => window.lineSelectionSnapshot?.ready);
+    await openNetworkSection(page);
     return { page, context };
   }
   const calls = (page, command) => page.evaluate(command => window.networkSettingsFixture.calls.filter(row => row.command === command), command);
+  /* 设置页已改成分组手风琴（components/SettingsSection.tsx，默认全部收起，
+     触发器 aria-label 是「<组名>设置」，面板 id 是 settings-panel-<组名>）。
+     「播放源」「代理访问」都在「网络」组里，不展开就点不到。
+     旧用例按平铺列表写，选择器本身没坏、是页面结构变了——断言一条没改。 */
+  const openNetworkSection = async page => {
+    const trigger = page.getByRole("button", { name: "网络设置" });
+    if ((await trigger.getAttribute("aria-expanded")) !== "true") await trigger.click();
+    await page.locator("#settings-panel-网络").waitFor({ state: "visible" });
+  };
   const row = (page, name) => page.getByRole("button").filter({ has: page.getByText(name, { exact: true }) });
 
   if (expectMissing) {

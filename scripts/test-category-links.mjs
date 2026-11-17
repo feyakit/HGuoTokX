@@ -34,6 +34,10 @@ try {
       userAgent: scenario.platform === "android" ? android : iphone, isMobile: true, hasTouch: true,
       colorScheme: scenario.theme, reducedMotion: "reduce" });
     await context.addInitScript(installFixture, { theme: scenario.theme, titles: ["城市与晚风", "星河旅人"] });
+  /* 使用协议闸门是后加的：不种这条，首屏弹的是协议页、底栏根本不渲染，用例就会等不到主导航。 */
+  await context.addInitScript(() => localStorage.setItem("hguox_usage_agreement", JSON.stringify({
+    version: "2026-11-15-v1", accepted: true, acceptedAt: "2026-11-15T00:00:00.000Z",
+  })));
     const page = await context.newPage();
     page.on("pageerror", error => report.errors.push(error.message));
     await page.route("**/*", route => {

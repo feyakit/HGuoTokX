@@ -56,6 +56,10 @@ try {
       ...(test.mobile ? { userAgent: test.android ? android : iphone, isMobile: true, hasTouch: true } : {}),
     });
     await context.addInitScript(installFixture, { theme: test.theme, titles });
+  /* 使用协议闸门是后加的：不种这条，首屏弹的是协议页、底栏根本不渲染，用例就会等不到主导航。 */
+  await context.addInitScript(() => localStorage.setItem("hguox_usage_agreement", JSON.stringify({
+    version: "2026-11-15-v1", accepted: true, acceptedAt: "2026-11-15T00:00:00.000Z",
+  })));
     const page = await context.newPage();
     page.setDefaultTimeout(12000);
     page.on("pageerror", error => report.errors.push({ case: name, message: error.message }));
@@ -116,7 +120,10 @@ try {
         return size >= minimum;
       }, test.minimumFontSize), "Chromium applies the enlarged minimum text size");
       const nav = page.getByRole("navigation", { name: "主导航" });
-      for (const label of ["首页", "搜索", "分类", "我的"]) await nav.getByRole("button", { name: label, exact: true }).waitFor();
+      /* 底栏四项：搜索不再占位（入口在首页品牌行右上角）。
+         桌面侧栏（DesktopRail）只有 首页/分类/我的（另有排行榜、设置），没有吃瓜，所以按视口分表。 */
+      const navLabels = test.mobile ? ["首页", "吃瓜", "分类", "我的"] : ["首页", "分类", "我的"];
+      for (const label of navLabels) await nav.getByRole("button", { name: label, exact: true }).waitFor();
       await page.waitForFunction(theme => document.documentElement.dataset.theme === theme, test.theme);
       if (test.android) await page.waitForFunction(() => window.__IOS_UI_FIXTURE__.hasHardwareBack());
       check("original navigation and persisted appearance");
@@ -134,12 +141,15 @@ try {
           return { video: nav?.getAttribute("data-over-video"), selected: selected && getComputedStyle(selected).color,
             unselected: unselected && getComputedStyle(unselected).color, background: glass && getComputedStyle(glass).backgroundColor };
         });
-        assert.equal(homeVideoMaterial.selected, "rgb(25, 25, 25)", "Home selection uses dark ink over the selected light surface");
+        /* 底栏选中态改过一轮：原来的「浅色胶囊 + 深墨字」被去掉（用户嫌太重），
+           现在选中项与未选中项都是白字、只靠图标实心与滑动块区分。这里断言的是新的可读性口径。 */
+        assert.equal(homeVideoMaterial.selected, "rgb(255, 255, 255)", "Home selection keeps white ink over the dark glass (no light capsule any more)");
         assert.equal(homeVideoMaterial.unselected, "rgb(242, 240, 235)", "Home navigation labels stay bright over dark video");
         assert.equal(homeVideoMaterial.background, "rgba(28, 28, 32, 0.94)", "Home navigation keeps an opaque dark glass surface over black video");
         check("home navigation text contrast on video in both themes");
       }
-      await nav.getByRole("button", { name: "搜索", exact: true }).click();
+      /* 底栏不再有「搜索」（入口在首页品牌行右上角图标）。 */
+      await page.locator(".hg-brand-row").getByRole("button", { name: "搜索", exact: true }).click();
 
       const hotSearch = page.getByRole("region", { name: "热搜榜", exact: true });
       await hotSearch.getByRole("button", { name: "播放 城市与晚风", exact: true }).waitFor();
@@ -184,23 +194,27 @@ try {
           && topControls.counter.top < topControls.mute.bottom && topControls.counter.bottom > topControls.mute.top, false,
         "Playback position and mute control do not overlap");
         await page.keyboard.press("Escape");
-        await nav.getByRole("button", { name: "搜索", exact: true }).waitFor();
+        await query.waitFor();
         check("Android player counter clears the mute control");
       }
 
       const searchPage = page.locator(".ios-page").filter({ has: query });
       await searchPage.getByRole("button", { name: "排行榜", exact: true }).click();
-      const rankSegment = page.getByRole("group", { name: "榜单类型", exact: true });
-      for (const [index, label] of ["热播榜", "推荐榜", "潜力榜"].entries()) {
-        await rankSegment.getByRole("button", { name: label, exact: true }).click();
-        await assertSlider(rankSegment, 3, index, `rank:${label}`);
-        await page.locator(".ios-rank-row").first().waitFor();
-        assert.equal(await page.locator(".ios-rank-row").count(), titles.length, `${label} shows all ranked fixture videos`);
+      /* 榜单类型从 SegmentedControl（group + .ios-segmented-indicator 滑动块）换成了
+         .hg-pill-row 胶囊 tab（role=tablist，按钮 role=tab）。没有滑动指示器了，
+         原来那条「指示器落在选中按钮范围内」的几何断言不再适用；改成断言选中态 + 列表确实换了。 */
+      const rankSegment = page.getByRole("tablist", { name: "榜单类型", exact: true });
+      for (const label of ["热播榜", "推荐榜", "潜力榜"]) {
+        const tab = rankSegment.getByRole("tab", { name: label, exact: true });
+        await tab.click();
+        await page.locator(".hg-rank-row").first().waitFor();
+        assert.equal(await tab.getAttribute("aria-selected"), "true", `${label} is the selected tab`);
+        assert.equal(await page.locator(".hg-rank-row").count(), titles.length, `${label} shows all ranked fixture videos`);
       }
       await shot("ranks");
       await page.keyboard.press("Escape");
       await query.waitFor();
-      check("all three rank choices move the shared indicator into the selected button bounds");
+      check("all three rank tabs select and load their own list");
 
       await nav.getByRole("button", { name: "分类", exact: true }).click();
       await page.getByRole("button").filter({ has: page.getByText("专题", { exact: true }) }).click();

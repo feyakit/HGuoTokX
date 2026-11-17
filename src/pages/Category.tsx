@@ -52,8 +52,14 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
   const [err, setErr] = useState("");
   const loadingRef = useRef(false);
   const seq = useRef(0);
+  const tagsLoaded = useRef(false);      /* 二级 chips 只统计一次，切 tab 回来不重复打 3 页 */
+  const loadedKey = useRef("");          /* 当前网格数据对应的「题材|标签|线路」组合 */
 
   useEffect(() => {
+    /* 二级 chips 的取数是 3 个 /api/videos 请求，之前不看 active、页面一挂载就打，
+       等于每次启动白打 90 条；这里跟着 active 走（隐藏的 tab 不发请求），且只取一次。 */
+    if (!active || tagsLoaded.current) return;
+    tagsLoaded.current = true;
     let cancelled = false;
     /* 二级 chips：从 /api/videos 拉 3 页统计 tags 频次取前 8（不硬编码）；
        失败时降级成「全部 + 短剧 + 漫剧」，不白屏 */
@@ -74,7 +80,7 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
       }
     })();
     return () => { cancelled = true; };
-  }, [lineEpoch]);
+  }, [lineEpoch, active]);
 
   const load = useCallback(async (p: number) => {
     if (loadingRef.current) return;
@@ -104,6 +110,10 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
 
   useEffect(() => {
     if (!active) return;
+    /* 切走再切回来时不再重拉同一组筛选：以前会先清空再请求，回来看到的是白屏 + 重新加载。 */
+    const key = `${cate}|${tag}|${lineEpoch}`;
+    if (loadedKey.current === key) return;
+    loadedKey.current = key;
     setItems([]); setDone(false);
     void load(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -111,11 +121,26 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
 
   return (
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
+      {/* 分类页重建时把页面标题删了：视觉上没有标题（参考图也没有），但 a11y 树和回归用例
+          靠 heading「分类」判断「从栈页返回到了分类 tab」。按 Profile 的既有做法留 sr-only。 */}
+      <h1 className="sr-only">分类</h1>
       {/* 顶部搜索框（点进搜索页，不在这里输入） */}
       <div className="shrink-0 hg-page-x pb-2 relative z-10" style={{ paddingTop: "calc(var(--sat, 0px) + 6px)" }}>
         <Button className="hg-searchbar" aria-label="搜索" onClick={() => setTab("search")}>
           <ISearch size={16} /><span>搜索短剧、演员、题材</span>
         </Button>
+      </div>
+
+      {/* 专题 / 标签入口：分类页重建（d97c9a4）时把这块删了，结果 kind:"topics"/"tags"
+          两个页面没有任何入口、成了死路由（test-category-links / test-inplace-search-* 就是撞在这）。
+          这里补回原样入口，功能不删。 */}
+      <div className="shrink-0 hg-page-x pb-2 relative z-10">
+        <CollectionLinks className="ios-category-links">
+          <CollectionLink icon={<IGrid size={18} />} title="专题" subtitle="精选专辑合集"
+            onClick={() => push({ kind: "topics" })} />
+          <CollectionLink icon={<IGlobe size={18} />} title="标签" subtitle="按题材找片"
+            onClick={() => push({ kind: "tags" })} />
+        </CollectionLinks>
       </div>
 
       {/* 顶栏第 3 层：胶囊 tab（v3.top_bar S2，选中=实心胶囊） */}
@@ -142,7 +167,14 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
 
       <div className="flex-1 scroll-y relative z-10"
         style={{ paddingBottom: "calc(56px + 24px + var(--sab, 0px))" }}>
-        {err && <p role="alert" className="py-4 text-center text-[12px] text-danger">{err}</p>}
+        {err && (
+          /* 之前只有一行红字，网格加载失败后用户没有任何重试入口（只能切 tab 再回来）。
+             这里补一个重试：重新拉第 1 页。 */
+          <div role="alert" className="py-4 flex flex-col items-center gap-2 text-[12px] text-danger">
+            <span>{err}</span>
+            <Button className="px-3 text-primary" onClick={() => void load(1)}>重试</Button>
+          </div>
+        )}
         {!items.length && loading && <div className="flex justify-center py-10"><Loader className="w-7 h-7 spinner" /></div>}
         {!items.length && !loading && !err && done && (
           <Empty icon={<IGrid size={26} />} title="这个题材还没有内容" sub="换个题材或类型看看" />

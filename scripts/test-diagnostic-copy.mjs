@@ -61,6 +61,16 @@ try {
   const load = async () => {
     await page.goto(`${origin}tests/diagnostic-copy.html`);
     await page.waitForFunction(() => !document.querySelector('[aria-label="播放诊断日志"]').disabled);
+    await openGroup("网络");
+    await openGroup("播放诊断");
+  };
+  /* 设置页是分组手风琴（components/SettingsSection.tsx），组默认收起时里面的行不在可见 DOM 里。
+     「网络诊断」在「网络」组、「复制播放诊断日志」在「播放诊断」组。
+     旧用例按平铺列表写，断言一条没改，只补了展开这一步。 */
+  const openGroup = async name => {
+    const trigger = page.getByRole("button", { name: `${name}设置` });
+    if ((await trigger.getAttribute("aria-expanded")) !== "true") await trigger.click();
+    await page.locator(`#settings-panel-${name}`).waitFor({ state: "visible" });
   };
   const networkButton = () => page.getByRole("button").filter({ has: page.getByText("网络诊断", { exact: true }) });
 
@@ -101,6 +111,7 @@ try {
   report.passed.push("Diagnostic failure is distinct from clipboard failure and never reports a successful copy");
 
   await load();
+  await openGroup("播放诊断");
   await page.getByRole("button").filter({ has: page.getByText("复制播放诊断日志", { exact: true }) }).click();
   await page.waitForFunction(() => window.diagnosticCopyFixture.nativeCopies.length === 1);
   assert.equal(await page.evaluate(() => window.diagnosticCopyFixture.nativeCopies[0]), '{"event":"fixture.playback","data":{"unicode":"诊断日志"}}\n');
@@ -109,6 +120,7 @@ try {
 
   for (const failure of ["emptyLog", "failRead"]) {
     await load();
+    await openGroup("播放诊断");
     await page.evaluate(key => { window.diagnosticCopyFixture[key] = true; }, failure);
     await page.getByRole("button").filter({ has: page.getByText("复制播放诊断日志", { exact: true }) }).click();
     await page.getByText(failure === "emptyLog" ? "尚无诊断日志，请开启后复现问题" : "fixture: log unavailable", { exact: true }).waitFor();
