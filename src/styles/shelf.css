@@ -5,36 +5,54 @@
    =================================================================== */
 
 :root {
-  /* 圆角：海报 10（复刻设计图 8–12 取中），面板与焦点图 14 */
-  --radius-poster: 10px;
+  /* ===== 来源：/opt/data/hguox-redesign/参考实测.json → agreed_spec =====
+     验收口径 = agreed_spec（compare.py 默认按它判红绿）。
+     summary 里的实测区间（aspect 0.476/0.537、gap 3.7–4.8 等）只证明「参考图本身不一致」，
+     不进代码、不进验收：那 2 个样本来自 190–250px 宽的概念稿拼图，误差大于差异本身。 */
+
+  /* 圆角：agreed_spec 12（实测不可靠，low 置信；参考图目测 8–14） */
+  --radius-poster: 12px;
   --radius-hero: 14px;
   --radius-panel: 14px;
 
-  /* 间距：页边 16 / 列距 10 / 行距 14 / 块间 22 */
+  /* 页边：agreed_spec 16（实测左 8.8 / 右 28.1，n=2，跨度 0–56 不可用） */
   --space-page: 16px;
+
+  /* 卡距（横滑货架与网格同一档）：agreed_spec 10
+     实测 3.7–4.8（n=2），是「概念稿缩略图」里的像素缝，按 1 图px≈1.7 CSS 换算后偏小，
+     故不采信；如需改为实测值，把下面改成 4px 并同步 compare 口径 */
   --space-col: 10px;
+
   --space-row: 14px;
-  --space-block: 22px;
 
-  /* 字级与字重：页面标题 26/750、分区标题 16/700、卡名 13/500、元信息 11 */
-  --fs-page: 26px;
+  /* 分区之间：agreed_spec 24（module_spacing_estimate 实测 20–28，medium 置信） */
+  --space-block: 24px;
+  /* 分区标题到货架/网格：实测 8–12，medium 置信，取 10 */
+  --space-title-rail: 10px;
+
+  /* 字号：全部 low 置信（概念稿 190–250px 宽，误差 ±3–4 CSS px），按 agreed_spec 取 */
+  --fs-page: 26px;        /* 页面标题，实测未覆盖 */
   --fw-page: 750;
-  --fs-section: 16px;
+  --fs-section: 16px;     /* 分区标题，实测区间 15–18，中位 16 */
   --fw-section: 700;
-  --fs-card: 13px;
+  --fs-card: 13px;        /* 卡名，实测区间 11–13.5，中位 13 */
   --fw-card: 500;
-  --fs-meta: 11px;
-}
+  --fs-meta: 11.5px;      /* 元信息，实测区间 9.5–11.5，中位 11.5 */
 
-/* —— 画布：深色底不用纯黑（#101012 由 ios.css 的 --p-canvas 提供），
-      这里只声明光照层的默认强度，颜色永远来自封面色 —— */
-:root {
-  --hg-aura: var(--accent, var(--p-primary));
+  /* 海报比例：agreed_spec 0.6667（2:3）→ padding-top 150%
+     实测有效样本 0.476 / 0.537（n=2，受概念稿裁切影响，low 置信）
+     想试 1:2（0.50）只改这一行：133.3333% = 3:4 / 150% = 2:3 / 200% = 1:2 */
+  --poster-ratio-pt: 150%;
+
+  /* 颜色：agreed_spec 的深底与面（实测 bg #040404 过黑，surface #17171B 更接近图 2 质感） */
+  --hg-canvas: #0D0D10;
+  --hg-surface: #17171B;
+  --hg-accent-fallback: #FF4D8D;
+
+  /* 发光层：颜色永远取当前封面 accent（紫粉只是某张封面碰巧紫），强度取图 2 的观感 */
+  --hg-aura: var(--accent, var(--hg-accent-fallback));
   --hg-aura-strength: .12;
-  /* 画布：深紫黑（不是纯黑），页面壳用它打底 */
-  --hg-canvas: #0C0A12;
 }
-.hg-canvas { background-color: var(--hg-canvas); }
 
 /* ------------------------------------------------------------------
    分区：标题 16/700 + 右侧「全部」12 灰，块间 22
@@ -79,7 +97,7 @@
   box-shadow: none;              /* 设计图没有黑投影 */
   border: 0;                     /* 也没有 1px 白描边 */
 }
-.hg-poster-art::before { content: ""; display: block; padding-top: 150%; } /* 2:3，复刻设计图（接受裁切） */
+.hg-poster-art::before { content: ""; display: block; padding-top: var(--poster-ratio-pt); } /* 见 :root 的 --poster-ratio-pt */
 .hg-poster-art > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; }
 /* 角标只占一个位置，不叠两个 */
 .hg-poster-badge {
