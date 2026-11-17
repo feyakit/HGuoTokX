@@ -56,7 +56,11 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
           next[c.cate] = first
             ? { cover: first.cover, count: res?.pagination?.total ?? 0 }
             : { cover: "", count: 0 };
-        } catch { /* 单个题材失败不影响整体：标记该题材不可用，卡片照常占位 */ next[c.cate] = { cover: "", count: 0, offline: true }; }
+        } catch (error) {
+          /* 只有「已下线」才摘掉；网络类失败保留卡片（避免一次抖动把题材弄丢） */
+          const message = (error as Error)?.message ?? "";
+          if (message.includes("下线")) next[c.cate] = { cover: "", count: 0, offline: true };
+        }
       }));
       if (my !== seq.current) return;
       setMetas(next);
@@ -65,11 +69,14 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channels, sort, active, lineEpoch]);
 
+  /* 站点已下线的题材（410）不进广场：宁可不出现，也不要置灰的空入口 */
+  const live = channels.filter((c) => !metas[c.cate]?.offline);
+
   return (
     <div className="ios-page ios-tint-12 absolute inset-0 bg-bg flex flex-col">
       <div className="ios-page-heading shrink-0 px-4 pb-1">
         <h1 className="ios-page-title">分类</h1>
-        <p className="text-[12px] text-mut mt-0.5">{channels.length} 个题材 · 每周持续上新</p>
+        <p className="text-[12px] text-mut mt-0.5">{live.length} 个题材 · 每周持续上新</p>
       </div>
 
       <div className="shrink-0 px-4 pb-3 flex flex-wrap gap-2">
@@ -85,17 +92,14 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
         <CollectionLinks />
         {err && <p role="alert" className="mb-3 text-[12px] text-danger">{err}</p>}
         <div className="hg-cat-grid">
-          {channels.map((c) => {
+          {live.map((c) => {
             const meta = metas[c.cate];
             return (
-              <Button key={c.cate} className={`hg-cat-card${meta?.offline ? " is-offline" : ""}`}
-                aria-label={meta?.offline ? `${c.name} 内容已下线` : `${c.name} ${meta?.count ?? 0} 部`}
-                aria-disabled={meta?.offline || undefined}
-                onClick={() => { if (!meta?.offline) push({ kind: "channel", cate: c.cate, name: c.name }); }}>
+              <Button key={c.cate} className="hg-cat-card" aria-label={`${c.name} ${meta?.count ?? 0} 部`}
+                onClick={() => push({ kind: "channel", cate: c.cate, name: c.name })}>
                 {meta?.cover ? <Img src={meta.cover} alt="" /> : <span className="hg-cat-blank shimmer" aria-hidden="true" />}
                 <span className="hg-cat-veil" aria-hidden="true" />
-                {meta?.offline ? <span className="hg-cat-count">已下线</span>
-                  : !!meta?.count && <span className="hg-cat-count">{fmt(meta.count)} 部</span>}
+                {!!meta?.count && <span className="hg-cat-count">{fmt(meta.count)} 部</span>}
                 <span className="hg-cat-copy">
                   <span className="hg-cat-name">{c.name}</span>
                   {c.desc && <span className="hg-cat-sub">{c.desc}</span>}
