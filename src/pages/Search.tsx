@@ -196,7 +196,7 @@ const RANK_TABS = [
 ] as const;
 
 export function RankPage({ onBack, wide }: { onBack: () => void; wide: boolean }) {
-  const { push } = useStore();
+  const { push, setTab: setAppTab } = useStore();
   type RankKind = typeof RANK_TABS[number]["k"];
   type RankState = { items: RankItem[]; loadedAt: number; loading: boolean; error: string };
   const [tab, setTab] = useState<RankKind>("hot");
@@ -234,27 +234,24 @@ export function RankPage({ onBack, wide }: { onBack: () => void; wide: boolean }
 
   return (
     <div className="ios-page absolute inset-0 bg-bg flex flex-col">
-      <div className="shrink-0 relative overflow-hidden bg-s1" style={{ paddingTop: "var(--sat, 0px)" }}>
-        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(90% 120% at 100% 0%, var(--p-pc) 0%, transparent 60%)", opacity: 0.32 }} />
-        <div className="relative pt-2 pb-4">
-          <Button aria-label="返回" onClick={onBack} className="w-10 h-10 rounded-full flex items-center justify-center text-on hover:bg-s3 pressable"><IBack size={20} /></Button>
-          <div className="mt-1 flex flex-wrap gap-2 items-end justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="w-9 h-9 rounded-(--r-sm) bg-pc text-on-pc flex items-center justify-center"><ITrophy size={20} /></span>
-                <h1 className="text-[24px] font-bold tracking-wide text-on">HGuoX 热榜</h1>
-              </div>
-              <div className="text-[12px] text-mut mt-1">{meta.desc}</div>
-            </div>
-            <Button aria-label="刷新榜单" disabled={loading} onClick={() => void load(tab)} className="ios-icon-button">
-              {loading ? <Loader label="正在更新榜单" className="w-4 h-4" /> : <IRefresh size={18} />}
-            </Button>
-          </div>
-          <SegmentedControl className="mt-3" aria-label="榜单类型" activeIndex={RANK_TABS.findIndex(item => item.k === tab)}>
+      {/* 顶栏（v3.top_bar S3 同款骨架）：状态栏 → 搜索行（返回 + 全宽胶囊搜索框）→ 胶囊 tab */}
+      <div className="shrink-0 hg-canvas relative z-10" style={{ paddingTop: "calc(var(--sat, 0px) + 6px)" }}>
+        <div className="hg-page-x flex items-center gap-2 pb-2">
+          <Button aria-label="返回" onClick={onBack} className="hg-icon-plain"><IBack size={20} /></Button>
+          <Button className="hg-searchbar" aria-label="搜索" onClick={() => setAppTab("search")}>
+            <ISearch size={16} /><span>搜索短剧、演员、题材</span>
+          </Button>
+          <Button aria-label="刷新榜单" disabled={loading} onClick={() => void load(tab)} className="hg-icon-plain">
+            {loading ? <Loader label="正在更新榜单" className="w-4 h-4" /> : <IRefresh size={18} />}
+          </Button>
+        </div>
+        <div className="hg-page-x">
+          <div className="hg-pill-row" role="tablist" aria-label="榜单类型">
             {RANK_TABS.map((t) => (
-              <Button aria-pressed={tab === t.k} key={t.k} onClick={() => setTab(t.k)}>{t.label}</Button>
+              <Button card key={t.k} role="tab" aria-selected={tab === t.k} className="hg-pill"
+                onClick={() => setTab(t.k)}>{t.label}</Button>
             ))}
-          </SegmentedControl>
+          </div>
         </div>
       </div>
 
