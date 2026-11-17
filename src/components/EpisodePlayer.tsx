@@ -1416,6 +1416,16 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   进度条轨道几乎不可见，只用白点标播放位置。 */}
               {!fs && !clean && !isDesktop && (
                 <div className="absolute inset-x-0 z-20" style={{ bottom: `calc(var(--sab, 0px) + ${bottomInset}px)` }}>
+                  {/* 集数条（自定屏规范 3.4）：56×36、r10、间距 11、当前集 accent + 2px #8B9AF9 描边 */}
+                  {episodes.length > 1 && (
+                    <div className="hg-player-eps" role="tablist" aria-label="选集">
+                      {episodes.map(e => (
+                        <Button card role="tab" key={e.ep_num} className="hg-player-ep"
+                          aria-selected={e.ep_num === curEp} aria-current={e.ep_num === curEp ? "true" : undefined}
+                          onClick={() => pickEp(e.ep_num)}>{e.ep_num}</Button>
+                      ))}
+                    </div>
+                  )}
                   <div className="mobile-video-meta-copy relative pb-2 flex items-center gap-2">
                     <p className="flex-1 min-w-0 text-[15px] font-semibold leading-snug hg-ink-2 hg-ov-shadow-strong clamp-2">{meta.title}</p>
                   </div>
@@ -1427,6 +1437,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                       </Button>
                       {isActive && <Button aria-label="不感兴趣" title="不感兴趣 / 内容偏好" onClick={openTagMenu}
                         className="video-preference-trigger"><IMore size={19} aria-hidden="true" /></Button>}
+                      {/* 线路切换收在播放页设置里（自定屏规范） */}
+                      <Button aria-label="播放设置" onClick={() => store.push({ kind: "settings" })}
+                        className="min-h-11 flex items-center gap-1 text-[12px] font-medium hg-ink-3 hg-ov-shadow-strong pressable">设置 · 线路</Button>
                     </div>
                     <div ref={barRef} className="mx-4 mt-2 relative" style={{ height: 14, touchAction: "none" }}
                       onPointerDown={onBarDown} onPointerMove={onBarMove} onPointerUp={onBarUp} onPointerCancel={onBarUp}>

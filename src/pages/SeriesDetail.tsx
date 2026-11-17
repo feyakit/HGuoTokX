@@ -5,12 +5,16 @@ import { Button } from "../components/ios/controls";
 import { Img } from "../components/ui";
 import { Loader } from "../components/ios/effects";
 import { IBack, IPlayF } from "../icons";
-import type { Detail } from "../types";
+import type { Detail, VideoCard } from "../types";
 
-/** 剧集详情页：大封面（3:4 源图完整展示）+ 标题/评分/集数/tags + 简介 + 底部「播放」+ 集数网格 */
+/* 详情页（自定屏，依据 /opt/data/hguox-redesign/设计规范-自定屏.md）：
+   顶部宽幅区 332×281 / 圆角 15：同张封面模糊放大铺底 + 暗蒙层，上面放 3:4 原比例封面（不裁）+ 剧名/评分/集数；
+   下面依次是标签胶囊、简介、选集（5 列 56×56）、相关推荐；底部主 CTA 332×41.7 全圆、距底 32。
+   颜色只用 v3 六色：--p-bg / --hg-surface / accent / #8B9AF9 / #fff / rgba(255,255,255,.58)。 */
 export default function SeriesDetail({ id, onBack }: { id: number; onBack: () => void }) {
   const { push, lineEpoch } = useStore();
   const [detail, setDetail] = useState<Detail | null>(null);
+  const [related, setRelated] = useState<VideoCard[]>([]);
   const [err, setErr] = useState("");
   const seq = useRef(0);
 
@@ -20,6 +24,9 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
     api.video(id)
       .then(res => { if (my === seq.current) setDetail(res); })
       .catch(e => { if (my === seq.current) setErr((e as Error)?.message || "加载失败"); });
+    api.related(id)
+      .then(res => { if (my === seq.current) setRelated((res?.items ?? []).filter(v => v && v.cover)); })
+      .catch(() => { if (my === seq.current) setRelated([]); });
   }, [id, lineEpoch]);
 
   const episodes = useMemo(
@@ -42,47 +49,45 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
 
-      <header className="shrink-0 flex items-center gap-2 px-4 pt-1 pb-2 relative z-10">
-        <Button className="ios-icon-button" aria-label="返回" onClick={onBack}><IBack size={18} /></Button>
-        <h1 className="text-[16px] font-bold text-on truncate">剧集详情</h1>
-      </header>
-
-      <div className="flex-1 scroll-y px-4 pb-[calc(96px+var(--sab,0px))] relative z-10">
+      <div className="flex-1 scroll-y pb-[calc(96px+var(--sab,0px))] relative z-10">
         {err && <p role="alert" className="py-6 text-center text-[12px] text-danger">{err}</p>}
         {!detail && !err && <div className="flex justify-center py-10"><Loader className="w-6 h-6 spinner" /></div>}
 
         {detail && (
           <>
-            {/* 大封面：数据封面本体就是 3:4，这里 1:1 照原比例展示，不裁 */}
-            <div className="flex gap-3 items-start">
-              <div className="hg-detail-cover">
-                <Img src={detail.cover} eager alt={detail.title} />
+            {/* 顶部宽幅区：模糊封面铺底 + 暗蒙层 + 3:4 原图不裁 + 剧名/评分/集数 */}
+            <section className="hg-detail-hero" aria-label={detail.title}>
+              <span className="hg-detail-hero-bg"><Img src={detail.cover} eager alt="" /></span>
+              <span className="hg-detail-hero-veil" aria-hidden="true" />
+              <div className="hg-detail-hero-row">
+                <span className="hg-detail-poster"><Img src={detail.cover} eager alt={detail.title} /></span>
+                <div className="hg-detail-head">
+                  <h1 className="hg-detail-title">{detail.title}</h1>
+                  <p className="hg-detail-meta">
+                    {!!detail.score && <span className="hg-detail-score">{detail.score.toFixed(1)} 分</span>}
+                    {!!detail.score && " · "}
+                    {detail.is_finished ? "已完结" : `更新至 ${detail.episode_count || episodes.length} 集`}
+                    {" · 共 "}{detail.total_episodes || episodes.length}{" 集"}
+                  </p>
+                  <p className="hg-detail-counts">
+                    点赞 {fmt(detail.counts?.like ?? 0)} · 收藏 {fmt(detail.counts?.collect ?? 0)} · 评论 {fmt(detail.counts?.comment ?? 0)}
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <h2 className="text-[18px] font-bold leading-tight text-on">{detail.title}</h2>
-                <p className="mt-2 text-[12px] text-mut">
-                  {!!detail.score && <span className="text-amber font-semibold">{detail.score.toFixed(1)} 分</span>}
-                  {!!detail.score && " · "}
-                  {detail.is_finished ? "已完结" : `更新至 ${detail.episode_count || episodes.length} 集`}
-                  {" · "}共 {detail.total_episodes || episodes.length} 集
-                </p>
-                <p className="mt-1 text-[11px] text-dim">
-                  点赞 {fmt(detail.counts?.like ?? 0)} · 收藏 {fmt(detail.counts?.collect ?? 0)} · 评论 {fmt(detail.counts?.comment ?? 0)}
-                </p>
-                {!!detail.tags?.length && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {detail.tags.slice(0, 6).map(tag => (
-                      <Button key={tag} className="hg-tag-chip" onClick={() => push({ kind: "tag", tag, name: tag })}>{tag}</Button>
-                    ))}
-                  </div>
-                )}
+            </section>
+
+            {!!detail.tags?.length && (
+              <div className="hg-detail-tags">
+                {detail.tags.slice(0, 8).map(tag => (
+                  <Button key={tag} card className="hg-detail-tag" onClick={() => push({ kind: "tag", tag, name: tag })}>{tag}</Button>
+                ))}
               </div>
-            </div>
+            )}
 
             {!!detail.description && (
               <section className="hg-section">
                 <div className="hg-section-head"><h3 className="hg-section-title">简介</h3></div>
-                <p className="text-[13px] leading-[1.65] text-mut whitespace-pre-wrap">{detail.description}</p>
+                <p className="hg-detail-desc">{detail.description}</p>
               </section>
             )}
 
@@ -94,20 +99,43 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
               {episodes.length === 0 && <p className="py-2 text-[12px] text-dim">暂无分集信息</p>}
               <div className="hg-ep-grid">
                 {episodes.map(ep => (
-                  <Button key={ep.ep_num} className="hg-ep-cell" onClick={() => openPlayer(ep.ep_num)}>
+                  <Button key={ep.ep_num} card className="hg-ep-cell" onClick={() => openPlayer(ep.ep_num)}>
                     {ep.ep_num}
                   </Button>
                 ))}
               </div>
             </section>
+
+            {related.length > 0 && (
+              <section className="hg-section">
+                <div className="hg-section-head">
+                  <h3 className="hg-section-title">相关推荐</h3>
+                </div>
+                <div className="hg-rail">
+                  {related.slice(0, 12).map(v => (
+                    <Button card key={v.id} className="hg-rail-card" onClick={() => push({ kind: "series", id: v.id })}>
+                      <span className="hg-rail-art">
+                        <Img src={v.cover} alt="" />
+                        <span className="hg-rail-name">{v.title}</span>
+                      </span>
+                    </Button>
+                  ))}
+                </div>
+              </section>
+            )}
           </>
         )}
       </div>
 
-      {/* 底部主 CTA：整条宽度、固定在下沿（安全区内） */}
+      <span className="hg-detail-fade" aria-hidden="true" />
+
+      {/* 返回：40×40 圆、距顶 12（含安全区）/ 距左 14，压在宽幅区上 */}
+      <Button card className="hg-detail-back" aria-label="返回" onClick={onBack}><IBack size={22} /></Button>
+
+      {/* 底部主 CTA：332×41.7 全圆、距底 32 */}
       {detail && (
-        <div className="shrink-0 px-4 pb-[calc(12px+var(--sab,0px))] pt-2 relative z-10">
-          <Button className="hg-cta" onClick={() => openPlayer(1)}>
+        <div className="hg-detail-cta-wrap">
+          <Button card className="hg-cta" onClick={() => openPlayer(1)}>
             <IPlayF size={16} /><span>播放</span>
           </Button>
         </div>
