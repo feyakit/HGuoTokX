@@ -24,6 +24,7 @@ const Profile = lazy(() => import("./pages/Profile"));
 const SettingsPage = lazy(() => import("./pages/Settings"));
 const PostsPage = lazy(() => import("./pages/Posts").then(module => ({ default: module.PostsPage })));
 const PostDetail = lazy(() => import("./pages/Posts").then(module => ({ default: module.PostDetail })));
+const GossipPage = lazy(() => import("./pages/Gossip"));
 const TopicsPage = lazy(() => import("./pages/Discover").then(module => ({ default: module.TopicsPage })));
 const TopicPage = lazy(() => import("./pages/Discover").then(module => ({ default: module.TopicPage })));
 const TagsPage = lazy(() => import("./pages/Discover").then(module => ({ default: module.TagsPage })));
@@ -88,6 +89,7 @@ function StackPageContent({ page, onBack, wide, top, bottomInset }: {
   if (page.kind === "topic") return <TopicPage slug={page.slug} name={page.name} onBack={onBack} wide={wide} />;
   if (page.kind === "tags") return <TagsPage onBack={onBack} wide={wide} />;
   if (page.kind === "tag") return <TagPage tag={page.tag} name={page.name} onBack={onBack} wide={wide} />;
+  if (page.kind === "gossip") return <GossipPage onBack={onBack} />;
   if (page.kind === "following") return <FollowingPage onBack={onBack} wide={wide} />;
   if (page.kind === "user") return <UserPage id={page.id} name={page.name} onBack={onBack} wide={wide} />;
   return null;

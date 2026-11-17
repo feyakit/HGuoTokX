@@ -38,6 +38,9 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
   const mounted = useRef(false);
   const attemptedEpoch = useRef<number | null>(null);
   const [feedMounted, setFeedMounted] = useState(false);
+  /* 首页两段：短剧刷剧流 / 长视频。切段只切 display，不卸载 Feed——
+     短剧滚到第几部、播到第几秒，切回来原样保留。 */
+  const [segment, setSegment] = useState<"short" | "long">("short");
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   /* 翻页失败退避：失败后 5 秒内不再因滚动触发重试，连续失败只提示一次 */
   const retryAt = useRef(0);
@@ -120,14 +123,43 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
   const loadNextFilteredPage = () => { autoFill.current = 1; void load(page + 1); };
 
 
+  const indLeft = segment === "short" ? 0 : 72;
+
   return (
     <div className="absolute inset-0 bg-black flex flex-col">
+      {/* 顶栏：轻量文字分段（等宽 72）+ 右上角吃瓜入口，压在画面之上 */}
+      <div className="hg-segbar">
+        <button type="button" className={`hg-seg-tab${segment === "short" ? " is-on" : ""}`}
+          aria-pressed={segment === "short"} onClick={() => setSegment("short")}>短剧</button>
+        <button type="button" className={`hg-seg-tab${segment === "long" ? " is-on" : ""}`}
+          aria-pressed={segment === "long"} onClick={() => setSegment("long")}>长视频</button>
+        <button type="button" className="hg-seg-entry" onClick={() => push({ kind: "gossip" })}>
+          <span aria-hidden="true">◆</span>吃瓜
+        </button>
+        <i className="hg-seg-ind" style={{ transform: `translateX(${indLeft}px)` }} />
+      </div>
       {storageError && <div className="shrink-0 bg-bg px-3 pb-2" style={{ paddingTop: "max(8px, var(--sat, env(safe-area-inset-top, 0px)))" }}>
         <PreferenceStorageNotice />
       </div>}
       <div className="relative flex-1 min-h-0">
+      {/* 长视频段：本批先出骨架（16:9 卡片占位），列表下一批接 */}
+      {segment === "long" && (
+        <div className="absolute inset-0 bg-bg scroll-y px-4 pb-24" style={{ paddingTop: "calc(var(--sat, 0px) + 56px)" }}>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4">
+            {[0, 1, 2, 3, 4, 5].map(index => (
+              <div key={index} aria-hidden="true">
+                <div className="shimmer w-full rounded-[16px]" style={{ paddingTop: "56.25%" }} />
+                <div className="shimmer mt-2 h-[13px] w-4/5 rounded-full" />
+                <div className="shimmer mt-2 h-[11px] w-1/2 rounded-full" />
+              </div>
+            ))}
+          </div>
+          <p className="mt-6 text-center text-[12px] text-dim">长视频列表下一批接入</p>
+        </div>
+      )}
+      <div className="absolute inset-0" style={{ display: segment === "short" ? "block" : "none" }}>
       {ids.length > 0 && (active || feedMounted) ? (
-        <Feed videoIds={ids} mode="home" active={active} bottomInset={bottomInset} onBlocked={onBlocked}
+        <Feed videoIds={ids} mode="home" active={active && segment === "short"} bottomInset={bottomInset} onBlocked={onBlocked}
           onNearEnd={() => { if (!loading && !done && Date.now() >= retryAt.current) load(page + 1); }} />
       ) : hiddenCount > 0 ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-bg px-5 pb-24">
@@ -145,6 +177,7 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
       ) : (
         <div className="absolute inset-0 flex items-center justify-center"><Loader className="w-9 h-9 spinner" /></div>
       )}
+      </div>
       </div>
     </div>
   );
