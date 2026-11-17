@@ -34,7 +34,7 @@ function Highlight({ text, keyword }: { text: string; keyword: string }) {
 }
 
 export default function Search({ active, wide }: { active: boolean; wide: boolean }) {
-  const { push, searchHist, addSearch, clearSearchHist, lineEpoch, accountScope } = useStore();
+  const { push, searchHist, addSearch, clearSearchHist, removeSearchHist, lineEpoch, accountScope } = useStore();
   const [q, setQ] = useState("");
   const [submitted, setSubmitted] = useState("");
   const [tab, setTab] = useState<"video" | "post">("video");
@@ -76,6 +76,20 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
     }, 280);
     return () => clearTimeout(timer);
   }, [q]);
+
+  /* —— 猜你想看：复用热播榜数据做 2 行横滑，不额外开接口 —— */
+  const [youMayLike, setYouMayLike] = useState<RankItem[]>([]);
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    api.rank("hot")
+      .then(res => { if (!cancelled) setYouMayLike((res?.items ?? []).slice(0, 12)); })
+      .catch(() => { if (!cancelled) setYouMayLike([]); });
+    return () => { cancelled = true; };
+  }, [active]);
+
+  /* 排序：服务端忽略 sort 参数（实测三种值返回同一份 id 序列），所以在前端排已加载的这批 */
+  const [sortBy, setSortBy] = useState<"default" | "latest" | "hot">("default");
 
   /* 移动端进入搜索页不自动聚焦：iOS 会立刻弹键盘遮住内容（#20）。
      桌面端没有软键盘，聚焦便于直接打字。 */
@@ -120,6 +134,17 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
   };
 
   const querying = submitted.length > 0;
+  /* 排序只作用于已加载的这批：服务端三种排序值返回同一份结果，没法真排 */
+  const sortedItems = (() => {
+    const list = items.slice();
+    if (sortBy === "latest") {
+      const stamp = (v: VideoCard) => v.new_at || Date.parse(v.created_at ?? "") || 0;
+      list.sort((a, b) => stamp(b) - stamp(a));
+    } else if (sortBy === "hot") {
+      list.sort((a, b) => (b.hot || 0) - (a.hot || 0));
+    }
+    return list;
+  })();
   /* 有字但还没提交 → 输入态（联想词 + 题材 chips）；提交后改字也回到输入态 */
   const typing = q.trim().length > 0 && q.trim() !== submitted;
 
@@ -205,10 +230,27 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
                 </div>
                 <div className="flex flex-wrap gap-2 mt-2.5">
                   {searchHist.map((h) => (
-                    <Button key={h} onClick={() => { setQ(h); submit(h); }} className="px-3.5 h-8 rounded-(--r-ctl) bg-s3 text-[13px] text-on/80 pressable">{h}</Button>
+                    <span key={h} className="hg-hist-chip">
+                      <Button onClick={() => { setQ(h); submit(h); }} className="hg-hist-word">{h}</Button>
+                      <Button onClick={() => removeSearchHist(h)} aria-label={`删除历史 ${h}`} className="hg-hist-del"><IClose size={12} /></Button>
+                    </span>
                   ))}
                 </div>
               </div>
+            )}
+
+            {youMayLike.length > 0 && (
+              <section aria-label="猜你想看" className="mt-5 a-rise">
+                <h2 className="text-[14px] font-bold text-on mb-2.5">猜你想看</h2>
+                <div className="hg-youlike">
+                  {youMayLike.map((item) => (
+                    <MediaCard key={`${item.video_id}-${item.rank}`} title={item.title} cover={item.cover}
+                      badge={typeof item.score === "number" && item.score > 0 ? `${item.score.toFixed(1)} 分` : undefined}
+                      subtitle={item.tags?.slice(0, 2).join(" · ") || item.metric_label}
+                      onOpen={() => push({ kind: "feed", videoIds: youMayLike.map(x => x.video_id), index: youMayLike.findIndex(x => x.video_id === item.video_id), title: "猜你想看" })} />
+                  ))}
+                </div>
+              </section>
             )}
 
             <SearchTags key={JSON.stringify([lineEpoch, accountScope])} active={active} />
@@ -227,6 +269,13 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
               {loading && <span className="block">{request?.page === 1 ? `正在搜索「${submitted}」…` : "正在加载更多…"}</span>}
               {result && <>「{result.keyword}」已加载 <span className="text-primary font-bold">{count}{result.total !== null ? ` / ${result.total}` : ""}</span> 条{result.kind === "post" ? "帖子" : "视频"}</>}
             </div>
+            {tab === "video" && count > 0 && (
+              <div className="flex gap-2 mb-3" role="group" aria-label="结果排序">
+                {([["default", "综合"], ["latest", "最新"], ["hot", "最热"]] as const).map(([key, label]) => (
+                  <Button key={key} className="ios-filter-pill" aria-pressed={sortBy === key} onClick={() => setSortBy(key)}>{label}</Button>
+                ))}
+              </div>
+            )}
             {err && <div role="alert" className="flex flex-wrap items-center gap-2 mb-3 text-[13px] text-danger">
               <span>「{submitted}」{request?.page && request.page > 1 ? "加载更多失败" : "搜索失败"}：{err}</span>
               <Button onClick={results.retry} disabled={loading} className="px-3 text-primary">重试</Button>
@@ -234,7 +283,7 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
             <section aria-label="搜索结果" aria-busy={loading}>
               {result && count > 0 ? <>
                 {result.kind === "video" ? (
-                  <Masonry videos={items} scopeKey={JSON.stringify([submitted, tab, result.keyword, result.kind])} wide={wide} onOpen={(v) => push({ kind: "feed", videoIds: items.map((x) => x.id), index: items.findIndex((x) => x.id === v.id), title: `搜索 · ${result.keyword}` })} />
+                  <Masonry videos={sortedItems} scopeKey={JSON.stringify([submitted, tab, result.keyword, result.kind])} wide={wide} onOpen={(v) => push({ kind: "feed", videoIds: sortedItems.map((x) => x.id), index: sortedItems.findIndex((x) => x.id === v.id), title: `搜索 · ${result.keyword}` })} />
                 ) : (
                   <FilteredContent items={posts} scopeKey={JSON.stringify([submitted, tab, result.keyword, result.kind])}>{visible => <div className={`ios-media-grid ${wide ? "is-wide" : ""}`}>
                     {visible.map((post) => (
@@ -251,8 +300,15 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
               </> : loading ? (
                 <div className="flex justify-center py-12"><Loader label="正在搜索" className="w-8 h-8 spinner" /></div>
               ) : !err && (
-                <Empty icon={<ISearch size={26} />} title="没有找到相关内容" sub="换个关键词试试，比如「都市」「逆袭」"
-                  action="看看热榜" onAction={() => push({ kind: "ranks" })} />
+                <div className="py-10 text-center a-rise">
+                  <ISearch size={26} className="mx-auto text-dim" />
+                  <p className="mt-3 text-[15px] font-semibold text-on">没有找到「{submitted}」</p>
+                  <p className="mt-1.5 text-[12px] text-mut leading-relaxed">换个关键词试试，或者直接看热搜榜在追什么</p>
+                  <div className="mt-5 flex items-center justify-center gap-3">
+                    <Button className="ios-filter-pill" onClick={() => { results.clear(); setSubmitted(""); setQ(""); setTimeout(() => inputRef.current?.focus(), 60); }}>换个关键词</Button>
+                    <Button className="ios-filter-pill" aria-pressed onClick={() => { results.clear(); setSubmitted(""); setQ(""); }}>看看热榜</Button>
+                  </div>
+                </div>
               )}
             </section>
           </>

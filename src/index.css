@@ -799,3 +799,17 @@ html.theme-light .ios-mobile-nav .ios-mobile-nav-item[aria-current=page] {
   border-bottom: 1px solid var(--ios-edge);
 }
 .ios-suggest-item:active { background: var(--p-s2); }
+
+/* —— 搜索历史（P2-2）：整块可点，叉号单条删 —— */
+.hg-hist-chip { display: inline-flex; align-items: center; background: var(--p-s3); border-radius: var(--r-ctl); overflow: hidden; }
+.hg-hist-word { padding: 0 10px 0 14px; height: 32px; font-size: 13px; color: var(--p-on); background: transparent; border: 0; }
+.hg-hist-del { width: 30px; height: 32px; display: grid; place-items: center; color: var(--p-dim); background: transparent; border: 0; padding: 0; }
+.hg-hist-del:active { color: var(--p-on); }
+
+/* —— 猜你想看：2 行横滑（列优先排布） —— */
+.hg-youlike {
+  display: grid; grid-template-rows: repeat(2, auto); grid-auto-flow: column;
+  grid-auto-columns: 132px; gap: 12px; overflow-x: auto; scroll-snap-type: x proximity;
+  padding-bottom: 2px;
+}
+.hg-youlike > * { scroll-snap-align: start; }

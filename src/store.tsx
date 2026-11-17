@@ -191,7 +191,7 @@ type Store = {
   swipeEp: boolean; setSwipeEp: (on: boolean) => void;
   preferHevc: boolean; setPreferHevc: (on: boolean) => void;
   volume: number; setVolume: (v: number) => void;
-  searchHist: string[]; addSearch: (q: string) => void; clearSearchHist: () => void;
+  searchHist: string[]; addSearch: (q: string) => void; clearSearchHist: () => void; removeSearchHist: (q: string) => void;
   strictSecurity: boolean; strictSecurityReady: boolean; securityPending: boolean; cliRelaxed: boolean; setStrictSecurity: (on: boolean) => Promise<void>;
   toasts: Toast[]; toast: (msg: string, icon?: Toast["icon"]) => void;
   /** 线路切换计数：变了就让列表页重挂载，重新拉一遍数据 */
@@ -368,6 +368,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setP((s) => ({ ...s, searchHist: [t, ...s.searchHist.filter((x) => x !== t)].slice(0, 12) }));
   }, []);
   const clearSearchHist = useCallback(() => setP((s) => ({ ...s, searchHist: [] })), []);
+  /** 单条删除：长按/点叉删掉一条，别逼用户清空整段历史。 */
+  const removeSearchHist = useCallback((q: string) => {
+    setP((s) => ({ ...s, searchHist: s.searchHist.filter((x) => x !== q) }));
+  }, []);
 
   const logout = useCallback(async () => {
     await accountRef.current.logout();
@@ -420,13 +424,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     muteOnStartup: p.muteOnStartup, setMuteOnStartup,
     swipeEp: p.swipeEp, setSwipeEp,
     preferHevc: p.preferHevc, setPreferHevc,
-    searchHist: p.searchHist, addSearch, clearSearchHist,
+    searchHist: p.searchHist, addSearch, clearSearchHist, removeSearchHist,
     strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity,
     toasts, toast, lineEpoch,
     accent, setAccent: setAccentState,
   }), [theme, themePreference, setTheme, tab, setTab, stack, push, pop, user, loginOpen, logout,
     p, account,
-    setMuted, setMuteOnStartup, setSwipeEp, setPreferHevc, setVolume, addSearch, clearSearchHist, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity,
+    setMuted, setMuteOnStartup, setSwipeEp, setPreferHevc, setVolume, addSearch, clearSearchHist, removeSearchHist, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity,
     toasts, toast, lineEpoch, theater, setTheater, fs, setFs, clean, setClean, accent]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
