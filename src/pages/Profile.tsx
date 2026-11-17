@@ -112,47 +112,37 @@ function ProfileContent({ wide }: { wide: boolean }) {
   return (
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
-      <div className="shrink-0 hg-page-x flex items-center relative z-10"
-        style={{ paddingTop: "calc(var(--sat, 0px) + 6px)", paddingBottom: 6 }}>
-        {/* 设计图这一屏没有页面标题（身份区自己带层级），但主导航/无障碍还要这个 heading */}
-        <h1 className="sr-only">我的</h1>
-        {isMobile && (
-          <Button onClick={() => push({ kind: "settings" })} aria-label="打开设置"
-            className="ios-icon-button ml-auto">
-            <ISettings size={17} strokeWidth={1.7} />
-          </Button>
-        )}
-      </div>
+      {/* 顶栏 2 层（v3.top_bar S4）：状态栏 → 资料头一行（头像 52 + 昵称/ID + 右齿轮 22） */}
+      <h1 className="sr-only">我的</h1>
 
       <div className="ios-page-body flex-1 scroll-y hg-page-x relative z-10"
         style={{ paddingBottom: "calc(84px + var(--sab, 0px))" }}>
-        {/* 身份区：头像 + 昵称（不画关注数/VIP/金币）*/}
-        {user ? (
-          <div className="hg-profile-head a-rise">
-            <span className="hg-profile-avatar">
-              {user.avatar ? <Img src={user.avatar} eager /> : (user.nickname || "我").trim().charAt(0)}
-            </span>
-            <span className="hg-profile-meta">
-              <span className="hg-profile-name">{user.nickname}</span>
-              <span className="hg-profile-sub">@{user.username} · ID {user.id}</span>
-            </span>
-            <Button onClick={() => { setLogoutError(""); setLogoutOpen(true); }}
-              className="ios-icon-button" aria-label="退出登录">
-              <ILogout size={17} />
+        {/* 身份区（v3 S4：头像 52 + 昵称/ID + 右齿轮 22，一行）*/}
+        <div className="hg-profile-head a-rise">
+          {user ? (
+            <>
+              <span className="hg-profile-avatar">
+                {user.avatar ? <Img src={user.avatar} eager /> : (user.nickname || "我").trim().charAt(0)}
+              </span>
+              <span className="hg-profile-meta">
+                <span className="hg-profile-name">{user.nickname}</span>
+                <span className="hg-profile-sub">@{user.username} · ID {user.id}</span>
+              </span>
+            </>
+          ) : (
+            <Button card className="hg-profile-guest" aria-label="未登录，登录后同步收藏与观看记录"
+              onClick={() => setLoginOpen(true)}>
+              <span className="hg-profile-avatar is-guest"><IUser size={22} /></span>
+              <span className="hg-profile-meta">
+                <span className="hg-profile-name">未登录</span>
+                <span className="hg-profile-sub">登录后同步收藏与观看记录</span>
+              </span>
+              <span className="hg-profile-login">登录<IChevR size={13} /></span>
             </Button>
-          </div>
-        ) : (
-          <Button onClick={() => setLoginOpen(true)}
-            className="hg-profile-head w-full text-left pressable a-rise"
-            aria-label="未登录，登录后同步收藏与观看记录">
-            <span className="hg-profile-avatar is-guest"><IUser size={24} /></span>
-            <span className="hg-profile-meta">
-              <span className="hg-profile-name">未登录</span>
-              <span className="hg-profile-sub">登录后同步收藏与观看记录</span>
-            </span>
-            <span className="hg-profile-login">登录<IChevR size={13} /></span>
-          </Button>
-        )}
+          )}
+          <Button card className="hg-icon-plain" aria-label="打开设置"
+            onClick={() => push({ kind: "settings" })}><ISettings size={22} strokeWidth={1.7} /></Button>
+        </div>
 
         {user && accountSync.error && <div role="alert" className="mt-3 rounded-(--r-sm) bg-s3 p-3 text-[13px]">
           <p className="text-danger break-words">{accountSync.error}</p>
@@ -179,6 +169,13 @@ function ProfileContent({ wide }: { wide: boolean }) {
             <span className="hg-menu-label">设置</span>
             <IChevR size={13} />
           </Button>
+          {user && (
+            <Button className="hg-menu-row" onClick={() => { setLogoutError(""); setLogoutOpen(true); }}>
+              <span className="hg-menu-icon"><ILogout size={16} /></span>
+              <span className="hg-menu-label">退出登录</span>
+              <IChevR size={13} />
+            </Button>
+          )}
         </div>
 
         {/* 关注 / 我的主页 */}
