@@ -192,6 +192,23 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
           </>
         ) : !querying ? (
           <>
+            {searchHist.length > 0 && (
+              <div className="mt-1 a-rise">
+                <div className="flex items-center justify-between">
+                  <span className="text-[14px] font-bold text-on">搜索历史</span>
+                  <Button onClick={clearSearchHist} className="text-[12px] text-dim pressable">清空</Button>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-2.5">
+                  {searchHist.map((h) => (
+                    <span key={h} className="hg-hist-chip">
+                      <Button onClick={() => { setQ(h); submit(h); }} className="hg-hist-word">{h}</Button>
+                      <Button onClick={() => removeSearchHist(h)} aria-label={`删除历史 ${h}`} className="hg-hist-del"><IClose size={12} /></Button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <Surface role="region" aria-label="热搜榜" className="mt-1 rounded-(--r-md) bg-s2 p-3.5 a-rise">
                 <div className="flex items-center justify-between">
                   <h2 className="flex items-center gap-1.5 text-[14px] font-semibold text-on/90"><IFireF size={15} className="text-primary" />热搜榜</h2>
@@ -221,23 +238,6 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
                   </ol>
                 ) : !hotError && <p role="status" className="mt-3 text-[12px] text-mut">{hotLoading ? "加载中…" : "暂无热搜词"}</p>}
               </Surface>
-
-            {searchHist.length > 0 && (
-              <div className="mt-1 a-rise">
-                <div className="flex items-center justify-between">
-                  <span className="text-[14px] font-bold text-on">搜索历史</span>
-                  <Button onClick={clearSearchHist} className="text-[12px] text-dim pressable">清空</Button>
-                </div>
-                <div className="flex flex-wrap gap-2 mt-2.5">
-                  {searchHist.map((h) => (
-                    <span key={h} className="hg-hist-chip">
-                      <Button onClick={() => { setQ(h); submit(h); }} className="hg-hist-word">{h}</Button>
-                      <Button onClick={() => removeSearchHist(h)} aria-label={`删除历史 ${h}`} className="hg-hist-del"><IClose size={12} /></Button>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {youMayLike.length > 0 && (
               <section aria-label="猜你想看" className="mt-5 a-rise">
