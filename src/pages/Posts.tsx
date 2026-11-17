@@ -1,4 +1,3 @@
-import { MediaCard } from "../components/cards";
 import { Button, Surface } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -8,7 +7,7 @@ import { useStore } from "../store";
 import { copyText } from "../clipboard";
 import { Empty, Img } from "../components/ui";
 import Player from "../components/Player";
-import { IBack, IFireF, IPlayF, ISearch } from "../icons";
+import { IBack, IComment, IFireF, IHeart, IPlayF, ISearch, IStar } from "../icons";
 import { handleArticleClick, sanitizeHtml } from "../html";
 import { InplaceSearch } from "../components/InplaceSearch";
 import { FilteredContent } from "../components/FilteredContent";
@@ -17,12 +16,33 @@ import { useContentPreferences } from "../contentPreferences";
 import { postHot } from "../postData";
 
 /* ================= 吃瓜列表 ================= */
+/** 列表接口（/api/posts）只给标题/封面/热度；作者与点赞/评论数只在详情接口里。
+ *  卡片要画头像/昵称/互动数，就按 id 补一次详情；结果进模块级缓存，切 tab 回来不再重复请求。 */
+type PostExtra = { author?: Post["author"]; like?: number; comment?: number; collect?: number; hot?: number };
+const postExtra = new Map<number, PostExtra>();
+const extraOf = (p: Post): PostExtra | undefined => postExtra.get(p.id);
+
+const SORTS = [
+  { key: "latest", label: "最新" },
+  { key: "trending", label: "热门" },
+] as const;
+type SortKey = (typeof SORTS)[number]["key"];
+
+/** 帖子时间：优先发布时间，退回创建时间；统一成「8月14日 01:07」，拿不到格式就原样显示。 */
+const postTime = (p: Post) => {
+  const raw = (p.publish_time || p.created_at || "").trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(raw);
+  return m ? `${+m[2]}月${+m[3]}日 ${m[4]}:${m[5]}` : raw;
+};
+
 export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => void; wide: boolean; embedded?: boolean }) {
   const { push } = useStore();
   const { preferences } = useContentPreferences();
   const filtering = !preferences.paused && (preferences.blockedTags.length > 0 || preferences.hideUntagged);
+  const [sort, setSort] = useState<SortKey>("latest");
   const [searching, setSearching] = useState(false);
   const [items, setItems] = useState<Post[]>([]);
+  const [extra, setExtra] = useState<Record<number, PostExtra>>({});
   const [page, setPage] = useState(0);
   const [pages, setPages] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -39,7 +59,7 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
     setLoading(true);
     setErr("");
     try {
-      const res = await api.postCategory("remen-chigua", next, 20, "latest");
+      const res = await api.posts(next, 20, sort);
       setItems((prev) => {
         const base = reset ? [] : prev;
         const seen = new Set(base.map((x) => x.id));
@@ -56,7 +76,45 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
     }
   };
 
-  useEffect(() => { loadMore(true); /* eslint-disable-next-line */ }, []);
+  /* 换 tab：清空列表重新拉（两路排序是不同结果集，不能拼在一起） */
+  useEffect(() => {
+    setItems([]);
+    setPage(0);
+    setPages(1);
+    scrollRef.current?.scrollTo(0, 0);
+    void loadMore(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sort]);
+
+  /* 补详情：3 路并发，顺序按列表顺序；失败就只显示列表字段，不阻塞也不重试打扰 */
+  useEffect(() => {
+    const missing = items.map((x) => x.id).filter((id) => !postExtra.has(id));
+    if (!missing.length) return;
+    let alive = true;
+    const queue = missing.slice();
+    const worker = async () => {
+      while (alive) {
+        const id = queue.shift();
+        if (id == null) return;
+        try {
+          const detail = await api.post(id);
+          if (!alive) return;
+          const got: PostExtra = {
+            author: detail.author,
+            like: detail.counts?.like,
+            comment: detail.counts?.comment,
+            collect: detail.counts?.collect,
+            hot: postHot(detail),
+          };
+          postExtra.set(id, got);
+          setExtra((prev) => ({ ...prev, [id]: got }));
+        } catch { /* 详情拿不到：卡片退回列表字段 */ }
+      }
+    };
+    void Promise.all([worker(), worker(), worker()]);
+    return () => { alive = false; };
+  }, [items]);
+
   useEffect(() => {
     const el = sentinel.current;
     if (!el || err || filtering) return;
@@ -66,22 +124,62 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pages, err, filtering]);
 
+  const card = (p: Post) => {
+    const info = extra[p.id] ?? extraOf(p);
+    const pic = info?.author?.avatar;
+    const initial = (info?.author?.name || "").trim().charAt(0);
+    return (
+      <Button key={p.id} className="hg-post-card" aria-label={p.title} onClick={() => push({ kind: "post", id: p.id })}>
+        <span className="hg-post-head">
+          <span className="hg-post-avatar" aria-hidden="true">
+            {pic ? <Img src={pic} /> : (initial || null)}
+          </span>
+          <span className="hg-post-who">
+            {info?.author?.name ? <span className="hg-post-name">{info.author.name}</span> : null}
+            <span className="hg-post-time">{postTime(p)}</span>
+          </span>
+          <span className="hg-post-heat" aria-label={`热度 ${fmt(info?.hot ?? p.hot)}`}>
+            <IFireF size={12} />{fmt(info?.hot ?? p.hot)}
+          </span>
+        </span>
+        <span className="hg-post-title">{p.title}</span>
+        <span className="hg-post-art">
+          <Img src={p.cover} alt="" />
+        </span>
+        <span className="hg-post-stats">
+          <span className="hg-post-stat"><IHeart size={13} />{fmt(info?.like ?? 0)}</span>
+          <span className="hg-post-stat"><IComment size={13} />{fmt(info?.comment ?? 0)}</span>
+          <span className="hg-post-stat"><IStar size={13} />{fmt(info?.collect ?? 0)}</span>
+        </span>
+      </Button>
+    );
+  };
+
   return (
-    <div className="ios-page absolute inset-0 bg-bg flex flex-col">
-      <div className="shrink-0 flex items-center gap-2 px-2 bg-s1" style={{ paddingTop: "var(--sat, 0px)" }}>
-        {!embedded && onBack && <Button aria-label="返回" onClick={onBack} className="w-9 h-9 rounded-full flex items-center justify-center text-on hover:bg-s3 pressable"><IBack size={19} /></Button>}
-        <h1 className="text-[15px] font-bold text-on">吃瓜</h1>
-        <span className="text-[12px] text-mut ml-1">圈内爆料 · 每日更新</span>
-        <Button onClick={() => setSearching(true)} aria-label="搜索吃瓜" className="ml-auto w-9 h-9 rounded-full flex items-center justify-center text-on hover:bg-s3 pressable"><ISearch size={19} /></Button>
+    <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
+      <span className="hg-aura" aria-hidden="true" />
+      <div className="shrink-0 hg-page-x flex items-center gap-3 relative z-10"
+        style={{ paddingTop: "calc(var(--sat, 0px) + 6px)", paddingBottom: 8 }}>
+        {!embedded && onBack && (
+          <Button aria-label="返回" onClick={onBack} className="ios-icon-button shrink-0"><IBack size={19} /></Button>
+        )}
+        <div className="hg-tabs" role="tablist" aria-label="吃瓜分栏">
+          {SORTS.map((s) => (
+            <Button key={s.key} role="tab" aria-selected={sort === s.key} className={`hg-tab hg-tab-ul${sort === s.key ? " is-on" : ""}`}
+              onClick={() => setSort(s.key)}>{s.label}</Button>
+          ))}
+        </div>
+        <span className="flex-1" />
+        <Button onClick={() => setSearching(true)} aria-label="搜索吃瓜" className="ios-icon-button shrink-0"><ISearch size={18} /></Button>
       </div>
-      <div ref={scrollRef} aria-busy={loading} className="flex-1 scroll-y px-3 pt-3 pb-8">
+
+      <div ref={scrollRef} aria-busy={loading} className="flex-1 scroll-y hg-page-x relative z-10"
+        style={{ paddingBottom: "calc(96px + var(--sab, 0px))" }}>
         {items.length ? (
-          <FilteredContent items={items} scopeKey="posts">{visible => (
-          <div className={`ios-media-grid ${wide ? "is-wide" : ""}`}>
-            {visible.map((p) => (
-              <MediaCard key={p.id} title={p.title} cover={p.cover} subtitle={`${fmt(p.hot)} 次浏览`} onOpen={() => push({ kind: "post", id: p.id })} />
-            ))}
-          </div>
+          <FilteredContent items={items} scopeKey={`posts-${sort}`}>{visible => (
+            <div className="hg-post-feed">
+              {visible.map(card)}
+            </div>
           )}</FilteredContent>
         ) : loading ? (
           <div className="flex justify-center py-12"><Loader className="w-8 h-8 spinner" /></div>
