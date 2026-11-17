@@ -547,11 +547,13 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
   font-size: 13px; font-weight: 600; line-height: 1;
   white-space: nowrap;
 }
-/* 选中态：参考取色是「蓝紫调半透明填充 + 亮蓝紫描边」，不是中性白 8%
-   （白 8% 在 #0A0B14 上几乎不可见；参考内部 ≈ rgb(49,77,122) 对背景 rgb(43,55,93)，约 22–26% 的 accent 紫） */
+/* 选中态（按参考图像素反解，不是拍脑袋）：
+   目标合成色 rgb(49,77,122)，真机胶囊背后背景 rgb(45,33,35) →
+   蓝基色 rgb(55,140,250) @ .42 合成出 (48,77,125)，三通道与参考差 (-1,0,+3)；
+   描边取参考描边最强的 rgb(70,82,200)。改完在真机重新取色验证过。 */
 .hg-pill[aria-selected="true"] {
-  background: rgb(92 84 252 / .26);
-  border-color: #8B9AF9;
+  background: rgb(55 140 250 / .42);
+  border-color: rgb(70 82 200);
   border-width: 2px;
   color: #fff;
 }
