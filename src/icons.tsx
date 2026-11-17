@@ -13,8 +13,9 @@ const S = (d: React.ReactNode, fill = false) =>
   };
 
 
-/* 底栏图标（W7 实测：外框 19.1×16.7 CSS，图形占框 横 80% / 纵 86%，线宽 2）
-   每个图标两版：outline（描边空心）/ solid（实心填充），切换不改外框尺寸。 */
+/* 底栏图标（W7 实测外框 19.1×16.7 CSS、线宽 2；形状按参考重画）
+   参考语义：home=实心矮宽房子 / 吃瓜=圆形气泡+三点 / 分类=圆角方框+播放三角 / 我的=圆形包住人像
+   每图两版：outline 描边、solid 实心（选中态），外框尺寸不变。 */
 type NavP = { className?: string; solid?: boolean };
 const NAV = (outline: React.ReactNode, solid: React.ReactNode) =>
   function NavIcon({ className = "", solid: isSolid = false }: NavP) {
@@ -27,21 +28,28 @@ const NAV = (outline: React.ReactNode, solid: React.ReactNode) =>
     );
   };
 
+/* 首页：矮宽房子，屋顶圆角，门洞掏空 */
 export const INavHome = NAV(
-  <><path d="M3.6 10.2 12 3.4l8.4 6.8" /><path d="M5.8 9.4v8.2h4.4v-4.4h3.6v4.4h4.4V9.4" /></>,
-  <path d="M12 2.9 2.6 10.6a.9.9 0 0 0 .6 1.6h1.2v7.2a1 1 0 0 0 1 1h3.6v-5a1.4 1.4 0 0 1 2.8 0v5h3.6a1 1 0 0 0 1-1v-7.2h1.2a.9.9 0 0 0 .6-1.6Z" />
+  <><path d="M3.2 9.6 11.2 3.2a1.3 1.3 0 0 1 1.6 0l8 6.4" /><path d="M5.6 8.6v7.4a1.4 1.4 0 0 0 1.4 1.4h3.3v-3.9a1.7 1.7 0 0 1 3.4 0v3.9H17a1.4 1.4 0 0 0 1.4-1.4V8.6" /></>,
+  <path fillRule="evenodd" d="M11.15 2.3a1.5 1.5 0 0 1 1.7 0l8.6 6.5c.62.47.29 1.45-.49 1.45h-1.1v6.5c0 .94-.76 1.7-1.7 1.7h-4.05v-4.3a2.1 2.1 0 0 0-4.2 0v4.3H5.84c-.94 0-1.7-.76-1.7-1.7v-6.5h-1.1c-.78 0-1.11-.98-.49-1.45Z" />
 );
+
+/* 吃瓜：圆形气泡 + 左下小尾巴 + 三点 */
 export const INavCommunity = NAV(
-  <><path d="M4.2 4.6h15.6a1.6 1.6 0 0 1 1.6 1.6v6.4a1.6 1.6 0 0 1-1.6 1.6h-8.4l-4 3v-3H4.2a1.6 1.6 0 0 1-1.6-1.6V6.2a1.6 1.6 0 0 1 1.6-1.6Z" /></>,
-  <path d="M4.2 3.9h15.6A2.3 2.3 0 0 1 22.1 6.2v6.4a2.3 2.3 0 0 1-2.3 2.3h-7.9l-4.6 3.4a.7.7 0 0 1-1.1-.6v-2.8H4.2a2.3 2.3 0 0 1-2.3-2.3V6.2A2.3 2.3 0 0 1 4.2 3.9Z" />
+  <><path d="M12 2.6a7.4 7.4 0 0 1 0 14.8c-1.1 0-2.2-.24-3.1-.68L5 18.4l.6-3.3A7.4 7.4 0 0 1 12 2.6Z" /><circle cx="8.7" cy="10" r=".9" fill="currentColor" stroke="none" /><circle cx="12" cy="10" r=".9" fill="currentColor" stroke="none" /><circle cx="15.3" cy="10" r=".9" fill="currentColor" stroke="none" /></>,
+  <path fillRule="evenodd" d="M12 2.1a7.9 7.9 0 0 1 0 15.8c-1.05 0-2.06-.2-2.98-.57L4.6 19.2a.7.7 0 0 1-1-.79l.62-3.4A7.9 7.9 0 0 1 12 2.1Zm-3.3 7a1.15 1.15 0 1 0 0 2.3 1.15 1.15 0 0 0 0-2.3Zm3.3 0a1.15 1.15 0 1 0 0 2.3 1.15 1.15 0 0 0 0-2.3Zm3.3 0a1.15 1.15 0 1 0 0 2.3 1.15 1.15 0 0 0 0-2.3Z" />
 );
+
+/* 分类：圆角方框 + 播放三角 */
 export const INavCategory = NAV(
-  <><rect x="3.4" y="2.9" width="7.2" height="7.2" rx="2" /><rect x="13.4" y="2.9" width="7.2" height="7.2" rx="2" /><rect x="3.4" y="12.9" width="7.2" height="5.2" rx="2" /><rect x="13.4" y="12.9" width="7.2" height="5.2" rx="2" /></>,
-  <><rect x="2.9" y="2.4" width="8.2" height="8.2" rx="2.4" /><rect x="12.9" y="2.4" width="8.2" height="8.2" rx="2.4" /><rect x="2.9" y="12.4" width="8.2" height="6.2" rx="2.4" /><rect x="12.9" y="12.4" width="8.2" height="6.2" rx="2.4" /></>
+  <><rect x="3" y="2.7" width="18" height="15.6" rx="4.2" /><path d="M10.3 7.6 15 10.5l-4.7 2.9Z" fill="currentColor" stroke="none" /></>,
+  <path fillRule="evenodd" d="M7.2 2.2h9.6a4.7 4.7 0 0 1 4.7 4.7v6.6a4.7 4.7 0 0 1-4.7 4.7H7.2a4.7 4.7 0 0 1-4.7-4.7V6.9a4.7 4.7 0 0 1 4.7-4.7Zm3.1 5.2v5.9l4.9-2.95Z" />
 );
+
+/* 我的：圆形包住人像 */
 export const INavProfile = NAV(
-  <><circle cx="12" cy="6.9" r="3.6" /><path d="M4.6 18.6c1.2-3.2 3.9-4.9 7.4-4.9s6.2 1.7 7.4 4.9" /></>,
-  <><circle cx="12" cy="6.7" r="4.2" /><path d="M12 13.6c-3.9 0-7 1.9-8.2 5.1-.3.8.3 1.6 1.2 1.6h14c.9 0 1.5-.8 1.2-1.6-1.2-3.2-4.3-5.1-8.2-5.1Z" /></>
+  <><circle cx="12" cy="10.4" r="8" /><circle cx="12" cy="8.1" r="2.5" /><path d="M7.5 16.6c.6-1.9 2.3-3 4.5-3s3.9 1.1 4.5 3" /></>,
+  <path fillRule="evenodd" d="M12 2.1a8.4 8.4 0 1 1 0 16.8 8.4 8.4 0 0 1 0-16.8Zm0 3.6a2.9 2.9 0 1 0 0 5.8 2.9 2.9 0 0 0 0-5.8Zm0 7.2c-2.5 0-4.6 1.3-5.6 3.3a6.9 6.9 0 0 0 11.2 0c-1-2-3.1-3.3-5.6-3.3Z" />
 );
 
 export const IVertSwap = S(<><path d="M7 8 12 4l5 4" /><path d="M7 16l5 4 5-4" /><path d="M12 8v8" /></>);
