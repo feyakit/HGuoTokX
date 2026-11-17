@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, fmt, fmtTime } from "../api";
+import { api } from "../api";
 import type { Detail, VideoCard } from "../types";
 import { useStore } from "../store";
 import { Button } from "../components/ios/controls";
@@ -12,8 +12,10 @@ import { PreferenceStorageNotice } from "../components/PreferenceStorageNotice";
 
 /* 首页结构（数值全部取自 参考实测.json 的 v3 段）：
    顶栏 3 层 = 状态栏 → 品牌行（左 logo，右 搜索；礼物图标无接口不做）→ 胶囊 tab（选中=实心胶囊）
-   内容     = Hero（前 3 条轮播 + Play 胶囊 + 卡外 3 圆点）→ 最新上架横滑 → 继续观看横卡 → 3 列网格
-   底栏     = 浮岛胶囊 216×57，左右各 30（v3.tabbar）；内容 pb = 57 + 16 + 安全区
+   内容     = Hero（前 3 条轮播 + Play 胶囊 + 卡外 3 圆点）→ 最新上架横滑 → 3 列网格
+   继续观看 = 参考 S1 的那张悬浮卡（封面 + 集数/进度 + 圆形播放 + 右上关闭），压在底栏之上；
+              数据取 accountHistory（store.history），游客态或历史为空整个模块不渲染
+   底栏     = 宽浮岛 328×57、左右各 16（v3.tabbar 实测 0.911×360）；内容 pb = 57 + 16 + 安全区
    排行榜不在首页：它是独立一屏（/api/ranks/hot，固定 20 条），入口是胶囊 tab「榜单」 */
 
 const TABS = [
@@ -43,8 +45,9 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
   const [heroIndex, setHeroIndex] = useState(0);
-  const [continueCard, setContinueCard] = useState<{ detail: Detail; ep: number; t: number } | null>(null);
-  const [hideContinue, setHideContinue] = useState(false);
+  const [continueCard, setContinueCard] = useState<{ detail: Detail; ep: number; t: number; dur: number; at: number } | null>(null);
+  /* 关掉的那一条按 updated_at 记：换了剧或看了新一集，卡片自己回来，不用等刷新 */
+  const [dismissedContinue, setDismissedContinue] = useState(0);
   const loadingRef = useRef(false);
   const seq = useRef(0);
 
@@ -89,15 +92,18 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, tab, lineEpoch]);
 
-  /* 继续观看：store.history（accountHistory 同步进来）+ api.video(id) 补标题封面；
-     按对照表口径「需登录，游客态隐藏该模块」 */
+  /* 继续观看：accountHistory（store.history 已按 updated_at 倒序，[0] 就是最近一条）
+     + api.video(id) 补标题/封面/总集数；游客态或历史为空 → 直接不渲染，不画空占位 */
   useEffect(() => {
     if (!active || !user) { setContinueCard(null); return; }
     const latest = history[0];
-    if (!latest) { setContinueCard(null); return; }
+    if (!latest || !latest.id) { setContinueCard(null); return; }
     let alive = true;
     api.video(latest.id)
-      .then(d => { if (alive && d) setContinueCard({ detail: d, ep: latest.ep, t: latest.t }); })
+      .then(d => {
+        if (!alive) return;
+        setContinueCard(d ? { detail: d, ep: latest.ep, t: latest.t, dur: latest.dur, at: latest.at } : null);
+      })
       .catch(() => { if (alive) setContinueCard(null); });
     return () => { alive = false; };
   }, [active, user, history]);
@@ -106,6 +112,10 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
   const heroes = useMemo(() => visible.slice(0, 3), [visible]);
   const hero = heroes[Math.min(heroIndex, Math.max(heroes.length - 1, 0))];
   const grid = visible.slice(heroes.length);
+  /* 继续观看只在「登录 + 历史非空 + 没被本机关掉这一条」时存在；空态整个模块不渲染 */
+  const continueShown = !!(user && continueCard && continueCard.at !== dismissedContinue);
+  const continuePct = continueShown && continueCard && continueCard.dur > 0
+    ? Math.max(1, Math.min(100, Math.round((continueCard.t / continueCard.dur) * 100))) : 0;
   const openSeries = (id: number) => push({ kind: "series", id });
   const play = (id: number, ep = 1) => push({ kind: "feed", videoIds: [id], index: 0, title: "", startEp: ep });
 
@@ -133,7 +143,7 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
       </div>
 
       <div className="flex-1 scroll-y hg-page-x relative z-10"
-        style={{ paddingBottom: `calc(73px + var(--sab, 0px) + ${bottomInset}px)` }}>
+        style={{ paddingBottom: `calc(${continueShown ? 158 : 73}px + var(--sab, 0px) + ${bottomInset}px)` }}>
         {storageError && <PreferenceStorageNotice />}
 
         {!items.length && loading && <div className="flex justify-center py-10"><Loader className="w-7 h-7 spinner" /></div>}
@@ -152,10 +162,6 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
               <span className="hg-hero-veil" aria-hidden="true" />
               <span className="hg-hero-copy">
                 <span className="hg-hero-title">{hero.title}</span>
-                <span className="hg-hero-sub">
-                  {hero.is_finished ? "已完结" : `更新至 ${hero.episode_count ?? "?"} 集`}
-                  {!!hero.hot && ` · ${fmt(hero.hot)} 次播放`}
-                </span>
                 <span className="hg-hero-play" role="button" tabIndex={0}
                   onClick={e => { e.stopPropagation(); play(hero.id); }}
                   onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); play(hero.id); } }}>
@@ -196,23 +202,6 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
           </section>
         )}
 
-        {/* 继续观看：accountHistory（store.history）+ api.video(id)；游客态不画 */}
-        {user && continueCard && !hideContinue && (
-          <section className="hg-section">
-            <div className="hg-continue">
-              <span className="hg-continue-art"><Img src={continueCard.detail.cover} alt="" /></span>
-              <span className="hg-continue-copy">
-                <span className="hg-continue-title">{continueCard.detail.title}</span>
-                <span className="hg-continue-sub">看到第 {continueCard.ep} 集 · {fmtTime(continueCard.t)}</span>
-              </span>
-              <Button card className="hg-continue-play" aria-label="继续播放"
-                onClick={() => play(continueCard.detail.id, continueCard.ep)}><IPlayF size={15} /></Button>
-              <Button card className="hg-continue-close" aria-label="隐藏继续观看"
-                onClick={() => setHideContinue(true)}><IClose size={11} /></Button>
-            </div>
-          </section>
-        )}
-
         {/* 3 列网格：/api/videos 分页（卡比例 0.75、卡距 11、页边 14） */}
         <section className="hg-section">
           <div className="hg-section-head">
@@ -237,6 +226,27 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
           )}
         </section>
       </div>
+
+      {/* 继续观看：参考 S1 底部那张悬浮卡。数据 = accountHistory 最新一条；
+          游客态 / 历史为空 / 关掉这一条 → 整个模块不渲染（不画空占位） */}
+      {continueShown && continueCard && (
+        <div className="hg-continue">
+          <span className="hg-continue-art"><Img src={continueCard.detail.cover} alt="" /></span>
+          <span className="hg-continue-copy">
+            <span className="hg-continue-title">{continueCard.detail.title}</span>
+            <span className="hg-continue-sub">
+              看到第 {continueCard.ep} 集
+              {continueCard.detail.episode_count ? ` / 共 ${continueCard.detail.episode_count} 集` : ""}
+              {continuePct ? ` · ${continuePct}%` : ""}
+            </span>
+          </span>
+          <Button card className="hg-continue-play" aria-label={`继续播放第 ${continueCard.ep} 集`}
+            onClick={() => play(continueCard.detail.id, continueCard.ep)}><IPlayF size={15} /></Button>
+          <Button card className="hg-continue-close" aria-label="隐藏继续观看"
+            onClick={() => setDismissedContinue(continueCard.at)}><IClose size={11} /></Button>
+          {continuePct > 0 && <span className="hg-continue-fill" style={{ width: `${continuePct}%` }} aria-hidden="true" />}
+        </div>
+      )}
     </div>
   );
 }

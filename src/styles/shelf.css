@@ -179,19 +179,18 @@
   display: flex; flex-direction: column; align-items: flex-start;
 }
 .hg-hero-title {
-  font-size: 26px; font-weight: 800; line-height: 1.16; color: #fff;
+  font-size: 28px; font-weight: 700; line-height: 1.2; color: #fff;
   letter-spacing: -.4px; display: -webkit-box; -webkit-line-clamp: 2;
   -webkit-box-orient: vertical; overflow: hidden;
 }
-/* Play 是胶囊（图标 + Play 文字），h 24，不是居中大圆 */
+/* Play 是胶囊（图标 + Play 文字）：v3 play_button 62×24，不是居中大圆 */
 .hg-hero-play {
-  margin-top: 10px; display: inline-flex; align-items: center; gap: 4px;
-  height: 24px; padding: 0 11px 0 9px; border-radius: 999px;
+  margin-top: 10px; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  width: 62px; height: 24px; padding: 0; border-radius: 999px;
   background: rgb(255 255 255 / .20); color: #fff;
   font-size: 11px; font-weight: 700; line-height: 1;
   -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
 }
-.hg-hero-sub { margin-top: 4px; }
 
 /* ------------------------------------------------------------------
    发光层：radial 渐变直接画，不用 blur 伪元素（低端机 blur 掉帧）
@@ -266,11 +265,8 @@
   color: var(--p-mut); font-size: 13px;
 }
 
-.hg-hero-sub { display: block; margin-top: 3px; font-size: var(--fs-meta); color: rgb(255 255 255 / .68); }
-
-/* 货架卡宽：agreed_spec 的 rail_visible_cards=3.5
-   360 - 16*2(页边) - 10*3(三个卡缝) = 298 → 298/3.5 ≈ 85 */
-.hg-poster { width: 85px; }
+/* 货架卡宽：v3.ranking.home_rail.card_css = 98×149（首张与后续同一宽度，不许 flex 拉伸） */
+.ios-button.hg-rail-card { flex: none; width: 98px; min-inline-size: 98px; max-inline-size: 98px; }
 
 /* 页边：必须走 token（Tailwind 的 px-4 在本项目里算成 18px，落在 16 上差 12.5%，超验收 8%） */
 .hg-page-x { padding-left: var(--space-page); padding-right: var(--space-page); }
@@ -337,10 +333,11 @@ html:not(.theme-light) { --p-canvas: #161E40; --p-bg: #161E40; }
   margin-top: 4px; font-size: var(--fs-meta); line-height: 1.4; color: var(--p-dim);
 }
 
-/* 底栏浮岛（v2 tabbar：宽占 0.6=180、高 57、圆角胶囊），玻璃质感保留 */
-/* v3.tabbar：浮岛 4 项、高 57、宽 = 0.6×屏宽、左右 inset 30、胶囊全圆、玻璃更亮 */
+/* 底栏「宽浮岛」：v3.tabbar 像素重测 = 宽 328（0.911×360）、高 57、左右各 16、全圆、玻璃更亮
+   （v3 的 correction 已推翻旧值 width_ratio 0.6 / inset 30） */
+.ios-mobile-nav { padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); }
 .ios-mobile-nav .hg-glass {
-  height: 57px; width: 216px; max-width: 100%; border-radius: 999px;
+  height: 57px; width: 100%; max-width: 328px; border-radius: 999px;
   background: rgb(58 66 102 / .72); border: 1px solid rgb(255 255 255 / .10);
   -webkit-backdrop-filter: blur(24px) saturate(160%); backdrop-filter: blur(24px) saturate(160%);
 }
@@ -519,20 +516,30 @@ html:not(.theme-light) { --p-canvas: #161E40; --p-bg: #161E40; }
   text-shadow: 0 1px 3px rgb(0 0 0 / .85);
 }
 
-/* 继续观看横卡：左竖封面 + 标题/进度 + 右侧播放 + 右上关闭 */
+/* 继续观看悬浮卡（参考 S1 底部那张）：压在底栏之上、左右 14、可关闭；
+   数据 = accountHistory 最新一条，游客态/空历史不渲染 */
 .hg-continue {
-  position: relative; display: flex; align-items: center; gap: 12px;
-  padding: 10px; border-radius: 14px; background: var(--hg-surface);
+  position: absolute; z-index: 40;
+  left: var(--space-page); right: var(--space-page);
+  bottom: calc(57px + 24px + var(--sab, 0px));
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 30px 8px 8px;
+  border-radius: 14px;
+  background: rgb(36 42 64 / .96);
+  border: 1px solid rgb(255 255 255 / .08);
+  box-shadow: 0 10px 28px rgb(0 0 0 / .38);
+  -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+  overflow: hidden;
 }
 .hg-continue-art {
-  position: relative; flex: none; width: 52px;
+  position: relative; flex: none; width: 36px;
   border-radius: 8px; overflow: hidden; background: var(--p-s2);
 }
 .hg-continue-art::before { content: ""; display: block; padding-top: 133.3333%; }
 .hg-continue-art > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .hg-continue-copy { flex: 1; min-width: 0; }
 .hg-continue-title {
-  display: block; font-size: 14px; font-weight: 600; line-height: 1.3; color: var(--p-on);
+  display: block; font-size: 13px; font-weight: 600; line-height: 1.3; color: var(--p-on);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .hg-continue-sub { display: block; margin-top: 4px; font-size: 11px; color: var(--p-dim); }
@@ -546,6 +553,12 @@ html:not(.theme-light) { --p-canvas: #161E40; --p-bg: #161E40; }
   width: 20px; height: 20px; border-radius: 999px;
   display: inline-flex; align-items: center; justify-content: center;
   background: none; border: 0; color: var(--p-dim);
+}
+/* 进度条：accountHistory 只给集数，百分比来自本地 t/dur（没有就不画） */
+.hg-continue-fill {
+  position: absolute; left: 0; bottom: 0; height: 3px;
+  background: var(--accent, var(--hg-accent-fallback));
+  border-radius: 0 3px 3px 0;
 }
 
 /* 这些按钮用 card（= data-card）绕开 .ios-button 的 44px 触控最小尺寸与默认圆角，
