@@ -724,7 +724,7 @@ html.theme-light .ios-mobile-nav .ios-mobile-nav-item[aria-current=page] {
 /* —— 首页顶栏：轻量文字分段 + 吃瓜入口 ——
    不做胶囊底，选中只靠白字 + 2px 封面色指示条；压在画面之上不占版面。 */
 .hg-segbar {
-  position: absolute; top: calc(var(--sat, 0px) + 2px); left: 0; right: 0; z-index: 30;
+  position: absolute; top: calc(var(--sat, 0px) + 2px); left: 0; right: 0; z-index: 45;
   display: flex; align-items: center; height: 36px; padding: 0 16px;
   background: linear-gradient(180deg, rgba(14, 15, 19, .98), rgba(14, 15, 19, .86) 58%, rgba(14, 15, 19, 0));
 }

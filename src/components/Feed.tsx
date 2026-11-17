@@ -37,6 +37,8 @@ type Props = {
   kind?: "video" | "post";
   active: boolean;
   bottomInset: number;
+  /** 顶部被外部顶栏（首页分段条）占掉的高度：右上角那排浮动按钮往下让 */
+  topInset?: number;
   onBack?: () => void;
   onNearEnd?: () => void;
   onBlocked?: (id: number) => void;
@@ -45,7 +47,7 @@ type Props = {
   startTime?: number;
 };
 
-export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind = "video", active, bottomInset, onBack, onNearEnd, onBlocked, startEp, startTime }: Props) {
+export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind = "video", active, bottomInset, topInset = 0, onBack, onNearEnd, onBlocked, startEp, startTime }: Props) {
   const store = useStore();
   const { isLiked, isFav, setLiked, setCollected, setFollowing, actionPending, accountScope, muted, setMuted, volume, setVolume, toast, addHistory, user, setLoginOpen, swipeEp, setSwipeEp, preferHevc, setPreferHevc } = store;
   const isDesktop = !isMobile;
@@ -1689,7 +1691,7 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
       {!isDesktop && !controlsLocked && active && (!fs || !idle) && (
         <div className={`absolute z-40 flex items-center gap-2 ${fs ? "" : "right-3"}`}
           style={{
-            top: rotated ? 12 : "calc(var(--sat, 0px) + 6px)",
+            top: rotated ? 12 : `calc(var(--sat, 0px) + ${6 + topInset}px)`,
             right: fs ? (rotated ? "calc(var(--sab, 0px) + 56px)" : 56) : undefined,
           }}>
           {!fs && !clean && <Button onClick={() => setMuted(m => !m)} aria-label={muted ? "取消静音" : "静音"}

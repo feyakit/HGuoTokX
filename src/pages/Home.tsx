@@ -159,7 +159,7 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
       )}
       <div className="absolute inset-0" style={{ display: segment === "short" ? "block" : "none" }}>
       {ids.length > 0 && (active || feedMounted) ? (
-        <Feed videoIds={ids} mode="home" active={active && segment === "short"} bottomInset={bottomInset} onBlocked={onBlocked}
+        <Feed videoIds={ids} mode="home" active={active && segment === "short"} bottomInset={bottomInset} topInset={40} onBlocked={onBlocked}
           onNearEnd={() => { if (!loading && !done && Date.now() >= retryAt.current) load(page + 1); }} />
       ) : hiddenCount > 0 ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-bg px-5 pb-24">
