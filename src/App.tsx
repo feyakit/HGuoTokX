@@ -49,8 +49,7 @@ function TabBar() {
     { key: "profile", label: "我的", Icon: IUser, Active: IUserF },
   ] as const;
   const index = items.findIndex(item => item.key === tab);
-  return <nav className="hg-tabbar ios-mobile-nav" aria-label="主导航" data-over-video={tab === "home"}
-    style={{ paddingBottom: platform === "android" ? "var(--sab, 16px)" : "calc(var(--sab, 16px) * .55)" }}>
+  return <nav className="hg-tabbar ios-mobile-nav" aria-label="主导航" data-over-video={tab === "home"}>
       <div className="hg-glass">
       <div className="hg-drop" aria-hidden="true" style={{ transform: `translateX(${index * 100}%)` }}><LiquidIndicator /></div>
       <div className="ios-mobile-nav-items">

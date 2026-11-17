@@ -388,8 +388,8 @@
 
 /* 选中态：参考是「很轻的乳白磨砂高光」，不是实心白胶囊 */
 .ios-mobile-nav .hg-drop > .ios-liquid-fill {
-  background: rgb(255 255 255 / .22);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / .30);
+  background: rgb(255 255 255 / .18);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .26);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
 }
 .ios-mobile-nav .ios-mobile-nav-item[aria-current="page"],
@@ -417,12 +417,15 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 
 /* 底栏「宽浮岛」：v3.tabbar 像素重测 = 宽 328（0.911×360）、高 57、左右各 16、全圆、玻璃更亮
    （v3 的 correction 已推翻旧值 width_ratio 0.6 / inset 30） */
-.ios-mobile-nav { padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); }
+.ios-mobile-nav { padding: 10px 16px calc(32.2px + var(--sab, 0px)); }   /* 距屏底 32.2（W7 实测） */
 .ios-mobile-nav .hg-glass {
-  height: 57px; width: 100%; max-width: 328px; border-radius: 999px;
-  background: rgb(176 180 196 / .26); border: 1px solid rgb(255 255 255 / .18);
-  -webkit-backdrop-filter: blur(34px) saturate(120%); backdrop-filter: blur(34px) saturate(120%);
+  height: 59.6px; width: 100%; max-width: 327.8px; border-radius: 29.8px;   /* 全圆 = h/2 */
+  background: rgb(16 18 28 / .62); border: 1px solid rgb(255 255 255 / .12);
+  -webkit-backdrop-filter: blur(30px) saturate(140%); backdrop-filter: blur(30px) saturate(140%);
 }
+/* 选中胶囊 83×46.8（W7 实测），垂直居中 */
+.ios-mobile-nav .hg-drop { top: 6.4px; bottom: 6.4px; width: 83px; left: -0.5px; }
+.ios-mobile-nav .hg-drop > .ios-liquid-fill { margin: 0; width: 100%; height: 100%; border-radius: 999px; }
 
 /* ------------------------------------------------------------------
    吃瓜（社区信息流）：下划线 tab + 单列信息流卡

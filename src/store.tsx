@@ -135,7 +135,11 @@ function readThemePreference(): ThemePreference {
   }
 }
 
+/* 这套设计本身就是深色底（画布固定冷蓝、文字/玻璃都按深色取色）：
+   强制 dark，不跟系统。浅色分支的代码先留着，但入口禁用（用户 2026-11-17 定调）。 */
+const FORCE_DARK = true;
 function resolveTheme(preference: ThemePreference): Theme {
+  if (FORCE_DARK) return "dark";
   if (preference !== "system") return preference;
   return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
