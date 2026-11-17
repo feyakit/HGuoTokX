@@ -24,7 +24,7 @@
        反推盒距 = 墨距 − 2×11 ≈ 18–20 ⇒ 取 18，渲染墨距 = 18 + 2×11 = 40 CSS（38–42 的中位）。
      易错点：墨到框边是 11（描边 2 + padding 9），不是 9。按 9 算会得到盒距 22，
      真渲染出来墨距是 44，超出实测上沿——所以这里写 18，padding 保持 9。 */
-  --hg-pill-gap: 18px;
+  --hg-pill-gap: 17px;   /* W7 确认：项间距 17 */
 
   /* 卡距（横滑货架与网格同一档）：agreed_spec 10
      实测 3.7–4.8（n=2），是「概念稿缩略图」里的像素缝，按 1 图px≈1.7 CSS 换算后偏小，
@@ -691,7 +691,7 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
   color: var(--p-dim); font-size: 13px; font-weight: 400;
 }
 .hg-filter-text {
-  flex: none; padding: 2px 0; background: none; border: 0;
+  flex: none; min-height: 27.4px; padding: 2px 0; background: none; border: 0;
   font-size: 13px; font-weight: 500; color: var(--p-dim); white-space: nowrap;
 }
 .hg-filter-text[data-on="true"] { color: var(--p-on); font-weight: 700; }
