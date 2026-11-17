@@ -14,7 +14,7 @@ import { ToastHost } from "./components/ui";
 import { DesktopRail, DesktopTitleBar } from "./components/DesktopChrome";
 import ResizeHandles from "./components/ResizeHandles";
 import { tracePlayback } from "./playbackDiagnostics";
-import { IComment, ICommentF, IGrid, IGridF, IHome, IHomeF, ISearch, IUser, IUserF } from "./icons";
+import { INavCategory, INavCommunity, INavHome, INavProfile, ISearch } from "./icons";
 
 // Local chunks load on first visit; visited tabs stay mounted as before.
 const Search = lazy(() => import("./pages/Search"));
@@ -42,24 +42,23 @@ const isSelectableText = (target: EventTarget | null) => target instanceof Eleme
 function TabBar() {
   const { tab, setTab, platform } = useStore();
   const items = [
-    { key: "home", label: "首页", Icon: IHome, Active: IHomeF },
+    { key: "home", label: "首页", Icon: INavHome },
     /* 搜索不再占底栏位：左上角/顶栏图标与桌面快捷键进 search 页（tab 仍存在，只是没有入口） */
-    { key: "posts", label: "吃瓜", Icon: IComment, Active: ICommentF },
-    { key: "category", label: "分类", Icon: IGrid, Active: IGridF },
-    { key: "profile", label: "我的", Icon: IUser, Active: IUserF },
+    { key: "posts", label: "吃瓜", Icon: INavCommunity },
+    { key: "category", label: "分类", Icon: INavCategory },
+    { key: "profile", label: "我的", Icon: INavProfile },
   ] as const;
   const index = items.findIndex(item => item.key === tab);
   return <nav className="hg-tabbar ios-mobile-nav" aria-label="主导航" data-over-video={tab === "home"}>
       <div className="hg-glass">
       <div className="hg-drop" aria-hidden="true" style={{ transform: `translateX(${index * 100}%)` }}><LiquidIndicator /></div>
       <div className="ios-mobile-nav-items">
-        {items.map(({ key, label, Icon, Active }) => {
-          const Glyph = tab === key ? Active : Icon;
-          return <Button key={key} className="ios-mobile-nav-item" onClick={() => setTab(key)}
+        {items.map(({ key, label, Icon }) => (
+          <Button key={key} className="ios-mobile-nav-item" onClick={() => setTab(key)}
             aria-current={tab === key ? "page" : undefined}>
-            <Glyph size={22} /><span>{label}</span>
-          </Button>;
-        })}
+            <Icon solid={tab === key} /><span>{label}</span>
+          </Button>
+        ))}
       </div>
     </div>
   </nav>;

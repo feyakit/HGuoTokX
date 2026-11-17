@@ -12,6 +12,38 @@ const S = (d: React.ReactNode, fill = false) =>
     );
   };
 
+
+/* 底栏图标（W7 实测：外框 19.1×16.7 CSS，图形占框 横 80% / 纵 86%，线宽 2）
+   每个图标两版：outline（描边空心）/ solid（实心填充），切换不改外框尺寸。 */
+type NavP = { className?: string; solid?: boolean };
+const NAV = (outline: React.ReactNode, solid: React.ReactNode) =>
+  function NavIcon({ className = "", solid: isSolid = false }: NavP) {
+    return (
+      <svg width={19.1} height={16.7} viewBox="0 0 24 21" className={className} aria-hidden
+        fill={isSolid ? "currentColor" : "none"} stroke={isSolid ? "none" : "currentColor"}
+        strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        {isSolid ? solid : outline}
+      </svg>
+    );
+  };
+
+export const INavHome = NAV(
+  <><path d="M3.6 10.2 12 3.4l8.4 6.8" /><path d="M5.8 9.4v8.2h4.4v-4.4h3.6v4.4h4.4V9.4" /></>,
+  <path d="M12 2.9 2.6 10.6a.9.9 0 0 0 .6 1.6h1.2v7.2a1 1 0 0 0 1 1h3.6v-5a1.4 1.4 0 0 1 2.8 0v5h3.6a1 1 0 0 0 1-1v-7.2h1.2a.9.9 0 0 0 .6-1.6Z" />
+);
+export const INavCommunity = NAV(
+  <><path d="M4.2 4.6h15.6a1.6 1.6 0 0 1 1.6 1.6v6.4a1.6 1.6 0 0 1-1.6 1.6h-8.4l-4 3v-3H4.2a1.6 1.6 0 0 1-1.6-1.6V6.2a1.6 1.6 0 0 1 1.6-1.6Z" /></>,
+  <path d="M4.2 3.9h15.6A2.3 2.3 0 0 1 22.1 6.2v6.4a2.3 2.3 0 0 1-2.3 2.3h-7.9l-4.6 3.4a.7.7 0 0 1-1.1-.6v-2.8H4.2a2.3 2.3 0 0 1-2.3-2.3V6.2A2.3 2.3 0 0 1 4.2 3.9Z" />
+);
+export const INavCategory = NAV(
+  <><rect x="3.4" y="2.9" width="7.2" height="7.2" rx="2" /><rect x="13.4" y="2.9" width="7.2" height="7.2" rx="2" /><rect x="3.4" y="12.9" width="7.2" height="5.2" rx="2" /><rect x="13.4" y="12.9" width="7.2" height="5.2" rx="2" /></>,
+  <><rect x="2.9" y="2.4" width="8.2" height="8.2" rx="2.4" /><rect x="12.9" y="2.4" width="8.2" height="8.2" rx="2.4" /><rect x="2.9" y="12.4" width="8.2" height="6.2" rx="2.4" /><rect x="12.9" y="12.4" width="8.2" height="6.2" rx="2.4" /></>
+);
+export const INavProfile = NAV(
+  <><circle cx="12" cy="6.9" r="3.6" /><path d="M4.6 18.6c1.2-3.2 3.9-4.9 7.4-4.9s6.2 1.7 7.4 4.9" /></>,
+  <><circle cx="12" cy="6.7" r="4.2" /><path d="M12 13.6c-3.9 0-7 1.9-8.2 5.1-.3.8.3 1.6 1.2 1.6h14c.9 0 1.5-.8 1.2-1.6-1.2-3.2-4.3-5.1-8.2-5.1Z" /></>
+);
+
 export const IVertSwap = S(<><path d="M7 8 12 4l5 4" /><path d="M7 16l5 4 5-4" /><path d="M12 8v8" /></>);
 export const IHome = S(<><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h5v-6h4v6h5V9.5" /></>);
 export const IHomeF = S(<path d="M12 2.6 2.8 10.2a1 1 0 0 0 .64 1.77H4v8.2A1.8 1.8 0 0 0 5.8 22H9.4v-5.6a2.6 2.6 0 0 1 5.2 0V22h3.6a1.8 1.8 0 0 0 1.8-1.8V12h.56a1 1 0 0 0 .64-1.77Z" />, true);
