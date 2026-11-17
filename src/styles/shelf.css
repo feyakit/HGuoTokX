@@ -251,8 +251,8 @@
   font-size: 14px; font-weight: 600;
 }
 .hg-detail-cta-wrap {
-  position: absolute; left: var(--space-page); right: var(--space-page);
-  bottom: calc(32px + var(--sab, 0px)); z-index: 30;
+  padding: 10px var(--space-page) calc(32px + var(--sab, 0px));
+  background: var(--p-bg);
 }
 
 /* 详情顶部宽幅区（规范 2.1 + 用户补充：封面 3:4 不裁） */
@@ -262,7 +262,7 @@
   background: var(--hg-surface);
 }
 .hg-detail-hero-bg { position: absolute; inset: 0; display: block; }
-.hg-detail-hero-bg > img {
+.hg-detail-hero-bg .ios-image > img {
   width: 100%; height: 100%; object-fit: cover;
   filter: blur(18px) brightness(.55); transform: scale(1.15);
 }
@@ -280,7 +280,7 @@
   box-shadow: 0 8px 20px rgb(0 0 0 / .45);
 }
 .hg-detail-poster::before { content: ""; display: block; padding-top: 133.3333%; }
-.hg-detail-poster > img {
+.hg-detail-poster .ios-image > img {
   position: absolute; inset: 0; width: 100%; height: 100%;
   object-fit: contain;                    /* 3:4 原图不裁 */
 }

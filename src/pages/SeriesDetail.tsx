@@ -49,7 +49,7 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
 
-      <div className="flex-1 scroll-y pb-[calc(96px+var(--sab,0px))] relative z-10">
+      <div className="flex-1 scroll-y pb-6 relative z-10">
         {err && <p role="alert" className="py-6 text-center text-[12px] text-danger">{err}</p>}
         {!detail && !err && <div className="flex justify-center py-10"><Loader className="w-6 h-6 spinner" /></div>}
 
@@ -127,14 +127,13 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
         )}
       </div>
 
-      <span className="hg-detail-fade" aria-hidden="true" />
-
       {/* 返回：40×40 圆、距顶 12（含安全区）/ 距左 14，压在宽幅区上 */}
       <Button card className="hg-detail-back" aria-label="返回" onClick={onBack}><IBack size={22} /></Button>
 
-      {/* 底部主 CTA：332×41.7 全圆、距底 32 */}
+      {/* 底部主 CTA：332×41.7 全圆、距底 32。放在 flex 列里而不是悬浮，
+          这样内容区永远不会被它盖住（滚到底能看全） */}
       {detail && (
-        <div className="hg-detail-cta-wrap">
+        <div className="shrink-0 hg-detail-cta-wrap">
           <Button card className="hg-cta" onClick={() => openPlayer(1)}>
             <IPlayF size={16} /><span>播放</span>
           </Button>
