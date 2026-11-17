@@ -583,5 +583,18 @@ html:not(.theme-light) { --p-canvas: #161E40; --p-bg: #161E40; }
 }
 .hg-filter-text[data-on="true"] { color: var(--p-on); font-weight: 700; }
 
+/* 这些是文字/格子/角标，不是卡片：别被 .ios-button 的 36px 触控最小高度撑高，
+   尺寸只由各自规则决定（.ios-button 基础规则 0,1,0，这里 0,2,0 能盖住） */
+.ios-button.hg-tab,
+.ios-button.hg-filter-text,
+.ios-button.hg-tag-chip,
+.ios-button.hg-ep-cell,
+.ios-button.hg-loadmore { min-block-size: 0; min-inline-size: 0; }
+
+/* Android WebView 的竖向滚动条会吃掉 5px 布局宽度（真机实测 clientWidth 355 / offsetWidth 360），
+   内容宽度就从 332 变成 327（Hero 327、网格列 101.66）：一律隐藏滚动条交给滑动 */
+.scroll-y { scrollbar-width: none; -ms-overflow-style: none; }
+.scroll-y::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
 /* 「More ›」是纯文字链接：不要 .ios-button 的 44px 触控盒，否则会把分区标题行撑高 */
 .ios-button.hg-section-more { min-block-size: 0; min-inline-size: 0; padding: 0; background: none; border: 0; }
