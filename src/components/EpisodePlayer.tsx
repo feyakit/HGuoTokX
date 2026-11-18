@@ -20,10 +20,10 @@ import { TagBlockMenu } from "./TagBlockMenu";
 import VideoDetailsPanel from "./VideoDetailsPanel";
 import { PreferenceStorageNotice } from "./PreferenceStorageNotice";
 import MobileHoldGuide from "./MobileHoldGuide";
-import { getHoldZone, HOLD_DELAY_MS, HOLD_LOCK_DISTANCE, type HoldZone } from "../mobileHold";
+import { getHoldZone, stageXY, HOLD_DELAY_MS, HOLD_LOCK_DISTANCE, type HoldZone } from "../mobileHold";
 import { useMobileHoldGuide } from "../useMobileHoldGuide";
 import {
-  IBack, IBoltF, IChevR, IChevronDown, IChevronUp, IClose, ICommentF, ICompress, IFileText, IHeart, IHeartF, IMore,
+  IBack, IBoltF, IChevR, IChevronDown, IChevronUp, IClose, ICommentF, ICompress, IExpand, IFileText, IHeart, IHeartF, IMore,
   ILink, IList, ILockF, IPauseF, IPlayF, ISearch, IStar, IStarF, IVertSwap, IVol, IVolMute,
 } from "../icons";
 import { useAccent } from "../useAccent";
@@ -31,6 +31,8 @@ import { useAccent } from "../useAccent";
 /* 单击判定窗口：首次轻点先等这么久再落「暂停/继续」，
    这样双击（净屏）不会先闪一下暂停。人眼对这个量级不敏感，真机上等的是「有没有反应」。 */
 const TAP_DELAY_MS = 180;
+/* 移动端控件自动隐藏：显示后这么久没操作才收起来；暂停中、面板打开时不收 */
+const MOBILE_AUTOHIDE_MS = 4500;
 
 export type EpisodePlayerProps = {
   videoIds: number[];
@@ -177,6 +179,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     if (paused) { setIdle(false); window.clearTimeout(idleTimer.current); }
   }, [paused]);
   const [fullscreen, setFullscreen] = useState(false);
+  /* 用户点「全屏/横屏」时要的是横过来看；系统真转了（vpLandscape）就不再用 CSS 兜底 */
+  const [fsLandscape, setFsLandscape] = useState(false);
   const [heartBurst, setHeartBurst] = useState(0);
   /* —— 移动端手势 —— */
   const [holdSpeed, setHoldSpeed] = useState(false);
@@ -191,7 +195,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const barRef = useRef<HTMLDivElement>(null);
   const barScrub = useRef(false);
   const [barPct, setBarPct] = useState<number | null>(null);
-  const epsStripRef = useRef<HTMLDivElement>(null);
   const gesture = useRef<{
     x: number; y: number; startY: number; t: number; timer: number | null;
     mode: "idle" | "hold" | "scrub" | "pan"; base: number; width: number; playing: boolean;
@@ -257,6 +260,43 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   playGuard.current = { allowed, id: curId, permissionKey, playKey };
   const isCurrentPlayback = () => playGuard.current.allowed && playGuard.current.id === curId
     && playGuard.current.permissionKey === permissionKey && playGuard.current.playKey === playKey;
+
+  /* —— 控件显隐（报告：进播放器控件没出来、轻点唤不回）——
+     clean 是 store 里的状态，可能留着上一轮的 true；所以进播放器/切集时强制显示。
+     显示后 MOBILE_AUTOHIDE_MS 无操作才自动收起；暂停中、面板打开时不收。 */
+  const uiRef = useRef<{ paused: boolean; panel: string | null; fs: boolean }>({ paused: false, panel: null, fs: false });
+  uiRef.current = { paused, panel: panel as string | null, fs };
+  const hideTimer = useRef<number | undefined>(undefined);
+  const armAutoHide = useCallback(() => {
+    window.clearTimeout(hideTimer.current);
+    if (isDesktop) return;
+    hideTimer.current = window.setTimeout(() => {
+      if (uiRef.current.paused || uiRef.current.panel) return;
+      /* 全屏层用 idle 收控件，普通播放页用 clean 收 */
+      if (uiRef.current.fs) setIdle(true); else setClean(true);
+    }, MOBILE_AUTOHIDE_MS) as unknown as number;
+  }, [isDesktop, setClean]);
+  const showControls = useCallback(() => {
+    setClean(false);
+    setIdle(false);
+    armAutoHide();
+  }, [armAutoHide, setClean]);
+  const hideControls = useCallback(() => {
+    window.clearTimeout(hideTimer.current);
+    if (!isDesktop && fs) setIdle(true); else setClean(true);
+  }, [isDesktop, fs, setClean]);
+  useEffect(() => {
+    showControls();
+    return () => window.clearTimeout(hideTimer.current);
+  }, [playKey, showControls]);
+  useEffect(() => {
+    if (paused) window.clearTimeout(hideTimer.current);
+    else armAutoHide();
+  }, [paused, armAutoHide]);
+  useEffect(() => {
+    if (panel) window.clearTimeout(hideTimer.current);
+    else armAutoHide();
+  }, [panel, armAutoHide]);
   const mainUrl = playUrls[playKey] || "";
   const hevcUrl = hevcUrls[playKey] || "";
   const playUrl = preferHevc && hevcUrl ? hevcUrl : mainUrl;
@@ -280,16 +320,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   useEffect(() => { videoRef.current?.trace("page.active", { active, view: mode, video_id: curId, episode: curEp }); }, [active, mode, curId, curEp]);
   const episodes = detail?.episodes || [];
   const post = posts[curId];
-
-  /* 集数条跟着当前集滚：切到第 13 集时当前 chip 常在视口外，用户以为「没有高亮」（报告 N-3.0-08） */
-  useEffect(() => {
-    const strip = epsStripRef.current;
-    if (!strip) return;
-    const chip = strip.querySelector<HTMLElement>('[aria-current="true"]');
-    if (!chip) return;
-    const left = chip.offsetLeft - (strip.clientWidth - chip.offsetWidth) / 2;
-    strip.scrollLeft = Math.max(0, left);
-  }, [curEp, episodes.length, playKey]);
 
   /* 观看进度：onTime 里每 5 秒落一次；退出播放页时再用 liveRef 兜一次 */
   const onTimeTick = (t: number) => {
@@ -362,8 +392,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
 
   /* 倍速：中心小方块打开偏好，外侧右上 2.0x / 左下 0.5x。 */
   const effRate = holdSpeed || speedLock ? 2 : holdSlow ? 0.5 : rate;
-  /* 沉浸全屏 + 横屏视频 → 舞台旋转 90°，看起来就是横屏 */
-  const rotated = !isDesktop && fs && videoSize.w > videoSize.h && videoSize.h > 0 && !vpLandscape;
+  /* 伪横屏：系统不给转（安卓 WebView 的 orientation.lock 需要 Fullscreen API，通常拿不到）时，
+     整块舞台用 CSS 旋转 90°，用户把手机横过来就看到「横屏播放器」。系统真转了就不用兜底。 */
+  const rotated = !isDesktop && fs && fsLandscape && !vpLandscape;
   const landscapeVideo = videoSize.w > 0 && videoSize.h > 0 && videoSize.w > videoSize.h;
   /* 竖屏快捷胶囊的显隐：不卸载、只改 opacity，这样淡入淡出都能过渡（#19） */
   const capsuleOn = !fs && !clean && !isDesktop && (landscapeVideo || zoom.s > 1.05);
@@ -696,13 +727,16 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     }
     if (gesture.current || e.button !== 0) return;
     const el = e.currentTarget;
-    const width = el.clientWidth || 1;
     const rect = el.getBoundingClientRect();
+    /* 伪横屏下整块舞台转 90°：手势判定要用舞台自身坐标，屏幕横向变成舞台纵向 */
+    const width = (rotated ? rect.height : el.clientWidth) || 1;
+    const [sx, sy] = stageXY(rotated, e.clientX, e.clientY);
     // 按视觉矩形求真正的正方形；CSS 旋转全屏时也与蒙板标记重合。
     const zone = getHoldZone(e.clientX - rect.left, e.clientY - rect.top, rect.width, rect.height);
     try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    armAutoHide();
     const g = {
-      x: e.clientX, y: e.clientY, startY: e.clientY, t: Date.now(), base: videoRef.current?.el()?.currentTime ?? playbackClock.getSnapshot(), width,
+      x: sx, y: sy, startY: sy, t: Date.now(), base: videoRef.current?.el()?.currentTime ?? playbackClock.getSnapshot(), width,
       mode: "idle" as "idle" | "hold" | "scrub" | "pan",
       zone,
       playing: videoRef.current?.el()?.paused === false,
@@ -742,13 +776,14 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     }
     const g = gesture.current;
     if (!g || isDesktop) return;
-    const dx = e.clientX - g.x;
-    const dy = e.clientY - g.y;
+    const [msx, msy] = stageXY(rotated, e.clientX, e.clientY);
+    const dx = msx - g.x;
+    const dy = msy - g.y;
 
     /* 长按中：右上加速区上滑 64px 进入「松开即锁定」；减速/不感兴趣区不锁 */
     if (g.mode === "hold") {
       if (g.zone !== "fast") return;
-      const armed = g.startY - e.clientY > HOLD_LOCK_DISTANCE;
+      const armed = g.startY - msy > HOLD_LOCK_DISTANCE;
       if (armed !== lockArmedRef.current) {
         lockArmedRef.current = armed;
         setLockArmed(armed);
@@ -779,6 +814,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
 
   const onUp = (cancelled = false, e?: React.PointerEvent<HTMLDivElement>) => {
     if (e) pointersRef.current.delete(e.pointerId);
+    armAutoHide();
     if (pointersRef.current.size < 2 && pinchRef.current) {
       pinchRef.current = null;
       // 松手后小于 1.05x 就归位，避免残留"歪着"的画面
@@ -818,8 +854,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     /* 上下划手势（swipeEp 开启时 overlay 是 touch-action:none，
        原生滚动不参与，这里抬手一次性判定；关着时走原生滚动切剧） */
     if (!cancelled && e && g.mode === "pan") {
-      const dy = e.clientY - g.startY;
-      const dx2 = e.clientX - g.x;
+      const [ux2, uy2] = stageXY(rotated, e.clientX, e.clientY);
+      const dy = uy2 - g.startY;
+      const dx2 = ux2 - g.x;
       if (Math.abs(dy) > 56 && Math.abs(dy) > Math.abs(dx2)) {
         const dir = dy < 0 ? 1 : -1;
         const ep = epMap[curId] || 1;
@@ -834,22 +871,24 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
         if (swipeEp) { go(dir); return; }
       }
     }
-    /* 单击 = 暂停 / 继续（报告 3：播放器必须有可用的暂停手段，中央点按不再只是切控制层显隐）；
-       双击 = 净屏（显隐控制层）。首击延迟 TAP_DELAY_MS 才落，双击时直接净屏、不闪暂停。 */
+    /* 控件收起来时：轻点先把控件唤回来，不动播放（否则「点哪都点不出菜单」，报告反馈过） */
+    if (!cancelled && g.mode === "idle" && Date.now() - g.t < 260 && (clean || (!isDesktop && fs && idle))) {
+      showControls();
+      return;
+    }
+    /* 控件显示时：单击 = 暂停 / 继续（180ms 判定窗）；双击 = 沉浸净屏 */
     if (!cancelled && g.mode === "idle" && Date.now() - g.t < 260) {
       if (lastTapRef.current.timer) {
         window.clearTimeout(lastTapRef.current.timer);
         lastTapRef.current.timer = null;
-        setClean(lastTapRef.current.clean ?? false);
-        if (!isDesktop && fs) setIdle(lastTapRef.current.idle ?? false);
-      } else {
-        lastTapRef.current.clean = clean;
-        lastTapRef.current.idle = idle;
-        lastTapRef.current.timer = window.setTimeout(() => {
-          lastTapRef.current.timer = null;
-          videoRef.current?.toggle();
-        }, TAP_DELAY_MS) as unknown as number;
+        hideControls();
+        return;
       }
+      lastTapRef.current.timer = window.setTimeout(() => {
+        lastTapRef.current.timer = null;
+        videoRef.current?.toggle();
+        armAutoHide();
+      }, TAP_DELAY_MS) as unknown as number;
     }
   };
 
@@ -887,15 +926,51 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     }
   }, []);
 
+  /* 进全屏/横屏（报告 17 撤回：这个入口不能删）。
+     走既有通路：fs 沉浸层 + rotated 舞台旋转兜底 + 系统方向请求。
+     安卓端 set_orientation 是空实现、WebView 的 orientation.lock 又要求 Fullscreen API，
+     通常都拿不到 → 靠 .fs-landscape 的 CSS 旋转做成「伪横屏」，注释见 index.css。
+     真系统横屏要 JNI 调 Activity.setRequestedOrientation，本轮不做（见清单文档）。 */
+  const enterFs = useCallback((landscape = true) => {
+    /* 先把当前可见项锁定下来，再收起滚动容器：否则进入全屏后 scrollTop 归零，
+       还在 150ms 防抖里的 index 会被 resolveSwipe(0) 改回第一屏（「全屏后变成另一个视频」）。 */
+    const el = boxRef.current;
+    if (el && !isDesktop) {
+      window.clearTimeout(swipeTimer.current);
+      const h = el.clientHeight || 1;
+      const i = Math.max(0, Math.min(effectiveVideoIds.length - 1, Math.round(el.scrollTop / h)));
+      if (i !== idxRef.current) resolveSwipe(i);
+    }
+    setClean(false);
+    setFs(true);
+    setFsLandscape(landscape);
+    showControls();
+    keepAlive();
+    if (!isDesktop) {
+      try { void invoke("set_orientation", { landscape }); } catch { /* ignore */ }
+      if (landscape) {
+        /* Fullscreen API 是 orientation.lock 的前置条件；拿不到就静默走 CSS 兜底 */
+        try { void document.documentElement.requestFullscreen?.()?.catch(() => {}); } catch { /* ignore */ }
+        try {
+          (screen.orientation as unknown as { lock?: (o: string) => Promise<void> })?.lock?.("landscape")?.catch(() => {});
+        } catch { /* ignore */ }
+      }
+    }
+  }, [isDesktop, keepAlive, resolveSwipe, effectiveVideoIds.length, setClean, setFs, showControls]);
+
+  /* 退出全屏：再点一次回到竖屏（并解除系统方向锁/全屏） */
   const exitFs = useCallback(() => {
     setClean(false);
     setFs(false);
+    setFsLandscape(false);
+    showControls();
     keepAlive();
     if (!isDesktop) {
       try { void invoke("set_orientation", { landscape: false }); } catch { /* ignore */ }
       try { screen.orientation?.unlock?.(); } catch { /* ignore */ }
+      try { if (document.fullscreenElement) void document.exitFullscreen?.()?.catch(() => {}); } catch { /* ignore */ }
     }
-  }, [isDesktop, keepAlive, setClean, setFs]);
+  }, [isDesktop, keepAlive, setClean, setFs, showControls]);
 
   /* 若用户在视频首帧宽高解析出来前已点进全屏，解析出横屏后自动补发横屏方向请求 */
   useEffect(() => {
@@ -1164,7 +1239,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   diagnosticContext={{ active: active && !tagMenu && !showHoldGuide, view: mode, kind, video_id: curId, episode: curEp }}
                   volume={volume} rate={effRate}
                   measurementKey={measurementKey}
-                  fit={isDesktop ? "contain" : landscapeVideo ? (fs || vpLandscape ? "contain" : portraitFit) : (!videoSize.w || !videoSize.h || vpLandscape ? "contain" : "cover")}
+                  fit={isDesktop ? "contain" : rotated ? portraitFit : landscapeVideo ? (fs || vpLandscape ? "contain" : portraitFit) : (!videoSize.w || !videoSize.h || vpLandscape ? "contain" : "cover")}
                   onClick={() => { if (isDesktop) videoRef.current?.toggle(); }}
                   onTime={onTimeTick}
                   onDuration={onDurationTick}
@@ -1404,21 +1479,19 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   进度条轨道几乎不可见，只用白点标播放位置。 */}
               {!fs && !clean && !isDesktop && (
                 <div className="absolute inset-x-0 z-20" style={{ bottom: `calc(var(--sab, 0px) + ${bottomInset + 44}px)` }}>
-                  {/* 集数条（自定屏规范 3.4）：56×36、r10、间距 11、当前集 accent + 2px #8B9AF9 描边 */}
-                  {episodes.length > 1 && (
-                    <div className="hg-player-eps" ref={epsStripRef} role="tablist" aria-label="选集">
-                      {episodes.map(e => (
-                        <Button card role="tab" key={e.ep_num} className="hg-player-ep"
-                          aria-selected={e.ep_num === curEp} aria-current={e.ep_num === curEp ? "true" : undefined}
-                          onClick={() => pickEp(e.ep_num)}>{e.ep_num}</Button>
-                      ))}
-                    </div>
-                  )}
+                  {/* 集数条默认不摆：默认只留视频 + 顶部返回/标题 + 播放键 + 进度区；
+                      要选集点这一行里的「选集」（显示当前集/总集数），弹出底部面板（含当前集自动居中） */}
                   <div className="mobile-video-meta-copy relative pb-2 flex items-center gap-2" style={{ paddingRight: 76 }}>
                     <p className="flex-1 min-w-0 text-[15px] font-semibold leading-snug hg-ink-2 hg-ov-shadow-strong clamp-2">{meta.title}</p>
                   </div>
                   <div className="relative pt-1.5 pb-2.5">
                     <div className="mobile-video-meta-copy relative z-10 flex flex-wrap items-center gap-2" style={{ paddingRight: 76 }}>
+                      {episodes.length > 1 && (
+                        <Button aria-label={`选集，当前第 ${curEp} 集，共 ${episodes.length} 集`} onClick={() => setPanel("episodes")}
+                          className="min-h-11 flex items-center gap-1 text-[12px] font-medium hg-ink-3 hg-ov-shadow-strong pressable">
+                          <IList size={13} />选集 · 第 {curEp} 集 / 共 {episodes.length} 集
+                        </Button>
+                      )}
                       <Button aria-label="视频详情" onClick={() => setPanel("detail")}
                         className="min-h-11 flex items-center gap-0.5 text-[12px] font-medium hg-ink-3 hg-ov-shadow-strong pressable">
                         详情 · 第 {curEp} 集<IChevR size={11} />
@@ -1428,6 +1501,12 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                       {/* 线路切换收在播放页设置里（自定屏规范） */}
                       <Button aria-label="播放设置" onClick={() => store.push({ kind: "settings" })}
                         className="min-h-11 flex items-center gap-1 text-[12px] font-medium hg-ink-3 hg-ov-shadow-strong pressable">设置 · 线路</Button>
+                      {/* 全屏/横屏入口（曾按报告删掉，用户明确要回来）：系统能给真横屏就给，
+                          给不了走 CSS 伪横屏；横过来后再点右上角「退出全屏」回竖屏 */}
+                      <Button aria-label="全屏横屏播放" onClick={() => enterFs(true)}
+                        className="min-h-11 flex items-center gap-1 text-[12px] font-medium hg-ink-3 hg-ov-shadow-strong pressable">
+                        <IExpand size={13} />全屏
+                      </Button>
                     </div>
                     {/* 报告 5：字幕烧在画面里，改控件层——底部加自上而下 0→60% 黑渐变，保证按钮文字可读 */}
                     <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0"
@@ -1604,11 +1683,19 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
               paddingLeft: rotated ? "calc(var(--sat, 0px) + 16px)" : undefined,
               paddingRight: rotated ? "calc(var(--sab, 0px) + 16px)" : undefined,
             }}>
-            <Button onClick={() => videoRef.current?.toggle()}
-              className="hg-chip shrink-0 w-9 h-9 rounded-full flex items-center justify-center pressable">
+            <Button onClick={() => videoRef.current?.toggle()} aria-label={paused ? "播放" : "暂停"} aria-pressed={paused}
+              className="hg-chip shrink-0 w-11 h-11 rounded-full flex items-center justify-center pressable">
               {paused ? <IPlayF size={18} /> : <IPauseF size={17} />}
             </Button>
             <PlaybackTime clock={playbackClock} className="shrink-0 text-[12px] font-semibold hg-ink-2 tabular-nums" />
+            {/* 伪横屏/横屏源：铺满会把画面放大到填满（会裁边），适应则留黑边保完整 */}
+            {(rotated || landscapeVideo) && (
+              <Button onClick={() => setPortraitFit(f => (f === "contain" ? "cover" : "contain"))}
+                className="shrink-0 flex items-center gap-1 px-2.5 h-8 rounded-full text-[12px] font-semibold hg-chip hg-ink-2 pressable"
+                aria-label={portraitFit === "contain" ? "画面铺满" : "画面适应"}>
+                {portraitFit === "contain" ? "铺满" : "适应"}
+              </Button>
+            )}
             <Button
               onClick={() => {
                 if (speedLock) { setSpeedLock(false); return; }

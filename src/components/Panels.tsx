@@ -18,6 +18,15 @@ export function EpisodesPanel({ videoId, episodes, current, onPick, onClose, bar
 }) {
   const [asc, setAsc] = useState(true);
   const list = asc ? episodes : [...episodes].reverse();
+  const listRef = useRef<HTMLDivElement>(null);
+  /* 打开面板时把当前集滚到中间：36 集的剧默认停在第一屏，用户看不到自己播到哪（报告 N-3.0-08） */
+  useEffect(() => {
+    const box = listRef.current;
+    if (!box) return;
+    const chip = box.querySelector<HTMLElement>('[aria-current="true"]');
+    if (!chip) return;
+    box.scrollTop = Math.max(0, chip.offsetTop - (box.clientHeight - chip.offsetHeight) / 2);
+  }, [current, asc, episodes.length]);
   return (
     <div className="flex flex-col h-full">
       {bare ? (
@@ -35,7 +44,7 @@ export function EpisodesPanel({ videoId, episodes, current, onPick, onClose, bar
           </Button>
         </div>
       )}
-      <div className="flex-1 scroll-y px-4 pb-4">
+      <div ref={listRef} className="flex-1 scroll-y px-4 pb-4">
         <div className="grid grid-cols-4 gap-2">
           {list.map((e) => (
             <Button key={e.ep_num} aria-current={e.ep_num === current ? "true" : undefined} onClick={() => onPick(e.ep_num)}
