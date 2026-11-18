@@ -36,14 +36,13 @@ const postTime = (p: Post) => {
 };
 
 export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => void; wide: boolean; embedded?: boolean }) {
-  const { push, toast } = useStore();
+  const { push, toast, follows, setFollowing, actionPending, user, setLoginOpen } = useStore();
   const { preferences } = useContentPreferences();
   const filtering = !preferences.paused && (preferences.blockedTags.length > 0 || preferences.hideUntagged);
   const [sort, setSort] = useState<SortKey>("latest");
   const [searching, setSearching] = useState(false);
   const [items, setItems] = useState<Post[]>([]);
   const [extra, setExtra] = useState<Record<number, PostExtra>>({});
-  const [followed, setFollowed] = useState<Record<number, boolean>>({});
   const [page, setPage] = useState(0);
   const [pages, setPages] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -129,7 +128,9 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
     const info = extra[p.id] ?? extraOf(p);
     const pic = info?.author?.avatar;
     const initial = (info?.author?.name || "").trim().charAt(0);
-    const isFollowed = !!followed[p.id];
+    const authorId = info?.author?.id;
+    const isFollowed = authorId ? follows.includes(authorId) : false;
+    const followBusy = authorId ? actionPending(`follow:${authorId}`) : false;
     return (
       <div key={p.id} className="hg-post-card" onClick={() => push({ kind: "post", id: p.id })}>
         <div className="hg-post-head">
@@ -140,9 +141,16 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
             <span className="hg-post-name">{info?.author?.name || "Username"}</span>
             <span className="hg-post-time">{postTime(p)}</span>
           </span>
-          <button type="button" className={`hg-follow-btn${isFollowed ? " is-on" : ""}`}
-            onClick={(e) => { e.stopPropagation(); setFollowed(prev => ({ ...prev, [p.id]: !prev[p.id] })); }}>
-            {isFollowed ? "Following" : "Follow"}
+          <button type="button" disabled={followBusy} className={`hg-follow-btn${isFollowed ? " is-on" : ""}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!user) { setLoginOpen(true); return; }
+              if (!authorId) { toast("作者信息加载中，请稍候", "info"); return; }
+              void setFollowing(authorId, !isFollowed).catch((err) => {
+                toast((err as Error)?.message || "关注操作失败", "err");
+              });
+            }}>
+            {followBusy ? "…" : isFollowed ? "Following" : "Follow"}
           </button>
         </div>
         <div className="hg-post-title">{p.title}</div>

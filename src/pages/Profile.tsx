@@ -56,7 +56,16 @@ function ProfileContent({ wide }: { wide: boolean }) {
   const [clearError, setClearError] = useState("");
   const clearing = useRef(false);
   const mounted = useRef(true);
+  const [stats, setStats] = useState<{ followers: number; post_count: number; video_count: number } | null>(null);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  useEffect(() => {
+    if (!user?.id) { setStats(null); return; }
+    let alive = true;
+    api.userStats(user.id).then((res) => {
+      if (alive && res) setStats({ followers: res.followers ?? 0, post_count: res.post_count ?? 0, video_count: res.video_count ?? 0 });
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [user?.id]);
 
   const activeTab = section === "history" ? "history" : "fav";
   const ids = activeTab === "fav" ? favs : history.map((h) => h.id);
@@ -163,11 +172,11 @@ function ProfileContent({ wide }: { wide: boolean }) {
             <span className="hg-profile-stat-lbl">Follow</span>
           </Button>
           <Button card className="hg-profile-stat" onClick={() => user ? push({ kind: "user", id: user.id, name: user.nickname }) : setLoginOpen(true)}>
-            <span className="hg-profile-stat-num">{user?.counts?.followers ?? user?.counts?.follower_count ?? 0}</span>
+            <span className="hg-profile-stat-num">{stats?.followers ?? user?.counts?.followers ?? user?.counts?.follower_count ?? 0}</span>
             <span className="hg-profile-stat-lbl">Followers</span>
           </Button>
           <Button card className="hg-profile-stat" onClick={() => user ? push({ kind: "user", id: user.id, name: user.nickname }) : setLoginOpen(true)}>
-            <span className="hg-profile-stat-num">{user?.counts?.posts ?? user?.counts?.post_count ?? user?.counts?.videos ?? 0}</span>
+            <span className="hg-profile-stat-num">{stats?.post_count ?? stats?.video_count ?? user?.counts?.posts ?? user?.counts?.post_count ?? user?.counts?.videos ?? 0}</span>
             <span className="hg-profile-stat-lbl">Post</span>
           </Button>
         </div>
