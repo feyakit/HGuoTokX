@@ -127,7 +127,7 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
         </Button>
       </div>
 
-      {/* 顶栏第 2 层：胶囊 tab（All Shows / New Shows / Ranking） */}
+      {/* 顶栏第 2 层：胶囊 tab（All Shows / New Shows / Ranking / Topics / Tags） */}
       <div className="shrink-0 hg-page-x relative z-10 mt-1">
         <div className="hg-pill-row" role="tablist" aria-label="频道分栏">
           <Button card role="tab" aria-selected={primary === "all"} className="hg-pill"
@@ -136,6 +136,10 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
             onClick={() => setPrimary("new")}>New Shows</Button>
           <Button card role="tab" aria-selected={false} className="hg-pill"
             onClick={() => push({ kind: "ranks" })}>Ranking</Button>
+          <Button card role="tab" aria-selected={false} className="hg-pill"
+            onClick={() => push({ kind: "topics" })}>Topics</Button>
+          <Button card role="tab" aria-selected={false} className="hg-pill"
+            onClick={() => push({ kind: "tags" })}>Tags</Button>
         </div>
       </div>
 
@@ -177,11 +181,12 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
             <Button key={v.id} className="hg-poster is-c3" onClick={() => push({ kind: "series", id: v.id })}>
               <span className="hg-poster-art">
                 <Img src={v.cover} alt="" />
+                <span className="hg-poster-veil" aria-hidden="true" />
                 {v.is_hot === 1
                   ? <span className="hg-poster-badge is-hot">Hot</span>
                   : isNew(v) ? <span className="hg-poster-badge">New</span> : null}
+                <span className="hg-poster-views">▶ {fmt(v.hot)} views</span>
               </span>
-              <span className="hg-poster-views">▶ {fmt(v.hot)} views</span>
               <span className="hg-poster-name">{v.title}</span>
               <span className="hg-poster-meta">{v.tags?.[0] || "Short Drama"}</span>
             </Button>

@@ -163,11 +163,11 @@ function ProfileContent({ wide }: { wide: boolean }) {
             <span className="hg-profile-stat-lbl">Follow</span>
           </Button>
           <Button card className="hg-profile-stat" onClick={() => user ? push({ kind: "user", id: user.id, name: user.nickname }) : setLoginOpen(true)}>
-            <span className="hg-profile-stat-num">0</span>
+            <span className="hg-profile-stat-num">{user?.counts?.followers ?? user?.counts?.follower_count ?? 0}</span>
             <span className="hg-profile-stat-lbl">Followers</span>
           </Button>
           <Button card className="hg-profile-stat" onClick={() => user ? push({ kind: "user", id: user.id, name: user.nickname }) : setLoginOpen(true)}>
-            <span className="hg-profile-stat-num">0</span>
+            <span className="hg-profile-stat-num">{user?.counts?.posts ?? user?.counts?.post_count ?? user?.counts?.videos ?? 0}</span>
             <span className="hg-profile-stat-lbl">Post</span>
           </Button>
         </div>

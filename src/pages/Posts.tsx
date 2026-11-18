@@ -177,6 +177,7 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
           ))}
         </div>
         <span className="flex-1" />
+        <Button card className="hg-icon-plain" aria-label="搜索社区" onClick={() => setSearching(true)}><ISearch size={19} /></Button>
         <Button card className="hg-post-cta" onClick={() => toast("发帖功能暂未开放", "info")}>Post</Button>
       </div>
 

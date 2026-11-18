@@ -62,7 +62,7 @@ export function RankRow({ item, onOpen }: {
   item: { rank: number; video_id: number; title: string; cover: string; tags: string[]; score: number; cate_name?: string; episode_count?: number; is_finished?: boolean; metric_value: number; metric_label: string };
   onOpen: () => void; metricMax?: number;
 }) {
-  const rankTier = item.rank === 1 ? "is-first" : item.rank <= 3 ? "is-top" : "";
+  const rankTier = item.rank === 1 ? "is-first" : item.rank === 2 ? "is-second" : item.rank === 3 ? "is-third" : "";
   const summary = [
     item.cate_name,
     item.is_finished ? "已完结" : item.episode_count ? `更新至 ${item.episode_count} 集` : "",
