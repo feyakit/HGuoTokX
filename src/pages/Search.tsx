@@ -194,9 +194,9 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
 
 /* ================= 排行榜 ================= */
 const RANK_TABS = [
-  { k: "hot", label: "Hot" },
-  { k: "recommend", label: "Recommend" },
-  { k: "potential", label: "Potential" },
+  { k: "hot", label: "热播榜" },
+  { k: "recommend", label: "推荐榜" },
+  { k: "potential", label: "潜力榜" },
 ] as const;
 
 /** 上游 plays 是「423.5w / 1.2亿」这类字符串：解析成数值用于排序（报告 9：排名与播放量必须一致） */
@@ -251,7 +251,7 @@ export function RankPage({ onBack, wide }: { onBack: () => void; wide: boolean }
       <div className="shrink-0 hg-page-x relative z-10" style={{ paddingTop: "calc(var(--sat, 0px) + 8px)" }}>
         <div className="hg-rank-top">
           <Button className="hg-searchbar" aria-label="搜索" onClick={() => { onBack(); setAppTab("search"); }}>
-            <ISearch size={16} /><span>Please enter…</span>
+            <ISearch size={16} /><span>搜索短剧、演员、题材</span>
           </Button>
           <Button card className="hg-rank-edge is-back" aria-label="返回" onClick={onBack}><IBack size={18} /></Button>
           <Button card className="hg-rank-edge is-refresh" aria-label="刷新榜单" disabled={loading} onClick={() => void load(tab)}>
@@ -260,9 +260,9 @@ export function RankPage({ onBack, wide }: { onBack: () => void; wide: boolean }
         </div>
 
         <div className="hg-pill-row mt-3" role="tablist" aria-label="频道分栏">
-          <Button card role="tab" aria-selected={false} className="hg-pill" onClick={() => { onBack(); setAppTab("category"); }}>All Shows</Button>
-          <Button card role="tab" aria-selected={false} className="hg-pill" onClick={() => { onBack(); setAppTab("home"); }}>New Shows</Button>
-          <Button card role="tab" aria-selected={true} className="hg-pill">Ranking</Button>
+          <Button card role="tab" aria-selected={false} className="hg-pill" onClick={() => { onBack(); setAppTab("category"); }}>全部</Button>
+          <Button card role="tab" aria-selected={false} className="hg-pill" onClick={() => { onBack(); setAppTab("home"); }}>最新</Button>
+          <Button card role="tab" aria-selected={true} className="hg-pill">榜单</Button>
         </div>
 
         <div className="flex items-center gap-6 mt-2 pb-1 overflow-x-auto hg-chip-row" role="tablist" aria-label="榜单类型">

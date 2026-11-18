@@ -42,10 +42,10 @@ const isSelectableText = (target: EventTarget | null) => target instanceof Eleme
 function TabBar({ onSelect }: { onSelect?: () => void }) {
   const { tab, setTab } = useStore();
   const items = [
-    { key: "home", label: "Home", Icon: INavHome },
-    { key: "posts", label: "Community", Icon: INavCommunity },
-    { key: "category", label: "Theater", Icon: INavCategory },
-    { key: "profile", label: "Personal", Icon: INavProfile },
+    { key: "home", label: "首页", Icon: INavHome },
+    { key: "posts", label: "吃瓜", Icon: INavCommunity },
+    { key: "category", label: "分类", Icon: INavCategory },
+    { key: "profile", label: "我的", Icon: INavProfile },
   ] as const;
   const index = items.findIndex(item => item.key === tab);
   return <nav className="hg-tabbar ios-mobile-nav" aria-label="主导航" data-over-video={tab === "home"}>

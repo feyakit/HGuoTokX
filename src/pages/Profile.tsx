@@ -135,7 +135,7 @@ function ProfileContent({ wide }: { wide: boolean }) {
   return (
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
-      <h1 className="sr-only">Personal</h1>
+      <h1 className="sr-only">我的</h1>
 
       <div className="ios-page-body flex-1 scroll-y hg-page-x relative z-10"
         style={{ paddingBottom: "calc(110px + var(--sab, 0px))" }}>
@@ -156,8 +156,8 @@ function ProfileContent({ wide }: { wide: boolean }) {
               onClick={() => setLoginOpen(true)}>
               <span className="hg-profile-avatar is-guest"><GuestCatAvatar /></span>
               <span className="hg-profile-meta">
-                <span className="hg-profile-name">Guest</span>
-                <span className="hg-profile-sub">ID:---- · 点击登录同步记录</span>
+                <span className="hg-profile-name">未登录</span>
+                <span className="hg-profile-sub">点击登录同步收藏与观看记录</span>
               </span>
             </Button>
           )}
@@ -165,19 +165,19 @@ function ProfileContent({ wide }: { wide: boolean }) {
             onClick={() => push({ kind: "settings" })}><ISettings size={22} strokeWidth={1.7} /></Button>
         </div>
 
-        {/* 3 列数据统计：Follow / Followers / Post */}
+        {/* 3 列数据统计：关注 / 粉丝 / 作品 */}
         <div className="hg-profile-stats">
           <Button card className="hg-profile-stat" onClick={() => user ? push({ kind: "following" }) : setLoginOpen(true)}>
             <span className="hg-profile-stat-num">{follows.length}</span>
-            <span className="hg-profile-stat-lbl">Follow</span>
+            <span className="hg-profile-stat-lbl">关注</span>
           </Button>
           <Button card className="hg-profile-stat" onClick={() => user ? push({ kind: "user", id: user.id, name: user.nickname }) : setLoginOpen(true)}>
             <span className="hg-profile-stat-num">{stats?.followers ?? user?.counts?.followers ?? user?.counts?.follower_count ?? 0}</span>
-            <span className="hg-profile-stat-lbl">Followers</span>
+            <span className="hg-profile-stat-lbl">粉丝</span>
           </Button>
           <Button card className="hg-profile-stat" onClick={() => user ? push({ kind: "user", id: user.id, name: user.nickname }) : setLoginOpen(true)}>
             <span className="hg-profile-stat-num">{stats?.post_count ?? stats?.video_count ?? user?.counts?.posts ?? user?.counts?.post_count ?? user?.counts?.videos ?? 0}</span>
-            <span className="hg-profile-stat-lbl">Post</span>
+            <span className="hg-profile-stat-lbl">作品</span>
           </Button>
         </div>
 
@@ -193,28 +193,28 @@ function ProfileContent({ wide }: { wide: boolean }) {
             className="mt-1 min-h-11 px-3 text-on">{accountSync.busy ? "正在重试…" : "重试同步"}</Button>
         </div>}
 
-        {/* 菜单列表：Watch History / My Likes / My Comments / Settings / Logout */}
+        {/* 菜单列表：观看历史 / 我的收藏 / 我的评论 / 设置 / 退出登录 */}
         <div className="hg-menu">
-          <Button className="hg-menu-row" aria-label={`Watch History，${history.length} 条`} onClick={() => setSection("history")}>
+          <Button className="hg-menu-row" aria-label={`观看历史，${history.length} 条`} onClick={() => setSection("history")}>
             <span className="hg-menu-icon"><IClock size={18} /></span>
-            <span className="hg-menu-label">Watch History</span>
+            <span className="hg-menu-label">观看历史</span>
             <span className="hg-menu-meta">{history.length}</span>
             <IChevR size={14} className="hg-menu-chevron" />
           </Button>
-          <Button className="hg-menu-row" aria-label={`My Likes，${favs.length} 部`} onClick={() => setSection("fav")}>
+          <Button className="hg-menu-row" aria-label={`我的收藏，${favs.length} 部`} onClick={() => setSection("fav")}>
             <span className="hg-menu-icon"><IHeart size={18} /></span>
-            <span className="hg-menu-label">My Likes</span>
+            <span className="hg-menu-label">我的收藏</span>
             <span className="hg-menu-meta">{favs.length}</span>
             <IChevR size={14} className="hg-menu-chevron" />
           </Button>
-          <Button className="hg-menu-row" aria-label="My Comments" onClick={() => setSection("comments")}>
+          <Button className="hg-menu-row" aria-label="我的评论" onClick={() => setSection("comments")}>
             <span className="hg-menu-icon"><IComment size={18} /></span>
-            <span className="hg-menu-label">My Comments</span>
+            <span className="hg-menu-label">我的评论</span>
             <IChevR size={14} className="hg-menu-chevron" />
           </Button>
           <Button className="hg-menu-row" onClick={() => push({ kind: "settings" })}>
             <span className="hg-menu-icon"><ISettings size={18} /></span>
-            <span className="hg-menu-label">Settings</span>
+            <span className="hg-menu-label">设置</span>
             <IChevR size={14} className="hg-menu-chevron" />
           </Button>
           {user && (
@@ -229,7 +229,7 @@ function ProfileContent({ wide }: { wide: boolean }) {
         <div className="text-center text-[12px] text-dim mt-6">HGuoX {APP_VERSION} · {platform === "android" ? "Android" : platform === "ios" ? "iOS" : platform === "macos" ? "macOS" : platform === "linux" ? "Linux" : "Windows"} 客户端</div>
       </div>
 
-      {/* 子视图：Watch History / My Likes / My Comments */}
+      {/* 子视图：观看历史 / 我的收藏 / 我的评论 */}
       {section && (
         <div className="ios-page hg-canvas absolute inset-0 z-30 flex flex-col">
           <div className="flex items-center gap-3 hg-page-x shrink-0"
@@ -238,7 +238,7 @@ function ProfileContent({ wide }: { wide: boolean }) {
               <IBack size={20} />
             </Button>
             <h2 className="text-[18px] font-bold text-on flex-1">
-              {section === "history" ? "Watch History" : section === "fav" ? "My Likes" : "My Comments"}
+              {section === "history" ? "观看历史" : section === "fav" ? "我的收藏" : "我的评论"}
             </h2>
             {section === "history" && history.length > 0 && (
               <Button disabled={clearBusy} onClick={() => { setClearError(""); setClearOpen(true); }}
@@ -271,7 +271,7 @@ function ProfileContent({ wide }: { wide: boolean }) {
                     progress={progress ? `第 ${progress.ep} 集 · ${fmtTime(progress.t)}` : undefined}
                     onOpen={() => push({
                       kind: "feed", videoIds: cards.map(x => x.id), index: cards.findIndex(x => x.id === c.id),
-                      title: section === "fav" ? "My Likes" : "Watch History", startEp: progress?.ep, startTime: progress?.t,
+                      title: section === "fav" ? "我的收藏" : "观看历史", startEp: progress?.ep, startTime: progress?.t,
                     })} />;
                 })}
               </div>

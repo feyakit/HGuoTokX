@@ -19,9 +19,9 @@ import { PreferenceStorageNotice } from "../components/PreferenceStorageNotice";
    排行榜不在首页：它是独立一屏（/api/ranks/hot，固定 20 条），入口是胶囊 tab「榜单」 */
 
 const TABS = [
-  { key: "all", label: "All Shows" },
-  { key: "new", label: "New Shows" },
-  { key: "rank", label: "Ranking" },
+  { key: "all", label: "全部" },
+  { key: "new", label: "最新" },
+  { key: "rank", label: "榜单" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 type FeedTab = Exclude<TabKey, "rank">;
@@ -179,12 +179,12 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
                   <span className="hg-hero-copy">
                     <span className="hg-hero-title">{h.title}</span>
                     <span className="hg-hero-sub">
-                      {h.tags?.length ? h.tags.slice(0, 3).join(" · ") : (h.is_finished ? "Completed" : `${h.episode_count ?? "?"} Episodes`)}
+                      {h.tags?.length ? h.tags.slice(0, 3).join(" · ") : (h.is_finished ? "已完结" : `共 ${h.episode_count ?? "?"} 集`)}
                     </span>
                     <span className="hg-hero-play" role="button" tabIndex={0}
                       onClick={e => { e.stopPropagation(); play(h.id); }}
                       onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); play(h.id); } }}>
-                      <IPlayF size={12} />Play
+                      <IPlayF size={12} />播放
                     </span>
                   </span>
                 </Button>
@@ -202,19 +202,19 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
           </div>
         )}
 
-        {/* New Dramas 横滑：仅在 All Shows 下显示，避免 New Shows 下重复两节 */}
+        {/* 最新上架横滑：仅在全部下显示，避免最新下重复两节 */}
         {tab === "all" && rail.length > 0 && (
           <section className="hg-section">
             <div className="hg-section-head">
-              <h2 className="hg-section-title">New Dramas</h2>
-              <Button className="hg-section-more" onClick={() => setFeedTab("new")}>More<IChevR size={10} /></Button>
+              <h2 className="hg-section-title">最新上架</h2>
+              <Button className="hg-section-more" onClick={() => setFeedTab("new")}>更多<IChevR size={10} /></Button>
             </div>
             <div className="hg-rail">
               {rail.map(v => (
                 <Button card key={v.id} className="hg-rail-card" onClick={() => openSeries(v.id)}>
                   <span className="hg-rail-art">
                     <Img src={v.cover} alt="" />
-                    {isNew(v) && <span className="hg-rail-badge">NEW</span>}
+                    {isNew(v) && <span className="hg-rail-badge">上新</span>}
                     <span className="hg-rail-name">{v.title}</span>
                   </span>
                 </Button>
@@ -226,37 +226,37 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
         {/* 3 列网格 */}
         <section className="hg-section">
           <div className="hg-section-head">
-            <h2 className="hg-section-title">{tab === "new" ? "New Dramas" : "For You"}</h2>
+            <h2 className="hg-section-title">{tab === "new" ? "最新上架" : "为你推荐"}</h2>
           </div>
           <div className="hg-grid-c3">
             {grid.map(v => (
               <Button key={v.id} className="hg-poster is-c3" onClick={() => openSeries(v.id)}>
                 <span className="hg-poster-art">
                   <Img src={v.cover} alt="" />
-                  {isNew(v) && <span className="hg-poster-badge">NEW</span>}
+                  {isNew(v) && <span className="hg-poster-badge">上新</span>}
                 </span>
                 <span className="hg-poster-name">{v.title}</span>
-                <span className="hg-poster-meta">{v.is_finished ? "Completed" : `${v.episode_count ?? "?"} Eps`}</span>
+                <span className="hg-poster-meta">{v.is_finished ? "全集" : `${v.episode_count ?? "?"} 集`}</span>
               </Button>
             ))}
           </div>
           {!done && grid.length > 0 && (
             <Button className="hg-loadmore" onClick={() => void load(page + 1, tab)} disabled={loading}>
-              {loading ? "Loading…" : "Load More"}
+              {loading ? "加载中…" : "加载更多"}
             </Button>
           )}
         </section>
       </div>
 
-      {/* 继续观看悬浮卡（对照设计稿第 1 页） */}
+      {/* 继续观看悬浮卡 */}
       {continueShown && continueCard && (
         <div className="hg-continue">
           <span className="hg-continue-art"><Img src={continueCard.detail.cover} alt="" /></span>
           <span className="hg-continue-copy">
             <span className="hg-continue-title">{continueCard.detail.title}</span>
             <span className="hg-continue-sub">
-              Last watched: Episode {continueCard.ep}
-              {continueCard.detail.episode_count ? ` / ${continueCard.detail.episode_count}` : ""}
+              看到第 {continueCard.ep} 集
+              {continueCard.detail.episode_count ? ` / 共 ${continueCard.detail.episode_count} 集` : ""}
               {continuePct ? ` · ${continuePct}%` : ""}
             </span>
           </span>

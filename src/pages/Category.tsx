@@ -25,10 +25,10 @@ export const CHANNELS = [
  * 播放量用 hot 字段真值。
  */
 const SUB_TABS = [
-  { cate: "", name: "All Shows" },
-  { cate: "ai-duanju", name: "Short Drama" },
-  { cate: "ai-manju", name: "Anime" },
-  { cate: "original", name: "Original" },
+  { cate: "", name: "综合" },
+  { cate: "ai-duanju", name: "短剧" },
+  { cate: "ai-manju", name: "漫剧" },
+  { cate: "original", name: "原创" },
 ] as const;
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -123,23 +123,23 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
       {/* 顶部搜索框：高 44、全圆角、#1E1E2E、Please enter… */}
       <div className="shrink-0 hg-page-x pb-2 relative z-10" style={{ paddingTop: "calc(var(--sat, 0px) + 8px)" }}>
         <Button className="hg-searchbar" aria-label="搜索" onClick={() => setTab("search")}>
-          <ISearch size={16} /><span>Please enter…</span>
+          <ISearch size={16} /><span>搜索短剧、演员、题材</span>
         </Button>
       </div>
 
-      {/* 顶栏第 2 层：胶囊 tab（All Shows / New Shows / Ranking / Topics / Tags） */}
+      {/* 顶栏第 2 层：胶囊 tab（全部 / 最新 / 榜单 / 专题 / 标签） */}
       <div className="shrink-0 hg-page-x relative z-10 mt-1">
         <div className="hg-pill-row" role="tablist" aria-label="频道分栏">
           <Button card role="tab" aria-selected={primary === "all"} className="hg-pill"
-            onClick={() => setPrimary("all")}>All Shows</Button>
+            onClick={() => setPrimary("all")}>全部</Button>
           <Button card role="tab" aria-selected={primary === "new"} className="hg-pill"
-            onClick={() => setPrimary("new")}>New Shows</Button>
+            onClick={() => setPrimary("new")}>最新</Button>
           <Button card role="tab" aria-selected={false} className="hg-pill"
-            onClick={() => push({ kind: "ranks" })}>Ranking</Button>
+            onClick={() => push({ kind: "ranks" })}>榜单</Button>
           <Button card role="tab" aria-selected={false} className="hg-pill"
-            onClick={() => push({ kind: "topics" })}>Topics</Button>
+            onClick={() => push({ kind: "topics" })}>专题</Button>
           <Button card role="tab" aria-selected={false} className="hg-pill"
-            onClick={() => push({ kind: "tags" })}>Tags</Button>
+            onClick={() => push({ kind: "tags" })}>标签</Button>
         </div>
       </div>
 
@@ -183,19 +183,19 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
                 <Img src={v.cover} alt="" />
                 <span className="hg-poster-veil" aria-hidden="true" />
                 {v.is_hot === 1
-                  ? <span className="hg-poster-badge is-hot">Hot</span>
-                  : isNew(v) ? <span className="hg-poster-badge">New</span> : null}
-                <span className="hg-poster-views">▶ {fmt(v.hot)} views</span>
+                  ? <span className="hg-poster-badge is-hot">热门</span>
+                  : isNew(v) ? <span className="hg-poster-badge">上新</span> : null}
+                <span className="hg-poster-views">▶ {fmt(v.hot)}</span>
               </span>
               <span className="hg-poster-name">{v.title}</span>
-              <span className="hg-poster-meta">{v.tags?.[0] || "Short Drama"}</span>
+              <span className="hg-poster-meta">{v.tags?.[0] || "短剧"}</span>
             </Button>
           ))}
         </div>
 
         {items.length > 0 && !done && (
           <Button className="hg-loadmore" onClick={() => void load(page + 1)} disabled={loading}>
-            {loading ? "Loading…" : "Load More"}
+            {loading ? "加载中…" : "加载更多"}
           </Button>
         )}
       </div>

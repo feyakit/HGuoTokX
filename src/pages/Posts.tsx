@@ -23,16 +23,15 @@ const postExtra = new Map<number, PostExtra>();
 const extraOf = (p: Post): PostExtra | undefined => postExtra.get(p.id);
 
 const SORTS = [
-  { key: "latest", label: "Latest" },
-  { key: "trending", label: "Trending" },
+  { key: "latest", label: "最新" },
+  { key: "trending", label: "热门" },
 ] as const;
 type SortKey = (typeof SORTS)[number]["key"];
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const postTime = (p: Post) => {
   const raw = (p.publish_time || p.created_at || "").trim();
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
-  return m ? `Posted on ${MONTHS[Math.max(0, +m[2] - 1)] || m[2]} ${+m[3]}` : raw;
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(raw);
+  return m ? `${+m[2]}月${+m[3]}日 ${m[4]}:${m[5]}` : raw;
 };
 
 export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => void; wide: boolean; embedded?: boolean }) {
@@ -138,7 +137,7 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
             {pic ? <Img src={pic} /> : (initial || "U")}
           </span>
           <span className="hg-post-who">
-            <span className="hg-post-name">{info?.author?.name || "Username"}</span>
+            <span className="hg-post-name">{info?.author?.name || "匿名用户"}</span>
             <span className="hg-post-time">{postTime(p)}</span>
           </span>
           <button type="button" disabled={followBusy} className={`hg-follow-btn${isFollowed ? " is-on" : ""}`}
@@ -150,7 +149,7 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
                 toast((err as Error)?.message || "关注操作失败", "info");
               });
             }}>
-            {followBusy ? "…" : isFollowed ? "Following" : "Follow"}
+            {followBusy ? "…" : isFollowed ? "已关注" : "+ 关注"}
           </button>
         </div>
         <div className="hg-post-title">{p.title}</div>
@@ -186,7 +185,7 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
         </div>
         <span className="flex-1" />
         <Button card className="hg-icon-plain" aria-label="搜索社区" onClick={() => setSearching(true)}><ISearch size={19} /></Button>
-        <Button card className="hg-post-cta" onClick={() => toast("发帖功能暂未开放", "info")}>Post</Button>
+        <Button card className="hg-post-cta" onClick={() => toast("发帖功能暂未开放", "info")}>发布</Button>
       </div>
 
       <div ref={scrollRef} aria-busy={loading} className="flex-1 scroll-y hg-page-x relative z-10"

@@ -1303,7 +1303,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   {hevcUrl && (
                     <Button type="button" onClick={() => { setPreferHevc(!preferHevc); toast(preferHevc ? "已切回标准画质" : "已切换高清 HEVC", "ok"); }}
                       className="flex flex-col items-center gap-1 pressable" aria-pressed={preferHevc} aria-label="画质切换">
-                      <span className={`flex items-center justify-center h-[22px] min-w-[30px] px-1 rounded-md text-[12px] font-bold hg-ov-shadow ${preferHevc ? "bg-primary text-on-primary" : "hg-chip hg-ink-2"}`}>{preferHevc ? "HD" : "SD"}</span>
+                      <span className={`flex items-center justify-center h-[22px] min-w-[30px] px-1 rounded-md text-[12px] font-bold hg-ov-shadow ${preferHevc ? "bg-primary text-on-primary" : "hg-chip hg-ink-2"}`}>{preferHevc ? "高清" : "标清"}</span>
                       <span className="text-[12px] hg-ov-shadow" style={{ color: preferHevc ? "#fff" : undefined }}>{preferHevc ? "高清" : "标清"}</span>
                     </Button>
                   )}
