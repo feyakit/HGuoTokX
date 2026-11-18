@@ -85,21 +85,27 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
                 <span className="hg-detail-poster"><Img src={detail.cover} eager alt={detail.title} /></span>
                 <div className="hg-detail-head">
                   <h1 className="hg-detail-title">{detail.title}</h1>
+                  {/* 元信息拆成两个不可再拆的组：放得下就一行，放不下只在两组之间换行，
+                      不会出现「共」留在行尾、数字掉到下一行（报告 N-3.0-09） */}
                   <p className="hg-detail-meta">
-                    {!!detail.score && <span className="hg-detail-score">{detail.score.toFixed(1)} 分</span>}
-                    {!!detail.score && " · "}
-                    {detail.is_finished ? "已完结" : `更新至 ${detail.episode_count || episodes.length} 集`}
-                    {" · 共 "}{detail.total_episodes || episodes.length}{" 集"}
-                  </p>
-                  <p className="hg-detail-counts">
-                    <span>点赞 {fmt(detail.counts?.like ?? 0)}</span>
-                    <span>·</span>
-                    <span>收藏 {fmt(Math.max(0, (detail.counts?.collect ?? 0) + favDelta))}</span>
-                    <span>·</span>
-                    <span>评论 {fmt(detail.counts?.comment ?? 0)}</span>
+                    <span>
+                      {!!detail.score && <span className="hg-detail-score">{detail.score.toFixed(1)} 分</span>}
+                      {!!detail.score && " · "}
+                      {detail.is_finished ? "已完结" : `更新至 ${detail.episode_count || episodes.length} 集`}
+                    </span>
+                    <span>共 {detail.total_episodes || episodes.length} 集</span>
                   </p>
                 </div>
               </div>
+              {/* 点赞 / 收藏 / 评论：跨海报通栏一行（报告 12）。放在 head 里只有 160 多 px，
+                  三组数字必然被切；推到整个宽幅区宽度后一行放得下，字号保持 12px 不缩。 */}
+              <p className="hg-detail-counts">
+                <span>点赞 {fmt(detail.counts?.like ?? 0)}</span>
+                <span>·</span>
+                <span>收藏 {fmt(Math.max(0, (detail.counts?.collect ?? 0) + favDelta))}</span>
+                <span>·</span>
+                <span>评论 {fmt(detail.counts?.comment ?? 0)}</span>
+              </p>
             </section>
 
             {!!detail.tags?.length && (
