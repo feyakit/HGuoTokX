@@ -116,7 +116,7 @@ function ProfileContent({ wide }: { wide: boolean }) {
       <h1 className="sr-only">我的</h1>
 
       <div className="ios-page-body flex-1 scroll-y hg-page-x relative z-10"
-        style={{ paddingBottom: "calc(59.6px + 32.2px + 12px + var(--sab, 0px))" }}   /* 报告：导航栏不压空态与末行卡片 */>
+        style={{ paddingBottom: "calc(59.6px + 32.2px + 12px + var(--sab, 0px))" }}>
         {/* 身份区（v3 S4：头像 52 + 昵称/ID + 右齿轮 22，一行）*/}
         <div className="hg-profile-head a-rise">
           {user ? (

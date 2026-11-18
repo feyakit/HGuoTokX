@@ -138,6 +138,7 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
               <SegmentedControl className="ios-appearance-picker" aria-label="外观模式" activeIndex={2}>
                 {([['system', '跟随'], ['light', '浅色'], ['dark', '深色']] as const).map(([value, label]) => (
                   <Button key={value} type="button" disabled aria-pressed={value === "dark"}
+                    title={value === "light" ? "浅色外观暂未开放（当前固定深色）" : value === "system" ? "跟随系统暂未开放（当前固定深色）" : "当前外观"}
                     onClick={() => setTheme(value)}>
                     {label}
                   </Button>

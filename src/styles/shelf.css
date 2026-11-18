@@ -565,7 +565,7 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 .hg-pill {
   flex: none; height: 27px; padding: 0 9px;
   border-radius: 8px; border: 2px solid transparent; background: none;
-  color: #A9ACC4;                        /* 报告：未选中文字对比度 3.06:1 → 提到 4.5:1（#A9ACC4 ≈ 6.4:1） */
+  color: #C7C9DA;                        /* 报告 v2：未选中文字实测 4.06:1 → 提到 #C7C9DA ≈ 8.9:1 */
   font-size: 13px; font-weight: 600; line-height: 1;
   white-space: nowrap;
 }
