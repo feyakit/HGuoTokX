@@ -1454,12 +1454,12 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                     <div ref={barRef} className="mx-4 mt-2 relative" style={{ height: 14, touchAction: "none" }}
                       onPointerDown={onBarDown} onPointerMove={onBarMove} onPointerUp={onBarUp} onPointerCancel={onBarUp}>
                       {/* 轨道：几乎看不见，只暗示可拖动 */}
-                      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[2px] rounded-full" style={{ background: "rgba(255,255,255,.18)" }}>
+                      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[3px] rounded-full" style={{ background: "rgba(255,255,255,.24)" }}>
                         <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} className="h-full rounded-full"
-                          style={{ background: "rgba(255,255,255,.26)", transition: barPct !== null ? "none" : "width .25s linear" }} />
+                          style={{ background: "rgba(255,255,255,.72)", transition: barPct !== null ? "none" : "width .25s linear" }} />
                       </div>
                       {/* 进度点：整个进度条唯一的实心元素 */}
-                      <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} position className="absolute top-1/2 w-[7px] h-[7px] rounded-full bg-white pointer-events-none"
+                      <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} position className="absolute top-1/2 w-[9px] h-[9px] rounded-full bg-white pointer-events-none"
                         style={{
                           transform: "translate(-50%, -50%)",
                           boxShadow: "0 0 8px rgba(0,0,0,.55)",
