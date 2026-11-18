@@ -57,27 +57,47 @@ export function LaunchAnimation({ onFinish }: { onFinish: () => void }) {
     <div className="hg-launch-stage" aria-hidden="true">
       <div className="hg-launch-orbit" />
       <div className="hg-launch-mark">
-        <svg className="hg-launch-svg" viewBox="0 0 64 64" fill="none">
-          <defs><linearGradient id={gradient} x1="4" y1="0" x2="60" y2="64" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#06465b" /><stop offset="1" stopColor="#002837" />
-          </linearGradient></defs>
-          <g className="hg-launch-tile">
-            <rect width="64" height="64" rx="17.455" fill={`url(#${gradient})`} />
-            <rect x=".65" y=".65" width="62.7" height="62.7" rx="16.8" stroke="#60cdff" strokeOpacity=".14" strokeWidth=".8" />
+        <svg className="hg-launch-svg" viewBox="0 0 256 256" fill="none">
+          <defs>
+            <radialGradient id={`${gradient}-a1`} cx="20%" cy="0%" r="75%">
+              <stop offset="0%" stopColor="#E87648" stopOpacity=".36" />
+              <stop offset="100%" stopColor="#0A0B14" stopOpacity="0" />
+            </radialGradient>
+            <radialGradient id={`${gradient}-a2`} cx="85%" cy="5%" r="75%">
+              <stop offset="0%" stopColor="#7C5CFF" stopOpacity=".42" />
+              <stop offset="100%" stopColor="#0A0B14" stopOpacity="0" />
+            </radialGradient>
+            <linearGradient id={`${gradient}-flow`} x1="0" y1="0.2" x2="1" y2="0.8">
+              <stop offset="0%" stopColor="#FFFFFF" />
+              <stop offset="42%" stopColor="#FFB347" />
+              <stop offset="72%" stopColor="#FF6B57" />
+              <stop offset="100%" stopColor="#7C5CFF" />
+            </linearGradient>
+            <linearGradient id={`${gradient}-glass`} x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0%" stopColor="#FFFFFF" stopOpacity=".88" />
+              <stop offset="50%" stopColor="#C4B5FD" stopOpacity=".45" />
+              <stop offset="100%" stopColor="#9B7BFF" stopOpacity=".88" />
+            </linearGradient>
+            <clipPath id={`${gradient}-clip`}>
+              <rect width="256" height="256" rx="58" />
+            </clipPath>
+          </defs>
+          <g className="hg-launch-tile" clipPath={`url(#${gradient}-clip)`}>
+            <rect width="256" height="256" fill="#0A0B14" />
+            <rect width="256" height="256" fill={`url(#${gradient}-a1)`} />
+            <rect width="256" height="256" fill={`url(#${gradient}-a2)`} />
+            <rect x="2" y="2" width="252" height="252" rx="56" stroke="#FFFFFF" strokeOpacity=".14" strokeWidth="2.5" />
           </g>
-          <g transform="translate(-2.909091 -2.909091) scale(1.4545455)" stroke="#60cdff" strokeLinecap="round">
-            <path className="hg-launch-stroke hg-launch-left" d="M14 13v22" strokeWidth="4.4" />
-            <path className="hg-launch-stroke hg-launch-bridge" d="M14 24h10" strokeWidth="4.4" />
-            <path className="hg-launch-stroke hg-launch-right" d="M24 13v22" strokeWidth="4.4" />
-            <path className="hg-launch-stroke hg-launch-arc" d="M31 17.5c3.2 0 5.5 2.6 5.5 6.5S34.2 30.5 31 30.5" strokeWidth="4" />
-          </g>
-          <path className="hg-launch-play" d="M40 27.2 46.3 31.9 40 36.6Z" fill="#b1f5dc" />
-          <path className="hg-launch-x" d="M46.7 11.3 52.5 17.1M52.5 11.3 46.7 17.1" stroke="#b1f5dc" strokeWidth="2.9" strokeLinecap="round" />
+          <line className="hg-launch-stroke hg-launch-left" x1="60" y1="72" x2="60" y2="184" stroke="#FFFFFF" strokeWidth="24" strokeLinecap="round" />
+          <path className="hg-launch-stroke hg-launch-right" d="M 118 72 L 118 184 M 118 176 C 118 148, 152 114, 198 72"
+            stroke={`url(#${gradient}-glass)`} strokeWidth="24" strokeLinecap="round" strokeLinejoin="round" />
+          <path className="hg-launch-stroke hg-launch-bridge" d="M 60 128 L 98 128 C 114 128, 118 116, 118 96 C 118 74, 138 74, 152 96 L 198 184"
+            stroke={`url(#${gradient}-flow)`} strokeWidth="24" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </div>
       <div className="hg-launch-wordmark"><span>HGuoX</span></div>
     </div>
-    <span className="hg-launch-footnote" aria-hidden="true">PRESS PLAY. FEEL MORE.</span>
+    <span className="hg-launch-footnote" aria-hidden="true">好剧与吃瓜 · 尽在掌握</span>
   </div>;
 }
 

@@ -6,7 +6,7 @@
  * Assets.xcassets 里。这里生成 LaunchBackground.colorset，build-ios-unsigned.sh
  * 会在 xcodebuild 前用 PlistBuddy 把 UILaunchScreen 指向它。
  *
- * 颜色固定为深色品牌色 #071218，与 src/styles/launch.css 的 --launch-bg、
+ * 颜色固定为深色品牌色 #0A0B14，与 src/styles/launch.css 的 --launch-bg、
  * index.html 首帧背景一致。
  *
  * 用法：
@@ -25,10 +25,10 @@ if (!existsSync(apple)) {
   process.exit(0);
 }
 
-// #071218 的 sRGB 分量
+// #0A0B14 的 sRGB 分量
 const color = {
   "color-space": "srgb",
-  components: { alpha: "1.000", blue: "0x18", green: "0x12", red: "0x07" },
+  components: { alpha: "1.000", blue: "0x14", green: "0x0B", red: "0x0A" },
 };
 
 const colorsetDir = join(apple, "Assets.xcassets", "LaunchBackground.colorset");
@@ -45,4 +45,4 @@ writeFileSync(
   ) + "\n",
 );
 
-console.log("[splash] iOS 启动屏颜色资源已写入 → #071218");
+console.log("[splash] iOS 启动屏颜色资源已写入 → #0A0B14");

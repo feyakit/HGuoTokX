@@ -137,22 +137,44 @@ export const CAT_ICONS: Record<string, ReturnType<typeof S>> = {
 };
 
 export function Logo({ size = 28, className = "" }: { size?: number; className?: string }) {
+  const uid = React.useId().replace(/:/g, "");
   return (
-    <svg width={size} height={size} viewBox="0 0 64 64" className={className} aria-hidden>
+    <svg width={size} height={size} viewBox="0 0 256 256" className={className} aria-hidden>
       <defs>
-        <linearGradient id="logo-x-night" x1="4" y1="0" x2="60" y2="64" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#06465b" />
-          <stop offset="1" stopColor="#002837" />
+        <radialGradient id={`${uid}-a1`} cx="20%" cy="0%" r="75%">
+          <stop offset="0%" stopColor="#E87648" stopOpacity=".36" />
+          <stop offset="100%" stopColor="#0A0B14" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id={`${uid}-a2`} cx="85%" cy="5%" r="75%">
+          <stop offset="0%" stopColor="#7C5CFF" stopOpacity=".42" />
+          <stop offset="100%" stopColor="#0A0B14" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id={`${uid}-flow`} x1="0" y1="0.2" x2="1" y2="0.8">
+          <stop offset="0%" stopColor="#FFFFFF" />
+          <stop offset="42%" stopColor="#FFB347" />
+          <stop offset="72%" stopColor="#FF6B57" />
+          <stop offset="100%" stopColor="#7C5CFF" />
         </linearGradient>
+        <linearGradient id={`${uid}-glass`} x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0%" stopColor="#FFFFFF" stopOpacity=".88" />
+          <stop offset="50%" stopColor="#C4B5FD" stopOpacity=".45" />
+          <stop offset="100%" stopColor="#9B7BFF" stopOpacity=".88" />
+        </linearGradient>
+        <clipPath id={`${uid}-clip`}>
+          <rect width="256" height="256" rx="64" />
+        </clipPath>
       </defs>
-      <rect width="64" height="64" rx="17.455" fill="url(#logo-x-night)" />
-      <rect x=".65" y=".65" width="62.7" height="62.7" rx="16.8" fill="none" stroke="#60cdff" strokeOpacity=".14" strokeWidth=".8" />
-      <g transform="translate(-2.909091 -2.909091) scale(1.4545455)">
-        <path d="M14 13v22M14 24h10M24 13v22" stroke="#60cdff" strokeWidth="4.4" strokeLinecap="round" fill="none" />
-        <path d="M31 17.5c3.2 0 5.5 2.6 5.5 6.5S34.2 30.5 31 30.5" stroke="#60cdff" strokeWidth="4" strokeLinecap="round" fill="none" />
+      <g clipPath={`url(#${uid}-clip)`}>
+        <rect width="256" height="256" fill="#0A0B14" />
+        <rect width="256" height="256" fill={`url(#${uid}-a1)`} />
+        <rect width="256" height="256" fill={`url(#${uid}-a2)`} />
+        <rect x="3" y="3" width="250" height="250" rx="61" fill="none" stroke="#FFFFFF" strokeOpacity=".14" strokeWidth="4" />
+        <path d="M 118 70 L 118 186 M 118 176 C 118 148, 152 114, 198 70"
+          fill="none" stroke={`url(#${uid}-glass)`} strokeWidth="26" strokeLinecap="round" strokeLinejoin="round" />
+        <line x1="58" y1="70" x2="58" y2="186" stroke="#FFFFFF" strokeWidth="26" strokeLinecap="round" />
+        <path d="M 58 128 L 98 128 C 114 128, 118 116, 118 96 C 118 72, 138 72, 152 96 L 198 186"
+          fill="none" stroke={`url(#${uid}-flow)`} strokeWidth="26" strokeLinecap="round" strokeLinejoin="round" />
       </g>
-      <path d="M40 27.2 46.3 31.9 40 36.6Z" fill="#b1f5dc" />
-      <path d="M46.7 11.3 52.5 17.1M52.5 11.3 46.7 17.1" stroke="#b1f5dc" strokeWidth="2.9" strokeLinecap="round" />
     </svg>
   );
 }

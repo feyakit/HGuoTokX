@@ -1,9 +1,9 @@
 /* Code-only brand reveal. Transform/opacity only: no frame loop, bitmap, blur or dependency. */
 .hg-launch {
-  --launch-ink: #f2f5f4;
-  --launch-muted: #94a6ad;
-  --launch-bg: #071218;
-  --launch-accent: #b1f5dc;
+  --launch-ink: #ffffff;
+  --launch-muted: #9CA3AF;
+  --launch-bg: #0A0B14;
+  --launch-accent: #FFB347;
   position: fixed;
   inset: 0;
   z-index: 10000;
@@ -29,8 +29,8 @@
 .hg-launch-play { animation: launch-play 760ms 640ms both; }
 .hg-launch-x { animation: launch-x 720ms 890ms both; }
 .hg-launch-wordmark { display: flex; align-items: baseline; gap: 3px; margin-top: 28px; font-size: clamp(29px, 7vw, 36px); font-weight: 800; line-height: 1.2; letter-spacing: -1.6px; animation: launch-word 620ms 930ms both; }
-.hg-launch-word-x { color: #60cdff; animation: launch-word-x 550ms 1080ms both; }
-.hg-launch-orbit { position: absolute; width: 218px; height: 218px; top: -2px; border: 1px solid #60cdff; border-radius: 50%; opacity: 0; animation: launch-ring 650ms 930ms both; pointer-events: none; }
+.hg-launch-word-x { color: #FFB347; animation: launch-word-x 550ms 1080ms both; }
+.hg-launch-orbit { position: absolute; width: 218px; height: 218px; top: -2px; border: 1px solid #7C5CFF; border-radius: 50%; opacity: 0; animation: launch-ring 650ms 930ms both; pointer-events: none; }
 .hg-launch-footnote { position: absolute; bottom: max(calc(env(safe-area-inset-bottom) + 24px), 36px); font-size: 9px; line-height: 1.5; letter-spacing: 2.5px; color: var(--launch-muted); animation: launch-caption 350ms 1250ms both; }
 @keyframes launch-left {
   0% { opacity: 0; transform: translate(-26px, 15px) rotate(-75deg) scale(.15, .35); }

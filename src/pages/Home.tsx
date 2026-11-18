@@ -6,7 +6,7 @@ import { Button } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
 import { Empty } from "../components/ui";
 import { Img } from "../components/ui";
-import { IChevR, IClose, IPlayF, ISearch, ISettings } from "../icons";
+import { IChevR, IClose, IPlayF, ISearch, ISettings, Logo } from "../icons";
 import { useContentPreferences } from "../contentPreferences";
 import { PreferenceStorageNotice } from "../components/PreferenceStorageNotice";
 
@@ -139,6 +139,7 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
 
       {/* 顶栏第 2 层：品牌行（左 HGuoX 文字标，右 搜索 21） */}
       <div className="shrink-0 hg-page-x hg-brand-row relative z-10">
+        <Logo size={24} className="mr-2 shrink-0" />
         <span className="hg-brand">HGuoX</span>
         <span className="flex-1" />
         <Button card className="hg-icon-plain" aria-label="搜索" onClick={() => setTab("search")}><ISearch size={21} /></Button>
