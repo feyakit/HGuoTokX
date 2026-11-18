@@ -2,7 +2,7 @@ import { Button, Image, SegmentedControl } from "./ios/controls";
 import { Loader } from "./ios/effects";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { api, cover, fmt, fmtTime, hostOf, isMobile, logLine } from "../api";
+import { api, cover, fmt, fmtTime, hostOf, isMobile, logLine, platform } from "../api";
 import type { Detail, Episode, PlayInfo, Post, VideoCard } from "../types";
 import { useStore } from "../store";
 import { Img, Sheet } from "./ui";
@@ -11,7 +11,7 @@ import PlayerControls from "./PlayerControls";
 import { PlaybackProgress, PlaybackTime } from "./PlaybackProgress";
 import PlaybackLock from "./PlaybackLock";
 import { ArticlePanel, CommentsPanel, EpisodesPanel } from "./Panels";
-import { setBackHandler } from "../back";
+import { registerOverlayBack } from "../back";
 import { copyText } from "../clipboard";
 import { tracePlayback } from "../playbackDiagnostics";
 import { createPlaybackClock } from "../playbackClock";
@@ -202,7 +202,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const gesture = useRef<{
     x: number; y: number; startY: number; t: number; timer: number | null;
     mode: "idle" | "hold" | "scrub" | "pan"; base: number; width: number; playing: boolean;
-    zone: HoldZone;
+    zone: HoldZone; hiddenAtDown: boolean;
   } | null>(null);
   /* 单击 / 双击判定：单击净屏，双击暂停 */
   const lastTapRef = useRef<{ timer: number | null; clean?: boolean; idle?: boolean }>({ timer: null });
@@ -697,10 +697,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   }, [active, allowed, controlsLocked, showHoldGuide, panel, index, stepDir, accountScope, curEp, kind, liked, collected, likePending, collectPending]);
 
   /* 安卓返回键：面板打开时先关面板 */
+  /* 返回键：先收播放器面板，再退页面。用弹层栈登记（不是全局单槽，
+     单槽会被别处的 cleanup 清掉，「按返回直接退出播放器」就是这么来的）。 */
   useEffect(() => {
-    if (!panel) { setBackHandler(null); return undefined; }
-    setBackHandler(() => { setPanel(null); return true; });
-    return () => setBackHandler(null);
+    if (!panel) return undefined;
+    return registerOverlayBack(() => { setPanel(null); return true; });
   }, [panel]);
 
   useEffect(() => {
@@ -761,6 +762,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       x: sx, y: sy, startY: sy, t: Date.now(), base: videoRef.current?.el()?.currentTime ?? playbackClock.getSnapshot(), width,
       mode: "idle" as "idle" | "hold" | "scrub" | "pan",
       zone,
+      /* 按下这一刻控件是不是收起的：全屏态的 pointerdown 会先 wake() 把 idle 清掉，
+         所以不能在 onUp 里读当前值，否则「点一下唤回」会被当成「点一下暂停」（P1-1）。 */
+      hiddenAtDown: clean || (!isDesktop && fs && idle),
       playing: videoRef.current?.el()?.paused === false,
       timer: window.setTimeout(() => {
         const cur = gesture.current;
@@ -894,7 +898,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       }
     }
     /* 控件收起来时：轻点先把控件唤回来，不动播放（否则「点哪都点不出菜单」，报告反馈过） */
-    if (!cancelled && g.mode === "idle" && Date.now() - g.t < 260 && (clean || (!isDesktop && fs && idle))) {
+    if (!cancelled && g.mode === "idle" && Date.now() - g.t < 260 && (g.hiddenAtDown || clean || (!isDesktop && fs && idle))) {
       showControls();
       return;
     }
@@ -936,12 +940,16 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     lockArmedRef.current = false;
   }, [playKey]);
 
-  /* 进出全屏：iOS 会在这时把播放打断，过渡期多补几次 play() */
+  /* 进出全屏：iOS 的 WKWebView 会在这时把播放打断，需要补几次 play()。
+     安卓没有这个问题——补播反而会无视用户刚按下的暂停（P1-2），所以这里只在 iOS 走，
+     并且每次补播前都确认「用户没有暂停」（uiRef.paused）。 */
   const keepAlive = useCallback(() => {
     for (const t of keepAliveTimers.current) window.clearTimeout(t);
     keepAliveTimers.current = [];
+    if (platform !== "ios") return;
     for (const delay of [50, 150, 300, 500, 800, 1200]) {
       keepAliveTimers.current.push(window.setTimeout(() => {
+        if (uiRef.current.paused) return;
         const v = videoRef.current?.el();
         if (v && v.paused) videoRef.current?.play();
       }, delay) as unknown as number);
@@ -1788,7 +1796,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
 
               <div className="flex-1 min-h-0">
                 {panel === "episodes" ? (
-                  <EpisodesPanel bare videoId={curId} episodes={episodes} current={curEp} onPick={pickEp} onClose={() => setPanel(null)} />
+                  /* 点集后显式收面板（不依赖 pickEp 内部）：面板还开着时视频会在后面起播，用户看不见（P2-2） */
+                  <EpisodesPanel bare videoId={curId} episodes={episodes} current={curEp}
+                    onPick={(n) => { pickEp(n); setPanel(null); }} onClose={() => setPanel(null)} />
                 ) : (
                   detailBody()
                 )}
@@ -1809,7 +1819,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
             {muted ? <IVolMute size={17} /> : <IVol size={17} />}
           </Button>}
           <Button onClick={lockControls} aria-label="锁定播放控制" title="锁定播放控制" aria-pressed={false}
-            className="hg-chip w-9 h-9 rounded-full flex items-center justify-center pressable elev-1"><ILockF size={17} /></Button>
+            className={`hg-chip w-9 h-9 rounded-full flex items-center justify-center pressable elev-1${clean ? " hidden" : ""}`}><ILockF size={17} /></Button>
         </div>
       )}
       <TagBlockMenu open={active && tagMenu} tags={meta.tags} onClose={() => setTagMenu(false)} />

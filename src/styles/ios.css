@@ -134,6 +134,10 @@ html.theme-light {
 .ios-overlay.is-closing { pointer-events:none; opacity:0; transition:opacity .18s; }
 .ios-overlay-sheet { align-items:end; padding:0 10px 10px; }
 .ios-overlay-sheet .ios-dialog { width:min(640px,100%); max-height:calc(100dvh - max(env(safe-area-inset-top),24px)); padding-bottom:max(env(safe-area-inset-bottom),12px); }
+/* P2-4：.78 的玻璃底压在视频画面上会透出底层的计数/集号，读起来发糊。
+   sheet 专用更实的底（仍保留模糊与描边，只是不再让内容透上来）。 */
+.ios-overlay-sheet .ios-dialog { background:rgb(26 27 31 / .94); }
+html.theme-light .ios-overlay-sheet .ios-dialog { background:rgb(248 247 243 / .96); }
 .ios-overlay-sheet.is-open .ios-dialog { animation:ios-sheet-in .28s cubic-bezier(.2,.8,.2,1) both; }
 .ios-sheet-grip { width:36px; height:5px; border-radius:4px; background:var(--p-dim); opacity:.5; margin:12px auto 6px; flex-shrink:0; }
 .ios-auth { padding:28px; }
