@@ -23,10 +23,14 @@ import MobileHoldGuide from "./MobileHoldGuide";
 import { getHoldZone, HOLD_DELAY_MS, HOLD_LOCK_DISTANCE, type HoldZone } from "../mobileHold";
 import { useMobileHoldGuide } from "../useMobileHoldGuide";
 import {
-  IBack, IBoltF, IChevR, IChevronDown, IChevronUp, IClose, ICommentF, ICompress, IExpand, IFileText, IHeart, IHeartF, IMore,
+  IBack, IBoltF, IChevR, IChevronDown, IChevronUp, IClose, ICommentF, ICompress, IFileText, IHeart, IHeartF, IMore,
   ILink, IList, ILockF, IPauseF, IPlayF, ISearch, IStar, IStarF, IVertSwap, IVol, IVolMute,
 } from "../icons";
 import { useAccent } from "../useAccent";
+
+/* 单击判定窗口：首次轻点先等这么久再落「暂停/继续」，
+   这样双击（净屏）不会先闪一下暂停。人眼对这个量级不敏感，真机上等的是「有没有反应」。 */
+const TAP_DELAY_MS = 180;
 
 export type EpisodePlayerProps = {
   videoIds: number[];
@@ -187,6 +191,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const barRef = useRef<HTMLDivElement>(null);
   const barScrub = useRef(false);
   const [barPct, setBarPct] = useState<number | null>(null);
+  const epsStripRef = useRef<HTMLDivElement>(null);
   const gesture = useRef<{
     x: number; y: number; startY: number; t: number; timer: number | null;
     mode: "idle" | "hold" | "scrub" | "pan"; base: number; width: number; playing: boolean;
@@ -275,6 +280,16 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   useEffect(() => { videoRef.current?.trace("page.active", { active, view: mode, video_id: curId, episode: curEp }); }, [active, mode, curId, curEp]);
   const episodes = detail?.episodes || [];
   const post = posts[curId];
+
+  /* 集数条跟着当前集滚：切到第 13 集时当前 chip 常在视口外，用户以为「没有高亮」（报告 N-3.0-08） */
+  useEffect(() => {
+    const strip = epsStripRef.current;
+    if (!strip) return;
+    const chip = strip.querySelector<HTMLElement>('[aria-current="true"]');
+    if (!chip) return;
+    const left = chip.offsetLeft - (strip.clientWidth - chip.offsetWidth) / 2;
+    strip.scrollLeft = Math.max(0, left);
+  }, [curEp, episodes.length, playKey]);
 
   /* 观看进度：onTime 里每 5 秒落一次；退出播放页时再用 liveRef 兜一次 */
   const onTimeTick = (t: number) => {
@@ -819,22 +834,21 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
         if (swipeEp) { go(dir); return; }
       }
     }
+    /* 单击 = 暂停 / 继续（报告 3：播放器必须有可用的暂停手段，中央点按不再只是切控制层显隐）；
+       双击 = 净屏（显隐控制层）。首击延迟 TAP_DELAY_MS 才落，双击时直接净屏、不闪暂停。 */
     if (!cancelled && g.mode === "idle" && Date.now() - g.t < 260) {
-      // 首击立即反馈；第二击恢复首击前的界面，再切换播放。
       if (lastTapRef.current.timer) {
         window.clearTimeout(lastTapRef.current.timer);
         lastTapRef.current.timer = null;
         setClean(lastTapRef.current.clean ?? false);
         if (!isDesktop && fs) setIdle(lastTapRef.current.idle ?? false);
-        videoRef.current?.toggle();
       } else {
         lastTapRef.current.clean = clean;
         lastTapRef.current.idle = idle;
-        setClean(!clean);
-        if (!isDesktop && fs) setIdle(!idle);
         lastTapRef.current.timer = window.setTimeout(() => {
           lastTapRef.current.timer = null;
-        }, 230) as unknown as number;
+          videoRef.current?.toggle();
+        }, TAP_DELAY_MS) as unknown as number;
       }
     }
   };
@@ -872,31 +886,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       }, delay) as unknown as number);
     }
   }, []);
-
-  const enterFs = useCallback((landscape: boolean) => {
-    /* 先把当前可见项锁定下来，再收起滚动容器：
-       否则进入全屏后 scrollTop 归零，若此前滚动后的 index 还在 150ms 防抖里，
-       会被 resolveSwipe(0) 改回第一屏，出现「全屏后变成另一个视频」。 */
-    const el = boxRef.current;
-    if (el && !isDesktop) {
-      window.clearTimeout(swipeTimer.current);
-      const h = el.clientHeight || 1;
-      const i = Math.max(0, Math.min(effectiveVideoIds.length - 1, Math.round(el.scrollTop / h)));
-      if (i !== idxRef.current) resolveSwipe(i);
-    }
-    setClean(false);
-    setFs(true);
-    wake();
-    keepAlive();
-    if (!isDesktop) {
-      try { void invoke("set_orientation", { landscape }); } catch { /* ignore */ }
-      if (landscape) {
-        try {
-          (screen.orientation as unknown as { lock?: (o: string) => Promise<void> })?.lock?.("landscape")?.catch(() => {});
-        } catch { /* ignore */ }
-      }
-    }
-  }, [isDesktop, keepAlive, resolveSwipe, effectiveVideoIds.length, setClean, setFs]);
 
   const exitFs = useCallback(() => {
     setClean(false);
@@ -1414,10 +1403,10 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   不加任何压暗层——黑边彻底去掉，全靠文字阴影保读；
                   进度条轨道几乎不可见，只用白点标播放位置。 */}
               {!fs && !clean && !isDesktop && (
-                <div className="absolute inset-x-0 z-20" style={{ bottom: `calc(var(--sab, 0px) + ${bottomInset + 28}px)` }}>
+                <div className="absolute inset-x-0 z-20" style={{ bottom: `calc(var(--sab, 0px) + ${bottomInset + 44}px)` }}>
                   {/* 集数条（自定屏规范 3.4）：56×36、r10、间距 11、当前集 accent + 2px #8B9AF9 描边 */}
                   {episodes.length > 1 && (
-                    <div className="hg-player-eps" role="tablist" aria-label="选集">
+                    <div className="hg-player-eps" ref={epsStripRef} role="tablist" aria-label="选集">
                       {episodes.map(e => (
                         <Button card role="tab" key={e.ep_num} className="hg-player-ep"
                           aria-selected={e.ep_num === curEp} aria-current={e.ep_num === curEp ? "true" : undefined}
@@ -1439,23 +1428,21 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                       {/* 线路切换收在播放页设置里（自定屏规范） */}
                       <Button aria-label="播放设置" onClick={() => store.push({ kind: "settings" })}
                         className="min-h-11 flex items-center gap-1 text-[12px] font-medium hg-ink-3 hg-ov-shadow-strong pressable">设置 · 线路</Button>
-                      <Button aria-label="全屏横屏播放" onClick={() => enterFs(true)}
-                        className="min-h-11 flex items-center gap-1 text-[12px] font-medium hg-ink-3 hg-ov-shadow-strong pressable">
-                        <IExpand size={13} />全屏
-                      </Button>
                     </div>
                     {/* 报告 5：字幕烧在画面里，改控件层——底部加自上而下 0→60% 黑渐变，保证按钮文字可读 */}
                     <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0"
-                      style={{ height: 168, background: "linear-gradient(to top, rgba(0,0,0,.6) 0%, rgba(0,0,0,.42) 45%, rgba(0,0,0,0) 100%)", zIndex: 0 }} />
+                      style={{ height: 196, background: "linear-gradient(to top, rgba(0,0,0,.72) 0%, rgba(0,0,0,.5) 45%, rgba(0,0,0,0) 100%)", zIndex: 0 }} />
                     {/* 竖屏也要能暂停与看进度：暂停钮 + 当前/总时长（报告问题 3） */}
                     <div className="mx-4 mt-2 flex items-center gap-2.5 relative z-10">
-                      <Button aria-label={paused ? "播放" : "暂停"}
+                      <Button aria-label={paused ? "播放" : "暂停"} aria-pressed={paused}
                         onPointerDown={(e) => e.stopPropagation()}
+                        onPointerUp={(e) => e.stopPropagation()}
                         onClick={(e) => { e.stopPropagation(); videoRef.current?.toggle(); }}
-                        className="hg-chip shrink-0 w-10 h-10 rounded-full flex items-center justify-center pressable">
-                        {paused ? <IPlayF size={16} /> : <IPauseF size={15} />}
+                        className="hg-chip shrink-0 w-11 h-11 rounded-full flex items-center justify-center pressable">
+                        {paused ? <IPlayF size={17} /> : <IPauseF size={16} />}
                       </Button>
-                      <span className="shrink-0 flex items-center gap-1 text-[12px] font-semibold hg-ink-2 tabular-nums hg-ov-shadow">
+                      {/* 报告 5：字幕（片源自带、烧在画面里）会压住这行读数——读数自己带半透明底衬 */}
+                      <span className="hg-video-time" >
                         <PlaybackTime clock={playbackClock} /> <span className="opacity-60">/ {fmtTime(duration || 0)}</span>
                       </span>
                     </div>

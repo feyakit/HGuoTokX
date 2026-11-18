@@ -1,9 +1,11 @@
 import { logLine, platform } from "./api";
 import { tracePlayback } from "./playbackDiagnostics";
 
-/* 只测量 iOS 视口几何；探针读完立即移除，不修改页面尺寸或滚动位置。 */
+/* 只测量移动端视口几何；探针读完立即移除，不修改页面尺寸或滚动位置。
+   安卓一并采：3.0.0 在 phone2k（覆盖分辨率 1440×3168）上出现「越靠下点按偏移越多」，
+   判这条要有 screen / innerHeight / visualViewport / #root 实高四组数才能定性。 */
 export function installLayoutDiagnostics() {
-  if (platform !== "ios") return;
+  if (platform !== "ios" && platform !== "android") return;
   const n = (value: number) => Math.round(value * 100) / 100;
   const rect = (selector: string) => {
     const r = document.querySelector(selector)?.getBoundingClientRect();

@@ -108,7 +108,14 @@ html.theme-light input[type="range"].hg-range::-webkit-slider-thumb {
 .a-page-in { animation: kf-page-in .3s cubic-bezier(.2,0,0,1) both; }
 @keyframes kf-page-out { from{transform:translateX(0)} to{transform:translateX(100%)} }
 .a-page-out { animation: kf-page-out .22s cubic-bezier(.3,0,.8,.15) both; }
-.shimmer { background: linear-gradient(110deg, var(--p-s1) 0%, var(--p-s3) 50%, var(--p-s1) 100%); }
+.shimmer {
+  background: linear-gradient(110deg, var(--p-s1) 0%, var(--p-s3) 50%, var(--p-s1) 100%);
+  background-size: 200% 100%;
+  /* 报告 N-3.0-01：上新页海报位长时间是「一块静止的深灰块」，读起来像图挂了；
+     让它动起来，用户才知道是在等图，不是空位 */
+  animation: kf-shimmer 1.4s linear infinite;
+}
+@keyframes kf-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
 @keyframes kf-spin { to{transform:rotate(360deg)} }
 @keyframes kf-toast { from{opacity:0;transform:translateY(12px) scale(.96)} to{opacity:1;transform:translateY(0) scale(1)} }
 .a-toast { animation: kf-toast .26s cubic-bezier(.2,0,0,1) both; }

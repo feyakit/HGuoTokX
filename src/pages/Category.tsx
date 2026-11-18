@@ -285,6 +285,10 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
                 {loading ? "加载中…" : "加载更多"}
               </Button>
             )}
+            {items.length > 0 && done && (
+              /* 报告 16：3.0.0 一路无限加载、没有收尾，用户判断不了「到底了没有」 */
+              <p className="hg-list-end">已经到底了 · 共 {items.length} 部</p>
+            )}
           </>
         )}
       </div>

@@ -39,6 +39,8 @@ type HeroSpot = {
 
 const DAY = 24 * 60 * 60 * 1000;
 const WEEK = 7 * DAY;
+/* 主推展台自动轮换间隔：2.1.2 有、3.0.0 重构时丢了（报告 7「三分钟内无自动轮换」） */
+const HERO_ROTATE_MS = 6000;
 
 const parseTime = (raw?: string) => {
   if (!raw) return NaN;
@@ -79,6 +81,7 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
   const [heroIndex, setHeroIndex] = useState(0);
+  const heroTouch = useRef<{ x: number; y: number } | null>(null);
   const [continueCard, setContinueCard] = useState<{ detail: Detail; ep: number; t: number; dur: number; at: number } | null>(null);
   const [dismissedContinue, setDismissedContinue] = useState(0);
   const loadingRef = useRef(false);
@@ -246,6 +249,17 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
 
   const safeHeroIdx = Math.min(heroIndex, Math.max(heroes.length - 1, 0));
   const hero = heroes[safeHeroIdx];
+
+  /* 主推展台自动轮换：只在「推荐」分栏可见、页面在前台时走；手动点圆点/横滑后重新计时
+     （依赖里带 safeHeroIdx，任何一次切换都会把定时器重置，不会刚点完就被自动换走）。 */
+  useEffect(() => {
+    if (!active || tab !== "all" || heroes.length < 2) return undefined;
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return undefined;
+    const timer = window.setInterval(() => {
+      setHeroIndex(prev => (prev + 1) % heroes.length);
+    }, HERO_ROTATE_MS);
+    return () => window.clearInterval(timer);
+  }, [active, tab, heroes.length, safeHeroIdx]);
 
   /* 2. 跨模块级联去重：主推展示过的剧集不再重复出现在「独家原创」与「为你推荐」，一屏张张是新剧 */
   const dedupedOriginals = useMemo(() => {
@@ -470,7 +484,20 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
 
             {/* 1. 影院级单主推展台（接入官方口碑推荐榜 + 错峰避重 + 一键沉浸连刷） */}
             {hero && (
-              <div className="hg-spotlight-shell a-rise">
+              <div
+                className="hg-spotlight-shell a-rise"
+                onTouchStart={e => { const t = e.touches[0]; if (t) heroTouch.current = { x: t.clientX, y: t.clientY }; }}
+                onTouchEnd={e => {
+                  const start = heroTouch.current;
+                  const t = e.changedTouches[0];
+                  heroTouch.current = null;
+                  if (!start || !t || heroes.length < 2) return;
+                  const dx = t.clientX - start.x;
+                  const dy = t.clientY - start.y;
+                  if (Math.abs(dx) < 44 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+                  setHeroIndex(() => (safeHeroIdx + (dx < 0 ? 1 : heroes.length - 1)) % heroes.length);
+                }}
+              >
                 <Button card className="hg-spotlight" aria-label={`${hero.title} 详情`} onClick={() => openSeries(hero.id)}>
                   <Img src={hero.cover} eager alt="" />
                   <span className="hg-spotlight-veil" aria-hidden="true" />
@@ -531,7 +558,9 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
                         onClick={() => openSeries(r.video_id)}>
                         <span className="hg-top10-art">
                           <Img src={r.cover} alt="" />
-                          {r.metric_label && <span className="hg-top10-heat">{r.metric_label}</span>}
+                          {r.metric_value > 0 && (
+                            <span className="hg-top10-heat">{r.metric_label || "热度"} {fmt(r.metric_value)}</span>
+                          )}
                         </span>
                         <span className={`hg-top10-num${rankNum <= 3 ? " is-top3" : ""}`} aria-hidden="true">
                           {String(rankNum).padStart(2, "0")}
@@ -638,6 +667,9 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
                 <Button className="hg-loadmore" onClick={() => void load(page + 1, "all")} disabled={loading}>
                   {loading ? "加载中…" : "加载更多"}
                 </Button>
+              )}
+              {done && recommendGrid.length > 0 && (
+                <p className="hg-list-end">已经到底了 · 共 {recommendGrid.length} 部</p>
               )}
             </section>
           </>

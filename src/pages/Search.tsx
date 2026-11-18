@@ -283,6 +283,8 @@ export function RankView({ wide, active = true }: { wide: boolean; active?: bool
   const loading = state?.loading ?? true;
   const err = state?.error ?? "";
   const max = Math.max(1, ...items.map((x) => x.metric_value || 0));
+  /* 报告 N-3.0-03：只写「热力指数」不写数字等于没有指标——有值时拼上数值，没值就不渲染这个标签 */
+  const heatLabel = (it: RankItem) => (it.metric_value > 0 ? `${it.metric_label || "热度"} ${fmt(it.metric_value)}` : "");
   const activeIdx = Math.max(0, RANK_TABS.findIndex(t => t.k === tab));
   const meta = RANK_TABS[activeIdx];
 
@@ -331,7 +333,7 @@ export function RankView({ wide, active = true }: { wide: boolean; active?: bool
                         </span>
                         <span className="hg-podium-title">{item.title}</span>
                         <span className="hg-podium-metric">
-                          {item.metric_label || (item.is_finished ? "全集完结" : `更至 ${item.episode_count} 集`)}
+                          {heatLabel(item) || (item.is_finished ? "全集完结" : `更至 ${item.episode_count} 集`)}
                         </span>
                       </Button>
                     ))}
@@ -350,7 +352,7 @@ export function RankView({ wide, active = true }: { wide: boolean; active?: bool
                         <span className="flex-1 min-w-0">
                           <span className="flex items-center justify-between gap-2">
                             <span className="text-[14px] font-bold text-on truncate">{it.title}</span>
-                            {it.metric_label && <span className="shrink-0 text-[11px] font-semibold" style={{ color: "#FFB347" }}>{it.metric_label}</span>}
+                            {heatLabel(it) && <span className="shrink-0 text-[11px] font-semibold" style={{ color: "#FFB347" }}>{heatLabel(it)}</span>}
                           </span>
                           <span className="block mt-1 text-[11px] text-mut truncate">
                             {[
