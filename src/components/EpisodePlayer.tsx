@@ -2,7 +2,7 @@ import { Button, Image, SegmentedControl } from "./ios/controls";
 import { Loader } from "./ios/effects";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { api, cover, fmt, fmtTime, isMobile, logLine } from "../api";
+import { api, cover, fmt, fmtTime, hostOf, isMobile, logLine } from "../api";
 import type { Detail, Episode, PlayInfo, Post, VideoCard } from "../types";
 import { useStore } from "../store";
 import { Img, Sheet } from "./ui";
@@ -20,10 +20,11 @@ import { TagBlockMenu } from "./TagBlockMenu";
 import VideoDetailsPanel from "./VideoDetailsPanel";
 import { PreferenceStorageNotice } from "./PreferenceStorageNotice";
 import MobileHoldGuide from "./MobileHoldGuide";
+import LineQuickSwitch from "./LineQuickSwitch";
 import { getHoldZone, stageXY, HOLD_DELAY_MS, HOLD_LOCK_DISTANCE, type HoldZone } from "../mobileHold";
 import { useMobileHoldGuide } from "../useMobileHoldGuide";
 import {
-  IBack, IBoltF, IChevR, IChevronDown, IChevronUp, IClose, ICommentF, ICompress, IExpand, IFileText, IHeart, IHeartF, IMore,
+  IBack, IBoltF, IChevR, IChevronDown, IChevronUp, IClose, ICommentF, ICompress, IExpand, IFileText, IGlobe, IHeart, IHeartF, IMore,
   ILink, IList, ILockF, IPauseF, IPlayF, ISearch, IStar, IStarF, IVertSwap, IVol, IVolMute,
 } from "../icons";
 import { useAccent } from "../useAccent";
@@ -182,6 +183,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   /* 用户点「全屏/横屏」时要的是横过来看；系统真转了（vpLandscape）就不再用 CSS 兜底 */
   const [fsLandscape, setFsLandscape] = useState(false);
   const [heartBurst, setHeartBurst] = useState(0);
+  /* 播放页线路：就地小胶囊 + 面板，只有一条线路时不渲染入口 */
+  const [lineOpen, setLineOpen] = useState(false);
+  const [lineInfo, setLineInfo] = useState<{ label: string; multi: boolean }>({ label: "线路", multi: false });
   /* —— 移动端手势 —— */
   const [holdSpeed, setHoldSpeed] = useState(false);
   const [holdSlow, setHoldSlow] = useState(false);
@@ -297,6 +301,25 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     if (panel) window.clearTimeout(hideTimer.current);
     else armAutoHide();
   }, [panel, armAutoHide]);
+
+  /* 线路名与「有没有多条」：本机命令，不发网络请求；换线路后刷新标签 */
+  useEffect(() => {
+    if (isDesktop || !active) return undefined;
+    let alive = true;
+    const read = () => {
+      api.lineState()
+        .then(s => {
+          if (!alive) return;
+          const items = s.fixed || [];
+          const cur = items.find(i => i.url === s.base);
+          setLineInfo({ label: cur?.name?.trim() || hostOf(s.base) || "线路", multi: items.length > 1 });
+        })
+        .catch(() => { /* 读不到就不显示入口 */ });
+    };
+    read();
+    window.addEventListener("hg:line-changed", read);
+    return () => { alive = false; window.removeEventListener("hg:line-changed", read); };
+  }, [isDesktop, active]);
   const mainUrl = playUrls[playKey] || "";
   const hevcUrl = hevcUrls[playKey] || "";
   const playUrl = preferHevc && hevcUrl ? hevcUrl : mainUrl;
@@ -1498,9 +1521,13 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                       </Button>
                       {isActive && <Button aria-label="不感兴趣" title="不感兴趣 / 内容偏好" onClick={openTagMenu}
                         className="video-preference-trigger"><IMore size={19} aria-hidden="true" /></Button>}
-                      {/* 线路切换收在播放页设置里（自定屏规范） */}
-                      <Button aria-label="播放设置" onClick={() => store.push({ kind: "settings" })}
-                        className="min-h-11 flex items-center gap-1 text-[12px] font-medium hg-ink-3 hg-ov-shadow-strong pressable">设置 · 线路</Button>
+                      {/* 线路就地切换：一个小胶囊 + 播放页内的底部面板，不再跳设置页 */}
+                      {lineInfo.multi && (
+                        <Button aria-label={`切换线路，当前 ${lineInfo.label}`} onClick={() => setLineOpen(true)}
+                          className="min-h-11 flex items-center gap-1 text-[12px] font-medium hg-ink-3 hg-ov-shadow-strong pressable">
+                          <IGlobe size={13} />{lineInfo.label}
+                        </Button>
+                      )}
                       {/* 全屏/横屏入口（曾按报告删掉，用户明确要回来）：系统能给真横屏就给，
                           给不了走 CSS 伪横屏；横过来后再点右上角「退出全屏」回竖屏 */}
                       <Button aria-label="全屏横屏播放" onClick={() => enterFs(true)}
@@ -1784,11 +1811,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
           </Button>}
           <Button onClick={lockControls} aria-label="锁定播放控制" title="锁定播放控制" aria-pressed={false}
             className="hg-chip w-9 h-9 rounded-full flex items-center justify-center pressable elev-1"><ILockF size={17} /></Button>
-          {!fs && !clean && <Button onClick={() => store.push({ kind: "search", initialTab: "video" })} aria-label="搜索"
-            className="hg-chip w-9 h-9 rounded-full flex items-center justify-center pressable elev-1"><ISearch size={18} /></Button>}
         </div>
       )}
       <TagBlockMenu open={active && tagMenu} tags={meta.tags} onClose={() => setTagMenu(false)} onSettings={openPreferences} />
+      {/* 线路面板：播放页内就地弹，不跳设置页 */}
+      {!isDesktop && <LineQuickSwitch open={active && lineOpen} onClose={() => setLineOpen(false)} />}
       {!isDesktop && <MobileHoldGuide open={showHoldGuide} onClose={holdGuide.dismiss} target={holdTargetRef} bottomInset={bottomInset} />}
       {controlsLocked && <PlaybackLock active={active} onUnlock={() => { setControlsLocked(false); wake(); }} />}
     </div>
