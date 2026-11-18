@@ -179,18 +179,25 @@ export function CommentsPanel({ videoId, ep, total, kind = "video", onClose }: {
         )}
       </div>
 
-      <Form className="shrink-0 flex items-center gap-2 px-3 py-2.5 bg-s2/70" onSubmit={(e) => { e.preventDefault(); send(); }}>
-        <Avatar size={30} name={user?.nickname || "我"} hue={322} />
-        <Input ref={inputRef} disabled={sending} value={text} onChange={(e) => setText(e.target.value)}
-          readOnly={!user} onClick={() => { if (!user) setLoginOpen(true); }}
-          onKeyDown={(event) => { if (!user && event.key === "Enter") { event.preventDefault(); setLoginOpen(true); } }}
-          placeholder={user ? "说点什么…" : "登录后参与评论"}
-          className="flex-1 min-w-0 h-9 rounded-(--r-ctl) bg-s4 px-3.5 text-[14px] text-on placeholder-dim outline-none focus:bg-s3" />
-        <Button type="submit" aria-label="发送评论" disabled={!text.trim() || sending}
-          className={`w-9 h-9 rounded-full flex items-center justify-center pressable ${text.trim() ? "brand-grad glow-neon" : "bg-s3 text-dim"}`}>
-          {sending ? <Loader className="w-4 h-4 spinner" /> : <ISendF size={16} />}
-        </Button>
-      </Form>
+      {kind === "video" ? (
+        <Form className="shrink-0 flex items-center gap-2 px-3 py-2.5 bg-s2/70" onSubmit={(e) => { e.preventDefault(); send(); }}>
+          <Avatar size={30} name={user?.nickname || "我"} hue={322} />
+          <Input ref={inputRef} disabled={sending} value={text} onChange={(e) => setText(e.target.value)}
+            readOnly={!user} onClick={() => { if (!user) setLoginOpen(true); }}
+            onKeyDown={(event) => { if (!user && event.key === "Enter") { event.preventDefault(); setLoginOpen(true); } }}
+            placeholder={user ? "说点什么…" : "登录后参与评论"}
+            className="flex-1 min-w-0 h-9 rounded-(--r-ctl) bg-s4 px-3.5 text-[14px] text-on placeholder-dim outline-none focus:bg-s3" />
+          <Button type="submit" aria-label="发送评论" disabled={!text.trim() || sending}
+            className={`w-9 h-9 rounded-full flex items-center justify-center pressable ${text.trim() ? "brand-grad glow-neon" : "bg-s3 text-dim"}`}>
+            {sending ? <Loader className="w-4 h-4 spinner" /> : <ISendF size={16} />}
+          </Button>
+        </Form>
+      ) : (
+        <div className="shrink-0 py-2.5 px-4 text-center text-[12px] text-dim bg-s2/50"
+          style={{ paddingBottom: "calc(10px + var(--sab, 0px))" }}>
+          社区帖子评论暂仅支持浏览
+        </div>
+      )}
     </div>
   );
 }

@@ -2,12 +2,13 @@ import { Button, Surface } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, cover, fmt, isMobile } from "../api";
-import type { Post } from "../types";
+import type { Post, PostCategory } from "../types";
 import { useStore } from "../store";
 import { copyText } from "../clipboard";
-import { Empty, Img } from "../components/ui";
+import { Empty, Img, Sheet } from "../components/ui";
+import { CommentsPanel } from "../components/Panels";
 import Player from "../components/Player";
-import { IBack, IComment, IFireF, IHeart, IPlayF, ISearch, IStar } from "../icons";
+import { IBack, IComment, IFireF, IHeart, IHeartF, IPlayF, ISearch, IStar, IStarF } from "../icons";
 import { handleArticleClick, sanitizeHtml } from "../html";
 import { InplaceSearch } from "../components/InplaceSearch";
 import { FilteredContent } from "../components/FilteredContent";
@@ -35,11 +36,15 @@ const postTime = (p: Post) => {
 };
 
 export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => void; wide: boolean; embedded?: boolean }) {
-  const { push, toast, follows, setFollowing, actionPending, user, setLoginOpen } = useStore();
+  const { push, toast, follows, setFollowing, isLiked, setLiked, actionPending, user, setLoginOpen } = useStore();
   const { preferences } = useContentPreferences();
   const filtering = !preferences.paused && (preferences.blockedTags.length > 0 || preferences.hideUntagged);
   const [sort, setSort] = useState<SortKey>("latest");
+  const [categories, setCategories] = useState<PostCategory[]>([]);
+  const [cate, setCate] = useState("");
   const [searching, setSearching] = useState(false);
+  const [commentTarget, setCommentTarget] = useState<{ id: number; total: number } | null>(null);
+  const [likeDelta, setLikeDelta] = useState<Record<number, number>>({});
   const [items, setItems] = useState<Post[]>([]);
   const [extra, setExtra] = useState<Record<number, PostExtra>>({});
   const [page, setPage] = useState(0);
@@ -50,6 +55,14 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
   const sentinel = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    let alive = true;
+    api.postCategories().then((res) => {
+      if (alive && res?.items?.length) setCategories(res.items);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
   const loadMore = async (reset = false) => {
     if (busy.current) return;
     const next = reset ? 1 : page + 1;
@@ -58,7 +71,9 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
     setLoading(true);
     setErr("");
     try {
-      const res = await api.posts(next, 20, sort);
+      const res = cate
+        ? await api.postCategory(cate, next, 20, sort)
+        : await api.posts(next, 20, sort);
       setItems((prev) => {
         const base = reset ? [] : prev;
         const seen = new Set(base.map((x) => x.id));
@@ -75,7 +90,7 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
     }
   };
 
-  /* 换 tab：清空列表重新拉（两路排序是不同结果集，不能拼在一起） */
+  /* 换排序或分类：清空列表重新拉 */
   useEffect(() => {
     setItems([]);
     setPage(0);
@@ -83,7 +98,7 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
     scrollRef.current?.scrollTo(0, 0);
     void loadMore(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sort]);
+  }, [sort, cate]);
 
   /* 补详情：3 路并发，顺序按列表顺序；失败就只显示列表字段，不阻塞也不重试打扰 */
   useEffect(() => {
@@ -159,9 +174,43 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
           </div>
         )}
         <div className="hg-post-stats">
-          <span className="hg-post-stat"><span className="hg-post-heart">♥</span>{fmt(info?.like ?? 0)}</span>
-          <span className="hg-post-stat"><IComment size={16} />{fmt(info?.comment ?? 0)}</span>
-          <span className="hg-post-stat"><span aria-hidden="true">↗</span>{fmt(info?.hot ?? p.hot)}</span>
+          {(() => {
+            const liked = isLiked(p.id, undefined, "post");
+            const likeBusy = actionPending(`like:post:${p.id}:0`);
+            const likeCount = Math.max(0, (info?.like ?? 0) + (likeDelta[p.id] ?? 0));
+            return (
+              <>
+                <button type="button" className={`hg-post-stat${liked ? " is-liked" : ""}`} disabled={likeBusy}
+                  aria-label={liked ? "取消点赞" : "点赞"}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!user) { setLoginOpen(true); return; }
+                    if (likeBusy) return;
+                    const next = !liked;
+                    setLikeDelta((prev) => ({ ...prev, [p.id]: (prev[p.id] ?? 0) + (next ? 1 : -1) }));
+                    void setLiked("post", p.id, 0, next).catch((err) => {
+                      setLikeDelta((prev) => ({ ...prev, [p.id]: (prev[p.id] ?? 0) + (next ? -1 : 1) }));
+                      toast((err as Error)?.message || "点赞失败", "info");
+                    });
+                  }}>
+                  <span className="hg-post-heart">{liked ? "♥" : "♡"}</span>{fmt(likeCount)}
+                </button>
+                <button type="button" className="hg-post-stat" aria-label="查看评论"
+                  onClick={(e) => { e.stopPropagation(); setCommentTarget({ id: p.id, total: info?.comment ?? 0 }); }}>
+                  <IComment size={16} />{fmt(info?.comment ?? 0)}
+                </button>
+                <button type="button" className="hg-post-stat" aria-label="分享帖子"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    copyText(`https://huangguoai.com/post/${p.id}`)
+                      .then(() => toast("链接已复制", "ok"))
+                      .catch(() => toast("复制失败", "info"));
+                  }}>
+                  <span aria-hidden="true">↗</span>{fmt(info?.hot ?? p.hot)}
+                </button>
+              </>
+            );
+          })()}
         </div>
       </div>
     );
@@ -185,10 +234,25 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
         <Button card className="hg-icon-plain" aria-label="搜索社区" onClick={() => setSearching(true)}><ISearch size={19} /></Button>
       </div>
 
+      {categories.length > 0 && (
+        <div className="shrink-0 hg-page-x pb-2 relative z-10">
+          <div className="hg-pill-row" role="tablist" aria-label="社区分类">
+            <Button card role="tab" aria-selected={cate === ""}
+              className={`hg-pill${cate === "" ? " is-on" : ""}`}
+              onClick={() => setCate("")}>全部</Button>
+            {categories.map((c) => (
+              <Button key={c.route || c.id} card role="tab" aria-selected={cate === c.route}
+                className={`hg-pill${cate === c.route ? " is-on" : ""}`}
+                onClick={() => setCate(c.route)}>{c.name}</Button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div ref={scrollRef} aria-busy={loading} className="flex-1 scroll-y hg-page-x relative z-10"
         style={{ paddingBottom: "calc(110px + var(--sab, 0px))" }}>
         {items.length ? (
-          <FilteredContent items={items} scopeKey={`posts-${sort}`}>{visible => (
+          <FilteredContent items={items} scopeKey={`posts-${sort}-${cate}`}>{visible => (
             <div className="hg-post-feed">
               {visible.map(card)}
             </div>
@@ -211,6 +275,13 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
         {loading && items.length > 0 && <div className="flex justify-center py-2"><Loader className="w-6 h-6 spinner" /></div>}
       </div>
       {searching && <InplaceSearch kind="post" postLabel="吃瓜帖子" wide={wide} onClose={() => setSearching(false)} onOpenPost={(p) => push({ kind: "post", id: p.id })} />}
+      <Sheet open={!!commentTarget} onClose={() => setCommentTarget(null)}>
+        {commentTarget && (
+          <div className="flex flex-col" style={{ height: "72vh" }}>
+            <CommentsPanel videoId={commentTarget.id} ep={0} total={commentTarget.total} kind="post" onClose={() => setCommentTarget(null)} />
+          </div>
+        )}
+      </Sheet>
     </div>
   );
 }
@@ -221,14 +292,16 @@ const HIDDEN_POST_TAG = "\u9ec4\u679c";
 
 /* ================= 吃瓜详情（网页式浏览） ================= */
 export function PostDetail({ id, onBack, active = true }: { id: number; onBack: () => void; active?: boolean }) {
-  const { toast, strictSecurity, muted, setMuted, push } = useStore();
+  const { toast, strictSecurity, muted, setMuted, push, user, setLoginOpen, isLiked, isFav, setLiked, setCollected, actionPending } = useStore();
   const { preferences, blockReason } = useContentPreferences();
   const filtering = !preferences.paused && (preferences.blockedTags.length > 0 || preferences.hideUntagged);
   const [post, setPost] = useState<(Post & { content?: string; video_url?: string }) | null>(null);
   const [loadedId, setLoadedId] = useState<number | null>(null);
   const autoBackKey = useRef("");
   const [tagMenu, setTagMenu] = useState(false);
-  useEffect(() => { if (!active) setTagMenu(false); }, [active]);
+  const [commentOpen, setCommentOpen] = useState(false);
+  const [likeDelta, setLikeDelta] = useState(0);
+  useEffect(() => { if (!active) { setTagMenu(false); setCommentOpen(false); } }, [active]);
   const currentPost = loadedId === id ? post : null;
   const blocked = filtering && currentPost ? blockReason(currentPost.tags) : null;
   const allowed = !filtering || (!!currentPost && !blocked);
@@ -267,6 +340,8 @@ export function PostDetail({ id, onBack, active = true }: { id: number; onBack: 
   useEffect(() => {
     let alive = true;
     setReadProgress(0);
+    setLikeDelta(0);
+    setCommentOpen(false);
     scrollRef.current?.scrollTo(0, 0);
     setPost(null);
     setLoadedId(null);
@@ -316,7 +391,7 @@ export function PostDetail({ id, onBack, active = true }: { id: number; onBack: 
       </div>
 
       <div role="progressbar" aria-label="阅读进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={readProgress} className="h-1 shrink-0 bg-s3 overflow-hidden"><div className="h-full bg-primary" style={{ width: `${readProgress}%` }} /></div>
-      <div ref={scrollRef} data-post-scroll className="flex-1 scroll-y pb-8" onScroll={event => {
+      <div ref={scrollRef} data-post-scroll className="flex-1 scroll-y" style={{ paddingBottom: "calc(84px + var(--sab, 0px))" }} onScroll={event => {
         const el = event.currentTarget;
         const range = el.scrollHeight - el.clientHeight;
         setReadProgress(range > 0 ? Math.round(el.scrollTop / range * 100) : 100);
@@ -329,8 +404,8 @@ export function PostDetail({ id, onBack, active = true }: { id: number; onBack: 
           <>
             <div data-post-media className="relative w-full bg-black mx-auto" style={{ height: isMobile ? "min(48vh, 420px)" : "min(60vh, 640px)" }}>
               {play && src ? (
-                <Player src={src} poster={cover(currentPost.cover)} autoPlay active={active && !tagMenu} controls muted={muted}
-                  onToggleMute={() => setMuted((m) => !m)} diagnosticContext={{ video_id: id, active: active && !tagMenu }} className="w-full h-full"
+                <Player src={src} poster={cover(currentPost.cover)} autoPlay active={active && !tagMenu && !commentOpen} controls muted={muted}
+                  onToggleMute={() => setMuted((m) => !m)} diagnosticContext={{ video_id: id, active: active && !tagMenu && !commentOpen }} className="w-full h-full"
                   onEnded={() => {
                     /* 多段吃瓜视频：播完自动接下一段 */
                     if (seg < segs.length - 1) setSeg(seg + 1); else setPlay(false);
@@ -365,7 +440,13 @@ export function PostDetail({ id, onBack, active = true }: { id: number; onBack: 
               )}
             <div className="px-4 pt-3.5 mx-auto max-w-[800px] select-text">
               <h1 className="text-[17px] font-bold text-on leading-snug">{currentPost.title}</h1>
-              <div className="flex items-center gap-2 mt-2 text-[12px] text-mut">
+              <div className="flex flex-wrap items-center gap-2 mt-2 text-[12px] text-mut">
+                {currentPost.author?.id && (
+                  <button type="button" className="text-primary font-medium hover:underline"
+                    onClick={() => push({ kind: "user", id: currentPost.author!.id, name: currentPost.author!.name })}>
+                    @{currentPost.author.name || "作者"}
+                  </button>
+                )}
                 <span>{currentPost.publish_time || currentPost.created_at}</span>
                 <span className="flex items-center gap-1"><IFireF size={10} />{fmt(postHot(currentPost))}</span>
               </div>
@@ -383,6 +464,57 @@ export function PostDetail({ id, onBack, active = true }: { id: number; onBack: 
           </>
         )}
       </div>
+
+      {currentPost && (() => {
+        const liked = isLiked(id, undefined, "post");
+        const faved = isFav(id, "post");
+        const likeBusy = actionPending(`like:post:${id}:0`);
+        const favBusy = actionPending(`collect:post:${id}`);
+        const likeTotal = Math.max(0, (currentPost.counts?.like ?? 0) + likeDelta);
+        return (
+          <div className="hg-post-detail-bar" role="toolbar" aria-label="帖子互动">
+            <Button card disabled={likeBusy} className={`hg-post-detail-btn${liked ? " is-liked" : ""}`}
+              aria-label={liked ? "取消点赞" : "点赞"}
+              onClick={() => {
+                if (!user) { setLoginOpen(true); return; }
+                if (likeBusy) return;
+                const next = !liked;
+                setLikeDelta((d) => d + (next ? 1 : -1));
+                void setLiked("post", id, 0, next).catch((e) => {
+                  setLikeDelta((d) => d + (next ? -1 : 1));
+                  toast((e as Error)?.message || "点赞失败", "info");
+                });
+              }}>
+              {liked ? <IHeartF size={16} /> : <IHeart size={16} />}
+              <span>点赞{likeTotal > 0 ? ` ${fmt(likeTotal)}` : ""}</span>
+            </Button>
+            <Button card disabled={favBusy} className={`hg-post-detail-btn${faved ? " is-fav" : ""}`}
+              aria-label={faved ? "取消收藏" : "收藏"}
+              onClick={() => {
+                if (!user) { setLoginOpen(true); return; }
+                if (favBusy) return;
+                const next = !faved;
+                void setCollected("post", id, next).then(() => {
+                  toast(next ? "已收藏帖子" : "已取消收藏", next ? "star" : "info");
+                }).catch((e) => toast((e as Error)?.message || "收藏失败", "info"));
+              }}>
+              {faved ? <IStarF size={16} /> : <IStar size={16} />}
+              <span>{faved ? "已收藏" : "收藏"}</span>
+            </Button>
+            <Button card className="hg-post-detail-btn" aria-label="查看评论"
+              onClick={() => setCommentOpen(true)}>
+              <IComment size={16} />
+              <span>评论{currentPost.counts?.comment ? ` ${fmt(currentPost.counts.comment)}` : ""}</span>
+            </Button>
+          </div>
+        );
+      })()}
+
+      <Sheet open={active && commentOpen} onClose={() => setCommentOpen(false)}>
+        <div className="flex flex-col" style={{ height: "72vh" }}>
+          <CommentsPanel videoId={id} ep={0} total={currentPost?.counts?.comment ?? 0} kind="post" onClose={() => setCommentOpen(false)} />
+        </div>
+      </Sheet>
       <TagBlockMenu open={tagMenu && active} tags={currentPost?.tags || []} onClose={() => setTagMenu(false)} onSettings={() => push({ kind: "settings", section: "内容偏好" })} />
     </div>
   );
