@@ -130,74 +130,91 @@
 }
 
 /* ------------------------------------------------------------------
-   榜单行：大数字序号 + 54×72 封面 + 两行字 + 右侧热度
-   数字用 accent→透明渐变；不支持 background-clip:text 时退回纯 accent 色
+   榜单行：大数字序号 + 68×94 封面 + 标题 + 标签胶囊 + 2行简介
    ------------------------------------------------------------------ */
 .hg-rank-row {
-  display: flex; align-items: center; gap: 12px; width: 100%;
-  padding: 8px 0; text-align: left; background: none; border: 0;
+  display: flex; align-items: flex-start; gap: 12px; width: 100%;
+  padding: 12px; text-align: left; background: #1E1E2E; border: 0;
+  border-radius: 16px; min-height: 120px; height: auto;
 }
 .hg-rank-no {
-  flex: none; width: 46px; padding-left: 4px; text-align: center;   /* 报告 10：62px 字形不再被左边缘裁掉 */
-  font-size: 62px; font-weight: 800; line-height: 1;
+  flex: none; width: 36px; align-self: center; text-align: center;
+  font-size: 40px; font-weight: 800; line-height: 1;
   font-variant-numeric: tabular-nums;
-  color: var(--accent, var(--p-primary));           /* 兜底：纯 accent 色 */
+  color: #9CA3AF;
 }
+.hg-rank-no.is-first { color: #F5A623; }
+.hg-rank-no.is-top { color: #7C5CFF; }
 @supports (-webkit-background-clip: text) {
-  .hg-rank-no {
-    background-image: linear-gradient(180deg, var(--accent, var(--p-primary)) 0%, rgba(0, 0, 0, 0) 92%);
+  .hg-rank-no.is-first {
+    background-image: linear-gradient(180deg, #F5A623 0%, #E87E2B 100%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+  }
+  .hg-rank-no.is-top {
+    background-image: linear-gradient(180deg, #9B82FF 0%, #7C5CFF 100%);
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent; color: transparent;
   }
 }
 .hg-rank-cover {
-  position: relative; flex: none; width: 83px;
+  position: relative; flex: none; width: 68px;
   border-radius: 8px; overflow: hidden; background: var(--p-s2);
   box-shadow: none;
 }
-.hg-rank-cover::before { content: ""; display: block; padding-top: 143.37%; } /* 83×119，v2 实测 rank_thumb_css */
+.hg-rank-cover::before { content: ""; display: block; padding-top: 138.235%; } /* 68×94 */
 .hg-rank-cover > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .hg-rank-copy { flex: 1; min-width: 0; }
 .hg-rank-title {
-  font-size: var(--fs-card); font-weight: var(--fw-card); line-height: 1.35; color: var(--p-on);
+  display: block; font-size: 15px; font-weight: 700; line-height: 1.35; color: #fff;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.hg-rank-meta { margin-top: 3px; font-size: var(--fs-meta); color: var(--p-dim); }
+.hg-rank-tags {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;
+}
+.hg-rank-tag {
+  background: #2A2A3E; color: #8A8AA3; border-radius: 999px;
+  padding: 3px 10px; font-size: 11px; line-height: 1.2; white-space: nowrap;
+}
+.hg-rank-meta { margin-top: 4px; font-size: var(--fs-meta); color: var(--p-dim); }
 .hg-rank-heat {
   flex: none; font-size: var(--fs-meta); color: var(--p-dim);
   font-variant-numeric: tabular-nums;
 }
 
 /* ------------------------------------------------------------------
-   焦点图（Hero）：3:2，底部 40% 渐变承载标题；装饰位允许裁切
+   焦点图（Hero）：16:10（358×220），底部渐变承载标题 + 副标题 + Play 胶囊
    ------------------------------------------------------------------ */
 .hg-hero {
   position: relative; display: block; width: 100%;
-  border-radius: 15px;                  /* v3.hero.radius_css（矩形圆角，不是胶囊） */
+  border-radius: 20px;
   overflow: hidden; background: var(--p-s2);
 }
-.hg-hero::before { content: ""; display: block; padding-top: 84.37%; } /* 332 宽 → 280.1 高（比例 1.179，W7 像素重测；v3 旧值 1.36 是错的） */
+.hg-hero::before { content: ""; display: block; padding-top: 61.45%; } /* 358×220 ~16:10 */
 .hg-hero > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .hg-hero-veil {
-  position: absolute; left: 0; right: 0; bottom: 0; height: 62%;
-  background: linear-gradient(180deg, rgb(0 0 0 / 0), rgb(0 0 0 / .86));
+  position: absolute; left: 0; right: 0; bottom: 0; height: 68%;
+  background: linear-gradient(180deg, rgb(0 0 0 / 0), rgb(0 0 0 / .88));
 }
 .hg-hero-wrap { padding-top: 2px; }
 .hg-hero-copy {
-  position: absolute; left: 14px; right: 14px; bottom: 14px;
+  position: absolute; left: 16px; right: 16px; bottom: 16px;
   display: flex; flex-direction: column; align-items: flex-start;
 }
 .hg-hero-title {
-  font-size: 28px; font-weight: 700; line-height: 1.2; color: #fff;
+  font-size: 28px; font-weight: 800; line-height: 1.15; color: #fff;
   letter-spacing: -.4px; display: -webkit-box; -webkit-line-clamp: 2;
   -webkit-box-orient: vertical; overflow: hidden;
 }
-/* Play 是胶囊（图标 + Play 文字）：参考实测 79×28、1px 亮描边 + 很轻的填充，不是实底 */
+.hg-hero-sub {
+  margin-top: 4px; font-size: 12px; line-height: 1.35; color: #C7C7D1;
+  display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden;
+}
 .hg-hero-play {
   margin-top: 10px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  width: 79px; height: 28px; padding: 0; border-radius: 999px;
-  background: rgb(255 255 255 / .10); color: #fff;
-  border: 1px solid rgb(255 255 255 / .62);
+  width: auto; height: auto; padding: 8px 18px; border-radius: 999px;
+  background: rgb(0 0 0 / .55); color: #fff;
+  border: 0;
   font-size: 13px; font-weight: 700; line-height: 1;
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
 }
@@ -297,12 +314,18 @@
 .hg-detail-title {
   font-size: 20px; font-weight: 700; line-height: 1.25; color: #fff;   /* 设计规范-自定屏：标题 20/700 */
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  word-break: keep-all; overflow-wrap: break-word;
   text-shadow: 0 1px 6px rgb(0 0 0 / .55);
 }
 .hg-detail-meta { margin-top: 6px; font-size: 13px; font-weight: 500; color: rgba(255, 255, 255, .58); }
 .hg-detail-score { color: #fff; font-weight: 700; }
-.hg-detail-counts { margin-top: 3px; font-size: 11px; color: rgba(255, 255, 255, .58); display: flex; flex-wrap: wrap; gap: 0 2px; }
-.hg-detail-counts > span { white-space: nowrap; }   /* 报告 12：标签与数字不拆行 */
+.hg-detail-counts {
+  margin-top: 3px; font-size: 11px; color: rgba(255, 255, 255, .58);
+  display: flex; flex-wrap: nowrap; gap: 0 4px; overflow-x: auto; white-space: nowrap;
+  scrollbar-width: none; -ms-overflow-style: none;
+}
+.hg-detail-counts::-webkit-scrollbar { display: none; }
+.hg-detail-counts > span { white-space: nowrap; flex: none; }   /* 报告 12：标签与数字不拆行 */
 
 /* 标签胶囊（规范 2.2）：高 24、全圆、11/500、surface 底、无描边、间距 8 */
 .hg-detail-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
@@ -330,12 +353,12 @@
 /* ------------------------------------------------------------------
    首页：顶栏 Tab、双列网格、加载更多
    ------------------------------------------------------------------ */
-.hg-tabs { display: flex; align-items: center; gap: 16px; }
+.hg-tabs { display: flex; align-items: center; gap: 22px; }
 .hg-tab {
   background: none; border: 0; padding: 2px 0; font-size: 16px; font-weight: 600;
-  color: var(--p-dim); line-height: 1.2;
+  color: #9CA3AF; line-height: 1.2;
 }
-.hg-tab.is-on { color: var(--p-on); }
+.hg-tab.is-on { color: #fff; font-weight: 700; }
 
 /* 网格：两列，列距 10（--space-col）、行距 14（--space-row） */
 .hg-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--space-col); row-gap: var(--space-row); }
@@ -347,44 +370,51 @@
   color: var(--p-mut); font-size: 13px;
 }
 
-/* 货架卡宽：v3.ranking.home_rail.card_css = 98×149（首张与后续同一宽度，不许 flex 拉伸） */
-.ios-button.hg-rail-card { flex: none; width: 98px; min-inline-size: 98px; max-inline-size: 98px; }
+/* 货架卡宽：3 张完整 + 第 4 张露出约 1/4（所有屏幕宽度自适应） */
+.ios-button.hg-rail-card {
+  flex: none;
+  width: calc((100% - 14px) / 3.25);
+  min-inline-size: 0;
+  max-inline-size: none;
+}
 
-/* 页边：必须走 token（Tailwind 的 px-4 在本项目里算成 18px，落在 16 上差 12.5%，超验收 8%） */
+/* 页边：必须走 token */
 .hg-page-x { padding-left: var(--space-page); padding-right: var(--space-page); }
-
-/* 上游把页边写死在 --ios-page-inset:18px（.ios-page > .scroll-y 用它），
-   按 agreed_spec 的 page_margin_css=16 覆盖一次，全站统一 16。 */
 .ios-page { --ios-page-inset: var(--space-page); }
 
 /* ------------------------------------------------------------------
    分类（片库）：搜索框、排序 chip、3 列网格、播放量角标
    ------------------------------------------------------------------ */
 .hg-searchbar {
-  display: flex; align-items: center; gap: 6px; width: 100%; height: 36px;
-  padding: 0 12px; border: 0; border-radius: 10px;
-  background: var(--hg-surface); color: var(--p-dim); font-size: 13px;
+  display: flex; align-items: center; gap: 8px; width: 100%; height: 44px;
+  padding: 0 16px; border: 0; border-radius: 999px;
+  background: #1E1E2E; color: #8A8AA3; font-size: 14px;
 }
 .hg-sort-chip {
   flex: none; padding: 6px 12px; border: 0; border-radius: 999px;
   background: var(--hg-surface); color: var(--p-mut);
   font-size: 12px; line-height: 1.2; white-space: nowrap;
 }
-.hg-sort-chip[data-on="true"] { background: var(--accent, var(--p-primary)); color: var(--accent-on, #fff); }
+.hg-sort-chip[data-on="true"] { background: #7C5CFF; color: #fff; }
 
-.hg-grid-c3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: var(--space-col); row-gap: var(--space-row); }
+.hg-grid-c3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 13px; row-gap: 16px; }
 .hg-poster.is-c3 { width: auto; }
-.hg-poster-plays {
-  position: absolute; left: 6px; bottom: 6px;
-  font-size: 10px; line-height: 1.2; color: #fff;
-  text-shadow: 0 1px 3px rgb(0 0 0 / .8);
+.hg-poster-art { border-radius: 12px; }
+.hg-poster-views {
+  display: block; margin-top: 6px;
+  font-size: 12px; line-height: 1.25; color: #8A8AA3;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-
-/* 卡底 40% 渐变：播放量压在封面上也要够对比（图三做法） */
-.hg-poster-veil {
-  position: absolute; left: 0; right: 0; bottom: 0; height: 40%;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, .72));
-  pointer-events: none;
+.hg-poster-name {
+  display: block; margin-top: 4px;
+  font-size: 14px; font-weight: 700; line-height: 1.35; color: #fff;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  white-space: normal; overflow: hidden; word-break: keep-all;
+}
+.hg-poster-meta {
+  display: block; margin-top: 2px;
+  font-size: 12px; line-height: 1.3; color: #8A8AA3;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 /* 横滑行右边缘 24px 渐隐，提示可滑（Chrome 87 支持 -webkit-mask-image） */
@@ -393,352 +423,334 @@
   mask-image: linear-gradient(to right, #000 calc(100% - 24px), rgba(0, 0, 0, 0));
 }
 
-/* 选中态：参考是「很轻的乳白磨砂高光」，不是实心白胶囊 */
+/* 底栏选中态：紫蓝渐变胶囊 (#7C5CFF)，未选中 #9CA3AF，选中 #FFFFFF */
 .ios-mobile-nav .hg-drop > .ios-liquid-fill {
-  background: rgb(255 255 255 / .26);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / .32);
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  background: linear-gradient(135deg, #7C5CFF 0%, #5B43F6 100%);
+  box-shadow: 0 4px 14px rgba(124, 92, 255, 0.35);
 }
+.ios-mobile-nav .ios-mobile-nav-item { color: #9CA3AF; }
 .ios-mobile-nav .ios-mobile-nav-item[aria-current="page"],
 .ios-mobile-nav[data-over-video="true"] .ios-mobile-nav-item[aria-current="page"],
 .ios-mobile-nav[data-over-video="true"] .hg-glass > .ios-mobile-nav-items > .ios-mobile-nav-item[aria-current="page"] { color: #fff; }
 
-/* Hot 角标用 accent（数据里 is_hot=1 才画） */
-.hg-poster-badge.is-hot { background: var(--accent, var(--hg-accent-fallback)); color: var(--accent-on, #fff); }
-
-/* 画布硬定 #08080F（图三的深黑蓝）：深色主题下直接覆盖上游的 #101012 / #191919 */
+/* 画布硬定 #0A0B14 */
 html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 
-/* 角标配色（v2：New #5C54FC / Hot #A8562A） */
-.hg-poster-badge { background: #5C54FC; color: #fff; }
-.hg-poster-badge.is-hot { background: #A8562A; color: #fff; }
+/* 角标配色：左上角 New #7C5CFF / Hot #FF3B30 */
+.hg-poster-badge {
+  position: absolute; top: 8px; left: 8px; right: auto;
+  padding: 2px 6px; border-radius: 6px;
+  background: #7C5CFF; color: #fff;
+  font-size: 10px; font-weight: 700; line-height: 1.3;
+}
+.hg-poster-badge.is-hot { background: #FF3B30; color: #fff; }
 
-/* 榜单：标题 1 行 + 标签/简介 2 行。v3 的 row_h 116 与 thumb_h 119 互相矛盾
-   （缩略图比整行还高），这里按缩略图为准：行高 = 8+119+8 = 135，行距补齐到 pitch 152 */
-.hg-rank-row { min-height: 0; padding: 8px 0; }
-.hg-rank-row + .hg-rank-row { margin-top: 17px; }
 .hg-rank-desc {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-  margin-top: 4px; font-size: var(--fs-meta); line-height: 1.4; color: var(--p-dim);
+  margin-top: 6px; font-size: 12px; line-height: 1.4; color: #8A8AA3;
 }
 
-/* 底栏「宽浮岛」：v3.tabbar 像素重测 = 宽 328（0.911×360）、高 57、左右各 16、全圆、玻璃更亮
-   （v3 的 correction 已推翻旧值 width_ratio 0.6 / inset 30） */
-.ios-mobile-nav { padding: 10px 16px 32.2px; }   /* 距屏底 32.2（W7 实测，WebView 已扣系统栏） */
+/* 底栏浮岛：磨砂 #1E1E2E + 1px #2A2A3E，高 68px，距底 12px + sab */
+.ios-mobile-nav { padding: 8px 16px calc(12px + var(--sab, 0px)); }
 .ios-mobile-nav .hg-glass {
-  height: 59.6px; width: 100%; max-width: 327.8px; border-radius: 29.8px;   /* 全圆 = h/2 */
-  /* 玻璃 = 白 12% + 暗底 24% 叠层（真机反解：单用白 18% 会亮 +30，单用暗玻璃会暗 −65；
-     叠层后中位 rgb(101,85,82)，参考 rgb(106,84,77)，三通道差 (−5,+1,+5)） */
-  background-color: rgb(255 255 255 / .12);
-  background-image: linear-gradient(rgb(8 10 18 / .24), rgb(8 10 18 / .24));
-  border: 1px solid rgb(255 255 255 / .20);
-  -webkit-backdrop-filter: blur(34px) saturate(140%); backdrop-filter: blur(34px) saturate(140%);
+  height: 68px; width: 100%; max-width: 360px; border-radius: 34px;
+  background: rgba(30, 30, 46, 0.85);
+  border: 1px solid #2A2A3E;
+  -webkit-backdrop-filter: blur(24px) saturate(140%); backdrop-filter: blur(24px) saturate(140%);
 }
-/* 选中胶囊 83×46.8（W7 实测），垂直居中 */
-.ios-mobile-nav .hg-drop { top: 5.4px; bottom: 5.4px; width: 83px; left: -0.5px; }
+.ios-mobile-nav .hg-drop { top: 6px; bottom: 6px; width: 84px; left: 0; }
 .ios-mobile-nav .hg-drop > .ios-liquid-fill { margin: 0; width: 100%; height: 100%; border-radius: 999px; }
 
 /* ------------------------------------------------------------------
-   吃瓜（社区信息流）：下划线 tab + 单列信息流卡
-   卡片数据：标题/封面/热度来自 /api/posts；作者与点赞/评论/收藏来自详情（见 Posts.tsx）
+   吃瓜（社区信息流）& 二级下划线 tab
    ------------------------------------------------------------------ */
-.hg-tab-ul { position: relative; padding-bottom: 9px; }
+.hg-tab-ul { position: relative; padding-bottom: 8px; }
+.hg-tab-ul.is-on { color: #fff; font-weight: 700; }
 .hg-tab-ul.is-on::after {
-  content: ""; position: absolute; left: 0; bottom: 0;
-  width: 24px; height: 3px; border-radius: 2px; background: var(--p-on);
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0;
+  height: 3px; border-radius: 2px; background: #7C5CFF;
 }
 
 .hg-post-feed { display: block; }
-.ios-button.hg-post-card {
-  display: block; width: 100%; text-align: left;
-  margin-top: 12px; padding: 12px;
-  border: 0; border-radius: var(--radius-panel);
-  background: var(--hg-surface);
+.ios-button.hg-post-cta {
+  flex: none; height: 32px; min-block-size: 0; min-inline-size: 0;
+  padding: 0 18px; border-radius: 999px; border: 0;
+  background: #7C5CFF; color: #fff; font-size: 13px; font-weight: 600;
 }
-.hg-post-card:first-child { margin-top: 0; }
-.hg-post-head { display: flex; align-items: center; gap: 9px; }
+.hg-post-card {
+  display: block; width: 100%; text-align: left;
+  margin-top: 20px; padding: 0; border: 0; background: transparent; cursor: pointer;
+}
+.hg-post-card:first-child { margin-top: 8px; }
+.hg-post-head { display: flex; align-items: center; gap: 10px; }
 .hg-post-avatar {
-  position: relative; flex: none; width: 34px; height: 34px;
+  position: relative; flex: none; width: 47px; height: 47px;
   border-radius: 999px; overflow: hidden;
   display: flex; align-items: center; justify-content: center;
-  background: rgb(255 255 255 / .08); color: var(--p-mut);
-  font-size: 13px; font-weight: 600;
+  background: #1E1E2E; color: #9CA3AF;
+  font-size: 15px; font-weight: 700;
 }
 .hg-post-avatar > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .hg-post-who { flex: 1; min-width: 0; }
 .hg-post-name {
-  display: block; font-size: 13px; font-weight: 600; line-height: 1.3; color: var(--p-on);
+  display: block; font-size: 15px; font-weight: 600; line-height: 1.3; color: #fff;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.hg-post-time { display: block; margin-top: 2px; font-size: 11px; line-height: 1.3; color: var(--p-dim); }
-.hg-post-heat {
-  flex: none; display: inline-flex; align-items: center; gap: 3px;
-  font-size: 11px; color: var(--p-dim); font-variant-numeric: tabular-nums;
+.hg-post-time { display: block; margin-top: 2px; font-size: 12px; line-height: 1.3; color: #9CA3AF; }
+.hg-follow-btn {
+  flex: none; padding: 5px 14px; border-radius: 999px;
+  border: 1.5px solid #7C5CFF; color: #7C5CFF; background: transparent;
+  font-size: 12px; font-weight: 600; line-height: 1.2; cursor: pointer;
 }
+.hg-follow-btn.is-on { background: #7C5CFF; color: #fff; }
 .hg-post-title {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-  margin-top: 10px; font-size: 14px; font-weight: 600; line-height: 1.4; color: var(--p-on);
+  margin-top: 10px; font-size: 15px; font-weight: 700; line-height: 1.4; color: #fff;
 }
-.hg-post-art {
-  position: relative; display: block; margin-top: 10px;
-  border-radius: var(--radius-poster); overflow: hidden; background: rgb(255 255 255 / .05);
+.hg-post-grid2x2 {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 10px;
 }
-.hg-post-art::before { content: ""; display: block; padding-top: 49.2308%; } /* 站点帖子封面 1300×640 */
-.hg-post-art > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.hg-post-grid-cell {
+  position: relative; display: block; border-radius: 12px; overflow: hidden; background: #1E1E2E;
+}
+.hg-post-grid-cell::before { content: ""; display: block; padding-top: 68%; }
+.hg-post-grid-cell > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .hg-post-stats {
-  display: flex; align-items: center; gap: 18px;
-  margin-top: 10px; font-size: 11px; color: var(--p-dim);
+  display: flex; align-items: center; gap: 24px;
+  margin-top: 12px; font-size: 13px; color: #9CA3AF;
 }
-.hg-post-stat { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+.hg-post-stat { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
+.hg-post-heart { color: #FF3B30; font-size: 15px; line-height: 1; }
 
 /* ------------------------------------------------------------------
-   我的：身份区 + 菜单列表（不画关注数 / VIP / 金币）
+   我的（Page 4 Personal）：72px 头像 + 3列统计 + 登录CTA + 菜单列表
    ------------------------------------------------------------------ */
-/* v3 S4 资料头：头像 52 + 昵称/ID + 右齿轮 22，一行 */
 .hg-profile-head {
-  display: flex; align-items: center; gap: 12px;
-  padding-top: calc(var(--sat, 0px) + 10px); padding-bottom: 4px;
+  display: flex; align-items: center; gap: 14px;
+  padding-top: calc(var(--sat, 0px) + 14px); padding-bottom: 4px;
 }
 .ios-button.hg-profile-guest {
-  display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0;
   background: none; border: 0; border-radius: 0; text-align: left; padding: 0;
 }
 .hg-profile-avatar {
-  position: relative; flex: none; width: 52px; height: 52px;
+  position: relative; flex: none; width: 72px; height: 72px;
   border-radius: 999px; overflow: hidden;
   display: flex; align-items: center; justify-content: center;
-  background: var(--hg-surface); color: var(--p-mut); font-size: 18px; font-weight: 700;
+  background: #1E1E2E; color: #9CA3AF; font-size: 20px; font-weight: 700;
 }
-.hg-profile-avatar.is-guest { background: rgb(255 255 255 / .08); }
-.hg-profile-avatar > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.hg-profile-avatar > img, .hg-profile-avatar > svg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .hg-profile-meta { flex: 1; min-width: 0; }
 .hg-profile-name {
-  display: block; font-size: 17px; font-weight: 700; line-height: 1.3; color: var(--p-on);
+  display: block; font-size: 20px; font-weight: 700; line-height: 1.3; color: #fff;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .hg-profile-sub {
-  display: block; margin-top: 3px; font-size: 12px; line-height: 1.3; color: var(--p-dim);
-  white-space: normal; overflow: visible;   /* 报告 11：副标题不再被省略号截断，最多两行 */
+  display: block; margin-top: 4px; font-size: 13px; line-height: 1.3; color: #9CA3AF;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.hg-profile-login {
-  flex: none; display: inline-flex; align-items: center; gap: 1px;
-  height: 30px; padding: 0 11px; border-radius: 999px;
-  background: var(--accent, var(--hg-accent-fallback)); color: var(--accent-on, #fff);
-  font-size: 12px; font-weight: 600;
+.hg-profile-stats {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
+  margin-top: 20px; text-align: center;
 }
-.hg-menu { margin-top: 14px; border-radius: var(--radius-panel); background: var(--hg-surface); overflow: hidden; }
+.ios-button.hg-profile-stat {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  min-block-size: 0; min-inline-size: 0;
+  background: none; border: 0; padding: 6px 0; border-radius: 10px;
+}
+.hg-profile-stat-num { font-size: 18px; font-weight: 700; line-height: 1.2; color: #fff; font-variant-numeric: tabular-nums; }
+.hg-profile-stat-lbl { font-size: 12px; line-height: 1.2; color: #9CA3AF; }
+.ios-button.hg-profile-login-cta {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 48px; margin-top: 18px;
+  border-radius: 999px; border: 0;
+  background: #7C5CFF; color: #fff; font-size: 15px; font-weight: 700;
+}
+.hg-menu { margin-top: 20px; border-radius: 16px; background: #1E1E2E; overflow: hidden; }
 .ios-button.hg-menu-row {
-  display: flex; align-items: center; gap: 11px; width: 100%;
-  /* 用 height 而不是 min-height：触屏媒体查询里 .ios-button 的 min-block-size:44px 优先级更高 */
-  height: 52px; padding: 0 14px; border: 0; border-radius: 0;
-  background: none; text-align: left; color: var(--p-on);
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  min-height: 56px; height: 56px; padding: 0 16px; border: 0; border-radius: 0;
+  background: none; text-align: left; color: #fff;
 }
 .hg-menu-row + .hg-menu-row { box-shadow: inset 0 1px 0 rgb(255 255 255 / .06); }
-/* 设计图的菜单图标是裸线框，不带圆底盘 */
 .hg-menu-icon {
-  flex: none; width: 20px; height: 20px;
-  display: flex; align-items: center; justify-content: center; color: var(--p-mut);
+  flex: none; width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center; color: #9CA3AF;
 }
-.hg-menu-label { flex: 1; min-width: 0; font-size: 14px; line-height: 1.3; }
-.hg-menu-meta { font-size: 12px; color: var(--p-dim); font-variant-numeric: tabular-nums; }
+.hg-menu-label { flex: 1; min-width: 0; font-size: 15px; font-weight: 500; line-height: 1.3; }
+.hg-menu-meta { font-size: 13px; color: #8A8AA3; font-variant-numeric: tabular-nums; }
+.hg-menu-chevron { color: #8A8AA3; flex: none; }
 
 /* ==================================================================
-   v3 顶栏 / Hero 轮播 / 横滑货架 / 继续观看（数值来源 参考实测.json v3）
+   顶栏 / Hero 轮播 / 横滑货架 / 继续观看
    ================================================================== */
 
-/* 品牌行：v3 top_bar.measurements.brand_row_h_css=52，图标距右页边 14 */
-.hg-brand-row { display: flex; align-items: center; height: 52px; }
-.hg-brand { font-size: 20px; font-weight: 800; letter-spacing: -.4px; color: var(--p-on); }
+.hg-brand-row {
+  display: flex; align-items: center; height: 52px;
+  padding-top: var(--sat, 0px); box-sizing: content-box;
+}
+.hg-brand { font-size: 20px; font-weight: 800; letter-spacing: -.4px; color: #fff; }
 .hg-icon-plain {
   width: 36px; height: 36px; flex: none; display: inline-flex;
   align-items: center; justify-content: center;
-  background: none; border: 0; color: var(--p-on);
+  background: none; border: 0; color: #fff;
 }
 
-/* 胶囊 tab 行：按参考像素轮廓重测（W12）
-   参考「All Shows」外框 65×23 img px（1 img px = 1.192 CSS）→ 77.4×27.4 CSS；
-   转角从轮廓拟合 r≈6–8 img px = 7–9.5 CSS，取阶梯值 8（**不是半圆**，之前的 999px 是错的）；
-   文字墨到框边 9–10 img px ≈ 11 CSS（含 2px 描边）。
-   项间距不写死：用 --hg-pill-gap（见 :root 的推导，验收看墨间距 38–42 CSS）。 */
 .hg-pill-row {
-  display: flex; align-items: center; gap: var(--hg-pill-gap);
+  display: flex; align-items: center; gap: 20px;
   overflow-x: auto; overflow-y: hidden;
-  padding: 4px 0 8px; scrollbar-width: none; -ms-overflow-style: none;
+  padding: 2px 0; scrollbar-width: none; -ms-overflow-style: none;
 }
 .hg-pill-row::-webkit-scrollbar { display: none; }
 .hg-pill {
-  flex: none; height: 27px; padding: 0 9px;
-  border-radius: 8px; border: 2px solid transparent; background: none;
-  color: #C7C9DA;                        /* 报告 v2：未选中文字实测 4.06:1 → 提到 #C7C9DA ≈ 8.9:1 */
-  font-size: 13px; font-weight: 600; line-height: 1;
-  white-space: nowrap;
+  flex: none; height: 34px; padding: 0 14px;
+  border-radius: 999px; border: 1.5px solid transparent; background: none;
+  color: #9CA3AF; font-size: 14px; font-weight: 500; line-height: 1; white-space: nowrap;
 }
-/* 选中态（按参考图像素反解，背景是下面那条固定冷蓝画布 rgb(28,59,101)）：
-   目标合成 rgb(49,77,122) → rgb(112,131,185) @ .30 合成出 (52,76,121)，三通道差 (3,-1,-1)；
-   描边取参考描边最强像素 rgb(70,82,200)。真机取色验证过。 */
 .hg-pill[aria-selected="true"] {
-  background: rgb(112 131 185 / .30);
-  border-color: rgb(70 82 200);
-  border-width: 2px;
+  background: #26263A;
+  border-color: #45455E;
   color: #fff;
+  font-weight: 700;
 }
 
-/* 首页画布：固定冷蓝，不再被封面 accent 浸染（用户定调：accent 只留给控件）
-   渐变按参考图左边缘四点取色拟合：9.2% (26,53,93) / 18.4% (34,77,125) / 46% (15,20,49) / 92% (5,8,21) */
 .ios-page.hg-home-page {
-  background-color: rgb(5 8 21);
+  background-color: #0A0B14;
   background-image: linear-gradient(180deg,
-    rgb(18 34 62) 0%,
-    rgb(26 53 93) 9.2%,
-    rgb(40 75 122) 13%,
-    rgb(34 77 125) 18.4%,
-    rgb(15 20 49) 46%,
-    rgb(8 11 29) 75%,
-    rgb(5 8 21) 92%,
-    rgb(4 7 19) 100%);
+    #14122B 0%,
+    #121328 24%,
+    #0A0B14 55%,
+    #0A0B14 100%);
 }
 .hg-home-page .hg-aura { display: none; }
 
-/* Hero 下方的轮播圆点：v3.hero.dots（3 个、6 CSS、卡外居中、距卡底 10） */
-.hg-dots { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 10px; }
+/* Hero 下方的轮播圆点 */
+.hg-dots { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 8px; }
 .hg-dot {
   width: 6px; height: 6px; padding: 0; border: 0; border-radius: 50%;
   background: rgb(255 255 255 / .30);
 }
-.hg-dot[data-on="true"] { background: #fff; }   /* v3 只给了 size 6，不改宽度 */
+.hg-dot[data-on="true"] { background: #fff; }
 
-/* 最新上架横滑：v3.ranking.home_rail（卡 98×149 / gap 8.3 / 圆角 8 / 3.4 张 / NEW 左上） */
+/* 最新上架横滑：3 张完整 + 第 4 张露出约 1/4 */
 .hg-rail {
-  display: flex; gap: 8px;
+  display: flex; gap: 7px;
   overflow-x: auto; overflow-y: hidden;
   padding-right: var(--space-page); scroll-padding-right: var(--space-page);
   scrollbar-width: none; -ms-overflow-style: none;
 }
 .hg-rail::-webkit-scrollbar { display: none; }
-.hg-rail-card { flex: none; width: 98px; padding: 0; border: 0; background: none; text-align: left; }
+.hg-rail-card { flex: none; width: calc((100% - 14px) / 3.25); padding: 0; border: 0; background: none; text-align: left; }
 .hg-rail-art {
   position: relative; display: block; width: 100%;
-  border-radius: 8px; overflow: hidden; background: var(--p-s2);
+  border-radius: 10px; overflow: hidden; background: var(--p-s2);
 }
-.hg-rail-art::before { content: ""; display: block; padding-top: 152.05%; } /* 98×149 */
+.hg-rail-art::before { content: ""; display: block; padding-top: 145%; }
 .hg-rail-art > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .hg-rail-badge {
   position: absolute; left: 6px; top: 6px;
-  padding: 1px 5px; border-radius: 4px;
-  background: #5C54FC; color: #fff;
-  font-size: 9px; font-weight: 700; line-height: 1.4; letter-spacing: .2px;
+  padding: 2px 6px; border-radius: 5px;
+  background: #7C5CFF; color: #fff;
+  font-size: 9px; font-weight: 700; line-height: 1.3; letter-spacing: .2px;
 }
-/* 标题压在卡内底部、居中（v3：卡片下没有 caption） */
 .hg-rail-name {
   position: absolute; left: 6px; right: 6px; bottom: 6px;
   font-size: 11px; font-weight: 600; line-height: 1.25; color: #fff;
   text-align: center;
-  /* v3 报告 C：允许两行再省略（原来 nowrap 只吃一行） */
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   white-space: normal; overflow: hidden;
   text-shadow: 0 1px 3px rgb(0 0 0 / .85);
-  background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0));
-  padding: 10px 2px 0; border-radius: 0 0 8px 8px;
+  background: linear-gradient(to top, rgba(0,0,0,.62), rgba(0,0,0,0));
+  padding: 10px 2px 0; border-radius: 0 0 10px 10px;
 }
 
-/* 继续观看悬浮卡（参考 S1 底部那张）：压在底栏之上、左右 14、可关闭；
-   数据 = accountHistory 最新一条，游客态/空历史不渲染 */
+/* 继续观看悬浮卡：压在底栏之上 */
 .hg-continue {
   position: absolute; z-index: 40;
   left: var(--space-page); right: var(--space-page);
-  bottom: calc(57px + 24px + var(--sab, 0px));
-  display: flex; align-items: center; gap: 11px;
-  padding: 14px 34px 14px 14px;          /* 参考卡 331×84、左 42×56 封面 → 上下各 14 */
-  border-radius: 14px;
-  background: rgb(22 24 34 / .72);        /* 半透明烟色玻璃，能透出后面的海报 */
-  border: 1px solid rgb(255 255 255 / .10);
-  box-shadow: 0 8px 24px rgb(0 0 0 / .34);
+  bottom: calc(68px + 20px + var(--sab, 0px));
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 34px 12px 12px;
+  border-radius: 16px;
+  background: rgba(30, 30, 46, 0.92);
+  border: 1px solid #2A2A3E;
+  box-shadow: 0 8px 24px rgb(0 0 0 / .4);
   -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px);
   overflow: hidden;
 }
 .hg-continue-art {
-  position: relative; flex: none; width: 42px;
+  position: relative; flex: none; width: 52px;
   border-radius: 8px; overflow: hidden; background: var(--p-s2);
 }
-.hg-continue-art::before { content: ""; display: block; padding-top: 133.3333%; }
+.hg-continue-art::before { content: ""; display: block; padding-top: 138.46%; } /* 52×72 */
 .hg-continue-art > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .hg-continue-copy { flex: 1; min-width: 0; }
 .hg-continue-title {
-  display: block; font-size: 13px; font-weight: 600; line-height: 1.3; color: var(--p-on);
+  display: block; font-size: 14px; font-weight: 700; line-height: 1.3; color: #fff;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.hg-continue-sub { display: block; margin-top: 4px; font-size: 11px; color: var(--p-dim); }
+.hg-continue-sub { display: block; margin-top: 4px; font-size: 12px; color: #9CA3AF; }
 .hg-continue-play {
-  flex: none; width: 36px; height: 36px; border-radius: 999px;
+  flex: none; width: 48px; height: 48px; border-radius: 999px;
   display: inline-flex; align-items: center; justify-content: center;
-  background: var(--accent, var(--hg-accent-fallback)); color: var(--accent-on, #fff);
+  background: #7C5CFF; color: #fff;
 }
 .hg-continue-close {
   position: absolute; right: 6px; top: 6px;
   width: 22px; height: 22px; border-radius: 999px;
   display: inline-flex; align-items: center; justify-content: center;
-  background: none; border: 0; color: var(--p-dim);
+  background: none; border: 0; color: #9CA3AF;
 }
-/* 进度条：accountHistory 只给集数，百分比来自本地 t/dur（没有就不画） */
 .hg-continue-fill {
   position: absolute; left: 0; bottom: 0; height: 3px;
-  background: var(--accent, var(--hg-accent-fallback));
+  background: #7C5CFF;
   border-radius: 0 3px 3px 0;
 }
 
-/* 这些按钮用 card（= data-card）绕开 .ios-button 的 44px 触控最小尺寸与默认圆角，
-   尺寸一律按 v3 实测值写死 */
-.ios-button.hg-hero { border-radius: 15px; }
-.ios-button.hg-pill { min-block-size: 0; min-inline-size: 0; height: 27px; border-radius: 8px; }
+.ios-button.hg-hero { border-radius: 20px; }
+.ios-button.hg-pill { min-block-size: 0; min-inline-size: 0; height: 34px; border-radius: 999px; }
 .ios-button.hg-icon-plain { min-block-size: 0; min-inline-size: 0; width: 36px; height: 36px; border-radius: 50%; }
 .ios-button.hg-rail-card { min-block-size: 0; border-radius: 0; }
-.ios-button.hg-continue-play { min-block-size: 0; min-inline-size: 0; width: 36px; height: 36px; border-radius: 999px; }
+.ios-button.hg-continue-play { min-block-size: 0; min-inline-size: 0; width: 48px; height: 48px; border-radius: 999px; }
 .ios-button.hg-continue-close { min-block-size: 0; min-inline-size: 0; width: 22px; height: 22px; border-radius: 999px; }
 
-/* S2/S3 顶栏：全宽胶囊搜索框（v3 search_field h 41、全圆、左右 14）与二级文字筛选行 */
+/* S2/S3 顶栏：全宽胶囊搜索框 + 二级下划线筛选行 */
 .ios-button.hg-searchbar {
-  height: 41px; border-radius: 999px; padding: 0 14px;
-  min-block-size: 0; border: 0; background: var(--hg-surface);
-  color: var(--p-dim); font-size: 13px; font-weight: 400;
+  height: 44px; border-radius: 999px; padding: 0 16px;
+  min-block-size: 0; border: 0; background: #1E1E2E;
+  color: #8A8AA3; font-size: 14px; font-weight: 400;
 }
 .hg-filter-text {
-  flex: none; min-height: 27.4px; padding: 2px 0; background: none; border: 0;
-  font-size: 13px; font-weight: 500; color: var(--p-dim); white-space: nowrap;
+  flex: none; min-height: 28px; padding: 2px 0 8px; background: none; border: 0;
+  font-size: 14px; font-weight: 500; color: #9CA3AF; white-space: nowrap;
 }
-.hg-filter-text[data-on="true"] { color: var(--p-on); font-weight: 700; }
+.hg-filter-text[data-on="true"] { color: #fff; font-weight: 700; }
 
-/* 这些是文字/格子/角标，不是卡片：别被 .ios-button 的 36px 触控最小高度撑高，
-   尺寸只由各自规则决定（.ios-button 基础规则 0,1,0，这里 0,2,0 能盖住） */
 .ios-button.hg-tab,
 .ios-button.hg-filter-text,
 .ios-button.hg-tag-chip,
 .ios-button.hg-ep-cell,
 .ios-button.hg-loadmore { min-block-size: 0; min-inline-size: 0; }
 
-/* Android WebView 的竖向滚动条会吃掉 5px 布局宽度（真机实测 clientWidth 355 / offsetWidth 360），
-   内容宽度就从 332 变成 327（Hero 327、网格列 101.66）：一律隐藏滚动条交给滑动 */
 .scroll-y { scrollbar-width: none; -ms-overflow-style: none; }
 .scroll-y::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
-/* 榜单顶栏：v3 S3 是 332 全宽搜索框 + 胶囊 tab；返回/刷新用 36px 圆形热区压在搜索框两端，
-   搜索框本身仍是 332×41，文字内缩 42 不跟图标打架 */
+/* 榜单顶栏 */
 .hg-rank-top { position: relative; }
 .hg-rank-top .hg-searchbar { padding-left: 42px; padding-right: 42px; }
 .ios-button.hg-rank-edge {
   position: absolute; top: 50%; margin-top: -18px;
   width: 36px; height: 36px; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
-  background: none; border: 0; color: var(--p-on);
+  background: none; border: 0; color: #fff;
   min-block-size: 0; min-inline-size: 0; padding: 0;
 }
-.hg-rank-edge.is-back { left: 3px; }
-.hg-rank-edge.is-refresh { right: 3px; color: var(--p-mut); }
+.hg-rank-edge.is-back { left: 4px; }
+.hg-rank-edge.is-refresh { right: 4px; color: #9CA3AF; }
 
-/* 「More ›」是纯文字链接：不要 .ios-button 的 44px 触控盒，否则会把分区标题行撑高 */
 .ios-button.hg-section-more { min-block-size: 0; min-inline-size: 0; padding: 0; background: none; border: 0; }
 
-/* 播放页集数条（自定屏规范 3.4）：56×36 / r10 / 11 / 13-600，当前集 accent + 2px #8B9AF9 */
+/* 播放页集数条 */
 .hg-player-eps {
   display: flex; gap: 11px; overflow-x: auto; overflow-y: hidden;
   padding: 0 14px 10px; scrollbar-width: none; -ms-overflow-style: none;
@@ -751,52 +763,19 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
   font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums;
 }
 .ios-button.hg-player-ep[aria-current="true"] {
-  background: var(--accent, var(--p-primary)); color: var(--hg-canvas);
+  background: #7C5CFF; color: #fff;
   box-shadow: inset 0 0 0 2px #8B9AF9;
 }
 
-/* 详情页底部渐隐：固定 CTA 下面的内容不要硬切 */
 .hg-detail-fade {
   position: absolute; left: 0; right: 0; bottom: 0; height: 132px; z-index: 25;
   pointer-events: none;
   background: linear-gradient(180deg, rgba(10, 11, 20, 0) 0%, rgba(10, 11, 20, .92) 62%, rgba(10, 11, 20, 1) 100%);
 }
 
-/* ===== W7 实测值校正（2026-11-18，来源 参考实测.json v3.per_screen） ===== */
-
-/* S2 分类：列宽 100.1 / 卡距 13.5 / 页边 15.5–17.9；海报 100.1×133.5（0.75） */
-.hg-grid-c3 { column-gap: 13.5px; margin-inline: 2.35px; }
-.hg-poster.is-c3 { width: auto; }
-.hg-poster-badge { padding: 2px 8px; border-radius: 7px; font-size: 10.5px; line-height: 12.7px; }
-
-/* S3 榜单：行高 116.2 / 行距 152（pitch）/ 缩略图 83.4×119.2 / 页边 15.5 */
-.hg-rank-row { height: 116.2px; min-height: 0; padding: 0; margin-inline: 1.5px; overflow: visible; align-items: center; }  /* 参考行高 116.2；缩略图 119.2 允许溢出 1.5 */
-.hg-rank-row + .hg-rank-row { margin-top: 33px; }   /* pitch 152 = 行 119 + 33 */
-.hg-rank-thumb, .hg-rank-row img { width: 83.4px; height: 119.2px; object-fit: cover; border-radius: 8px; }
-
-/* S4 我的：头像 71.5 / 菜单行高 59.6 / 菜单图标 23.8 / chevron 7.2×11.9 */
-.hg-profile-avatar { width: 71.5px; height: 71.5px; }
-.hg-menu-row.ios-button { min-height: 59.6px; height: 59.6px; }
-.hg-menu-icon { width: 23.8px; height: 23.8px; }
-.hg-menu-row svg.hg-chevron, .hg-menu-chevron { width: 7.2px; height: 11.9px; }
-
-/* S7 吃瓜：卡片 238.4 高 / 缩略图 97.7×85.8（右侧）/ 卡间距 23.8 / tab 高 23.8、间距 23.8 */
-.hg-post-card { min-height: 238.4px !important; margin-top: 23.8px; }  /* 触屏规则 .ios-button:not([data-card]) 用 min-block-size:44px（0,4,0）压过普通选择器，这里必须 !important */
-.hg-post-body { display: flex; gap: 12px; margin-top: 10px; align-items: flex-start; }
-.hg-post-body > .hg-post-title { flex: 1; min-width: 0; }
-.hg-post-art { flex: none; width: 97.7px; height: 85.8px; margin-top: 0; }
-.hg-post-art::before { display: none; }
-
-/* ===== 首页顶部三层按参考重排（参考：品牌行 23..76 / 胶囊 88.5..116 / Hero 127.5..405） ===== */
-.hg-brand-row {
-  height: 53px;                       /* 参考行高 53（v3 总表「顶栏 0,23,360,53」） */
-  padding-top: var(--sat, 0px);       /* 状态栏 24（Android WebView env() 恒 0，靠 JS 注入） */
-  box-sizing: content-box;            /* padding 不占 53，内容区仍是 53 */
-}
-.hg-chip-row { padding-top: 11.5px; }  /* 品牌行底 77 → 胶囊顶 88.5 */
-.hg-pill-row { padding: 0; }           /* 行高 = 胶囊 27.5，不再带 4/8 内边距 */
-.hg-home-page .hg-hero { margin: 11.5px auto 0; width: calc(100% - 3.5px); }  /* 胶囊底 116 → Hero 127.5；宽 328.5 */
-.hg-home-page .hg-section { margin-top: 12.5px; }  /* Hero 底 405.5 → 分区标题 434（参考 28.5 间距） */
+.hg-chip-row { padding-top: 8px; }
+.hg-home-page .hg-hero { margin: 10px auto 0; width: 100%; }
+.hg-home-page .hg-section { margin-top: 18px; }
 
 /* 轮播：原生横滑 + scroll-snap（报告 7）。Chrome 87 支持 scroll-snap-type，不用 JS 手势库 */
 .hg-hero-track {

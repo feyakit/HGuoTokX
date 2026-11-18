@@ -19,10 +19,9 @@ import { PreferenceStorageNotice } from "../components/PreferenceStorageNotice";
    排行榜不在首页：它是独立一屏（/api/ranks/hot，固定 20 条），入口是胶囊 tab「榜单」 */
 
 const TABS = [
-  { key: "all", label: "全部" },
-  { key: "new", label: "最新" },
-  { key: "original", label: "原创" },
-  { key: "rank", label: "榜单" },
+  { key: "all", label: "All Shows" },
+  { key: "new", label: "New Shows" },
+  { key: "rank", label: "Ranking" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 type FeedTab = Exclude<TabKey, "rank">;
@@ -74,11 +73,9 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
     setError("");
     const my = ++seq.current;
     try {
-      const res = key === "original"
-        ? await api.originalVideos("all", p, 21, "new")
-        : key === "new"
-          ? await api.feed(p, 21, "new")
-          : await api.feed(p, 21);
+      const res = key === "new"
+        ? await api.feed(p, 21, "new")
+        : await api.feed(p, 21);
       if (my !== seq.current) return;
       const rows = (res?.items ?? []).filter(v => v && v.cover);
       setItems(prev => p === 1 ? rows : [...prev, ...rows.filter(r => !prev.some(x => x.id === r.id))]);
@@ -131,7 +128,10 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
   const continuePct = continueShown && continueCard && continueCard.dur > 0
     ? Math.max(1, Math.min(100, Math.round((continueCard.t / continueCard.dur) * 100))) : 0;
   const openSeries = (id: number) => push({ kind: "series", id });
-  const play = (id: number, ep = 1) => push({ kind: "feed", videoIds: [id], index: 0, title: "", startEp: ep });
+  const play = (id: number, ep = 1, startTime?: number) => push({
+    kind: "feed", videoIds: [id], index: 0, title: "", startEp: ep,
+    startTime: startTime && startTime > 0 ? startTime : undefined,
+  });
 
   return (
     <div className="ios-page hg-home-page hg-canvas absolute inset-0 flex flex-col">
@@ -144,7 +144,7 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
         <Button card className="hg-icon-plain" aria-label="搜索" onClick={() => setTab("search")}><ISearch size={21} /></Button>
       </div>
 
-      {/* 顶栏第 3 层：胶囊 tab（选中=实心胶囊）；「榜单」跳到独立榜单页 */}
+      {/* 顶栏第 3 层：胶囊 tab（All Shows / New Shows / Ranking） */}
       <div className="shrink-0 hg-page-x hg-chip-row relative z-10">
         <div className="hg-pill-row" role="tablist" aria-label="首页分栏">
           {TABS.map(t => (
@@ -156,7 +156,7 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
       </div>
 
       <div className="flex-1 scroll-y hg-page-x relative z-10"
-        style={{ paddingBottom: `calc(${continueShown ? 158 : 73}px + var(--sab, 0px) + ${bottomInset}px)` }}>
+        style={{ paddingBottom: `calc(${continueShown ? 190 : 110}px + var(--sab, 0px))` }}>
         {storageError && <PreferenceStorageNotice />}
 
         {!items.length && loading && <div className="flex justify-center py-10"><Loader className="w-7 h-7 spinner" /></div>}
@@ -167,7 +167,7 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
           <Empty icon={<ISearch size={26} />} title="暂无视频" sub="稍后刷新试试" action="刷新" onAction={() => void load(1, tab)} />
         )}
 
-        {/* Hero：列表前 3 条（v3：331×243、圆角 15、文字左下、Play 胶囊、卡外 3 圆点） */}
+        {/* Hero：列表前 3 条（358×220 约 16:10、圆角 20、主标题+副标题+深色 Play 胶囊、卡外 3 圆点） */}
         {hero && (
           <div className="hg-hero-wrap">
             <div className="hg-hero-track" ref={heroTrack} onScroll={onHeroScroll}>
@@ -177,6 +177,9 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
                   <span className="hg-hero-veil" aria-hidden="true" />
                   <span className="hg-hero-copy">
                     <span className="hg-hero-title">{h.title}</span>
+                    <span className="hg-hero-sub">
+                      {h.tags?.length ? h.tags.slice(0, 3).join(" · ") : (h.is_finished ? "Completed" : `${h.episode_count ?? "?"} Episodes`)}
+                    </span>
                     <span className="hg-hero-play" role="button" tabIndex={0}
                       onClick={e => { e.stopPropagation(); play(h.id); }}
                       onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); play(h.id); } }}>
@@ -198,11 +201,11 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
           </div>
         )}
 
-        {/* 最新上架横滑：/api/videos?sort=new */}
-        {rail.length > 0 && (
+        {/* New Dramas 横滑：仅在 All Shows 下显示，避免 New Shows 下重复两节 */}
+        {tab === "all" && rail.length > 0 && (
           <section className="hg-section">
             <div className="hg-section-head">
-              <h2 className="hg-section-title">最新上架</h2>
+              <h2 className="hg-section-title">New Dramas</h2>
               <Button className="hg-section-more" onClick={() => setFeedTab("new")}>More<IChevR size={10} /></Button>
             </div>
             <div className="hg-rail">
@@ -219,10 +222,10 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
           </section>
         )}
 
-        {/* 3 列网格：/api/videos 分页（卡比例 0.75、卡距 11、页边 14） */}
+        {/* 3 列网格 */}
         <section className="hg-section">
           <div className="hg-section-head">
-            <h2 className="hg-section-title">{tab === "original" ? "原创短剧" : tab === "new" ? "最新上架" : "为你推荐"}</h2>
+            <h2 className="hg-section-title">{tab === "new" ? "New Dramas" : "For You"}</h2>
           </div>
           <div className="hg-grid-c3">
             {grid.map(v => (
@@ -232,33 +235,32 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
                   {isNew(v) && <span className="hg-poster-badge">NEW</span>}
                 </span>
                 <span className="hg-poster-name">{v.title}</span>
-                <span className="hg-poster-meta">{v.is_finished ? "全" : `${v.episode_count ?? "?"} 集`}</span>
+                <span className="hg-poster-meta">{v.is_finished ? "Completed" : `${v.episode_count ?? "?"} Eps`}</span>
               </Button>
             ))}
           </div>
           {!done && grid.length > 0 && (
             <Button className="hg-loadmore" onClick={() => void load(page + 1, tab)} disabled={loading}>
-              {loading ? "加载中…" : "加载更多"}
+              {loading ? "Loading…" : "Load More"}
             </Button>
           )}
         </section>
       </div>
 
-      {/* 继续观看：参考 S1 底部那张悬浮卡。数据 = accountHistory 最新一条；
-          游客态 / 历史为空 / 关掉这一条 → 整个模块不渲染（不画空占位） */}
+      {/* 继续观看悬浮卡（对照设计稿第 1 页） */}
       {continueShown && continueCard && (
         <div className="hg-continue">
           <span className="hg-continue-art"><Img src={continueCard.detail.cover} alt="" /></span>
           <span className="hg-continue-copy">
             <span className="hg-continue-title">{continueCard.detail.title}</span>
             <span className="hg-continue-sub">
-              看到第 {continueCard.ep} 集
-              {continueCard.detail.episode_count ? ` / 共 ${continueCard.detail.episode_count} 集` : ""}
+              Last watched: Episode {continueCard.ep}
+              {continueCard.detail.episode_count ? ` / ${continueCard.detail.episode_count}` : ""}
               {continuePct ? ` · ${continuePct}%` : ""}
             </span>
           </span>
           <Button card className="hg-continue-play" aria-label={`继续播放第 ${continueCard.ep} 集`}
-            onClick={() => play(continueCard.detail.id, continueCard.ep)}><IPlayF size={15} /></Button>
+            onClick={() => play(continueCard.detail.id, continueCard.ep, continueCard.t)}><IPlayF size={18} /></Button>
           <Button card className="hg-continue-close" aria-label="隐藏继续观看"
             onClick={() => setDismissedContinue(continueCard.at)}><IClose size={11} /></Button>
           {continuePct > 0 && <span className="hg-continue-fill" style={{ width: `${continuePct}%` }} aria-hidden="true" />}

@@ -24,11 +24,11 @@ export const CHANNELS = [
  * 角标只用真实数据：New = created_at 在 7 天内；Hot 需要 is_hot 字段，接口没给 → 不画（不编）。
  * 播放量用 hot 字段真值。
  */
-const TABS = [
-  { cate: "", name: "全部" },
-  { cate: "ai-duanju", name: "短剧" },
-  { cate: "ai-manju", name: "漫剧" },
-  { cate: "original", name: "原创" },
+const SUB_TABS = [
+  { cate: "", name: "All Shows" },
+  { cate: "ai-duanju", name: "Short Drama" },
+  { cate: "ai-manju", name: "Anime" },
+  { cate: "original", name: "Original" },
 ] as const;
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -42,6 +42,7 @@ const isNew = (v: VideoCard) => {
 export default function Category({ wide, active }: { wide: boolean; active: boolean }) {
   const { push, lineEpoch, setTab } = useStore();
   const [cate, setCate] = useState<string>("");
+  const [primary, setPrimary] = useState<"all" | "new">("all");
   /* 二级 chips：用站点真实标签（api.tags 的第一个分组），选中的标签走 api.tagVideos 真筛选 */
   const [tags, setTags] = useState<string[]>([]);
   const [tag, setTag] = useState<string>("");
@@ -56,13 +57,9 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
   const loadedKey = useRef("");          /* 当前网格数据对应的「题材|标签|线路」组合 */
 
   useEffect(() => {
-    /* 二级 chips 的取数是 3 个 /api/videos 请求，之前不看 active、页面一挂载就打，
-       等于每次启动白打 90 条；这里跟着 active 走（隐藏的 tab 不发请求），且只取一次。 */
     if (!active || tagsLoaded.current) return;
     tagsLoaded.current = true;
     let cancelled = false;
-    /* 二级 chips：从 /api/videos 拉 3 页统计 tags 频次取前 8（不硬编码）；
-       失败时降级成「全部 + 短剧 + 漫剧」，不白屏 */
     void (async () => {
       try {
         const pages = await Promise.all([1, 2, 3].map(p => api.feed(p, 30)));
@@ -76,7 +73,7 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
         const top = [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name]) => name);
         setTags(top);
       } catch {
-        if (!cancelled) setTags(["短剧", "漫剧"]);
+        if (!cancelled) setTags([]);
       }
     })();
     return () => { cancelled = true; };
@@ -89,13 +86,14 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
     setErr("");
     const my = ++seq.current;
     try {
+      const sort = primary === "new" ? "new" : undefined;
       const res = tag
         ? await api.tagVideos(tag, p, 24)
         : cate === "original"
           ? await api.originalVideos("all", p, 24, "new")
           : cate
             ? await api.category(cate, p, 24)
-            : await api.feed(p, 24);
+            : await api.feed(p, 24, sort);
       if (my !== seq.current) return;
       const rows = (res?.items ?? []).filter(v => v && v.cover);
       setItems(prev => p === 1 ? rows : [...prev, ...rows.filter(r => !prev.some(x => x.id === r.id))]);
@@ -106,70 +104,64 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
     } finally {
       if (my === seq.current) { setLoading(false); loadingRef.current = false; }
     }
-  }, [cate, tag]);
+  }, [cate, tag, primary]);
 
   useEffect(() => {
     if (!active) return;
-    /* 切走再切回来时不再重拉同一组筛选：以前会先清空再请求，回来看到的是白屏 + 重新加载。 */
-    const key = `${cate}|${tag}|${lineEpoch}`;
+    const key = `${primary}|${cate}|${tag}|${lineEpoch}`;
     if (loadedKey.current === key) return;
     loadedKey.current = key;
     setItems([]); setDone(false);
     void load(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, cate, tag, lineEpoch]);
+  }, [active, primary, cate, tag, lineEpoch]);
 
   return (
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
-      {/* 分类页重建时把页面标题删了：视觉上没有标题（参考图也没有），但 a11y 树和回归用例
-          靠 heading「分类」判断「从栈页返回到了分类 tab」。按 Profile 的既有做法留 sr-only。 */}
+      <span className="hg-aura" aria-hidden="true" />
       <h1 className="sr-only">分类</h1>
-      {/* 顶部搜索框（点进搜索页，不在这里输入） */}
-      <div className="shrink-0 hg-page-x pb-2 relative z-10" style={{ paddingTop: "calc(var(--sat, 0px) + 6px)" }}>
+      {/* 顶部搜索框：高 44、全圆角、#1E1E2E、Please enter… */}
+      <div className="shrink-0 hg-page-x pb-2 relative z-10" style={{ paddingTop: "calc(var(--sat, 0px) + 8px)" }}>
         <Button className="hg-searchbar" aria-label="搜索" onClick={() => setTab("search")}>
-          <ISearch size={16} /><span>搜索短剧、演员、题材</span>
+          <ISearch size={16} /><span>Please enter…</span>
         </Button>
       </div>
 
-      {/* 专题 / 标签入口：分类页重建（d97c9a4）时把这块删了，结果 kind:"topics"/"tags"
-          两个页面没有任何入口、成了死路由（test-category-links / test-inplace-search-* 就是撞在这）。
-          这里补回原样入口，功能不删。 */}
-      <div className="shrink-0 hg-page-x pb-2 relative z-10">
-        <CollectionLinks className="ios-category-links">
-          <CollectionLink icon={<IGrid size={18} />} title="专题" subtitle="精选专辑合集"
-            onClick={() => push({ kind: "topics" })} />
-          <CollectionLink icon={<IGlobe size={18} />} title="标签" subtitle="按题材找片"
-            onClick={() => push({ kind: "tags" })} />
-        </CollectionLinks>
-      </div>
-
-      {/* 顶栏第 3 层：胶囊 tab（v3.top_bar S2，选中=实心胶囊） */}
-      <div className="shrink-0 hg-page-x relative z-10">
-        <div className="hg-pill-row" role="tablist" aria-label="题材分栏">
-          {TABS.map(t => (
-            <Button card key={t.cate} role="tab" aria-selected={cate === t.cate} className="hg-pill"
-              onClick={() => setCate(t.cate)}>{t.name}</Button>
-          ))}
+      {/* 顶栏第 2 层：胶囊 tab（All Shows / New Shows / Ranking） */}
+      <div className="shrink-0 hg-page-x relative z-10 mt-1">
+        <div className="hg-pill-row" role="tablist" aria-label="频道分栏">
+          <Button card role="tab" aria-selected={primary === "all"} className="hg-pill"
+            onClick={() => setPrimary("all")}>All Shows</Button>
+          <Button card role="tab" aria-selected={primary === "new"} className="hg-pill"
+            onClick={() => setPrimary("new")}>New Shows</Button>
+          <Button card role="tab" aria-selected={false} className="hg-pill"
+            onClick={() => push({ kind: "ranks" })}>Ranking</Button>
         </div>
       </div>
 
-      {/* 顶栏第 4 层：二级文字筛选行（v3：文字，不是胶囊） */}
-      {tags.length > 0 && (
-        <div className="shrink-0 hg-page-x pb-2 flex gap-4 overflow-x-auto hg-chip-row relative z-10">
-          <Button className="hg-filter-text" aria-pressed={!tag} data-on={String(!tag)}
-            onClick={() => setTag("")}>综合</Button>
-          {tags.map(t => (
-            <Button key={t} className="hg-filter-text" aria-pressed={tag === t} data-on={String(tag === t)}
-              onClick={() => setTag(tag === t ? "" : t)}>{t}</Button>
-          ))}
-        </div>
-      )}
+      {/* 顶栏第 3 层：二级分类行（白字加粗 + 底部 3px 紫下划线） */}
+      <div className="shrink-0 hg-page-x pb-2 mt-1 flex gap-6 overflow-x-auto hg-chip-row relative z-10">
+        {SUB_TABS.map(t => {
+          const on = !tag && cate === t.cate;
+          return (
+            <Button key={t.cate} className={`hg-filter-text hg-tab-ul${on ? " is-on" : ""}`}
+              aria-pressed={on} data-on={String(on)}
+              onClick={() => { setTag(""); setCate(t.cate); }}>{t.name}</Button>
+          );
+        })}
+        {tags.map(t => {
+          const on = tag === t;
+          return (
+            <Button key={t} className={`hg-filter-text hg-tab-ul${on ? " is-on" : ""}`}
+              aria-pressed={on} data-on={String(on)}
+              onClick={() => setTag(on ? "" : t)}>{t}</Button>
+          );
+        })}
+      </div>
 
-      <div className="flex-1 scroll-y relative z-10"
-        style={{ paddingBottom: "calc(59.6px + 32.2px + var(--sab, 0px))" }}   /* 报告 16：给底栏留够高度，末行标题不再被遮 */>
+      <div className="flex-1 scroll-y hg-page-x relative z-10"
+        style={{ paddingBottom: "calc(110px + var(--sab, 0px))" }}>
         {err && (
-          /* 之前只有一行红字，网格加载失败后用户没有任何重试入口（只能切 tab 再回来）。
-             这里补一个重试：重新拉第 1 页。 */
           <div role="alert" className="py-4 flex flex-col items-center gap-2 text-[12px] text-danger">
             <span>{err}</span>
             <Button className="px-3 text-primary" onClick={() => void load(1)}>重试</Button>
@@ -177,28 +169,28 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
         )}
         {!items.length && loading && <div className="flex justify-center py-10"><Loader className="w-7 h-7 spinner" /></div>}
         {!items.length && !loading && !err && done && (
-          <Empty icon={<IGrid size={26} />} title="这个题材还没有内容" sub="换个题材或类型看看" />
+          <Empty icon={<IGrid size={26} />} title="暂无相关内容" sub="换个分类或标签试试" />
         )}
 
-        <div className="hg-grid-c3">
+        <div className="hg-grid-c3 mt-1">
           {items.map(v => (
             <Button key={v.id} className="hg-poster is-c3" onClick={() => push({ kind: "series", id: v.id })}>
               <span className="hg-poster-art">
                 <Img src={v.cover} alt="" />
-                <span className="hg-poster-veil" aria-hidden="true" />
                 {v.is_hot === 1
                   ? <span className="hg-poster-badge is-hot">Hot</span>
                   : isNew(v) ? <span className="hg-poster-badge">New</span> : null}
-                <span className="hg-poster-plays">{fmt(v.hot)}</span>
               </span>
+              <span className="hg-poster-views">▶ {fmt(v.hot)} views</span>
               <span className="hg-poster-name">{v.title}</span>
+              <span className="hg-poster-meta">{v.tags?.[0] || "Short Drama"}</span>
             </Button>
           ))}
         </div>
 
         {items.length > 0 && !done && (
           <Button className="hg-loadmore" onClick={() => void load(page + 1)} disabled={loading}>
-            {loading ? "加载中…" : "加载更多"}
+            {loading ? "Loading…" : "Load More"}
           </Button>
         )}
       </div>

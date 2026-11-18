@@ -90,7 +90,7 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
         </Button>
       </div>
 
-      <div className="flex-1 scroll-y px-4 pb-24">
+      <div className="flex-1 scroll-y px-4" style={{ paddingBottom: "calc(110px + var(--sab, 0px))" }}>
         {!querying ? (
           <>
             <Surface role="region" aria-label="热搜榜" className="mt-1 rounded-(--r-md) bg-s2 p-3.5 a-rise">
@@ -104,23 +104,27 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
                 {hotError && <p role="status" className="mt-2 text-[12px] text-mut leading-relaxed">
                   {hotVideos.length > 0 ? "刷新失败，保留上次榜单。" : "热搜榜暂不可用。"}{hotError}
                 </p>}
-                {hotVideos.length > 0 ? (
-                  <ol className="ios-search-hot-grid mt-3" aria-busy={hotLoading}>
-                    {[...hotVideos].sort((a, b) => playsValue(b.plays) - playsValue(a.plays)).map((video, i) => (
-                      <li key={video.video_id} className="min-w-0">
-                        <Button aria-label={`播放 ${video.title}`} title={video.title} className="ios-search-hot-item"
-                          onClick={() => push({ kind: "feed", videoIds: hotVideos.map(item => item.video_id), index: i, title: "热搜榜" })}>
-                          <span aria-hidden="true" className={`ios-search-hot-rank ${i < 3 ? "text-primary" : "text-mut"}`}>{String(i + 1).padStart(2, "0")}</span>
-                          <span className="ios-search-hot-content">
-                            <span className="ios-search-hot-title">{video.title}</span>
-                            {video.plays && <span className="ios-search-hot-plays"><IPlayF size={10} />{video.plays}</span>}
-                          </span>
-                          <IChevR size={15} className="text-mut" />
-                        </Button>
-                      </li>
-                    ))}
-                  </ol>
-                ) : !hotError && <p role="status" className="mt-3 text-[12px] text-mut">{hotLoading ? "加载中…" : "暂无热搜影片"}</p>}
+                {hotVideos.length > 0 ? (() => {
+                  const sortedHot = [...hotVideos].sort((a, b) => playsValue(b.plays) - playsValue(a.plays));
+                  const hotIds = sortedHot.map(item => item.video_id);
+                  return (
+                    <ol className="ios-search-hot-grid mt-3" aria-busy={hotLoading}>
+                      {sortedHot.map((video, i) => (
+                        <li key={video.video_id} className="min-w-0">
+                          <Button aria-label={`播放 ${video.title}`} title={video.title} className="ios-search-hot-item"
+                            onClick={() => push({ kind: "feed", videoIds: hotIds, index: i, title: "热搜榜" })}>
+                            <span aria-hidden="true" className={`ios-search-hot-rank ${i < 3 ? "text-primary" : "text-mut"}`}>{String(i + 1).padStart(2, "0")}</span>
+                            <span className="ios-search-hot-content">
+                              <span className="ios-search-hot-title">{video.title}</span>
+                              {video.plays && <span className="ios-search-hot-plays"><IPlayF size={10} />{video.plays}</span>}
+                            </span>
+                            <IChevR size={15} className="text-mut" />
+                          </Button>
+                        </li>
+                      ))}
+                    </ol>
+                  );
+                })() : !hotError && <p role="status" className="mt-3 text-[12px] text-mut">{hotLoading ? "加载中…" : "暂无热搜影片"}</p>}
               </Surface>
 
             {searchHist.length > 0 && (
@@ -190,9 +194,9 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
 
 /* ================= 排行榜 ================= */
 const RANK_TABS = [
-  { k: "hot", label: "热播榜", desc: "按热力指数排序" },
-  { k: "recommend", label: "推荐榜", desc: "按推荐值排序" },
-  { k: "potential", label: "潜力榜", desc: "按潜力值排序" },
+  { k: "hot", label: "Hot" },
+  { k: "recommend", label: "Recommend" },
+  { k: "potential", label: "Potential" },
 ] as const;
 
 /** 上游 plays 是「423.5w / 1.2亿」这类字符串：解析成数值用于排序（报告 9：排名与播放量必须一致） */
@@ -242,34 +246,35 @@ export function RankPage({ onBack, wide }: { onBack: () => void; wide: boolean }
   const meta = RANK_TABS.find((t) => t.k === tab)!;
 
   return (
-    <div className="ios-page absolute inset-0 bg-bg flex flex-col">
-      {/* 顶栏（v3.top_bar S3）：状态栏 → 全宽胶囊搜索框 332×41 → 胶囊 tab（Ranking 选中）。
-          返回/刷新压进搜索框内部左右两端（参考图是顶层 tab 页、没有返回键，我们是栈页必须能退，
-          这样搜索框仍然是 v3 的 332 全宽，不额外多一层）。二级筛选行 v3 有，但 /api/ranks/hot 不吃
-          任何筛选参数，按「服务端不认的参数不渲染成控件」不做。 */}
-      <div className="shrink-0 hg-canvas relative z-10" style={{ paddingTop: "calc(var(--sat, 0px) + 6px)" }}>
-        <div>
-          <div className="hg-rank-top">
-            <Button className="hg-searchbar" aria-label="搜索" onClick={() => setAppTab("search")}>
-              <ISearch size={16} /><span>搜索短剧、演员、题材</span>
-            </Button>
-            <Button card className="hg-rank-edge is-back" aria-label="返回" onClick={onBack}><IBack size={18} /></Button>
-            <Button card className="hg-rank-edge is-refresh" aria-label="刷新榜单" disabled={loading} onClick={() => void load(tab)}>
-              {loading ? <Loader label="正在更新榜单" className="w-4 h-4" /> : <IRefresh size={18} />}
-            </Button>
-          </div>
+    <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
+      <span className="hg-aura" aria-hidden="true" />
+      <div className="shrink-0 hg-page-x relative z-10" style={{ paddingTop: "calc(var(--sat, 0px) + 8px)" }}>
+        <div className="hg-rank-top">
+          <Button className="hg-searchbar" aria-label="搜索" onClick={() => { onBack(); setAppTab("search"); }}>
+            <ISearch size={16} /><span>Please enter…</span>
+          </Button>
+          <Button card className="hg-rank-edge is-back" aria-label="返回" onClick={onBack}><IBack size={18} /></Button>
+          <Button card className="hg-rank-edge is-refresh" aria-label="刷新榜单" disabled={loading} onClick={() => void load(tab)}>
+            {loading ? <Loader label="正在更新榜单" className="w-4 h-4" /> : <IRefresh size={18} />}
+          </Button>
         </div>
-        <div>
-          <div className="hg-pill-row" role="tablist" aria-label="榜单类型">
-            {RANK_TABS.map((t) => (
-              <Button card key={t.k} role="tab" aria-selected={tab === t.k} className="hg-pill"
-                onClick={() => setTab(t.k)}>{t.label}</Button>
-            ))}
-          </div>
+
+        <div className="hg-pill-row mt-3" role="tablist" aria-label="频道分栏">
+          <Button card role="tab" aria-selected={false} className="hg-pill" onClick={() => { onBack(); setAppTab("category"); }}>All Shows</Button>
+          <Button card role="tab" aria-selected={false} className="hg-pill" onClick={() => { onBack(); setAppTab("home"); }}>New Shows</Button>
+          <Button card role="tab" aria-selected={true} className="hg-pill">Ranking</Button>
+        </div>
+
+        <div className="flex items-center gap-6 mt-2 pb-1 overflow-x-auto hg-chip-row" role="tablist" aria-label="榜单类型">
+          {RANK_TABS.map((t) => (
+            <Button key={t.k} role="tab" aria-selected={tab === t.k}
+              className={`hg-filter-text hg-tab-ul${tab === t.k ? " is-on" : ""}`} data-on={String(tab === t.k)}
+              onClick={() => setTab(t.k)}>{t.label}</Button>
+          ))}
         </div>
       </div>
 
-      <div className="flex-1 scroll-y px-3.5 pt-3 pb-8">
+      <div className="flex-1 scroll-y hg-page-x pt-3 relative z-10" style={{ paddingBottom: "calc(110px + var(--sab, 0px))" }}>
         {err && <div role="alert" className="flex flex-wrap items-center gap-2 mb-3 text-[13px] text-danger">
           <span>榜单加载失败：{err}{items.length > 0 ? "；已保留上次榜单" : ""}</span>
           <Button onClick={() => void load(tab)} disabled={loading} className="px-3 text-primary">重试</Button>
@@ -277,10 +282,14 @@ export function RankPage({ onBack, wide }: { onBack: () => void; wide: boolean }
         <section aria-label={meta.label} aria-busy={loading}>
           {items.length > 0 ? <>
             {loading && <p role="status" className="text-[12px] text-mut mb-2">正在刷新，当前显示上次榜单…</p>}
-            <FilteredContent items={items} scopeKey={tab}>{visible => visible.map((it) => (
-              <RankRow key={`${it.video_id}-${it.rank}`} item={it} metricMax={max}
-                onOpen={() => push({ kind: "feed", videoIds: items.map((x) => x.video_id), index: items.findIndex((x) => x.video_id === it.video_id), title: meta.label })} />
-            ))}</FilteredContent>
+            <FilteredContent items={items} scopeKey={tab}>{visible => (
+              <div className="flex flex-col gap-3">
+                {visible.map((it) => (
+                  <RankRow key={`${it.video_id}-${it.rank}`} item={it} metricMax={max}
+                    onOpen={() => push({ kind: "series", id: it.video_id })} />
+                ))}
+              </div>
+            )}</FilteredContent>
           </> : loading ? (
             <div className="flex justify-center py-12"><Loader label="正在加载榜单" className="w-8 h-8 spinner" /></div>
           ) : !err && (

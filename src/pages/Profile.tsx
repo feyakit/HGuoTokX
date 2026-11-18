@@ -1,14 +1,34 @@
-import { Button, SegmentedControl, Surface } from "../components/ios/controls";
+import { Button, Surface } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
 import { useEffect, useRef, useState } from "react";
-import { api, APP_VERSION, fmt, fmtTime, isMobile, platform } from "../api";
+import { api, APP_VERSION, fmtTime, platform } from "../api";
 import type { Detail } from "../types";
 import { useStore } from "../store";
 import { Empty, Img, Modal } from "../components/ui";
 import { MediaCard } from "../components/cards";
 import { useContentPreferences } from "../contentPreferences";
-import { CollectionLink, CollectionLinks } from "../components/CollectionLink";
-import { IChevR, IClock, IHeart, ILogout, ISettings, IStar, IUser, IUserF } from "../icons";
+import { IBack, IChevR, IClock, IComment, IHeart, ILogout, ISettings, IStar } from "../icons";
+
+function GuestCatAvatar() {
+  return (
+    <svg viewBox="0 0 72 72" width="100%" height="100%" aria-hidden="true">
+      <defs>
+        <linearGradient id="cat-sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#3B82F6" />
+          <stop offset="100%" stopColor="#1D4ED8" />
+        </linearGradient>
+      </defs>
+      <circle cx="36" cy="36" r="36" fill="url(#cat-sky)" />
+      {/* Black cat silhouette */}
+      <path d="M20 58c0-11 7-18 16-18s16 7 16 18Z" fill="#0B0C14" />
+      <path d="M21 20l4 13c3-2 7-3 11-3s8 1 11 3l4-13 6 15c1 7-4 15-17 15s-18-8-17-15Z" fill="#0B0C14" />
+      <circle cx="29" cy="36" r="2.6" fill="#FDE047" />
+      <circle cx="43" cy="36" r="2.6" fill="#FDE047" />
+      <circle cx="29.6" cy="35.6" r="1.1" fill="#0B0C14" />
+      <circle cx="43.6" cy="35.6" r="1.1" fill="#0B0C14" />
+    </svg>
+  );
+}
 
 /* Account changes discard cached details synchronously, before another account can paint. */
 export default function Profile({ wide }: { wide: boolean }) {
@@ -18,8 +38,8 @@ export default function Profile({ wide }: { wide: boolean }) {
 
 function ProfileContent({ wide }: { wide: boolean }) {
   const { blockReason } = useContentPreferences();
-  const { user, setLoginOpen, logout, history, favs, clearHistory, push, accountSync, syncAccount } = useStore();
-  const [tab, setTab] = useState<"fav" | "history">("fav");
+  const { user, setLoginOpen, logout, history, favs, follows, clearHistory, push, accountSync, syncAccount } = useStore();
+  const [section, setSection] = useState<"fav" | "history" | "comments" | null>(null);
   const [cache, setCache] = useState<Record<number, Detail>>({});
   const cacheRef = useRef(cache);
   cacheRef.current = cache;
@@ -36,21 +56,21 @@ function ProfileContent({ wide }: { wide: boolean }) {
   const [clearError, setClearError] = useState("");
   const clearing = useRef(false);
   const mounted = useRef(true);
-  const contentRef = useRef<HTMLDivElement>(null);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
-  const ids = tab === "fav" ? favs : history.map((h) => h.id);
-  const visibleIds = ids.slice(0, limits[tab]);
+  const activeTab = section === "history" ? "history" : "fav";
+  const ids = activeTab === "fav" ? favs : history.map((h) => h.id);
+  const visibleIds = ids.slice(0, limits[activeTab]);
   const cards = visibleIds.map(id => cache[id]).filter((card): card is Detail => !!card);
   const failed = failedIds.filter(id => visibleIds.includes(id));
   const idsKey = visibleIds.join(",");
-  const favoriteStateUnknown = tab === "fav" && !!user && !accountSync.favoritesKnown && favs.length === 0;
+  const favoriteStateUnknown = activeTab === "fav" && !!user && !accountSync.favoritesKnown && favs.length === 0;
   const favoriteSyncFailed = favoriteStateUnknown && !accountSync.busy;
   const syncingFavorites = favoriteStateUnknown && !favoriteSyncFailed;
-  /** 观看记录里这条的进度（收藏页没有） */
-  const progressOf = (id: number) => (tab === "history" ? history.find((h) => h.id === id) : undefined);
+  const progressOf = (id: number) => (activeTab === "history" ? history.find((h) => h.id === id) : undefined);
 
   useEffect(() => {
+    if (!section || section === "comments") return;
     let alive = true;
     const missing = visibleIds.filter(id => !cacheRef.current[id]);
     setFailedIds([]);
@@ -70,13 +90,7 @@ function ProfileContent({ wide }: { wide: boolean }) {
         setLoading(false);
       });
     return () => { alive = false; };
-  }, [idsKey, tab, reload]);
-
-  /* 菜单里的观看历史/收藏：切到对应分栏并把列表滚进视野（不再另开一页，数据都在本页） */
-  const openSection = (next: "fav" | "history") => {
-    setTab(next);
-    contentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
+  }, [idsKey, section, reload]);
 
   const confirmLogout = async () => {
     if (logoutPending.current) return;
@@ -112,37 +126,57 @@ function ProfileContent({ wide }: { wide: boolean }) {
   return (
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
-      {/* 顶栏 2 层（v3.top_bar S4）：状态栏 → 资料头一行（头像 52 + 昵称/ID + 右齿轮 22） */}
-      <h1 className="sr-only">我的</h1>
+      <h1 className="sr-only">Personal</h1>
 
       <div className="ios-page-body flex-1 scroll-y hg-page-x relative z-10"
-        style={{ paddingBottom: "calc(59.6px + 32.2px + 12px + var(--sab, 0px))" }}>
-        {/* 身份区（v3 S4：头像 52 + 昵称/ID + 右齿轮 22，一行）*/}
+        style={{ paddingBottom: "calc(110px + var(--sab, 0px))" }}>
+        {/* Page 4 资料头：72px 头像 + 昵称 / ID + 右齿轮 */}
         <div className="hg-profile-head a-rise">
           {user ? (
-            <>
+            <Button card className="hg-profile-guest" onClick={() => push({ kind: "user", id: user.id, name: user.nickname })}>
               <span className="hg-profile-avatar">
-                {user.avatar ? <Img src={user.avatar} eager /> : (user.nickname || "我").trim().charAt(0)}
+                {user.avatar ? <Img src={user.avatar} eager /> : <GuestCatAvatar />}
               </span>
               <span className="hg-profile-meta">
-                <span className="hg-profile-name">{user.nickname}</span>
-                <span className="hg-profile-sub"><span className="whitespace-nowrap">@{user.username} · ID {user.id}</span></span>
+                <span className="hg-profile-name">{user.nickname || user.username}</span>
+                <span className="hg-profile-sub">ID:{user.id}</span>
               </span>
-            </>
+            </Button>
           ) : (
-            <Button card className="hg-profile-guest" aria-label="未登录，登录后同步收藏与观看记录"
+            <Button card className="hg-profile-guest" aria-label="未登录，点击登录"
               onClick={() => setLoginOpen(true)}>
-              <span className="hg-profile-avatar is-guest"><IUser size={22} /></span>
+              <span className="hg-profile-avatar is-guest"><GuestCatAvatar /></span>
               <span className="hg-profile-meta">
-                <span className="hg-profile-name">未登录</span>
-                <span className="hg-profile-sub">登录后同步收藏与观看记录</span>
+                <span className="hg-profile-name">Guest</span>
+                <span className="hg-profile-sub">ID:---- · 点击登录同步记录</span>
               </span>
-              <span className="hg-profile-login">登录<IChevR size={13} /></span>
             </Button>
           )}
           <Button card className="hg-icon-plain" aria-label="打开设置"
             onClick={() => push({ kind: "settings" })}><ISettings size={22} strokeWidth={1.7} /></Button>
         </div>
+
+        {/* 3 列数据统计：Follow / Followers / Post */}
+        <div className="hg-profile-stats">
+          <Button card className="hg-profile-stat" onClick={() => user ? push({ kind: "following" }) : setLoginOpen(true)}>
+            <span className="hg-profile-stat-num">{follows.length}</span>
+            <span className="hg-profile-stat-lbl">Follow</span>
+          </Button>
+          <Button card className="hg-profile-stat" onClick={() => user ? push({ kind: "user", id: user.id, name: user.nickname }) : setLoginOpen(true)}>
+            <span className="hg-profile-stat-num">0</span>
+            <span className="hg-profile-stat-lbl">Followers</span>
+          </Button>
+          <Button card className="hg-profile-stat" onClick={() => user ? push({ kind: "user", id: user.id, name: user.nickname }) : setLoginOpen(true)}>
+            <span className="hg-profile-stat-num">0</span>
+            <span className="hg-profile-stat-lbl">Post</span>
+          </Button>
+        </div>
+
+        {!user && (
+          <Button card className="hg-profile-login-cta" onClick={() => setLoginOpen(true)}>
+            登录 / 注册
+          </Button>
+        )}
 
         {user && accountSync.error && <div role="alert" className="mt-3 rounded-(--r-sm) bg-s3 p-3 text-[13px]">
           <p className="text-danger break-words">{accountSync.error}</p>
@@ -150,102 +184,113 @@ function ProfileContent({ wide }: { wide: boolean }) {
             className="mt-1 min-h-11 px-3 text-on">{accountSync.busy ? "正在重试…" : "重试同步"}</Button>
         </div>}
 
-        {/* 菜单：全部指向已有页面，不画没有接口的入口 */}
+        {/* 菜单列表：Watch History / My Likes / My Comments / Settings / Logout */}
         <div className="hg-menu">
-          <Button className="hg-menu-row" aria-label={`观看历史，${history.length} 条`} onClick={() => openSection("history")}>
-            <span className="hg-menu-icon"><IClock size={16} /></span>
-            <span className="hg-menu-label">观看历史</span>
+          <Button className="hg-menu-row" aria-label={`Watch History，${history.length} 条`} onClick={() => setSection("history")}>
+            <span className="hg-menu-icon"><IClock size={18} /></span>
+            <span className="hg-menu-label">Watch History</span>
             <span className="hg-menu-meta">{history.length}</span>
-            <IChevR size={13} />
+            <IChevR size={14} className="hg-menu-chevron" />
           </Button>
-          <Button className="hg-menu-row" aria-label={`我的收藏，${favs.length} 部`} onClick={() => openSection("fav")}>
-            <span className="hg-menu-icon"><IStar size={16} /></span>
-            <span className="hg-menu-label">我的收藏</span>
+          <Button className="hg-menu-row" aria-label={`My Likes，${favs.length} 部`} onClick={() => setSection("fav")}>
+            <span className="hg-menu-icon"><IHeart size={18} /></span>
+            <span className="hg-menu-label">My Likes</span>
             <span className="hg-menu-meta">{favs.length}</span>
-            <IChevR size={13} />
+            <IChevR size={14} className="hg-menu-chevron" />
+          </Button>
+          <Button className="hg-menu-row" aria-label="My Comments" onClick={() => setSection("comments")}>
+            <span className="hg-menu-icon"><IComment size={18} /></span>
+            <span className="hg-menu-label">My Comments</span>
+            <IChevR size={14} className="hg-menu-chevron" />
           </Button>
           <Button className="hg-menu-row" onClick={() => push({ kind: "settings" })}>
-            <span className="hg-menu-icon"><ISettings size={16} /></span>
-            <span className="hg-menu-label">设置</span>
-            <IChevR size={13} />
+            <span className="hg-menu-icon"><ISettings size={18} /></span>
+            <span className="hg-menu-label">Settings</span>
+            <IChevR size={14} className="hg-menu-chevron" />
           </Button>
           {user && (
             <Button className="hg-menu-row" onClick={() => { setLogoutError(""); setLogoutOpen(true); }}>
-              <span className="hg-menu-icon"><ILogout size={16} /></span>
+              <span className="hg-menu-icon"><ILogout size={18} /></span>
               <span className="hg-menu-label">退出登录</span>
-              <IChevR size={13} />
+              <IChevR size={14} className="hg-menu-chevron" />
             </Button>
           )}
         </div>
 
-        {/* 关注 / 我的主页 */}
-        {user && (
-          <CollectionLinks className="ios-profile-links mt-4">
-            <CollectionLink icon={<IHeart size={18} />} title="我的关注" subtitle="关注作者的更新"
-              onClick={() => push({ kind: "following" })} />
-            <CollectionLink icon={<IUserF size={18} />} title="我的主页" subtitle="我的作品与资料"
-              onClick={() => push({ kind: "user", id: user.id, name: user.nickname })} />
-          </CollectionLinks>
-        )}
-
-        {/* 我的内容 */}
-        <div ref={contentRef}>
-        <SegmentedControl className="mt-4" aria-label="我的内容" activeIndex={tab === "fav" ? 0 : 1}>
-          {([["fav", "我的收藏"], ["history", "观看历史"]] as const).map(([k, l]) => (
-            <Button aria-pressed={tab === k} key={k} onClick={() => setTab(k)}>{l}</Button>
-          ))}
-        </SegmentedControl>
-        </div>
-
-        <div className="mt-3" aria-busy={loading || syncingFavorites}>
-          {favoriteSyncFailed ? (
-            <Empty icon={<IStar size={24} />} title="收藏状态未知"
-              sub="账号同步未完成，暂时无法确认收藏内容。" action="重试"
-              onAction={() => { void syncAccount().catch(() => {}); }} />
-          ) : syncingFavorites ? (
-            <FavoriteSyncState wide={wide} />
-          ) : loading && !cards.length ? (
-            <div className="flex justify-center py-8"><Loader className="w-7 h-7 spinner" /></div>
-          ) : cards.length ? (
-            <div className={`ios-media-grid ${wide ? "is-wide" : ""}`}>
-              {cards.map((c) => {
-                const progress = progressOf(c.id);
-                return <MediaCard key={c.id} blockedReason={blockReason(c.tags)} title={c.title} cover={c.cover} score={c.score}
-                  badge={c.is_finished ? "已完结" : `${c.episode_count} 集`}
-                  subtitle={c.tags?.slice(0, 2).join(" · ")}
-                  progress={progress ? `第 ${progress.ep} 集 · ${fmtTime(progress.t)}` : undefined}
-                  onOpen={() => push({
-                    kind: "feed", videoIds: cards.map(x => x.id), index: cards.findIndex(x => x.id === c.id),
-                    title: tab === "fav" ? "我的收藏" : "观看历史", startEp: progress?.ep, startTime: progress?.t,
-                  })} />;
-              })}
-            </div>
-          ) : failed.length ? (
-            <Empty icon={tab === "fav" ? <IStar size={24} /> : <IClock size={24} />}
-              title={tab === "fav" ? "收藏加载失败" : "观看记录加载失败"}
-              sub="记录仍在，重试后继续浏览。" action="重试" onAction={() => setReload(n => n + 1)} />
-          ) : (
-            <Empty icon={tab === "fav" ? <IStar size={24} /> : <IClock size={24} />}
-              title={tab === "fav" ? "还没有收藏" : "还没有观看记录"}
-              sub={tab === "fav" ? "在剧集页点收藏，之后就能在这里找到" : "看过的剧集会出现在这里"}
-              action="去逛逛" onAction={() => push({ kind: "ranks" })} />
-          )}
-          {cards.length > 0 && failed.length > 0 && <div role="status" className="mt-3 flex flex-wrap items-center gap-2 text-[13px] text-mut">
-            <span>{failed.length} 项内容加载失败，已加载内容仍可浏览。</span>
-            <Button disabled={loading} onClick={() => setReload(n => n + 1)} className="px-3 text-primary">重试失败内容</Button>
-          </div>}
-          {cards.length > 0 && loading && <div className="flex justify-center py-3"><Loader label="加载更多内容" /></div>}
-          {ids.length > 0 && <p role="status" className="mt-3 text-[12px] text-mut">已显示 {cards.length} / {ids.length} 项{user ? "账号记录" : "本机记录"}</p>}
-          {visibleIds.length < ids.length && <Button disabled={loading} onClick={() => setLimits(previous => ({ ...previous, [tab]: previous[tab] + 12 }))}
-            className="mt-3 w-full rounded-(--r-ctl) bg-s3 text-[13px] text-on">加载更多</Button>}
-          {tab === "history" && history.length > 0 && (
-            <Button disabled={clearBusy} aria-busy={clearBusy} onClick={() => { setClearError(""); setClearOpen(true); }} className="mt-3 w-full h-9 rounded-(--r-ctl) bg-s3 text-[13px] text-mut pressable">{clearBusy ? "正在清空…" : "清空观看历史"}</Button>
-          )}
-          {clearError && !clearOpen && <p role="alert" className="mt-2 text-[13px] text-danger">{clearError}</p>}
-        </div>
-
-        <div className="text-center text-[12px] text-dim mt-5">HGuoX {APP_VERSION} · {platform === "android" ? "Android" : platform === "ios" ? "iOS" : platform === "macos" ? "macOS" : platform === "linux" ? "Linux" : "Windows"} 客户端</div>
+        <div className="text-center text-[12px] text-dim mt-6">HGuoX {APP_VERSION} · {platform === "android" ? "Android" : platform === "ios" ? "iOS" : platform === "macos" ? "macOS" : platform === "linux" ? "Linux" : "Windows"} 客户端</div>
       </div>
+
+      {/* 子视图：Watch History / My Likes / My Comments */}
+      {section && (
+        <div className="ios-page hg-canvas absolute inset-0 z-30 flex flex-col">
+          <div className="flex items-center gap-3 hg-page-x shrink-0"
+            style={{ paddingTop: "calc(var(--sat, 0px) + 10px)", paddingBottom: 10 }}>
+            <Button card className="hg-icon-plain" aria-label="返回" onClick={() => setSection(null)}>
+              <IBack size={20} />
+            </Button>
+            <h2 className="text-[18px] font-bold text-on flex-1">
+              {section === "history" ? "Watch History" : section === "fav" ? "My Likes" : "My Comments"}
+            </h2>
+            {section === "history" && history.length > 0 && (
+              <Button disabled={clearBusy} onClick={() => { setClearError(""); setClearOpen(true); }}
+                className="px-3 h-8 rounded-full bg-s3 text-[12px] text-mut">
+                {clearBusy ? "正在清空…" : "清空"}
+              </Button>
+            )}
+          </div>
+          <div className="flex-1 scroll-y hg-page-x" style={{ paddingBottom: "calc(110px + var(--sab, 0px))" }}
+            aria-busy={loading || syncingFavorites}>
+            {section === "comments" ? (
+              <Empty icon={<IComment size={24} />} title="暂无我的评论"
+                sub="在社区或剧集页发表的评论会显示在这里"
+                action="去逛逛" onAction={() => { setSection(null); push({ kind: "ranks" }); }} />
+            ) : favoriteSyncFailed ? (
+              <Empty icon={<IStar size={24} />} title="收藏状态未知"
+                sub="账号同步未完成，暂时无法确认收藏内容。" action="重试"
+                onAction={() => { void syncAccount().catch(() => {}); }} />
+            ) : syncingFavorites ? (
+              <FavoriteSyncState wide={wide} />
+            ) : loading && !cards.length ? (
+              <div className="flex justify-center py-8"><Loader className="w-7 h-7 spinner" /></div>
+            ) : cards.length ? (
+              <div className={`ios-media-grid ${wide ? "is-wide" : ""}`}>
+                {cards.map((c) => {
+                  const progress = progressOf(c.id);
+                  return <MediaCard key={c.id} blockedReason={blockReason(c.tags)} title={c.title} cover={c.cover} score={c.score}
+                    badge={c.is_finished ? "已完结" : `${c.episode_count} 集`}
+                    subtitle={c.tags?.slice(0, 2).join(" · ")}
+                    progress={progress ? `第 ${progress.ep} 集 · ${fmtTime(progress.t)}` : undefined}
+                    onOpen={() => push({
+                      kind: "feed", videoIds: cards.map(x => x.id), index: cards.findIndex(x => x.id === c.id),
+                      title: section === "fav" ? "My Likes" : "Watch History", startEp: progress?.ep, startTime: progress?.t,
+                    })} />;
+                })}
+              </div>
+            ) : failed.length ? (
+              <Empty icon={section === "fav" ? <IStar size={24} /> : <IClock size={24} />}
+                title={section === "fav" ? "收藏加载失败" : "观看记录加载失败"}
+                sub="记录仍在，重试后继续浏览。" action="重试" onAction={() => setReload(n => n + 1)} />
+            ) : (
+              <Empty icon={section === "fav" ? <IStar size={24} /> : <IClock size={24} />}
+                title={section === "fav" ? "还没有喜欢的内容" : "还没有观看记录"}
+                sub={section === "fav" ? "在剧集页点收藏，之后就能在这里找到" : "看过的剧集会出现在这里"}
+                action="去逛逛" onAction={() => { setSection(null); push({ kind: "ranks" }); }} />
+            )}
+            {section !== "comments" && cards.length > 0 && failed.length > 0 && (
+              <div role="status" className="mt-3 flex flex-wrap items-center gap-2 text-[13px] text-mut">
+                <span>{failed.length} 项内容加载失败，已加载内容仍可浏览。</span>
+                <Button disabled={loading} onClick={() => setReload(n => n + 1)} className="px-3 text-primary">重试失败内容</Button>
+              </div>
+            )}
+            {section !== "comments" && cards.length > 0 && loading && <div className="flex justify-center py-3"><Loader label="加载更多内容" /></div>}
+            {section !== "comments" && visibleIds.length < ids.length && (
+              <Button disabled={loading} onClick={() => setLimits(previous => ({ ...previous, [activeTab]: previous[activeTab] + 12 }))}
+                className="mt-3 w-full rounded-(--r-ctl) bg-s3 text-[13px] text-on">加载更多</Button>
+            )}
+            {clearError && !clearOpen && <p role="alert" className="mt-2 text-[13px] text-danger">{clearError}</p>}
+          </div>
+        </div>
+      )}
       <Modal open={logoutOpen} onClose={() => { if (!logoutPending.current) setLogoutOpen(false); }} label="退出登录">
         <div className="p-5">
           <h2 className="text-[18px] font-bold">退出登录</h2>

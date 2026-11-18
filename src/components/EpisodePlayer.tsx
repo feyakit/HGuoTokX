@@ -641,6 +641,14 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     return () => document.removeEventListener("fullscreenchange", onFs);
   }, []);
 
+  useEffect(() => {
+    const onVis = () => {
+      if (document.hidden) videoRef.current?.pause();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
+
   const toggleFull = () => {
     const el = boxRef.current?.parentElement;
     if (!el) return;
@@ -1284,7 +1292,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   颜色写死不跟主题走：浅色主题下这些字必须仍是白色 */}
               {!fs && !clean && !isDesktop && (
                 <div className="mobile-video-action-rail absolute right-3 z-20 flex flex-col items-center gap-[16px]"
-                  style={{ bottom: `calc(var(--sab, 0px) + ${bottomInset + 92}px)` }}>
+                  style={{ bottom: `calc(var(--sab, 0px) + ${bottomInset + 168}px)` }}>
                   {episodes.length > 1 && (
                     <Button type="button" onClick={() => { setSwipeEp(!swipeEp); toast(swipeEp ? "上下划切集已关闭" : "上下划切集已开启"); }}
                       className="flex flex-col items-center gap-1 pressable" aria-pressed={swipeEp} aria-label="上下划切集开关">
@@ -1295,7 +1303,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   {hevcUrl && (
                     <Button type="button" onClick={() => { setPreferHevc(!preferHevc); toast(preferHevc ? "已切回标准画质" : "已切换高清 HEVC", "ok"); }}
                       className="flex flex-col items-center gap-1 pressable" aria-pressed={preferHevc} aria-label="画质切换">
-                      <span className={`flex items-center justify-center h-[22px] min-w-[30px] px-1 rounded-md text-[12px] font-bold hg-ov-shadow ${preferHevc ? "bg-primary text-on-primary" : "hg-chip hg-ink-2"}`}>{preferHevc ? "HD" : "标清"}</span>
+                      <span className={`flex items-center justify-center h-[22px] min-w-[30px] px-1 rounded-md text-[12px] font-bold hg-ov-shadow ${preferHevc ? "bg-primary text-on-primary" : "hg-chip hg-ink-2"}`}>{preferHevc ? "HD" : "SD"}</span>
                       <span className="text-[12px] hg-ov-shadow" style={{ color: preferHevc ? "#fff" : undefined }}>{preferHevc ? "高清" : "标清"}</span>
                     </Button>
                   )}
@@ -1406,7 +1414,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   不加任何压暗层——黑边彻底去掉，全靠文字阴影保读；
                   进度条轨道几乎不可见，只用白点标播放位置。 */}
               {!fs && !clean && !isDesktop && (
-                <div className="absolute inset-x-0 z-20" style={{ bottom: `calc(var(--sab, 0px) + ${bottomInset}px)` }}>
+                <div className="absolute inset-x-0 z-20" style={{ bottom: `calc(var(--sab, 0px) + ${bottomInset + 28}px)` }}>
                   {/* 集数条（自定屏规范 3.4）：56×36、r10、间距 11、当前集 accent + 2px #8B9AF9 描边 */}
                   {episodes.length > 1 && (
                     <div className="hg-player-eps" role="tablist" aria-label="选集">
@@ -1417,11 +1425,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                       ))}
                     </div>
                   )}
-                  <div className="mobile-video-meta-copy relative pb-2 flex items-center gap-2">
+                  <div className="mobile-video-meta-copy relative pb-2 flex items-center gap-2" style={{ paddingRight: 76 }}>
                     <p className="flex-1 min-w-0 text-[15px] font-semibold leading-snug hg-ink-2 hg-ov-shadow-strong clamp-2">{meta.title}</p>
                   </div>
                   <div className="relative pt-1.5 pb-2.5">
-                    <div className="mobile-video-meta-copy flex flex-wrap items-center gap-2">
+                    <div className="mobile-video-meta-copy relative z-10 flex flex-wrap items-center gap-2" style={{ paddingRight: 76 }}>
                       <Button aria-label="视频详情" onClick={() => setPanel("detail")}
                         className="min-h-11 flex items-center gap-0.5 text-[12px] font-medium hg-ink-3 hg-ov-shadow-strong pressable">
                         详情 · 第 {curEp} 集<IChevR size={11} />
@@ -1431,21 +1439,27 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                       {/* 线路切换收在播放页设置里（自定屏规范） */}
                       <Button aria-label="播放设置" onClick={() => store.push({ kind: "settings" })}
                         className="min-h-11 flex items-center gap-1 text-[12px] font-medium hg-ink-3 hg-ov-shadow-strong pressable">设置 · 线路</Button>
+                      <Button aria-label="全屏横屏播放" onClick={() => enterFs(true)}
+                        className="min-h-11 flex items-center gap-1 text-[12px] font-medium hg-ink-3 hg-ov-shadow-strong pressable">
+                        <IExpand size={13} />全屏
+                      </Button>
                     </div>
                     {/* 报告 5：字幕烧在画面里，改控件层——底部加自上而下 0→60% 黑渐变，保证按钮文字可读 */}
                     <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0"
                       style={{ height: 168, background: "linear-gradient(to top, rgba(0,0,0,.6) 0%, rgba(0,0,0,.42) 45%, rgba(0,0,0,0) 100%)", zIndex: 0 }} />
                     {/* 竖屏也要能暂停与看进度：暂停钮 + 当前/总时长（报告问题 3） */}
-                    <div className="mx-4 mt-2 flex items-center gap-2.5">
-                      <Button aria-label={paused ? "播放" : "暂停"} onClick={() => videoRef.current?.toggle()}
-                        className="hg-chip shrink-0 w-8 h-8 rounded-full flex items-center justify-center pressable">
+                    <div className="mx-4 mt-2 flex items-center gap-2.5 relative z-10">
+                      <Button aria-label={paused ? "播放" : "暂停"}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); videoRef.current?.toggle(); }}
+                        className="hg-chip shrink-0 w-10 h-10 rounded-full flex items-center justify-center pressable">
                         {paused ? <IPlayF size={16} /> : <IPauseF size={15} />}
                       </Button>
                       <span className="shrink-0 flex items-center gap-1 text-[12px] font-semibold hg-ink-2 tabular-nums hg-ov-shadow">
                         <PlaybackTime clock={playbackClock} /> <span className="opacity-60">/ {fmtTime(duration || 0)}</span>
                       </span>
                     </div>
-                    <div ref={barRef} className="mx-4 mt-2 relative" style={{ height: 14, touchAction: "none" }}
+                    <div ref={barRef} className="mx-4 mt-1 relative z-10" style={{ height: 28, touchAction: "none" }}
                       onPointerDown={onBarDown} onPointerMove={onBarMove} onPointerUp={onBarUp} onPointerCancel={onBarUp}>
                       {/* 轨道：几乎看不见，只暗示可拖动 */}
                       <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[3px] rounded-full" style={{ background: "rgba(255,255,255,.24)" }}>
@@ -1484,10 +1498,13 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
               {/* 暂停 / 缓冲 */}
               {isActive && paused && !err && (
                 <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-                  <span className="w-[66px] h-[66px] rounded-full flex items-center justify-center backdrop-blur-md"
+                  <button type="button" aria-label="继续播放"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => { e.stopPropagation(); videoRef.current?.play(); }}
+                    className="pointer-events-auto w-[66px] h-[66px] rounded-full flex items-center justify-center backdrop-blur-md border-0 cursor-pointer"
                     style={{ background: "rgba(0,0,0,.55)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,.12)" }}>
                     <IPlayF size={28} className="hg-ink ml-0.5" />
-                  </span>
+                  </button>
                 </div>
               )}
               {isActive && waiting && !err && !paused && (

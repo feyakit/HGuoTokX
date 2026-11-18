@@ -43,7 +43,14 @@ function sanitize(value: Partial<AccountData> | null | undefined): AccountData {
   };
 }
 const selected = (list: number[], id: number, on: boolean) => on ? [id, ...list.filter(x => x !== id)] : list.filter(x => x !== id);
-const message = (error: unknown) => error instanceof Error ? error.message : "账号同步失败，请重试";
+const message = (error: unknown) => {
+  const raw = error instanceof Error ? error.message.trim() : "";
+  if (!raw) return "账号同步失败，请重试";
+  if (/^401\b|\b401\b/.test(raw)) return "登录状态已失效，请重新登录";
+  if (/^403\b/.test(raw)) return "暂无同步权限，请重新登录";
+  if (/^5\d{2}\b/.test(raw)) return "服务器暂时不可用，请稍后重试";
+  return raw;
+};
 function applyInteractions(data: AccountData, incoming?: AccountInteractions): AccountData {
   if (!incoming) return data;
   const next = { ...data };
@@ -204,9 +211,10 @@ export function useAccountData(initialGuest: GuestData, saveGuest: (data: GuestD
       } else if (remote.status === "rejected") errors.push(message(remote.reason));
       persist(current);
       if (storageError.current) errors.push(storageError.current);
-      state.current!.sync = { busy: false, error: errors.join("；"), lastSynced: errors.length ? s.sync.lastSynced : Date.now(), favoritesKnown };
+      const uniqueErrors = [...new Set(errors)];
+      state.current!.sync = { busy: false, error: uniqueErrors.join("；"), lastSynced: uniqueErrors.length ? s.sync.lastSynced : Date.now(), favoritesKnown };
       render();
-      if (errors.length) throw new Error(errors.join("；"));
+      if (uniqueErrors.length) throw new Error(uniqueErrors.join("；"));
     })();
     synchronizing.current = { generation, promise: run };
     try { await run; } finally {

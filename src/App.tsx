@@ -3,7 +3,7 @@ import { Button } from "./components/ios/controls";
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import SeriesDetail from "./pages/SeriesDetail";
 import { useStore, type Page, type Tab } from "./store";
-import { accentTokens } from "./accent";
+import { accentTokens, FALLBACK_SCHEME } from "./accent";
 import { isMobile, selfTest } from "./api";
 import { addPluginListener, invoke } from "@tauri-apps/api/core";
 import { runBack } from "./back";
@@ -39,22 +39,21 @@ function PageLoading() {
 const SELECTABLE_TEXT = 'input, textarea, [contenteditable="true"], .select-text, .article-body';
 const isSelectableText = (target: EventTarget | null) => target instanceof Element && !!target.closest(SELECTABLE_TEXT);
 
-function TabBar() {
-  const { tab, setTab, platform } = useStore();
+function TabBar({ onSelect }: { onSelect?: () => void }) {
+  const { tab, setTab } = useStore();
   const items = [
-    { key: "home", label: "首页", Icon: INavHome },
-    /* 搜索不再占底栏位：左上角/顶栏图标与桌面快捷键进 search 页（tab 仍存在，只是没有入口） */
-    { key: "posts", label: "吃瓜", Icon: INavCommunity },
-    { key: "category", label: "分类", Icon: INavCategory },
-    { key: "profile", label: "我的", Icon: INavProfile },
+    { key: "home", label: "Home", Icon: INavHome },
+    { key: "posts", label: "Community", Icon: INavCommunity },
+    { key: "category", label: "Theater", Icon: INavCategory },
+    { key: "profile", label: "Personal", Icon: INavProfile },
   ] as const;
   const index = items.findIndex(item => item.key === tab);
   return <nav className="hg-tabbar ios-mobile-nav" aria-label="主导航" data-over-video={tab === "home"}>
       <div className="hg-glass">
-      <div className="hg-drop" aria-hidden="true" style={{ transform: `translateX(${index * 100}%)` }}><LiquidIndicator /></div>
+      <div className="hg-drop" aria-hidden="true" style={{ transform: `translateX(${Math.max(0, index) * 100}%)` }}><LiquidIndicator /></div>
       <div className="ios-mobile-nav-items">
         {items.map(({ key, label, Icon }) => (
-          <Button key={key} className="ios-mobile-nav-item" onClick={() => setTab(key)}
+          <Button key={key} className="ios-mobile-nav-item" onClick={() => { onSelect?.(); setTab(key); }}
             aria-current={tab === key ? "page" : undefined}>
             <Icon solid={tab === key} /><span>{label}</span>
           </Button>
@@ -166,7 +165,9 @@ function AppBody() {
           </div>
         ))}
 
-        {isMobile && !fs && !clean && stack.length === 0 && <TabBar />}
+        {isMobile && !fs && !clean && (stack.length === 0 || (stack.length === 1 && stack[0].kind === "ranks")) && (
+          <TabBar onSelect={() => { if (stack.length) pop(); }} />
+        )}
       </div>
     </div>
   );
@@ -271,10 +272,10 @@ export default function App() {
     } catch { /* ignore */ }
   }, [push]);
 
-  /* 全站强调色只跟封面走：换剧才换色，换集不动；浅色主题走压深变体（保证 ≥4.5:1）。 */
+  /* 全站强调色固定为设计紫 #7C5CFF（避免封面取色导致紫/鲑红来回跳变） */
   useEffect(() => {
     const root = document.documentElement;
-    for (const [key, value] of Object.entries(accentTokens(accent, theme === "light"))) {
+    for (const [key, value] of Object.entries(accentTokens(FALLBACK_SCHEME, theme === "light"))) {
       root.style.setProperty(key, value);
     }
   }, [accent, theme]);
@@ -314,7 +315,11 @@ export default function App() {
      层级：面板/弹层 → 全屏 → 登录框 → 页面栈 → 回首页 → 退出应用。
      不注册这个监听，Tauri 会直接 webView.goBack() 或退出，表现就是「任意页面返回都回桌面」。 */
   const backRef = useRef<() => void>(() => {});
+  const lastBackAt = useRef(0);
   backRef.current = () => {
+    const now = Date.now();
+    if (now - lastBackAt.current < 250) return;
+    lastBackAt.current = now;
     if (runBack()) return;                                  // 最上层弹窗/播放器面板
     if (fs) { setFs(false); return; }                        // 沉浸全屏
     if (document.fullscreenElement) { document.exitFullscreen().catch(() => {}); return; }

@@ -23,26 +23,27 @@ const postExtra = new Map<number, PostExtra>();
 const extraOf = (p: Post): PostExtra | undefined => postExtra.get(p.id);
 
 const SORTS = [
-  { key: "latest", label: "最新" },
-  { key: "trending", label: "热门" },
+  { key: "latest", label: "Latest" },
+  { key: "trending", label: "Trending" },
 ] as const;
 type SortKey = (typeof SORTS)[number]["key"];
 
-/** 帖子时间：优先发布时间，退回创建时间；统一成「8月14日 01:07」，拿不到格式就原样显示。 */
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const postTime = (p: Post) => {
   const raw = (p.publish_time || p.created_at || "").trim();
-  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(raw);
-  return m ? `${+m[2]}月${+m[3]}日 ${m[4]}:${m[5]}` : raw;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  return m ? `Posted on ${MONTHS[Math.max(0, +m[2] - 1)] || m[2]} ${+m[3]}` : raw;
 };
 
 export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => void; wide: boolean; embedded?: boolean }) {
-  const { push } = useStore();
+  const { push, toast } = useStore();
   const { preferences } = useContentPreferences();
   const filtering = !preferences.paused && (preferences.blockedTags.length > 0 || preferences.hideUntagged);
   const [sort, setSort] = useState<SortKey>("latest");
   const [searching, setSearching] = useState(false);
   const [items, setItems] = useState<Post[]>([]);
   const [extra, setExtra] = useState<Record<number, PostExtra>>({});
+  const [followed, setFollowed] = useState<Record<number, boolean>>({});
   const [page, setPage] = useState(0);
   const [pages, setPages] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -128,32 +129,36 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
     const info = extra[p.id] ?? extraOf(p);
     const pic = info?.author?.avatar;
     const initial = (info?.author?.name || "").trim().charAt(0);
+    const isFollowed = !!followed[p.id];
     return (
-      <Button key={p.id} className="hg-post-card" aria-label={p.title} onClick={() => push({ kind: "post", id: p.id })}>
-        <span className="hg-post-head">
+      <div key={p.id} className="hg-post-card" onClick={() => push({ kind: "post", id: p.id })}>
+        <div className="hg-post-head">
           <span className="hg-post-avatar" aria-hidden="true">
-            {pic ? <Img src={pic} /> : (initial || null)}
+            {pic ? <Img src={pic} /> : (initial || "U")}
           </span>
           <span className="hg-post-who">
-            {info?.author?.name ? <span className="hg-post-name">{info.author.name}</span> : null}
+            <span className="hg-post-name">{info?.author?.name || "Username"}</span>
             <span className="hg-post-time">{postTime(p)}</span>
           </span>
-          <span className="hg-post-heat" aria-label={`热度 ${fmt(info?.hot ?? p.hot)}`}>
-            <IFireF size={12} />{fmt(info?.hot ?? p.hot)}
-          </span>
-        </span>
-        <span className="hg-post-body">
-          <span className="hg-post-title">{p.title}</span>
-          <span className="hg-post-art">
-            <Img src={p.cover} alt="" />
-          </span>
-        </span>
-        <span className="hg-post-stats">
-          <span className="hg-post-stat"><IHeart size={13} />{fmt(info?.like ?? 0)}</span>
-          <span className="hg-post-stat"><IComment size={13} />{fmt(info?.comment ?? 0)}</span>
-          <span className="hg-post-stat"><IStar size={13} />{fmt(info?.collect ?? 0)}</span>
-        </span>
-      </Button>
+          <button type="button" className={`hg-follow-btn${isFollowed ? " is-on" : ""}`}
+            onClick={(e) => { e.stopPropagation(); setFollowed(prev => ({ ...prev, [p.id]: !prev[p.id] })); }}>
+            {isFollowed ? "Following" : "Follow"}
+          </button>
+        </div>
+        <div className="hg-post-title">{p.title}</div>
+        <div className="hg-post-grid2x2">
+          {[0, 1, 2, 3].map(idx => (
+            <span key={idx} className="hg-post-grid-cell">
+              <Img src={p.cover} alt="" />
+            </span>
+          ))}
+        </div>
+        <div className="hg-post-stats">
+          <span className="hg-post-stat"><span className="hg-post-heart">♥</span>{fmt(info?.like ?? 0)}</span>
+          <span className="hg-post-stat"><IComment size={16} />{fmt(info?.comment ?? 0)}</span>
+          <span className="hg-post-stat"><span aria-hidden="true">↗</span>{fmt(info?.hot ?? p.hot)}</span>
+        </div>
+      </div>
     );
   };
 
@@ -161,22 +166,22 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
       <div className="shrink-0 hg-page-x flex items-center gap-3 relative z-10"
-        style={{ paddingTop: "calc(var(--sat, 0px) + 6px)", paddingBottom: 8 }}>
+        style={{ paddingTop: "calc(var(--sat, 0px) + 8px)", paddingBottom: 8 }}>
         {!embedded && onBack && (
           <Button aria-label="返回" onClick={onBack} className="ios-icon-button shrink-0"><IBack size={19} /></Button>
         )}
-        <div className="hg-tabs" role="tablist" aria-label="吃瓜分栏">
+        <div className="hg-tabs" role="tablist" aria-label="社区分栏">
           {SORTS.map((s) => (
             <Button key={s.key} role="tab" aria-selected={sort === s.key} className={`hg-tab hg-tab-ul${sort === s.key ? " is-on" : ""}`}
               onClick={() => setSort(s.key)}>{s.label}</Button>
           ))}
         </div>
         <span className="flex-1" />
-        <Button onClick={() => setSearching(true)} aria-label="搜索吃瓜" className="ios-icon-button shrink-0"><ISearch size={18} /></Button>
+        <Button card className="hg-post-cta" onClick={() => toast("发帖功能暂未开放", "info")}>Post</Button>
       </div>
 
       <div ref={scrollRef} aria-busy={loading} className="flex-1 scroll-y hg-page-x relative z-10"
-        style={{ paddingBottom: "calc(96px + var(--sab, 0px))" }}>
+        style={{ paddingBottom: "calc(110px + var(--sab, 0px))" }}>
         {items.length ? (
           <FilteredContent items={items} scopeKey={`posts-${sort}`}>{visible => (
             <div className="hg-post-feed">

@@ -17,10 +17,10 @@ export type AccentScheme = {
 
 export const ACCENT_BG = "#0E0F13";
 export const FALLBACK_SCHEME: AccentScheme = {
-  accent: "#7977FF",
-  second: "#C877FF",
-  deep: "#100F2E",
-  tag: "#262647",
+  accent: "#7C5CFF",
+  second: "#3B82F6",
+  deep: "#14122B",
+  tag: "#26263A",
   source: "fallback",
   luma: 0.25,
 };
