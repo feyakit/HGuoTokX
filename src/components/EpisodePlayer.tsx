@@ -1266,11 +1266,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                           style={{ color: "rgba(255,255,255,.9)" }}>
                           {zoom.s > 1.05 ? `还原 ${zoom.s.toFixed(1)}x` : portraitFit === "contain" ? "铺满" : "适应"}
                         </Button>
-                        <Button type="button" onClick={() => enterFs(true)}
-                          className="whitespace-nowrap flex items-center justify-center gap-1 h-[26px] px-3 rounded-full text-[12px] font-semibold pressable transition-colors duration-150"
-                          style={{ color: "rgba(255,255,255,.9)" }}>
-                          <IExpand size={13} /><span>横屏</span>
-                        </Button>
                       </>
                     )}
                     {!landscapeVideo && zoom.s > 1.05 && (
@@ -1318,12 +1313,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                     <ICommentF size={26} className="hg-ink hg-ov-shadow" />
                     <span className="text-[12px] hg-ink-2 hg-ov-shadow tabular-nums">{fmt(meta.comment)}</span>
                   </Button>
-                  {landscapeVideo && (
-                  <Button onClick={() => enterFs(true)} className="flex flex-col items-center gap-1 pressable" aria-label="全屏">
-                    <IExpand size={26} className="hg-ink hg-ov-shadow" />
-                    <span className="text-[12px] hg-ink-2 hg-ov-shadow">全屏</span>
-                  </Button>
-                  )}
                   <Button onClick={shareLink} className="flex flex-col items-center gap-1 pressable" aria-label="分享">
                     <ILink size={25} className="hg-ink hg-ov-shadow" />
                     <span className="text-[12px] hg-ink-2 hg-ov-shadow">分享</span>

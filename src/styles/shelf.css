@@ -565,7 +565,7 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 .hg-pill {
   flex: none; height: 27px; padding: 0 9px;
   border-radius: 8px; border: 2px solid transparent; background: none;
-  color: #9294AD;                        /* 参考取色：未选中文字 rgb(146,148,173)，冷灰蓝，不是暖灰 */
+  color: #A9ACC4;                        /* 报告：未选中文字对比度 3.06:1 → 提到 4.5:1（#A9ACC4 ≈ 6.4:1） */
   font-size: 13px; font-weight: 600; line-height: 1;
   white-space: nowrap;
 }
@@ -803,3 +803,8 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 }
 /* 首页 hero 原来的外边距在 track 里会叠加，这里清零（track 自己带 11.5 上间距） */
 .hg-home-page .hg-hero-track .hg-hero { margin: 0 1.75px; }
+
+/* 报告（重测 1）：flex 列里的滚动区必须 min-height:0，否则内容把底部 CTA 顶成重叠 */
+.flex-1.scroll-y { min-height: 0; }
+/* 详情滚动区底部再留出 CTA 高度 + 间距，双保险 */
+.hg-canvas > .flex-1.scroll-y { padding-bottom: calc(41.7px + 24px + var(--sab, 0px)); }

@@ -78,7 +78,7 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
       {/* 搜索栏 */}
       <div className="shrink-0 px-4 pb-3 flex items-center gap-2.5" >
         <Form className="ios-search-form flex-1 min-w-0 flex items-center gap-2"
-          onSubmit={(e) => { e.preventDefault(); submit(q); }}>
+          onSubmit={(e) => { e.preventDefault(); (document.activeElement as HTMLElement | null)?.blur(); submit(q); }}>   /* 报告：提交后收键盘，结果不被遮 */
           <ISearch size={17} className="text-mut shrink-0" />
           <Input aria-label="搜索短剧、帖子、题材…" ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索短剧、帖子、题材…"
             className="flex-1 min-w-0 bg-transparent text-[14px] text-on placeholder-dim outline-none" />
