@@ -118,9 +118,10 @@
 }
 .hg-poster-name {
   display: block; margin-top: 8px;
-  font-size: var(--fs-card); font-weight: var(--fw-card); line-height: 1.35;
+  font-size: var(--fs-card); font-weight: var(--fw-card); line-height: 1.3;
   color: var(--p-on);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  white-space: normal; overflow: hidden;   /* 报告 14：两行标题不再挤成一行截断 */
 }
 .hg-poster-meta {
   display: block; margin-top: 3px;
@@ -137,7 +138,7 @@
   padding: 8px 0; text-align: left; background: none; border: 0;
 }
 .hg-rank-no {
-  flex: none; width: 40px; text-align: center;
+  flex: none; width: 46px; padding-left: 4px; text-align: center;   /* 报告 10：62px 字形不再被左边缘裁掉 */
   font-size: 62px; font-weight: 800; line-height: 1;
   font-variant-numeric: tabular-nums;
   color: var(--accent, var(--p-primary));           /* 兜底：纯 accent 色 */
@@ -300,7 +301,8 @@
 }
 .hg-detail-meta { margin-top: 6px; font-size: 13px; font-weight: 500; color: rgba(255, 255, 255, .58); }
 .hg-detail-score { color: #fff; font-weight: 700; }
-.hg-detail-counts { margin-top: 3px; font-size: 11px; color: rgba(255, 255, 255, .58); }
+.hg-detail-counts { margin-top: 3px; font-size: 11px; color: rgba(255, 255, 255, .58); display: flex; flex-wrap: wrap; gap: 0 2px; }
+.hg-detail-counts > span { white-space: nowrap; }   /* 报告 12：标签与数字不拆行 */
 
 /* 标签胶囊（规范 2.2）：高 24、全圆、11/500、surface 底、无描边、间距 8 */
 .hg-detail-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
@@ -511,7 +513,8 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 }
 .hg-profile-sub {
   display: block; margin-top: 3px; font-size: 12px; line-height: 1.3; color: var(--p-dim);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  white-space: normal; overflow: visible;   /* 报告 11：副标题不再被省略号截断，最多两行 */
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .hg-profile-login {
   flex: none; display: inline-flex; align-items: center; gap: 1px;

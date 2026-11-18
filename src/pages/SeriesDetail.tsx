@@ -70,7 +70,12 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
                     {" · 共 "}{detail.total_episodes || episodes.length}{" 集"}
                   </p>
                   <p className="hg-detail-counts">
-                    点赞 {fmt(detail.counts?.like ?? 0)} · 收藏 {fmt(detail.counts?.collect ?? 0)} · 评论 {fmt(detail.counts?.comment ?? 0)}
+                    {/* 报告 12：每项单独 nowrap，数字不会和标签被拆到两行 */}
+                    <span>点赞 {fmt(detail.counts?.like ?? 0)}</span>
+                    <span>·</span>
+                    <span>收藏 {fmt(detail.counts?.collect ?? 0)}</span>
+                    <span>·</span>
+                    <span>评论 {fmt(detail.counts?.comment ?? 0)}</span>
                   </p>
                 </div>
               </div>

@@ -1227,7 +1227,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
               {!fs && !clean && !isDesktop && mode === "context" && (
                 <span className="feed-position-pill absolute z-20 px-2.5 py-1 rounded-full hg-chip text-[12px] font-semibold tabular-nums"
                   style={{ top: "calc(var(--sat, 0px) + 52px)", left: 12, color: "rgba(255,255,255,.94)" }}>
-                  {index + 1} / {effectiveVideoIds.length}
+                  {episodes.length > 1 ? `第 ${curEp} 集 / 共 ${episodes.length} 集` : `${index + 1} / ${effectiveVideoIds.length}`}
                 </span>
               )}
 
@@ -1441,10 +1441,20 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                       <Button aria-label="播放设置" onClick={() => store.push({ kind: "settings" })}
                         className="min-h-11 flex items-center gap-1 text-[12px] font-medium hg-ink-3 hg-ov-shadow-strong pressable">设置 · 线路</Button>
                     </div>
+                    {/* 竖屏也要能暂停与看进度：暂停钮 + 当前/总时长（报告问题 3） */}
+                    <div className="mx-4 mt-2 flex items-center gap-2.5">
+                      <Button aria-label={paused ? "播放" : "暂停"} onClick={() => videoRef.current?.toggle()}
+                        className="hg-chip shrink-0 w-8 h-8 rounded-full flex items-center justify-center pressable">
+                        {paused ? <IPlayF size={16} /> : <IPauseF size={15} />}
+                      </Button>
+                      <span className="shrink-0 flex items-center gap-1 text-[12px] font-semibold hg-ink-2 tabular-nums hg-ov-shadow">
+                        <PlaybackTime clock={playbackClock} /> <span className="opacity-60">/ {fmtTime(duration || 0)}</span>
+                      </span>
+                    </div>
                     <div ref={barRef} className="mx-4 mt-2 relative" style={{ height: 14, touchAction: "none" }}
                       onPointerDown={onBarDown} onPointerMove={onBarMove} onPointerUp={onBarUp} onPointerCancel={onBarUp}>
                       {/* 轨道：几乎看不见，只暗示可拖动 */}
-                      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[2px] rounded-full" style={{ background: "rgba(255,255,255,.1)" }}>
+                      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[2px] rounded-full" style={{ background: "rgba(255,255,255,.18)" }}>
                         <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} className="h-full rounded-full"
                           style={{ background: "rgba(255,255,255,.26)", transition: barPct !== null ? "none" : "width .25s linear" }} />
                       </div>

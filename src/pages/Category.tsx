@@ -166,7 +166,7 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
       )}
 
       <div className="flex-1 scroll-y relative z-10"
-        style={{ paddingBottom: "calc(56px + 24px + var(--sab, 0px))" }}>
+        style={{ paddingBottom: "calc(59.6px + 32.2px + var(--sab, 0px))" }}   /* 报告 16：给底栏留够高度，末行标题不再被遮 */>
         {err && (
           /* 之前只有一行红字，网格加载失败后用户没有任何重试入口（只能切 tab 再回来）。
              这里补一个重试：重新拉第 1 页。 */
