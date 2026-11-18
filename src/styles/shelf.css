@@ -829,3 +829,11 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 .hg-detail-page .hg-section { margin-top: 14px; }
 .hg-detail-page .hg-section-head { margin-bottom: 8px; }
 .hg-detail-desc { margin-top: 6px; }
+
+/* v4 B：我的页版本号与底栏相交 —— 滚动容器底部必须真留出「底栏 59.6 + 距底 32.2 + 12」 */
+.ios-page-body { padding-bottom: calc(59.6px + 32.2px + 12px + var(--sab, 0px)) !important; }
+
+/* v4 D：按参考 cards_visible 3.4 反算 —— 视口 360、页边 16、卡距 8.3 → 卡宽 93.85
+   必须压过 .ios-button.hg-rail-card 的 98px（0,2,0） */
+.ios-button.hg-rail-card { width: 93.85px; min-inline-size: 93.85px; max-inline-size: 93.85px; }
+.hg-rail-card .hg-rail-art::before { padding-top: 152.05%; }   /* 保持 0.6575 比例 → 93.85×142.7 */
