@@ -126,7 +126,7 @@ function ProfileContent({ wide }: { wide: boolean }) {
               </span>
               <span className="hg-profile-meta">
                 <span className="hg-profile-name">{user.nickname}</span>
-                <span className="hg-profile-sub">@{user.username} · ID {user.id}</span>
+                <span className="hg-profile-sub"><span className="whitespace-nowrap">@{user.username} · ID {user.id}</span></span>
               </span>
             </>
           ) : (
