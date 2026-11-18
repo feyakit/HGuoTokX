@@ -51,7 +51,51 @@ function RefreshStatus({ loading, error, onRetry }: { loading: boolean; error: s
   </div>;
 }
 
-/* ================= 专题列表页 ================= */
+/* ================= 专题列表模块（支持在分类页内嵌，也支持独立二级页） ================= */
+export function TopicsSection({ wide }: { wide: boolean }) {
+  const { push, lineEpoch } = useStore();
+  const { data, loading, err, load } = useDiscoveryData(`topics:${lineEpoch}`, api.topics);
+  const items = data?.items ?? [];
+
+  return (
+    <div aria-busy={loading} className="pt-1">
+      <div className="flex items-center justify-between mb-2.5">
+        <span className="text-[12px] text-mut">{loading && !items.length ? "加载专题中…" : `共 ${items.length} 个精选专题`}</span>
+        <Button card className="hg-icon-plain" aria-label="刷新专题" disabled={loading} onClick={() => void load()}>
+          {loading ? <Loader className="w-4 h-4" /> : <IRefresh size={15} />}
+        </Button>
+      </div>
+      {items.length > 0 && <RefreshStatus loading={loading} error={err} onRetry={() => void load()} />}
+      {loading && !items.length ? (
+        <div className="flex justify-center py-12"><Loader className="w-8 h-8 spinner" /></div>
+      ) : err && !items.length ? (
+        <Empty icon={<TopicIcon size={26} />} title="专题加载失败" sub={err} action="重试" onAction={load} />
+      ) : items.length ? (
+        <div className={`grid gap-3 ${wide ? "grid-cols-3 xl:grid-cols-4" : "grid-cols-2"}`}>
+          {items.map((t) => (
+            <Button key={t.id} onClick={() => push({ kind: "topic", slug: t.slug, name: t.title })}
+              title={t.title} className="ios-topic-card min-w-0 text-left overflow-hidden bg-s1 elev-1 pressable a-rise">
+              <div className="relative w-full" style={{ paddingTop: "56%" }}>
+                <Img src={t.cover} />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-full bg-black/55 backdrop-blur-sm text-[12px] font-semibold text-white/90">
+                  {t.video_count ?? 0} 部
+                </span>
+              </div>
+              <div className="p-2.5">
+                <div className="text-[14px] font-semibold text-on clamp-1 leading-tight">{t.title}</div>
+                {t.intro && <div className="text-[12px] text-mut clamp-2 mt-1 leading-relaxed">{t.intro}</div>}
+              </div>
+            </Button>
+          ))}
+        </div>
+      ) : (
+        <Empty icon={<TopicIcon size={26} />} title="暂无专题" />
+      )}
+    </div>
+  );
+}
+
 export function TopicsPage({ onBack, wide }: { onBack: () => void; wide: boolean }) {
   const { push } = useStore();
   const [searching, setSearching] = useState(false);
@@ -101,7 +145,7 @@ export function TopicsPage({ onBack, wide }: { onBack: () => void; wide: boolean
         )}
         {wide && <div className="h-2" />}
       </div>
-      {searching && <InplaceSearch kind="video" wide={wide} onClose={() => setSearching(false)} onOpenVideo={(v, list) => push({ kind: "feed", videoIds: list.map((x) => x.id), index: list.findIndex((x) => x.id === v.id), title: "搜索 · 专题" })} />}
+      {searching && <InplaceSearch kind="video" wide={wide} onClose={() => setSearching(false)} onOpenVideo={(v) => push({ kind: "series", id: v.id })} />}
     </div>
   );
 }
@@ -228,7 +272,7 @@ export function TopicPage({ slug, name, onBack, wide }: { slug: string; name: st
         ) : error && !videos.length ? (
           <Empty icon={<TopicIcon size={26} />} title="加载失败" sub={error} action="重试" onAction={() => void load(1, true)} />
         ) : videos.length ? (
-          <Masonry videos={videos} scopeKey={slug} wide={wide} onOpen={(v) => push({ kind: "feed", videoIds: videos.map((x) => x.id), index: videos.findIndex((x) => x.id === v.id), title: topic?.title || name })} />
+          <Masonry videos={videos} scopeKey={slug} wide={wide} onOpen={(v) => push({ kind: "series", id: v.id })} />
         ) : (
           <Empty icon={<TopicIcon size={26} />} title="暂无内容" />
         )}
@@ -243,12 +287,55 @@ export function TopicPage({ slug, name, onBack, wide }: { slug: string; name: st
         {!loading && !loadingMore && !hasMore && videos.length > 0 && <div className="py-3 text-center text-[12px] text-dim">已加载全部 {total} 部</div>}
         {wide && <div className="h-2" />}
       </div>
-      {searching && <InplaceSearch kind="video" wide={wide} onClose={() => setSearching(false)} onOpenVideo={(v, list) => push({ kind: "feed", videoIds: list.map((x) => x.id), index: list.findIndex((x) => x.id === v.id), title: topic?.title || name })} />}
+      {searching && <InplaceSearch kind="video" wide={wide} onClose={() => setSearching(false)} onOpenVideo={(v) => push({ kind: "series", id: v.id })} />}
     </div>
   );
 }
 
-/* ================= 标签聚合页 ================= */
+/* ================= 标签聚合模块（支持在分类页内嵌，也支持独立二级页） ================= */
+export function TagsSection({ wide }: { wide: boolean }) {
+  const { push, lineEpoch } = useStore();
+  const { data, loading, err, load } = useDiscoveryData(`tags:${lineEpoch}`, api.tags);
+  const groups = data?.categories ?? [];
+
+  return (
+    <div aria-busy={loading} className="pt-1">
+      <div className="flex items-center justify-between mb-2.5">
+        <span className="text-[12px] text-mut">{loading && !groups.length ? "加载标签中…" : `共 ${groups.reduce((sum, g) => sum + (g.tags?.length || 0), 0)} 个细分标签`}</span>
+        <Button card className="hg-icon-plain" aria-label="刷新标签" disabled={loading} onClick={() => void load()}>
+          {loading ? <Loader className="w-4 h-4" /> : <IRefresh size={15} />}
+        </Button>
+      </div>
+      {groups.length > 0 && <RefreshStatus loading={loading} error={err} onRetry={() => void load()} />}
+      {loading && !groups.length ? (
+        <div className="flex justify-center py-12"><Loader className="w-8 h-8 spinner" /></div>
+      ) : err && !groups.length ? (
+        <Empty icon={<TagIcon size={26} />} title="标签加载失败" sub={err} action="重试" onAction={load} />
+      ) : groups.length ? (
+        <div className={wide ? "grid grid-cols-2 gap-x-6 items-start" : ""}>{groups.map((g) => (
+          <section key={g.name} className="mb-5 a-rise">
+            <div className="flex items-center gap-2 mb-2.5">
+              <h2 className="text-[14px] font-bold text-on">{g.name}</h2>
+              <span className="text-[12px] text-dim">{g.tags?.length || 0} 个</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {g.tags.map((t) => (
+                <Button key={t.id} onClick={() => push({ kind: "tag", tag: t.name, name: t.name })}
+                  className="ios-filter-pill max-w-full min-w-0 flex items-center gap-2 text-left">
+                  <span className="min-w-0 whitespace-normal break-all">{t.name}</span>
+                  {!!t.hot_score && <span aria-label={`热度 ${fmt(t.hot_score)}`} className="shrink-0 text-[12px] text-dim">热度 {fmt(t.hot_score)}</span>}
+                </Button>
+              ))}
+            </div>
+          </section>
+        ))}</div>
+      ) : (
+        <Empty icon={<TagIcon size={26} />} title="暂无标签" />
+      )}
+    </div>
+  );
+}
+
 export function TagsPage({ onBack, wide }: { onBack: () => void; wide: boolean }) {
   const { push } = useStore();
   const [searching, setSearching] = useState(false);
@@ -296,7 +383,7 @@ export function TagsPage({ onBack, wide }: { onBack: () => void; wide: boolean }
         )}
         {wide && <div className="h-2" />}
       </div>
-      {searching && <InplaceSearch kind="video" wide={wide} onClose={() => setSearching(false)} onOpenVideo={(v, list) => push({ kind: "feed", videoIds: list.map((x) => x.id), index: list.findIndex((x) => x.id === v.id), title: "搜索 · 标签" })} />}
+      {searching && <InplaceSearch kind="video" wide={wide} onClose={() => setSearching(false)} onOpenVideo={(v) => push({ kind: "series", id: v.id })} />}
     </div>
   );
 }
@@ -431,7 +518,7 @@ export function TagPage({ tag, name, onBack, wide }: { tag: string; name: string
         {videoErr && !visibleVideos.length && <Empty icon={<TagIcon size={26} />} title="短剧加载失败" sub={videoErr} action="重试" onAction={() => void load("video", 1, true)} />}
         {visibleVideos.length > 0 && <section className="mb-6">
           <h2 className="mb-3 text-[14px] font-semibold text-on">短剧 <span className="text-[12px] font-normal text-mut">{videoTotal}</span></h2>
-          <Masonry videos={visibleVideos} scopeKey={`tag-video:${tag}`} wide={wide} onOpen={(v) => push({ kind: "feed", videoIds: visibleVideos.map(x => x.id), index: visibleVideos.findIndex(x => x.id === v.id), title: name })} />
+          <Masonry videos={visibleVideos} scopeKey={`tag-video:${tag}`} wide={wide} onOpen={(v) => push({ kind: "series", id: v.id })} />
         </section>}
         <div ref={videoSentinel} className="h-2" />
         {videoErr && visibleVideos.length > 0 && <div role="status" className="flex flex-wrap items-center justify-center gap-2 py-2 text-[12px] text-mut"><span>短剧加载失败：{videoErr}</span><Button onClick={() => void load("video", videoPage + 1)} className="px-3 text-primary">重试</Button></div>}

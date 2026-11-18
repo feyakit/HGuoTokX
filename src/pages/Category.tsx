@@ -2,15 +2,14 @@ import { Button } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, fmt } from "../api";
-import type { Post, TagGroup, VideoCard } from "../types";
+import type { VideoCard } from "../types";
 import { useStore } from "../store";
-import { MediaCard, Masonry, RowCard } from "../components/cards";
-import { FilteredContent } from "../components/FilteredContent";
+import { Masonry } from "../components/cards";
 import { useContentPreferences } from "../contentPreferences";
-import { CollectionLink, CollectionLinks } from "../components/CollectionLink";
 import { InplaceSearch } from "../components/InplaceSearch";
 import { Empty, Img } from "../components/ui";
-import { IBack, IChevR, IGlobe, IGrid, ISearch, ITrophy } from "../icons";
+import { IBack, IGrid, ISearch } from "../icons";
+import { TagsSection, TopicsSection } from "./Discover";
 
 export const CHANNELS = [
   { cate: "ai-duanju", name: "AI成人短剧", desc: "高能反转 · 一口气看完" },
@@ -20,16 +19,40 @@ export const CHANNELS = [
 
 /* ================= 分类（片库） ================= */
 /**
- * 图三第 2 屏：顶搜索框 → 一级 tab（题材）→ 二级类型 chips → 3 列网格。
- * 角标只用真实数据：New = created_at 在 7 天内；Hot 需要 is_hot 字段，接口没给 → 不画（不编）。
- * 播放量用 hot 字段真值。
+ * 分类页清晰两级筛选结构（全部页内切换，不跳离底栏）：
+ * - 顶部：全局搜索栏（点击压入二级 Search 栈页）
+ * - 第 1 层（胶囊 .hg-pill-row）：一级频道/视图（全部 / 短剧 / 漫剧 / 原创 / 专题 / 标签）
+ * - 第 2 层（下划线 .hg-tab-ul）：当前频道专属排序或子类型（正交无重叠；专题/标签视图自动隐藏）
  */
-const SUB_TABS = [
-  { cate: "", name: "综合" },
-  { cate: "ai-duanju", name: "短剧" },
-  { cate: "ai-manju", name: "漫剧" },
-  { cate: "original", name: "原创" },
+const PRIMARY_VIEWS = [
+  { key: "", label: "全部" },
+  { key: "ai-duanju", label: "短剧" },
+  { key: "ai-manju", label: "漫剧" },
+  { key: "original", label: "原创" },
+  { key: "topics", label: "专题" },
+  { key: "tags", label: "标签" },
 ] as const;
+type CategoryView = (typeof PRIMARY_VIEWS)[number]["key"];
+
+const ALL_SORTS = [
+  { key: "all", label: "综合推荐" },
+  { key: "new", label: "最新上线" },
+] as const;
+
+const CHANNEL_SORTS = [
+  { value: "latest", label: "最近更新" },
+  { value: "hot_window", label: "当前热播" },
+  { value: "random", label: "精选推荐" },
+] as const;
+
+const ORIGINAL_CATES = [
+  { value: "all", label: "全部原创" },
+  { value: "ai-duanju", label: "原创短剧" },
+  { value: "ai-manju", label: "原创漫剧" },
+] as const;
+
+const originalSort = (cate: (typeof ORIGINAL_CATES)[number]["value"]) =>
+  cate === "all" ? "new" : "latest";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const isNew = (v: VideoCard) => {
@@ -40,12 +63,11 @@ const isNew = (v: VideoCard) => {
 };
 
 export default function Category({ wide, active }: { wide: boolean; active: boolean }) {
-  const { push, lineEpoch, setTab } = useStore();
-  const [cate, setCate] = useState<string>("");
-  const [primary, setPrimary] = useState<"all" | "new">("all");
-  /* 二级 chips：用站点真实标签（api.tags 的第一个分组），选中的标签走 api.tagVideos 真筛选 */
-  const [tags, setTags] = useState<string[]>([]);
-  const [tag, setTag] = useState<string>("");
+  const { push, lineEpoch } = useStore();
+  const [view, setView] = useState<CategoryView>("");
+  const [allSort, setAllSort] = useState<(typeof ALL_SORTS)[number]["key"]>("all");
+  const [chanSort, setChanSort] = useState<(typeof CHANNEL_SORTS)[number]["value"]>("latest");
+  const [origCate, setOrigCate] = useState<(typeof ORIGINAL_CATES)[number]["value"]>("all");
   const [items, setItems] = useState<VideoCard[]>([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -53,47 +75,24 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
   const [err, setErr] = useState("");
   const loadingRef = useRef(false);
   const seq = useRef(0);
-  const tagsLoaded = useRef(false);      /* 二级 chips 只统计一次，切 tab 回来不重复打 3 页 */
-  const loadedKey = useRef("");          /* 当前网格数据对应的「题材|标签|线路」组合 */
+  const loadedKey = useRef("");
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!active || tagsLoaded.current) return;
-    tagsLoaded.current = true;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const pages = await Promise.all([1, 2, 3].map(p => api.feed(p, 30)));
-        if (cancelled) return;
-        const freq = new Map<string, number>();
-        for (const res of pages) {
-          for (const v of res?.items ?? []) {
-            for (const tag of v.tags ?? []) freq.set(tag, (freq.get(tag) ?? 0) + 1);
-          }
-        }
-        const top = [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name]) => name);
-        setTags(top);
-      } catch {
-        if (!cancelled) setTags([]);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [lineEpoch, active]);
+  const isCollectionView = view === "topics" || view === "tags";
+  const subKey = view === "" ? allSort : view === "original" ? origCate : chanSort;
 
   const load = useCallback(async (p: number) => {
-    if (loadingRef.current) return;
+    if (isCollectionView || loadingRef.current) return;
     loadingRef.current = true;
     setLoading(true);
     setErr("");
     const my = ++seq.current;
     try {
-      const sort = primary === "new" ? "new" : undefined;
-      const res = tag
-        ? await api.tagVideos(tag, p, 24)
-        : cate === "original"
-          ? await api.originalVideos("all", p, 24, "new")
-          : cate
-            ? await api.category(cate, p, 24)
-            : await api.feed(p, 24, sort);
+      const res = view === "original"
+        ? await api.originalVideos(origCate, p, 24, originalSort(origCate))
+        : view === "ai-duanju" || view === "ai-manju"
+          ? await api.category(view, p, 24, chanSort)
+          : await api.feed(p, 24, allSort === "new" ? "new" : undefined);
       if (my !== seq.current) return;
       const rows = (res?.items ?? []).filter(v => v && v.cover);
       setItems(prev => p === 1 ? rows : [...prev, ...rows.filter(r => !prev.some(x => x.id === r.id))]);
@@ -104,121 +103,123 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
     } finally {
       if (my === seq.current) { setLoading(false); loadingRef.current = false; }
     }
-  }, [cate, tag, primary]);
+  }, [view, allSort, chanSort, origCate, isCollectionView]);
 
   useEffect(() => {
-    if (!active) return;
-    const key = `${primary}|${cate}|${tag}|${lineEpoch}`;
+    if (!active || isCollectionView) return;
+    const key = `${view}|${subKey}|${lineEpoch}`;
     if (loadedKey.current === key) return;
     loadedKey.current = key;
-    setItems([]); setDone(false);
+    seq.current++;
+    loadingRef.current = false;
+    setItems([]);
+    setDone(false);
+    scrollRef.current?.scrollTo(0, 0);
     void load(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, primary, cate, tag, lineEpoch]);
+  }, [active, view, subKey, lineEpoch, isCollectionView]);
 
   return (
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
       <h1 className="sr-only">分类</h1>
-      {/* 顶部搜索框：高 44、全圆角、#1E1E2E、Please enter… */}
+      {/* 顶部搜索栏：点击压入全局搜索栈页，返回即回当前分类位置 */}
       <div className="shrink-0 hg-page-x pb-2 relative z-10" style={{ paddingTop: "calc(var(--sat, 0px) + 8px)" }}>
-        <Button className="hg-searchbar" aria-label="搜索" onClick={() => setTab("search")}>
+        <Button className="hg-searchbar" aria-label="搜索" onClick={() => push({ kind: "search", initialTab: "video" })}>
           <ISearch size={16} /><span>搜索短剧、演员、题材</span>
         </Button>
       </div>
 
-      {/* 顶栏第 2 层：胶囊 tab（全部 / 最新 / 榜单 / 专题 / 标签） */}
+      {/* 第 1 层：一级频道/视图胶囊（全部页内切换） */}
       <div className="shrink-0 hg-page-x relative z-10 mt-1">
         <div className="hg-pill-row" role="tablist" aria-label="频道分栏">
-          <Button card role="tab" aria-selected={primary === "all"} className="hg-pill"
-            onClick={() => setPrimary("all")}>全部</Button>
-          <Button card role="tab" aria-selected={primary === "new"} className="hg-pill"
-            onClick={() => setPrimary("new")}>最新</Button>
-          <Button card role="tab" aria-selected={false} className="hg-pill"
-            onClick={() => push({ kind: "ranks" })}>榜单</Button>
-          <Button card role="tab" aria-selected={false} className="hg-pill"
-            onClick={() => push({ kind: "topics" })}>专题</Button>
-          <Button card role="tab" aria-selected={false} className="hg-pill"
-            onClick={() => push({ kind: "tags" })}>标签</Button>
-        </div>
-      </div>
-
-      {/* 顶栏第 3 层：二级分类行（白字加粗 + 底部 3px 紫下划线） */}
-      <div className="shrink-0 hg-page-x pb-2 mt-1 flex gap-6 overflow-x-auto hg-chip-row relative z-10">
-        {SUB_TABS.map(t => {
-          const on = !tag && cate === t.cate;
-          return (
-            <Button key={t.cate} className={`hg-filter-text hg-tab-ul${on ? " is-on" : ""}`}
-              aria-pressed={on} data-on={String(on)}
-              onClick={() => { setTag(""); setCate(t.cate); }}>{t.name}</Button>
-          );
-        })}
-        {tags.map(t => {
-          const on = tag === t;
-          return (
-            <Button key={t} className={`hg-filter-text hg-tab-ul${on ? " is-on" : ""}`}
-              aria-pressed={on} data-on={String(on)}
-              onClick={() => setTag(on ? "" : t)}>{t}</Button>
-          );
-        })}
-      </div>
-
-      <div className="flex-1 scroll-y hg-page-x relative z-10"
-        style={{ paddingBottom: "calc(110px + var(--sab, 0px))" }}>
-        {err && (
-          <div role="alert" className="py-4 flex flex-col items-center gap-2 text-[12px] text-danger">
-            <span>{err}</span>
-            <Button className="px-3 text-primary" onClick={() => void load(1)}>重试</Button>
-          </div>
-        )}
-        {!items.length && loading && <div className="flex justify-center py-10"><Loader className="w-7 h-7 spinner" /></div>}
-        {!items.length && !loading && !err && done && (
-          <Empty icon={<IGrid size={26} />} title="暂无相关内容" sub="换个分类或标签试试" />
-        )}
-
-        <div className="hg-grid-c3 mt-1">
-          {items.map(v => (
-            <Button key={v.id} className="hg-poster is-c3" onClick={() => push({ kind: "series", id: v.id })}>
-              <span className="hg-poster-art">
-                <Img src={v.cover} alt="" />
-                <span className="hg-poster-veil" aria-hidden="true" />
-                {v.is_hot === 1
-                  ? <span className="hg-poster-badge is-hot">热门</span>
-                  : isNew(v) ? <span className="hg-poster-badge">上新</span> : null}
-                <span className="hg-poster-views">▶ {fmt(v.hot)}</span>
-              </span>
-              <span className="hg-poster-name">{v.title}</span>
-              <span className="hg-poster-meta">{v.tags?.[0] || "短剧"}</span>
-            </Button>
+          {PRIMARY_VIEWS.map((item) => (
+            <Button key={item.key || "all"} card role="tab" aria-selected={view === item.key}
+              className="hg-pill"
+              onClick={() => setView(item.key)}>{item.label}</Button>
           ))}
         </div>
+      </div>
 
-        {items.length > 0 && !done && (
-          <Button className="hg-loadmore" onClick={() => void load(page + 1)} disabled={loading}>
-            {loading ? "加载中…" : "加载更多"}
-          </Button>
+      {/* 第 2 层：当前频道专属二级排序/子分类（正交无重复；专题/标签不显示此行） */}
+      {!isCollectionView && (
+        <div className="shrink-0 hg-page-x pb-2 mt-1 flex gap-6 overflow-x-auto hg-chip-row relative z-10" role="tablist" aria-label="频道排序">
+          {view === "" && ALL_SORTS.map(s => {
+            const on = allSort === s.key;
+            return (
+              <Button key={s.key} role="tab" aria-selected={on}
+                className={`hg-filter-text hg-tab-ul${on ? " is-on" : ""}`} data-on={String(on)}
+                onClick={() => setAllSort(s.key)}>{s.label}</Button>
+            );
+          })}
+          {(view === "ai-duanju" || view === "ai-manju") && CHANNEL_SORTS.map(s => {
+            const on = chanSort === s.value;
+            return (
+              <Button key={s.value} role="tab" aria-selected={on}
+                className={`hg-filter-text hg-tab-ul${on ? " is-on" : ""}`} data-on={String(on)}
+                onClick={() => setChanSort(s.value)}>{s.label}</Button>
+            );
+          })}
+          {view === "original" && ORIGINAL_CATES.map(s => {
+            const on = origCate === s.value;
+            return (
+              <Button key={s.value} role="tab" aria-selected={on}
+                className={`hg-filter-text hg-tab-ul${on ? " is-on" : ""}`} data-on={String(on)}
+                onClick={() => setOrigCate(s.value)}>{s.label}</Button>
+            );
+          })}
+        </div>
+      )}
+
+      <div ref={scrollRef} className="flex-1 scroll-y hg-page-x relative z-10"
+        style={{ paddingBottom: "calc(110px + var(--sab, 0px))" }}>
+        {view === "topics" ? (
+          <div className="pt-2"><TopicsSection wide={wide} /></div>
+        ) : view === "tags" ? (
+          <div className="pt-2"><TagsSection wide={wide} /></div>
+        ) : (
+          <>
+            {err && (
+              <div role="alert" className="py-4 flex flex-col items-center gap-2 text-[12px] text-danger">
+                <span>{err}</span>
+                <Button className="px-3 text-primary" onClick={() => void load(1)}>重试</Button>
+              </div>
+            )}
+            {!items.length && loading && <div className="flex justify-center py-10"><Loader className="w-7 h-7 spinner" /></div>}
+            {!items.length && !loading && !err && done && (
+              <Empty icon={<IGrid size={26} />} title="暂无相关内容" sub="换个频道或排序试试" />
+            )}
+
+            <div className="hg-grid-c3 mt-1">
+              {items.map(v => (
+                <Button key={v.id} className="hg-poster is-c3" onClick={() => push({ kind: "series", id: v.id })}>
+                  <span className="hg-poster-art">
+                    <Img src={v.cover} alt="" />
+                    <span className="hg-poster-veil" aria-hidden="true" />
+                    {v.is_hot === 1
+                      ? <span className="hg-poster-badge is-hot">热门</span>
+                      : isNew(v) ? <span className="hg-poster-badge">上新</span> : null}
+                    <span className="hg-poster-views">▶ {fmt(v.hot)}</span>
+                  </span>
+                  <span className="hg-poster-name">{v.title}</span>
+                  <span className="hg-poster-meta">{v.tags?.[0] || "短剧"}</span>
+                </Button>
+              ))}
+            </div>
+
+            {items.length > 0 && !done && (
+              <Button className="hg-loadmore" onClick={() => void load(page + 1)} disabled={loading}>
+                {loading ? "加载中…" : "加载更多"}
+              </Button>
+            )}
+          </>
         )}
       </div>
     </div>
   );
 }
 
-/* ================= 频道详情页 ================= */
-const CHANNEL_SORTS = [
-  { value: "latest", label: "最近更新" },
-  { value: "hot_window", label: "当前热播" },
-  { value: "random", label: "精选推荐" },
-] as const;
-
-const ORIGINAL_CATES = [
-  { value: "all", label: "全部原创" },
-  { value: "ai-manju", label: "原创漫剧" },
-  { value: "ai-duanju", label: "原创短剧" },
-] as const;
-
-const originalSort = (cate: (typeof ORIGINAL_CATES)[number]["value"]) =>
-  cate === "all" ? "new" : "latest";
-
+/* ================= 频道详情页（二级路由兼容） ================= */
 export function ChannelPage({ cate, name, onBack, wide }: { cate: string; name: string; onBack: () => void; wide: boolean }) {
   const { push } = useStore();
   const { preferences } = useContentPreferences();
@@ -342,7 +343,7 @@ export function ChannelPage({ cate, name, onBack, wide }: { cate: string; name: 
         {items.length > 0 && err && <div role="status" className="mb-3 flex flex-wrap items-center gap-2 text-[12px] text-mut"><span>{err}</span><Button className="px-3 text-primary" onClick={() => void loadMore(replacing)}>重试</Button></div>}
         {items.length ? (
           <div inert={replacing || undefined} className={replacing ? "opacity-60" : undefined}>
-            <Masonry videos={items} scopeKey={filterKey(serverSort, originalCate)} wide={wide} onOpen={(v) => { if (!replacing) push({ kind: "feed", videoIds: items.map((x) => x.id), index: items.findIndex((x) => x.id === v.id), title: name }); }} />
+            <Masonry videos={items} scopeKey={filterKey(serverSort, originalCate)} wide={wide} onOpen={(v) => { if (!replacing) push({ kind: "series", id: v.id }); }} />
           </div>
         ) : err ? (
           <Empty icon={<IGrid size={26} />} title="加载失败" sub={err} action="重试" onAction={() => void loadMore(true)} />
@@ -356,7 +357,7 @@ export function ChannelPage({ cate, name, onBack, wide }: { cate: string; name: 
           <div className="text-center text-[12px] text-dim py-3">— 已经到底啦 —</div>
         )}
       </div>
-      {searching && <InplaceSearch kind="video" scope={cate === "original" ? "original" : undefined} wide={wide} onClose={() => setSearching(false)} onOpenVideo={(v, list) => push({ kind: "feed", videoIds: list.map((x) => x.id), index: list.findIndex((x) => x.id === v.id), title: `搜索 · ${name}` })} />}
+      {searching && <InplaceSearch kind="video" scope={cate === "original" ? "original" : undefined} wide={wide} onClose={() => setSearching(false)} onOpenVideo={(v) => push({ kind: "series", id: v.id })} />}
     </div>
   );
 }

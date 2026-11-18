@@ -9,6 +9,11 @@ pub(crate) const BOOTSTRAP: [SocketAddr; 2] = [
     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(223, 5, 5, 5)), 443),
     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(223, 6, 6, 6)), 443),
 ];
+pub(crate) const CF_HOST: &str = "cloudflare-dns.com";
+pub(crate) const CF_BOOTSTRAP: [SocketAddr; 2] = [
+    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), 443),
+    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 0, 0, 1)), 443),
+];
 const MAX_RESPONSE_BYTES: usize = 16 * 1024;
 
 #[derive(Default)]
@@ -38,7 +43,7 @@ pub(crate) fn eligible(target: &url::Url, error: &str) -> bool {
         && matches!(target.host(), Some(url::Host::Domain(_)))
         && matches!(
             crate::playback_log::error_kind(error),
-            "dns_error" | "timeout" | "transport_error"
+            "dns_error" | "timeout" | "transport_error" | "private_address_denied"
         )
 }
 
@@ -64,10 +69,7 @@ fn answers(value: &Value, port: u16) -> Result<Resolution, String> {
             .ok_or("备用 DNS 地址无效")?
             .parse()
             .map_err(|_| "备用 DNS 地址无效")?;
-        let [first, second, _, _] = ip.octets();
-        if !network_policy::allowed_ip(ip.into())
-            || (first == 198 && (second == 18 || second == 19))
-        {
+        if !network_policy::allowed_ip(ip.into()) || network_policy::is_fake_ip(ip.into()) {
             return Err("备用 DNS 返回内网或保留地址".into());
         }
         addresses.push(SocketAddr::new(ip.into(), port));
@@ -83,13 +85,15 @@ fn answers(value: &Value, port: u16) -> Result<Resolution, String> {
     })
 }
 
-pub(crate) async fn resolve(
+async fn resolve_json_endpoint(
     http: &reqwest::Client,
+    endpoint: &str,
     host: &str,
     port: u16,
 ) -> Result<Resolution, String> {
     let mut response = http
-        .get(format!("https://{HOST}/resolve"))
+        .get(endpoint)
+        .header("Accept", "application/dns-json")
         .query(&[("name", host), ("type", "A")])
         .timeout(Duration::from_secs(4))
         .send()
@@ -106,6 +110,22 @@ pub(crate) async fn resolve(
     }
     let value: Value = serde_json::from_slice(&bytes).map_err(|_| "备用 DNS 响应无效")?;
     answers(&value, port)
+}
+
+pub(crate) async fn resolve(
+    http: &reqwest::Client,
+    host: &str,
+    port: u16,
+) -> Result<Resolution, String> {
+    resolve_json_endpoint(http, &format!("https://{HOST}/resolve"), host, port).await
+}
+
+pub(crate) async fn resolve_cloudflare(
+    http: &reqwest::Client,
+    host: &str,
+    port: u16,
+) -> Result<Resolution, String> {
+    resolve_json_endpoint(http, &format!("https://{CF_HOST}/dns-query"), host, port).await
 }
 
 #[cfg(test)]
@@ -132,6 +152,7 @@ mod tests {
             "169.254.169.254",
             "198.18.0.1",
             "198.19.0.1",
+            "240.0.0.1",
             "not-an-ip",
         ] {
             assert!(
@@ -159,6 +180,7 @@ mod tests {
             "请求超时",
             "client error (Connect) ← operation timed out",
             "tls handshake eof",
+            "禁止访问普通内网",
         ] {
             assert!(eligible(&url, error));
         }
@@ -166,7 +188,7 @@ mod tests {
             "HTTP 403 Forbidden",
             "HTTP 404 Not Found",
             "HTTP 503 Service Unavailable",
-            "禁止访问内网",
+            "禁止访问应用内部协议主机名",
             "禁止 HTTPS 降级重定向",
         ] {
             assert!(!eligible(&url, error), "{error}");

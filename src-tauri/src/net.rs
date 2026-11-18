@@ -521,6 +521,24 @@ fn client_key(strict: bool, host: &str, port: u16, public_dns: bool, route: &Pro
     format!("{strict}:{host}:{port}:{public_dns}:{}:{:x}:{}", route.active, route.fingerprint(), route.generation)
 }
 
+async fn resolve_doh_fallback(
+    host: &str,
+    port: u16,
+    route: &ProxyRoute,
+    strict: bool,
+) -> Result<crate::media_dns::Resolution, String> {
+    let ali = build_client(crate::media_dns::HOST, &crate::media_dns::BOOTSTRAP, route)?;
+    if let Ok(resolution) = crate::media_dns::resolve(&ali, host, port).await {
+        if network_policy::check_addresses_with_mode(&resolution.addresses, strict).is_ok() {
+            return Ok(resolution);
+        }
+    }
+    let cf = build_client(crate::media_dns::CF_HOST, &crate::media_dns::CF_BOOTSTRAP, route)?;
+    let resolution = crate::media_dns::resolve_cloudflare(&cf, host, port).await?;
+    network_policy::check_addresses_with_mode(&resolution.addresses, strict)?;
+    Ok(resolution)
+}
+
 async fn client_for_dns(raw: &str, public_dns: bool) -> Result<(url::Url, Arc<reqwest::Client>), String> {
     let strict = network_policy::strict_security();
     let target = network_policy::parse_target_with_mode(raw, strict)?;
@@ -539,12 +557,24 @@ async fn client_for_dns(raw: &str, public_dns: bool) -> Result<(url::Url, Arc<re
         // 有代理：跳过本地解析与 IP 校验，addrs 留空，域名交给代理。
         (Vec::new(), CLIENT_TTL)
     } else if public_dns {
-        let resolver = build_client(crate::media_dns::HOST, &crate::media_dns::BOOTSTRAP, &route)?;
-        let resolution = crate::media_dns::resolve(&resolver, host, port).await?;
-        network_policy::check_addresses_with_mode(&resolution.addresses, strict)?;
+        let resolution = resolve_doh_fallback(host, port, &route, strict).await?;
         (resolution.addresses, CLIENT_TTL.min(resolution.ttl))
     } else if strict {
-        (network_policy::resolve_target(&target, strict).await?, CLIENT_TTL)
+        match network_policy::resolve_target(&target, strict).await {
+            Ok(addrs) => (addrs, CLIENT_TTL),
+            Err(err)
+                if target.scheme() == "https"
+                    && matches!(target.host(), Some(url::Host::Domain(_))) =>
+            {
+                // 系统 DNS 超时、失败或被运营商/路由器污染为 127.0.0.1 / 0.0.0.0 / 私网黑洞地址时，
+                // 自动回退加密 DoH（阿里 + Cloudflare）获取真实公网地址；DoH 结果仍经过严格公网 IP 校验。
+                match resolve_doh_fallback(host, port, &route, strict).await {
+                    Ok(resolution) => (resolution.addresses, CLIENT_TTL.min(resolution.ttl)),
+                    Err(_) => return Err(err),
+                }
+            }
+            Err(err) => return Err(err),
+        }
     } else {
         (Vec::new(), CLIENT_TTL)
     };
@@ -728,16 +758,7 @@ fn dns_summary(addrs: impl IntoIterator<Item = SocketAddr>) -> Value {
     let mut ips: Vec<_> = addrs.into_iter().map(|addr| addr.ip()).collect();
     ips.sort_unstable();
     ips.dedup();
-    let has_fake_ip = ips.iter().any(|ip| {
-        let v4 = match ip {
-            std::net::IpAddr::V4(v4) => Some(*v4),
-            std::net::IpAddr::V6(v6) => v6.to_ipv4_mapped(),
-        };
-        v4.is_some_and(|ip| {
-            let [a, b, _, _] = ip.octets();
-            a == 198 && (b == 18 || b == 19)
-        })
-    });
+    let has_fake_ip = ips.iter().copied().any(network_policy::is_fake_ip);
     json!({ "count": ips.len(), "has_fake_ip": has_fake_ip })
 }
 
@@ -748,8 +769,8 @@ fn ipv4_kind(o: [u8; 4]) -> &'static str {
         "loopback"
     } else if o == [0, 0, 0, 0] {
         "unspecified"
-    } else if o[0] == 198 && (o[1] == 18 || o[1] == 19) {
-        // Clash / Surge 系 TUN 的 fake-ip 网段：TUN 一关这个地址就不可路由。
+    } else if network_policy::is_fake_ip(std::net::IpAddr::V4(v4)) {
+        // Clash / Surge / Shadowrocket 系 TUN 的 fake-ip 网段：TUN 一关这个地址就不可路由。
         "fake_ip"
     } else if v4.is_private() {
         "private"
@@ -770,6 +791,8 @@ fn ip_kind(ip: std::net::IpAddr) -> &'static str {
                 "loopback"
             } else if v6.is_unspecified() {
                 "unspecified"
+            } else if network_policy::is_fake_ip(std::net::IpAddr::V6(v6)) {
+                "fake_ip"
             } else if let Some(v4) = v6.to_ipv4_mapped() {
                 ipv4_kind(v4.octets())
             } else {

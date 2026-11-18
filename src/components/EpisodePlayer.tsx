@@ -1710,7 +1710,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
           </Button>}
           <Button onClick={lockControls} aria-label="锁定播放控制" title="锁定播放控制" aria-pressed={false}
             className="hg-chip w-9 h-9 rounded-full flex items-center justify-center pressable elev-1"><ILockF size={17} /></Button>
-          {!fs && !clean && <Button onClick={() => store.setTab("search")} aria-label="搜索"
+          {!fs && !clean && <Button onClick={() => store.push({ kind: "search", initialTab: "video" })} aria-label="搜索"
             className="hg-chip w-9 h-9 rounded-full flex items-center justify-center pressable elev-1"><ISearch size={18} /></Button>}
         </div>
       )}

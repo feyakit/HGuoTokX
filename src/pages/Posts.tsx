@@ -10,7 +10,6 @@ import { CommentsPanel } from "../components/Panels";
 import Player from "../components/Player";
 import { IBack, IComment, IFireF, IHeart, IHeartF, IPlayF, ISearch, IStar, IStarF } from "../icons";
 import { handleArticleClick, sanitizeHtml } from "../html";
-import { InplaceSearch } from "../components/InplaceSearch";
 import { FilteredContent } from "../components/FilteredContent";
 import { TagBlockMenu } from "../components/TagBlockMenu";
 import { useContentPreferences } from "../contentPreferences";
@@ -35,14 +34,13 @@ const postTime = (p: Post) => {
   return m ? `${+m[2]}月${+m[3]}日 ${m[4]}:${m[5]}` : raw;
 };
 
-export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => void; wide: boolean; embedded?: boolean }) {
+export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; wide?: boolean; embedded?: boolean }) {
   const { push, toast, follows, setFollowing, isLiked, setLiked, actionPending, user, setLoginOpen } = useStore();
   const { preferences } = useContentPreferences();
   const filtering = !preferences.paused && (preferences.blockedTags.length > 0 || preferences.hideUntagged);
   const [sort, setSort] = useState<SortKey>("latest");
   const [categories, setCategories] = useState<PostCategory[]>([]);
   const [cate, setCate] = useState("");
-  const [searching, setSearching] = useState(false);
   const [commentTarget, setCommentTarget] = useState<{ id: number; total: number } | null>(null);
   const [likeDelta, setLikeDelta] = useState<Record<number, number>>({});
   const [items, setItems] = useState<Post[]>([]);
@@ -219,35 +217,46 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
   return (
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
-      <div className="shrink-0 hg-page-x flex items-center gap-3 relative z-10"
-        style={{ paddingTop: "calc(var(--sat, 0px) + 8px)", paddingBottom: 8 }}>
+      {/* 顶栏：左标题（二级栈页带返回），右全局搜索（默认选中吃瓜帖子） */}
+      <div className="shrink-0 hg-page-x flex items-center gap-2.5 relative z-10"
+        style={{ paddingTop: "calc(var(--sat, 0px) + 8px)", paddingBottom: 6 }}>
         {!embedded && onBack && (
           <Button aria-label="返回" onClick={onBack} className="ios-icon-button shrink-0"><IBack size={19} /></Button>
         )}
-        <div className="hg-tabs" role="tablist" aria-label="社区分栏">
-          {SORTS.map((s) => (
-            <Button key={s.key} role="tab" aria-selected={sort === s.key} className={`hg-tab hg-tab-ul${sort === s.key ? " is-on" : ""}`}
-              onClick={() => setSort(s.key)}>{s.label}</Button>
-          ))}
-        </div>
+        <h1 className="text-[18px] font-bold text-on">吃瓜</h1>
         <span className="flex-1" />
-        <Button card className="hg-icon-plain" aria-label="搜索社区" onClick={() => setSearching(true)}><ISearch size={19} /></Button>
+        <Button card className="hg-icon-plain" aria-label="搜索社区" onClick={() => push({ kind: "search", initialTab: "post" })}>
+          <ISearch size={20} />
+        </Button>
       </div>
 
+      {/* 第 1 层：社区分类胶囊（与分类页保持同一交互范式） */}
       {categories.length > 0 && (
-        <div className="shrink-0 hg-page-x pb-2 relative z-10">
+        <div className="shrink-0 hg-page-x pb-1 relative z-10">
           <div className="hg-pill-row" role="tablist" aria-label="社区分类">
             <Button card role="tab" aria-selected={cate === ""}
-              className={`hg-pill${cate === "" ? " is-on" : ""}`}
+              className="hg-pill"
               onClick={() => setCate("")}>全部</Button>
             {categories.map((c) => (
               <Button key={c.route || c.id} card role="tab" aria-selected={cate === c.route}
-                className={`hg-pill${cate === c.route ? " is-on" : ""}`}
+                className="hg-pill"
                 onClick={() => setCate(c.route)}>{c.name}</Button>
             ))}
           </div>
         </div>
       )}
+
+      {/* 第 2 层：排序下划线 tab（最新 / 热门） */}
+      <div className="shrink-0 hg-page-x pb-2 mt-0.5 flex gap-6 overflow-x-auto hg-chip-row relative z-10" role="tablist" aria-label="社区排序">
+        {SORTS.map((s) => {
+          const on = sort === s.key;
+          return (
+            <Button key={s.key} role="tab" aria-selected={on}
+              className={`hg-filter-text hg-tab-ul${on ? " is-on" : ""}`} data-on={String(on)}
+              onClick={() => setSort(s.key)}>{s.label}</Button>
+          );
+        })}
+      </div>
 
       <div ref={scrollRef} aria-busy={loading} className="flex-1 scroll-y hg-page-x relative z-10"
         style={{ paddingBottom: "calc(110px + var(--sab, 0px))" }}>
@@ -274,7 +283,6 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
         {!loading && !err && items.length > 0 && page < pages && <Button onClick={() => loadMore()} className="w-full mt-3">加载更多</Button>}
         {loading && items.length > 0 && <div className="flex justify-center py-2"><Loader className="w-6 h-6 spinner" /></div>}
       </div>
-      {searching && <InplaceSearch kind="post" postLabel="吃瓜帖子" wide={wide} onClose={() => setSearching(false)} onOpenPost={(p) => push({ kind: "post", id: p.id })} />}
       <Sheet open={!!commentTarget} onClose={() => setCommentTarget(null)}>
         {commentTarget && (
           <div className="flex flex-col" style={{ height: "72vh" }}>

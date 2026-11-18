@@ -88,17 +88,49 @@ fn is_internal_webview_host(name: &str) -> bool {
     )
 }
 
+pub fn is_fake_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(ip) => {
+            let [a, b, _, _] = ip.octets();
+            // Clash / Surge / Loon / Sing-box / Quantumult X 默认 FakeIP 段 198.18.0.0/15，
+            // 以及 iOS Shadowrocket / Quantumult X 常用 Class E FakeIP 段 240.0.0.0/4（排除受限广播）。
+            (a == 198 && (b == 18 || b == 19)) || (a >= 240 && !ip.is_broadcast())
+        }
+        IpAddr::V6(ip) => {
+            if let Some(v4) = ip.to_ipv4_mapped() {
+                return is_fake_ip(IpAddr::V4(v4));
+            }
+            let s = ip.segments();
+            if s[0] == 0x0064
+                && s[1] == 0xff9b
+                && ((s[2] == 0 && s[3] == 0 && s[4] == 0 && s[5] == 0) || s[2] == 1)
+            {
+                let v4 = std::net::Ipv4Addr::new(
+                    (s[6] >> 8) as u8,
+                    s[6] as u8,
+                    (s[7] >> 8) as u8,
+                    s[7] as u8,
+                );
+                return is_fake_ip(IpAddr::V4(v4));
+            }
+            // Clash Meta (mihomo) / Stash 默认 IPv6 FakeIP 专用前缀 fdfe:dcba:9876::/48
+            s[0] == 0xfdfe && s[1] == 0xdcba && s[2] == 0x9876
+        }
+    }
+}
+
 pub fn allowed_ip(ip: IpAddr) -> bool {
+    if is_fake_ip(ip) {
+        return true;
+    }
     match ip {
         IpAddr::V4(ip) => {
             let [a, b, c, _] = ip.octets();
-            if a == 198 && (b == 18 || b == 19) {
-                return true;
-            }
             !(a == 0
                 || a == 10
                 || a == 127
-                || a >= 224
+                || (224..=239).contains(&a)
+                || ip.is_broadcast()
                 || (a == 100 && (64..=127).contains(&b))
                 || (a == 169 && b == 254)
                 || (a == 172 && (16..=31).contains(&b))
@@ -113,7 +145,21 @@ pub fn allowed_ip(ip: IpAddr) -> bool {
                 return allowed_ip(IpAddr::V4(v4));
             }
             let s = ip.segments();
-            // 仅全球单播；拒绝 ULA、链路本地、回环、组播、NAT64，以及可封装私网 IPv4 的 6to4/Teredo。
+            // RFC 6052 (64:ff9b::/96) 与 RFC 8215 (64:ff9b:1::/48) 运营商蜂窝网 DNS64/NAT64：
+            // 仅当内嵌的 32 位 IPv4 地址本身合法（公网或 FakeIP）时放行，继续阻断借 NAT64 封装私网 IPv4。
+            if s[0] == 0x0064
+                && s[1] == 0xff9b
+                && ((s[2] == 0 && s[3] == 0 && s[4] == 0 && s[5] == 0) || s[2] == 1)
+            {
+                let v4 = std::net::Ipv4Addr::new(
+                    (s[6] >> 8) as u8,
+                    s[6] as u8,
+                    (s[7] >> 8) as u8,
+                    s[7] as u8,
+                );
+                return allowed_ip(IpAddr::V4(v4));
+            }
+            // 仅全球单播；拒绝普通 ULA、链路本地、回环、组播，以及可封装私网 IPv4 的 6to4/Teredo。
             (s[0] & 0xe000) == 0x2000
                 && s[0] != 0x2002
                 && !(s[0] == 0x2001 && (s[1] < 0x0200 || s[1] == 0x0db8))
@@ -162,7 +208,7 @@ fn check_ip(ip: IpAddr) -> Result<(), String> {
     if allowed_ip(ip) {
         Ok(())
     } else {
-        Err("禁止访问普通内网、回环或保留地址（仅放行 FakeIP 198.18.0.0/15）".into())
+        Err("禁止访问普通内网、回环或保留地址（若域名解析被劫持或代理异常，可在「我的 → 设置」切换线路或关闭严格安全模式）".into())
     }
 }
 
@@ -184,6 +230,15 @@ pub fn check_addresses_with_mode(addrs: &[SocketAddr], strict: bool) -> Result<(
     Ok(())
 }
 
+/// 当双栈查询已被本地 TUN FakeIP 接管（例如 A 返回 198.18.0.x / 240.0.0.x，
+/// 而 AAAA 返回 Sing-box 的 fc00::/18 或未指定地址）时，剔除不放行的伴生记录，
+/// 使连接器仅固定到合法的 FakeIP / 公网地址；普通公私网混合重绑定仍原样保留以便后续整体拒绝。
+fn retain_allowed_when_fakeip(addrs: &mut Vec<SocketAddr>, strict: bool) {
+    if strict && addrs.iter().any(|addr| is_fake_ip(addr.ip())) {
+        addrs.retain(|addr| allowed_ip(addr.ip()));
+    }
+}
+
 /// 与浏览器一致优先 IPv6：连接器以首个地址的协议族为首选，另一族在其失败后（Happy Eyeballs）兜底。
 /// 普通排序会把 IPv4 排在前面；共享 IPv4 出口被上游接口限流时，请求会挂起或返回 502/503，
 /// 而同一网络下浏览器走 IPv6 一切正常。
@@ -196,14 +251,18 @@ pub async fn resolve_target(url: &Url, strict: bool) -> Result<Vec<SocketAddr>, 
     let mut addrs = match url.host().ok_or("目标缺少主机名")? {
         Host::Ipv4(ip) => vec![SocketAddr::new(ip.into(), port)],
         Host::Ipv6(ip) => vec![SocketAddr::new(ip.into(), port)],
-        Host::Domain(host) => tokio::time::timeout(
-            Duration::from_secs(10),
-            tokio::net::lookup_host((host, port)),
-        )
-        .await
-        .map_err(|_| "DNS 解析超时")?
-        .map_err(|_| "DNS 解析失败")?
-        .collect(),
+        Host::Domain(host) => {
+            let mut resolved: Vec<SocketAddr> = tokio::time::timeout(
+                Duration::from_secs(10),
+                tokio::net::lookup_host((host, port)),
+            )
+            .await
+            .map_err(|_| "DNS 解析超时")?
+            .map_err(|_| "DNS 解析失败")?
+            .collect();
+            retain_allowed_when_fakeip(&mut resolved, strict);
+            resolved
+        }
     };
     sort_ipv6_first(&mut addrs);
     addrs.dedup();
@@ -278,11 +337,44 @@ mod tests {
             "8.8.8.8",
             "198.18.0.0",
             "198.19.255.255",
+            "240.0.0.1",
+            "255.255.255.254",
             "2606:4700:4700::1111",
             "::ffff:198.18.0.1",
+            "::ffff:240.0.0.9",
+            "fdfe:dcba:9876::1",
+            "64:ff9b::101:101",
+            "64:ff9b::c612:1",
+            "64:ff9b:1::808:808",
         ] {
             assert!(allowed_ip(ip.parse().unwrap()), "{ip}");
         }
+    }
+
+    #[test]
+    fn dualstack_fakeip_strips_unroutable_companion_aaaa() {
+        let mut tun_addrs: Vec<SocketAddr> = [
+            "198.18.0.15:443",
+            "[fc00::15]:443",
+            "[fe80::1]:443",
+        ]
+        .iter()
+        .map(|s| s.parse().unwrap())
+        .collect();
+        retain_allowed_when_fakeip(&mut tun_addrs, true);
+        assert_eq!(tun_addrs, vec!["198.18.0.15:443".parse().unwrap()]);
+        assert!(check_addresses_with_mode(&tun_addrs, true).is_ok());
+
+        let mut rebind_addrs: Vec<SocketAddr> = [
+            "1.1.1.1:443",
+            "192.168.1.1:443",
+        ]
+        .iter()
+        .map(|s| s.parse().unwrap())
+        .collect();
+        retain_allowed_when_fakeip(&mut rebind_addrs, true);
+        assert_eq!(rebind_addrs.len(), 2);
+        assert!(check_addresses_with_mode(&rebind_addrs, true).is_err());
     }
 
     #[test]

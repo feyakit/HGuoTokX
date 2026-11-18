@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import type { Detail, VideoCard } from "../types";
 import { useStore } from "../store";
@@ -10,13 +10,12 @@ import { IChevR, IClose, IPlayF, ISearch, Logo } from "../icons";
 import { useContentPreferences } from "../contentPreferences";
 import { PreferenceStorageNotice } from "../components/PreferenceStorageNotice";
 
-/* 首页结构（数值全部取自 参考实测.json 的 v3 段）：
-   顶栏 3 层 = 状态栏 → 品牌行（左 logo，右 搜索；礼物图标无接口不做）→ 胶囊 tab（选中=实心胶囊）
-   内容     = Hero（前 3 条轮播 + Play 胶囊 + 卡外 3 圆点）→ 最新上架横滑 → 3 列网格
-   继续观看 = 参考 S1 的那张悬浮卡（封面 + 集数/进度 + 圆形播放 + 右上关闭），压在底栏之上；
-              数据取 accountHistory（store.history），游客态或历史为空整个模块不渲染
-   底栏     = 宽浮岛 328×57、左右各 16（v3.tabbar 实测 0.911×360）；内容 pb = 57 + 16 + 安全区
-   排行榜不在首页：它是独立一屏（/api/ranks/hot，固定 20 条），入口是胶囊 tab「榜单」 */
+const RankView = lazy(() => import("./Search").then(m => ({ default: m.RankView })));
+
+/* 首页结构：
+   顶栏 = 状态栏 → 品牌行（左 HGuoX 品牌标，右 全局搜索入口）→ 页内胶囊分栏（全部 / 最新 / 榜单）
+   内容 = 全部/最新：Hero 轮播 → 最新上架横滑 → 3 列网格；榜单：页内热播榜 / 推荐榜 / 潜力榜
+   继续观看 = 登录且有观看记录时悬浮在底栏上方 */
 
 const TABS = [
   { key: "all", label: "全部" },
@@ -33,10 +32,10 @@ const isNew = (v: VideoCard) => {
   return Number.isFinite(t) && Date.now() - t < WEEK;
 };
 
-export default function Home({ active, bottomInset }: { active: boolean; bottomInset: number }) {
-  const { push, lineEpoch, setTab, user, history } = useStore();
+export default function Home({ active }: { active: boolean; bottomInset?: number }) {
+  const { push, lineEpoch, user, history } = useStore();
   const { preferences, storageError, blockReason } = useContentPreferences();
-  const [tab, setFeedTab] = useState<FeedTab>("all");
+  const [tab, setFeedTab] = useState<TabKey>("all");
   const [items, setItems] = useState<VideoCard[]>([]);
   const [rail, setRail] = useState<VideoCard[]>([]);
   const [page, setPage] = useState(1);
@@ -64,8 +63,7 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
   const loadingRef = useRef(false);
   const seq = useRef(0);
 
-  /* 列表：全部 → api.feed（/api/videos）；最新 → api.feed(sort=new)；
-     原创 → api.originalVideos（/api/videos?is_original=1） */
+  /* 列表：全部 → api.feed（/api/videos）；最新 → api.feed(sort=new) */
   const load = useCallback(async (p: number, key: FeedTab) => {
     if (loadingRef.current) return;
     loadingRef.current = true;
@@ -94,7 +92,7 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
   }, []);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active || tab === "rank") return;
     setItems([]);
     setDone(false);
     setHeroIndex(0);
@@ -142,16 +140,16 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
         <Logo size={24} className="mr-2 shrink-0" />
         <span className="hg-brand">HGuoX</span>
         <span className="flex-1" />
-        <Button card className="hg-icon-plain" aria-label="搜索" onClick={() => setTab("search")}><ISearch size={21} /></Button>
+        <Button card className="hg-icon-plain" aria-label="搜索" onClick={() => push({ kind: "search", initialTab: "video" })}><ISearch size={21} /></Button>
       </div>
 
-      {/* 顶栏第 3 层：胶囊 tab（All Shows / New Shows / Ranking） */}
+      {/* 顶栏第 3 层：胶囊 tab（全部 / 最新 / 榜单 页内切换） */}
       <div className="shrink-0 hg-page-x hg-chip-row relative z-10">
         <div className="hg-pill-row" role="tablist" aria-label="首页分栏">
           {TABS.map(t => (
             <Button card key={t.key} role="tab" aria-selected={t.key === tab}
               className="hg-pill"
-              onClick={() => t.key === "rank" ? push({ kind: "ranks" }) : setFeedTab(t.key)}>{t.label}</Button>
+              onClick={() => setFeedTab(t.key)}>{t.label}</Button>
           ))}
         </div>
       </div>
@@ -160,92 +158,102 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
         style={{ paddingBottom: `calc(${continueShown ? 190 : 110}px + var(--sab, 0px))` }}>
         {storageError && <PreferenceStorageNotice />}
 
-        {!items.length && loading && <div className="flex justify-center py-10"><Loader className="w-7 h-7 spinner" /></div>}
-        {!items.length && !loading && error && (
-          <Empty icon={<ISearch size={26} />} title="首页加载失败" sub={error} action="重试" onAction={() => void load(1, tab)} />
-        )}
-        {!items.length && !loading && !error && done && (
-          <Empty icon={<ISearch size={26} />} title="暂无视频" sub="稍后刷新试试" action="刷新" onAction={() => void load(1, tab)} />
-        )}
+        {tab === "rank" ? (
+          <div className="pt-1">
+            <Suspense fallback={<div className="flex justify-center py-10"><Loader className="w-7 h-7 spinner" /></div>}>
+              <RankView wide={false} active={active} />
+            </Suspense>
+          </div>
+        ) : (
+          <>
+            {!items.length && loading && <div className="flex justify-center py-10"><Loader className="w-7 h-7 spinner" /></div>}
+            {!items.length && !loading && error && (
+              <Empty icon={<ISearch size={26} />} title="首页加载失败" sub={error} action="重试" onAction={() => void load(1, tab)} />
+            )}
+            {!items.length && !loading && !error && done && (
+              <Empty icon={<ISearch size={26} />} title="暂无视频" sub="稍后刷新试试" action="刷新" onAction={() => void load(1, tab)} />
+            )}
 
-        {/* Hero：列表前 3 条（358×220 约 16:10、圆角 20、主标题+副标题+深色 Play 胶囊、卡外 3 圆点） */}
-        {hero && (
-          <div className="hg-hero-wrap">
-            <div className="hg-hero-track" ref={heroTrack} onScroll={onHeroScroll}>
-              {heroes.map((h, i) => (
-                <Button key={h.id} card className="hg-hero" aria-label={`${h.title} 详情`} onClick={() => openSeries(h.id)}>
-                  <Img src={h.cover} eager={i === 0} alt="" />
-                  <span className="hg-hero-veil" aria-hidden="true" />
-                  <span className="hg-hero-copy">
-                    <span className="hg-hero-title">{h.title}</span>
-                    <span className="hg-hero-sub">
-                      {h.tags?.length ? h.tags.slice(0, 3).join(" · ") : (h.is_finished ? "已完结" : `共 ${h.episode_count ?? "?"} 集`)}
-                    </span>
-                    <span className="hg-hero-play" role="button" tabIndex={0}
-                      onClick={e => { e.stopPropagation(); play(h.id); }}
-                      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); play(h.id); } }}>
-                      <IPlayF size={12} />播放
-                    </span>
-                  </span>
-                </Button>
-              ))}
-            </div>
-            {heroes.length > 1 && (
-              <div className="hg-dots" role="tablist" aria-label="推荐轮播">
-                {heroes.map((h, i) => (
-                  <button key={h.id} type="button" className="hg-dot" data-on={String(i === heroIndex)}
-                    aria-label={`第 ${i + 1} 个推荐`} aria-selected={i === heroIndex}
-                    onClick={() => goHero(i)} />
-                ))}
+            {/* Hero：列表前 3 条（358×220 约 16:10、圆角 20、主标题+副标题+深色 Play 胶囊、卡外 3 圆点） */}
+            {hero && (
+              <div className="hg-hero-wrap">
+                <div className="hg-hero-track" ref={heroTrack} onScroll={onHeroScroll}>
+                  {heroes.map((h, i) => (
+                    <Button key={h.id} card className="hg-hero" aria-label={`${h.title} 详情`} onClick={() => openSeries(h.id)}>
+                      <Img src={h.cover} eager={i === 0} alt="" />
+                      <span className="hg-hero-veil" aria-hidden="true" />
+                      <span className="hg-hero-copy">
+                        <span className="hg-hero-title">{h.title}</span>
+                        <span className="hg-hero-sub">
+                          {h.tags?.length ? h.tags.slice(0, 3).join(" · ") : (h.is_finished ? "已完结" : `共 ${h.episode_count ?? "?"} 集`)}
+                        </span>
+                        <span className="hg-hero-play" role="button" tabIndex={0}
+                          onClick={e => { e.stopPropagation(); play(h.id); }}
+                          onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); play(h.id); } }}>
+                          <IPlayF size={12} />播放
+                        </span>
+                      </span>
+                    </Button>
+                  ))}
+                </div>
+                {heroes.length > 1 && (
+                  <div className="hg-dots" role="tablist" aria-label="推荐轮播">
+                    {heroes.map((h, i) => (
+                      <button key={h.id} type="button" className="hg-dot" data-on={String(i === heroIndex)}
+                        aria-label={`第 ${i + 1} 个推荐`} aria-selected={i === heroIndex}
+                        onClick={() => goHero(i)} />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
-          </div>
-        )}
 
-        {/* 最新上架横滑：仅在全部下显示，避免最新下重复两节 */}
-        {tab === "all" && rail.length > 0 && (
-          <section className="hg-section">
-            <div className="hg-section-head">
-              <h2 className="hg-section-title">最新上架</h2>
-              <Button className="hg-section-more" onClick={() => setFeedTab("new")}>更多<IChevR size={10} /></Button>
-            </div>
-            <div className="hg-rail">
-              {rail.map(v => (
-                <Button card key={v.id} className="hg-rail-card" onClick={() => openSeries(v.id)}>
-                  <span className="hg-rail-art">
-                    <Img src={v.cover} alt="" />
-                    {isNew(v) && <span className="hg-rail-badge">上新</span>}
-                    <span className="hg-rail-name">{v.title}</span>
-                  </span>
+            {/* 最新上架横滑：仅在全部下显示，避免最新下重复两节 */}
+            {tab === "all" && rail.length > 0 && (
+              <section className="hg-section">
+                <div className="hg-section-head">
+                  <h2 className="hg-section-title">最新上架</h2>
+                  <Button className="hg-section-more" onClick={() => setFeedTab("new")}>更多<IChevR size={10} /></Button>
+                </div>
+                <div className="hg-rail">
+                  {rail.map(v => (
+                    <Button card key={v.id} className="hg-rail-card" onClick={() => openSeries(v.id)}>
+                      <span className="hg-rail-art">
+                        <Img src={v.cover} alt="" />
+                        {isNew(v) && <span className="hg-rail-badge">上新</span>}
+                        <span className="hg-rail-name">{v.title}</span>
+                      </span>
+                    </Button>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* 3 列网格 */}
+            <section className="hg-section">
+              <div className="hg-section-head">
+                <h2 className="hg-section-title">{tab === "new" ? "最新上架" : "为你推荐"}</h2>
+              </div>
+              <div className="hg-grid-c3">
+                {grid.map(v => (
+                  <Button key={v.id} className="hg-poster is-c3" onClick={() => openSeries(v.id)}>
+                    <span className="hg-poster-art">
+                      <Img src={v.cover} alt="" />
+                      {isNew(v) && <span className="hg-poster-badge">上新</span>}
+                    </span>
+                    <span className="hg-poster-name">{v.title}</span>
+                    <span className="hg-poster-meta">{v.is_finished ? "全集" : `${v.episode_count ?? "?"} 集`}</span>
+                  </Button>
+                ))}
+              </div>
+              {!done && grid.length > 0 && (
+                <Button className="hg-loadmore" onClick={() => void load(page + 1, tab)} disabled={loading}>
+                  {loading ? "加载中…" : "加载更多"}
                 </Button>
-              ))}
-            </div>
-          </section>
+              )}
+            </section>
+          </>
         )}
-
-        {/* 3 列网格 */}
-        <section className="hg-section">
-          <div className="hg-section-head">
-            <h2 className="hg-section-title">{tab === "new" ? "最新上架" : "为你推荐"}</h2>
-          </div>
-          <div className="hg-grid-c3">
-            {grid.map(v => (
-              <Button key={v.id} className="hg-poster is-c3" onClick={() => openSeries(v.id)}>
-                <span className="hg-poster-art">
-                  <Img src={v.cover} alt="" />
-                  {isNew(v) && <span className="hg-poster-badge">上新</span>}
-                </span>
-                <span className="hg-poster-name">{v.title}</span>
-                <span className="hg-poster-meta">{v.is_finished ? "全集" : `${v.episode_count ?? "?"} 集`}</span>
-              </Button>
-            ))}
-          </div>
-          {!done && grid.length > 0 && (
-            <Button className="hg-loadmore" onClick={() => void load(page + 1, tab)} disabled={loading}>
-              {loading ? "加载中…" : "加载更多"}
-            </Button>
-          )}
-        </section>
       </div>
 
       {/* 继续观看悬浮卡 */}

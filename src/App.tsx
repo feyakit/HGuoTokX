@@ -14,7 +14,7 @@ import { ToastHost } from "./components/ui";
 import { DesktopRail, DesktopTitleBar } from "./components/DesktopChrome";
 import ResizeHandles from "./components/ResizeHandles";
 import { tracePlayback } from "./playbackDiagnostics";
-import { INavCategory, INavCommunity, INavHome, INavProfile, ISearch } from "./icons";
+import { INavCategory, INavCommunity, INavHome, INavProfile } from "./icons";
 
 // Local chunks load on first visit; visited tabs stay mounted as before.
 const Search = lazy(() => import("./pages/Search"));
@@ -22,6 +22,8 @@ const RankPage = lazy(() => import("./pages/Search").then(module => ({ default: 
 const Category = lazy(() => import("./pages/Category"));
 const ChannelPage = lazy(() => import("./pages/Category").then(module => ({ default: module.ChannelPage })));
 const Profile = lazy(() => import("./pages/Profile"));
+const HistoryPage = lazy(() => import("./pages/Profile").then(module => ({ default: module.HistoryPage })));
+const FavoritesPage = lazy(() => import("./pages/Profile").then(module => ({ default: module.FavoritesPage })));
 const SettingsPage = lazy(() => import("./pages/Settings"));
 const PostsPage = lazy(() => import("./pages/Posts").then(module => ({ default: module.PostsPage })));
 const PostDetail = lazy(() => import("./pages/Posts").then(module => ({ default: module.PostDetail })));
@@ -63,7 +65,7 @@ function TabBar({ onSelect }: { onSelect?: () => void }) {
   </nav>;
 }
 
-/* ============ 堆栈页面 ============ */
+/* ============ 堆栈页面（统一二级页：隐藏底栏，左上角返回原页面） ============ */
 function StackPage(props: Parameters<typeof StackPageContent>[0]) {
   return <Suspense fallback={<PageLoading />}><StackPageContent {...props} /></Suspense>;
 }
@@ -78,6 +80,9 @@ function StackPageContent({ page, onBack, wide, top, bottomInset }: {
         mode="context" active={top} bottomInset={bottomInset} onBack={onBack} />
     );
   }
+  if (page.kind === "search") return <Search active={top} wide={wide} initialTab={page.initialTab} onBack={onBack} />;
+  if (page.kind === "history") return <HistoryPage onBack={onBack} wide={wide} />;
+  if (page.kind === "favorites") return <FavoritesPage onBack={onBack} wide={wide} initialTab={page.initialTab} />;
   if (page.kind === "channel") return <ChannelPage cate={page.cate} name={page.name} onBack={onBack} wide={wide} />;
   if (page.kind === "ranks") return <RankPage onBack={onBack} wide={wide} />;
   if (page.kind === "settings") return <SettingsPage onBack={onBack} wide={wide} initialSection={page.section} />;
@@ -93,7 +98,7 @@ function StackPageContent({ page, onBack, wide, top, bottomInset }: {
   return null;
 }
 
-/* ============ 应用主体 ============ */
+/* ============ 一级常驻底栏模块（仅挂载 4 个真实主模块） ============ */
 function MainTabs({ wide, pageActive, bottomInset }: { wide: boolean; pageActive: boolean; bottomInset: number }) {
   const { tab } = useStore();
   const [visited, setVisited] = useState<ReadonlySet<Tab>>(() => new Set());
@@ -105,7 +110,6 @@ function MainTabs({ wide, pageActive, bottomInset }: { wide: boolean; pageActive
   // First visits mount on demand; subsequent switches preserve queries, scroll and playback state.
   return <>
     <div className={visible("home")} inert={!pageActive || tab !== "home"} aria-hidden={!pageActive || tab !== "home"}>{mounted("home") && <Home active={pageActive && tab === "home"} bottomInset={bottomInset} />}</div>
-    <div className={visible("search")} inert={!pageActive || tab !== "search"} aria-hidden={!pageActive || tab !== "search"}>{mounted("search") && <Suspense fallback={<PageLoading />}><Search active={pageActive && tab === "search"} wide={wide} /></Suspense>}</div>
     <div className={visible("posts")} inert={!pageActive || tab !== "posts"} aria-hidden={!pageActive || tab !== "posts"}>{mounted("posts") && <Suspense fallback={<PageLoading />}><PostsPage wide={wide} embedded /></Suspense>}</div>
     <div className={visible("category")} inert={!pageActive || tab !== "category"} aria-hidden={!pageActive || tab !== "category"}>{mounted("category") && <Suspense fallback={<PageLoading />}><Category wide={wide} active={pageActive && tab === "category"} /></Suspense>}</div>
     <div className={visible("profile")} inert={!pageActive || tab !== "profile"} aria-hidden={!pageActive || tab !== "profile"}>{mounted("profile") && <Suspense fallback={<PageLoading />}><Profile wide={wide} /></Suspense>}</div>
@@ -113,10 +117,10 @@ function MainTabs({ wide, pageActive, bottomInset }: { wide: boolean; pageActive
 }
 
 function AppBody() {
-  const { platform, tab, setTab, stack, pop, loginOpen, setLoginOpen, fs, clean } = useStore();
+  const { platform, setTab, stack, pop, push, loginOpen, setLoginOpen, fs, clean } = useStore();
   const mainRef = useRef<HTMLDivElement>(null);
   const [wide, setWide] = useState(!isMobile);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed] = useState(false);
 
   useLayoutEffect(() => {
     const el = mainRef.current;
@@ -137,20 +141,17 @@ function AppBody() {
       }
       if (loginOpen) { if (e.key === "Escape") setLoginOpen(false); return; }
       if (e.key === "Escape") { if (stack.length) pop(); return; }
-      if (e.key === "/") { e.preventDefault(); setTab("search"); return; }
+      if (e.key === "/") { e.preventDefault(); push({ kind: "search" }); return; }
       if (["1", "2", "3", "4"].includes(e.key) && !e.repeat) {
-        setTab((["home", "search", "category", "profile"] as Tab[])[Number(e.key) - 1]);
+        setTab((["home", "posts", "category", "profile"] as Tab[])[Number(e.key) - 1]);
       }
     };
     window.addEventListener("keydown", fn);
     return () => window.removeEventListener("keydown", fn);
-  }, [stack.length, pop, setTab, loginOpen, setLoginOpen]);
+  }, [stack.length, pop, push, setTab, loginOpen, setLoginOpen]);
 
   const pageActive = stack.length === 0 && !loginOpen;
   const bottomInset = isMobile ? (fs || clean ? 0 : 74) : 14;
-  /* 栈页（从搜索/分类/我的进入的播放页、图文页）没有底栏，
-     底部只让出安全区。之前多留了 20px，视频底边会露出一条
-     「底栏」似的窄缝（底部的压暗渐变到不了屏幕最底）。 */
   const stackInset = isMobile ? 0 : 14;
 
   return (
@@ -165,9 +166,7 @@ function AppBody() {
           </div>
         ))}
 
-        {isMobile && !fs && !clean && (stack.length === 0 || (stack.length === 1 && stack[0].kind === "ranks")) && (
-          <TabBar onSelect={() => { if (stack.length) pop(); }} />
-        )}
+        {isMobile && !fs && !clean && stack.length === 0 && <TabBar />}
       </div>
     </div>
   );
@@ -196,7 +195,7 @@ function DesktopShell() {
 }
 
 function ShellInner({ collapsed, theater }: { collapsed: boolean; theater: boolean }) {
-  const { stack, pop, loginOpen, setLoginOpen, tab, setTab, platform } = useStore();
+  const { stack, pop, push, loginOpen, setLoginOpen, setTab, platform } = useStore();
   const mainRef = useRef<HTMLDivElement>(null);
   const [wide, setWide] = useState(true);
 
@@ -218,14 +217,14 @@ function ShellInner({ collapsed, theater }: { collapsed: boolean; theater: boole
       }
       if (loginOpen) { if (e.key === "Escape") setLoginOpen(false); return; }
       if (e.key === "Escape") { if (stack.length) pop(); return; }
-      if (e.key === "/") { e.preventDefault(); setTab("search"); return; }
+      if (e.key === "/") { e.preventDefault(); push({ kind: "search" }); return; }
       if (["1", "2", "3", "4"].includes(e.key) && !e.repeat) {
-        setTab((["home", "search", "category", "profile"] as Tab[])[Number(e.key) - 1]);
+        setTab((["home", "posts", "category", "profile"] as Tab[])[Number(e.key) - 1]);
       }
     };
     window.addEventListener("keydown", fn);
     return () => window.removeEventListener("keydown", fn);
-  }, [stack.length, pop, setTab, loginOpen, setLoginOpen]);
+  }, [stack.length, pop, push, setTab, loginOpen, setLoginOpen]);
 
   const pageActive = stack.length === 0 && !loginOpen;
 

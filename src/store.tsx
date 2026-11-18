@@ -11,7 +11,7 @@ import { pickGuestData, useAccountData, type GuestData } from "./accountData";
 export type Platform = "android" | "ios" | "windows" | "macos" | "linux";
 export type Theme = "dark" | "light";
 export type ThemePreference = Theme | "system";
-export type Tab = "home" | "search" | "posts" | "category" | "profile";
+export type Tab = "home" | "posts" | "category" | "profile";
 
 /** 播放页上下文：ids 是来源列表，index 是当前条目。 */
 export type FeedContext = {
@@ -29,6 +29,9 @@ export type FeedContext = {
 
 export type Page =
   | FeedContext
+  | { kind: "search"; key: string; initialTab?: "video" | "post" }
+  | { kind: "history"; key: string }
+  | { kind: "favorites"; key: string; initialTab?: "video" | "post" }
   | { kind: "channel"; key: string; cate: string; name: string }
   | { kind: "ranks"; key: string }
   | { kind: "settings"; key: string; section?: "内容偏好" }
@@ -44,6 +47,9 @@ export type Page =
 
 export type PageInput =
   | { kind: "feed"; videoIds: number[]; index: number; title: string; source?: string; feedKind?: "video" | "post"; startEp?: number; startTime?: number }
+  | { kind: "search"; initialTab?: "video" | "post" }
+  | { kind: "history" }
+  | { kind: "favorites"; initialTab?: "video" | "post" }
   | { kind: "channel"; cate: string; name: string }
   | { kind: "ranks" }
   | { kind: "settings"; section?: "内容偏好" }
@@ -360,7 +366,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setTab = useCallback((t: Tab) => { setTabRaw(t); setStack(s => s.length ? [] : s); }, []);
   useEffect(() => { if (tab === "profile") void accountRef.current.syncAccount().catch(() => {}); }, [tab]);
   const push = useCallback((pg: PageInput) => {
-    setStack((s) => [...s, { ...pg, key: `p${++seq}` } as Page]);
+    setStack((s) => {
+      const top = s[s.length - 1];
+      if (pg.kind === "search" && top?.kind === "search") {
+        if (pg.initialTab && top.initialTab !== pg.initialTab) {
+          return [...s.slice(0, -1), { ...top, initialTab: pg.initialTab }];
+        }
+        return s;
+      }
+      return [...s, { ...pg, key: `p${++seq}` } as Page];
+    });
   }, []);
   const pop = useCallback(() => setStack((s) => s.slice(0, -1)), []);
 
