@@ -300,7 +300,7 @@ export function useAccountData(initialGuest: GuestData, saveGuest: (data: GuestD
     if (s.user && time !== undefined && time >= 3 && sentHistory.current.get(id) !== nextEp && dirtyHistory[id]?.ep !== nextEp) {
       dirtyHistory = { ...dirtyHistory, [id]: { ep: nextEp, at: row.at } };
     }
-    persist({ ...s.data, history: [row, ...s.data.history.filter(item => item.id !== id)], dirtyHistory, localHistory: selected(s.data.localHistory, id, true) });
+    persist({ ...s.data, history: [row, ...s.data.history.filter(item => item.id !== id)].slice(0, 50), dirtyHistory, localHistory: selected(s.data.localHistory, id, true) });
     if (s.user && Object.keys(dirtyHistory).length) scheduleUpload(currentGeneration);
   }, [currentGeneration, currentClearVersion]);
   const clearHistory = async () => {

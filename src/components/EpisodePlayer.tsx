@@ -1318,10 +1318,12 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                     <ICommentF size={26} className="hg-ink hg-ov-shadow" />
                     <span className="text-[12px] hg-ink-2 hg-ov-shadow tabular-nums">{fmt(meta.comment)}</span>
                   </Button>
-                  <Button onClick={() => enterFs(landscapeVideo)} className="flex flex-col items-center gap-1 pressable" aria-label="全屏">
+                  {landscapeVideo && (
+                  <Button onClick={() => enterFs(true)} className="flex flex-col items-center gap-1 pressable" aria-label="全屏">
                     <IExpand size={26} className="hg-ink hg-ov-shadow" />
                     <span className="text-[12px] hg-ink-2 hg-ov-shadow">全屏</span>
                   </Button>
+                  )}
                   <Button onClick={shareLink} className="flex flex-col items-center gap-1 pressable" aria-label="分享">
                     <ILink size={25} className="hg-ink hg-ov-shadow" />
                     <span className="text-[12px] hg-ink-2 hg-ov-shadow">分享</span>
@@ -1441,6 +1443,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                       <Button aria-label="播放设置" onClick={() => store.push({ kind: "settings" })}
                         className="min-h-11 flex items-center gap-1 text-[12px] font-medium hg-ink-3 hg-ov-shadow-strong pressable">设置 · 线路</Button>
                     </div>
+                    {/* 报告 5：字幕烧在画面里，改控件层——底部加自上而下 0→60% 黑渐变，保证按钮文字可读 */}
+                    <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0"
+                      style={{ height: 168, background: "linear-gradient(to top, rgba(0,0,0,.6) 0%, rgba(0,0,0,.42) 45%, rgba(0,0,0,0) 100%)", zIndex: 0 }} />
                     {/* 竖屏也要能暂停与看进度：暂停钮 + 当前/总时长（报告问题 3） */}
                     <div className="mx-4 mt-2 flex items-center gap-2.5">
                       <Button aria-label={paused ? "播放" : "暂停"} onClick={() => videoRef.current?.toggle()}

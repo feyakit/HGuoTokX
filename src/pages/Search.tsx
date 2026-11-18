@@ -106,7 +106,7 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
                 </p>}
                 {hotVideos.length > 0 ? (
                   <ol className="ios-search-hot-grid mt-3" aria-busy={hotLoading}>
-                    {hotVideos.map((video, i) => (
+                    {[...hotVideos].sort((a, b) => playsValue(b.plays) - playsValue(a.plays)).map((video, i) => (
                       <li key={video.video_id} className="min-w-0">
                         <Button aria-label={`播放 ${video.title}`} title={video.title} className="ios-search-hot-item"
                           onClick={() => push({ kind: "feed", videoIds: hotVideos.map(item => item.video_id), index: i, title: "热搜榜" })}>
@@ -194,6 +194,15 @@ const RANK_TABS = [
   { k: "recommend", label: "推荐榜", desc: "按推荐值排序" },
   { k: "potential", label: "潜力榜", desc: "按潜力值排序" },
 ] as const;
+
+/** 上游 plays 是「423.5w / 1.2亿」这类字符串：解析成数值用于排序（报告 9：排名与播放量必须一致） */
+function playsValue(v: string): number {
+  const m = /([\d.]+)\s*([wW万亿]?)/.exec(v || "");
+  if (!m) return 0;
+  const n = parseFloat(m[1]) || 0;
+  const unit = m[2];
+  return unit === "亿" ? n * 1e8 : unit === "w" || unit === "W" ? n * 1e4 : n;
+}
 
 export function RankPage({ onBack, wide }: { onBack: () => void; wide: boolean }) {
   const { push, setTab: setAppTab } = useStore();

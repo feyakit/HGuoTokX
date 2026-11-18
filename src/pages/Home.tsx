@@ -45,6 +45,20 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
   const [heroIndex, setHeroIndex] = useState(0);
+  /* 轮播：原生横滑 + scroll-snap（Chrome 87 支持），圆点与滚动位置双向同步 */
+  const heroTrack = useRef<HTMLDivElement>(null);
+  const goHero = (i: number) => {
+    const el = heroTrack.current;
+    if (!el) return;
+    el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
+    setHeroIndex(i);
+  };
+  const onHeroScroll = () => {
+    const el = heroTrack.current;
+    if (!el || !el.clientWidth) return;
+    const i = Math.max(0, Math.min(heroes.length - 1, Math.round(el.scrollLeft / el.clientWidth)));
+    setHeroIndex(prev => (prev === i ? prev : i));
+  };
   const [continueCard, setContinueCard] = useState<{ detail: Detail; ep: number; t: number; dur: number; at: number } | null>(null);
   /* 关掉的那一条按 updated_at 记：换了剧或看了新一集，卡片自己回来，不用等刷新 */
   const [dismissedContinue, setDismissedContinue] = useState(0);
@@ -156,24 +170,28 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
         {/* Hero：列表前 3 条（v3：331×243、圆角 15、文字左下、Play 胶囊、卡外 3 圆点） */}
         {hero && (
           <div className="hg-hero-wrap">
-            <Button card className="hg-hero" aria-label={`${hero.title} 详情`} onClick={() => openSeries(hero.id)}>
-              <Img src={hero.cover} eager alt="" />
-              <span className="hg-hero-veil" aria-hidden="true" />
-              <span className="hg-hero-copy">
-                <span className="hg-hero-title">{hero.title}</span>
-                <span className="hg-hero-play" role="button" tabIndex={0}
-                  onClick={e => { e.stopPropagation(); play(hero.id); }}
-                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); play(hero.id); } }}>
-                  <IPlayF size={12} />Play
-                </span>
-              </span>
-            </Button>
+            <div className="hg-hero-track" ref={heroTrack} onScroll={onHeroScroll}>
+              {heroes.map((h, i) => (
+                <Button key={h.id} card className="hg-hero" aria-label={`${h.title} 详情`} onClick={() => openSeries(h.id)}>
+                  <Img src={h.cover} eager={i === 0} alt="" />
+                  <span className="hg-hero-veil" aria-hidden="true" />
+                  <span className="hg-hero-copy">
+                    <span className="hg-hero-title">{h.title}</span>
+                    <span className="hg-hero-play" role="button" tabIndex={0}
+                      onClick={e => { e.stopPropagation(); play(h.id); }}
+                      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); play(h.id); } }}>
+                      <IPlayF size={12} />Play
+                    </span>
+                  </span>
+                </Button>
+              ))}
+            </div>
             {heroes.length > 1 && (
               <div className="hg-dots" role="tablist" aria-label="推荐轮播">
                 {heroes.map((h, i) => (
                   <button key={h.id} type="button" className="hg-dot" data-on={String(i === heroIndex)}
                     aria-label={`第 ${i + 1} 个推荐`} aria-selected={i === heroIndex}
-                    onClick={() => setHeroIndex(i)} />
+                    onClick={() => goHero(i)} />
                 ))}
               </div>
             )}

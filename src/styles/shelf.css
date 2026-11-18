@@ -788,3 +788,18 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 .hg-pill-row { padding: 0; }           /* 行高 = 胶囊 27.5，不再带 4/8 内边距 */
 .hg-home-page .hg-hero { margin: 11.5px auto 0; width: calc(100% - 3.5px); }  /* 胶囊底 116 → Hero 127.5；宽 328.5 */
 .hg-home-page .hg-section { margin-top: 12.5px; }  /* Hero 底 405.5 → 分区标题 434（参考 28.5 间距） */
+
+/* 轮播：原生横滑 + scroll-snap（报告 7）。Chrome 87 支持 scroll-snap-type，不用 JS 手势库 */
+.hg-hero-track {
+  display: flex; overflow-x: auto; overflow-y: hidden;
+  scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; -ms-overflow-style: none;
+  margin-top: 11.5px;
+}
+.hg-hero-track::-webkit-scrollbar { width: 0; height: 0; display: none; }
+.hg-hero-track > .hg-hero {
+  flex: 0 0 calc(100% - 3.5px); width: calc(100% - 3.5px);
+  margin: 0 1.75px; scroll-snap-align: center; scroll-snap-stop: always;
+}
+/* 首页 hero 原来的外边距在 track 里会叠加，这里清零（track 自己带 11.5 上间距） */
+.hg-home-page .hg-hero-track .hg-hero { margin: 0 1.75px; }
