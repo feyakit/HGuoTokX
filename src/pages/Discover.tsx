@@ -1,4 +1,4 @@
-import { Button, Surface } from "../components/ios/controls";
+import { Button, SegmentedControl } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { api, fmt } from "../api";
@@ -9,7 +9,7 @@ import { Masonry, MediaCard } from "../components/cards";
 import { FilteredContent } from "../components/FilteredContent";
 import { InplaceSearch } from "../components/InplaceSearch";
 import { Empty, Img } from "../components/ui";
-import { IBack, IGrid, IGlobe, IRefresh, ISearch } from "../icons";
+import { IBack, IBoltF, IGrid, IGlobe, IPlayF, IRefresh, ISearch } from "../icons";
 
 const TopicIcon = IGrid;
 const TagIcon = IGlobe;
@@ -73,17 +73,14 @@ export function TopicsSection({ wide }: { wide: boolean }) {
       ) : items.length ? (
         <div className={`grid gap-3 ${wide ? "grid-cols-3 xl:grid-cols-4" : "grid-cols-2"}`}>
           {items.map((t) => (
-            <Button key={t.id} onClick={() => push({ kind: "topic", slug: t.slug, name: t.title })}
-              title={t.title} className="ios-topic-card min-w-0 text-left overflow-hidden bg-s1 elev-1 pressable a-rise">
-              <div className="relative w-full" style={{ paddingTop: "56%" }}>
+            <Button card key={t.id} onClick={() => push({ kind: "topic", slug: t.slug, name: t.title })}
+              title={t.title} className="hg-topic-card-v2 min-w-0 pressable a-rise">
+              <span className="hg-topic-card-v2-art">
                 <Img src={t.cover} />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-full bg-black/55 backdrop-blur-sm text-[12px] font-semibold text-white/90">
-                  {t.video_count ?? 0} 部
-                </span>
-              </div>
+                <span className="hg-topic-card-v2-badge">{t.video_count ?? 0} 部</span>
+              </span>
               <div className="p-2.5">
-                <div className="text-[14px] font-semibold text-on clamp-1 leading-tight">{t.title}</div>
+                <div className="text-[14px] font-bold text-on clamp-1 leading-tight">{t.title}</div>
                 {t.intro && <div className="text-[12px] text-mut clamp-2 mt-1 leading-relaxed">{t.intro}</div>}
               </div>
             </Button>
@@ -105,17 +102,19 @@ export function TopicsPage({ onBack, wide }: { onBack: () => void; wide: boolean
   return (
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
-      <div className="shrink-0 bg-s1/75 backdrop-blur-md relative z-10" style={{ paddingTop: "var(--sat, 0px)" }}>
-        <div className="pt-2 pb-3 flex items-center gap-2.5">
-          <Button aria-label="返回" onClick={onBack} className="w-10 h-10 rounded-full flex items-center justify-center text-on hover:bg-s3 pressable"><IBack size={20} /></Button>
-          <h1 className="text-[17px] font-bold text-on">专题</h1>
-          <span className="text-[12px] text-mut">{items.length} 个专辑</span>
-          <Button onClick={() => setSearching(true)} aria-label="搜索短剧" className="ml-auto w-9 h-9 rounded-full flex items-center justify-center text-on hover:bg-s3 pressable"><ISearch size={19} /></Button>
-          <Button aria-label="刷新" disabled={loading} aria-busy={loading} onClick={() => void load()} className="w-9 h-9 rounded-full flex items-center justify-center text-mut hover:bg-s3 pressable">{loading ? <Loader className="w-4 h-4" /> : <IRefresh size={16} />}</Button>
+      <header className="shrink-0 hg-subpage-bar">
+        <Button card aria-label="返回" onClick={onBack} className="hg-sub-btn"><IBack size={19} /></Button>
+        <div className="hg-sub-titles">
+          <h1 className="hg-sub-title">专题</h1>
+          <p className="hg-sub-meta">{items.length} 个策展专辑</p>
         </div>
-      </div>
+        <Button card onClick={() => setSearching(true)} aria-label="搜索短剧" className="hg-sub-btn"><ISearch size={17} /></Button>
+        <Button card aria-label="刷新" disabled={loading} aria-busy={loading} onClick={() => void load()} className="hg-sub-btn">
+          {loading ? <Loader className="w-4 h-4" /> : <IRefresh size={16} />}
+        </Button>
+      </header>
 
-      <div className="flex-1 scroll-y px-4 pt-3 pb-8" aria-busy={loading}>
+      <div className="flex-1 scroll-y hg-page-x pt-3 pb-8 relative" aria-busy={loading}>
         {items.length > 0 && <RefreshStatus loading={loading} error={err} onRetry={() => void load()} />}
         {loading && !items.length ? (
           <div className="flex justify-center py-12"><Loader className="w-8 h-8 spinner" /></div>
@@ -124,17 +123,14 @@ export function TopicsPage({ onBack, wide }: { onBack: () => void; wide: boolean
         ) : items.length ? (
           <div className={`grid gap-3 ${wide ? "grid-cols-3 xl:grid-cols-4" : "grid-cols-2"}`}>
             {items.map((t) => (
-              <Button key={t.id} onClick={() => push({ kind: "topic", slug: t.slug, name: t.title })}
-                title={t.title} className="ios-topic-card min-w-0 text-left overflow-hidden bg-s1 elev-1 pressable a-rise">
-                <div className="relative w-full" style={{ paddingTop: "56%" }}>
+              <Button card key={t.id} onClick={() => push({ kind: "topic", slug: t.slug, name: t.title })}
+                title={t.title} className="hg-topic-card-v2 min-w-0 pressable a-rise">
+                <span className="hg-topic-card-v2-art">
                   <Img src={t.cover} />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                  <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-full bg-black/55 backdrop-blur-sm text-[12px] font-semibold text-white/90">
-                    {t.video_count ?? 0} 部
-                  </span>
-                </div>
+                  <span className="hg-topic-card-v2-badge">{t.video_count ?? 0} 部</span>
+                </span>
                 <div className="p-2.5">
-                  <div className="text-[14px] font-semibold text-on clamp-1 leading-tight">{t.title}</div>
+                  <div className="text-[14px] font-bold text-on clamp-1 leading-tight">{t.title}</div>
                   {t.intro && <div className="text-[12px] text-mut clamp-2 mt-1 leading-relaxed">{t.intro}</div>}
                 </div>
               </Button>
@@ -228,39 +224,63 @@ export function TopicPage({ slug, name, onBack, wide }: { slug: string; name: st
 
   const { topic, related, videos, page, pages, total, loading, loadingMore, error } = state;
   const hasMore = page < pages;
+  const heroCover = topic?.cover || videos[0]?.cover || "";
 
   return (
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
-      <div className="shrink-0 bg-s1/75 backdrop-blur-md relative z-10" style={{ paddingTop: "var(--sat, 0px)" }}>
-        <div className="pt-2 pb-3 flex items-center gap-2.5">
-          <Button aria-label="返回" onClick={onBack} className="w-10 h-10 rounded-full flex items-center justify-center text-on hover:bg-s3 pressable"><IBack size={20} /></Button>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-[16px] font-bold text-on truncate" title={topic?.title || name}>{topic?.title || name}</h1>
-            <div className="text-[12px] text-mut">{loading ? "加载中…" : `已加载 ${videos.length} / ${total} 部`}</div>
-          </div>
-          <Button onClick={() => setSearching(true)} aria-label="搜索短剧" className="ml-auto w-9 h-9 rounded-full flex items-center justify-center text-on hover:bg-s3 pressable"><ISearch size={19} /></Button>
+      <header className="shrink-0 hg-subpage-bar">
+        <Button card aria-label="返回" onClick={onBack} className="hg-sub-btn"><IBack size={19} /></Button>
+        <div className="hg-sub-titles">
+          <h1 className="hg-sub-title" title={topic?.title || name}>{topic?.title || name}</h1>
+          <div className="hg-sub-meta">{loading ? "加载中…" : `已加载 ${videos.length} / ${total} 部`}</div>
         </div>
+        {videos.length > 0 && (
+          <Button card className="hg-quick-action"
+            onClick={() => push({ kind: "feed", videoIds: videos.map(v => v.id), index: 0, title: topic?.title || name })}>
+            <IPlayF size={12} /><span>连刷本专题</span>
+          </Button>
+        )}
+        <Button card onClick={() => setSearching(true)} aria-label="搜索短剧" className="hg-sub-btn"><ISearch size={17} /></Button>
+      </header>
 
-      </div>
+      <div className="flex-1 scroll-y hg-page-x pt-3 pb-8 relative" aria-busy={loading}>
+        {(topic?.intro || topic?.cover) && (
+          <section className="hg-topic-hero" aria-label="专题简介">
+            {heroCover && <span className="hg-topic-hero-bg" aria-hidden="true"><Img src={heroCover} alt="" /></span>}
+            <div className="hg-topic-hero-inner">
+              <div className="flex items-center gap-3">
+                {topic?.cover && <span className="hg-topic-hero-thumb"><Img src={topic.cover} alt="" /></span>}
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] font-bold" style={{ color: "#FFD19A" }}>精选策展专辑 · 共 {total || topic?.video_count || videos.length} 部</div>
+                  <div className="mt-1 text-[15px] font-extrabold text-on truncate">{topic?.title || name}</div>
+                </div>
+              </div>
+              {topic?.intro && (
+                <div className="mt-2.5">
+                  <p id={introId} className={`text-[13px] text-mut leading-relaxed break-words ${introExpanded ? "" : "clamp-3"}`}>{topic.intro}</p>
+                  <Button aria-expanded={introExpanded} aria-controls={introId} onClick={() => setIntroExpanded(value => !value)} className="mt-1 px-2 text-[12px] text-primary">{introExpanded ? "收起简介" : "展开简介"}</Button>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
-      <div className="flex-1 scroll-y px-4 pt-3 pb-8" aria-busy={loading}>
-        {topic?.intro && <section className="mb-4" aria-label="专题简介">
-          <p id={introId} className={`text-[13px] text-mut leading-relaxed break-words ${introExpanded ? "" : "clamp-3"}`}>{topic.intro}</p>
-          <Button aria-expanded={introExpanded} aria-controls={introId} onClick={() => setIntroExpanded(value => !value)} className="mt-1 px-2 text-[12px] text-primary">{introExpanded ? "收起简介" : "展开简介"}</Button>
-        </section>}
         {related.length > 0 && (
           <div className="mb-4">
-            <h2 className="text-[13px] font-semibold text-on/80 mb-2">相关专题</h2>
-            <div className="scroll-x flex gap-2.5 snap-x">
+            <h2 className="text-[13px] font-bold text-on mb-2">相关专题</h2>
+            <div className="hg-topic-rail">
               {related.map((r) => (
-                <Button key={r.id} onClick={() => push({ kind: "topic", slug: r.slug, name: r.title })}
-                  className="ios-topic-card w-[140px] shrink-0 text-left snap-start pressable">
-                  <Surface className="ios-topic-art relative w-full overflow-hidden bg-s1 elev-1" style={{ paddingTop: "56%" }}>
-                    <Img src={r.cover} />
-                    <span className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded-full bg-black/55 text-[12px] font-semibold text-white/90">{r.video_count ?? 0} 部</span>
-                  </Surface>
-                  <div className="mt-1.5 text-[12px] font-medium text-on clamp-1 leading-tight">{r.title}</div>
+                <Button card key={r.id} onClick={() => push({ kind: "topic", slug: r.slug, name: r.title })}
+                  className="hg-topic-mini">
+                  <span className="hg-topic-mini-art">
+                    <Img src={r.cover} alt="" />
+                    <span className="hg-topic-mini-veil" aria-hidden="true" />
+                    <span className="hg-topic-mini-copy">
+                      <span className="hg-topic-mini-cnt">{r.video_count ?? 0} 部</span>
+                      <span className="hg-topic-mini-title">{r.title}</span>
+                    </span>
+                  </span>
                 </Button>
               ))}
             </div>
@@ -281,7 +301,7 @@ export function TopicPage({ slug, name, onBack, wide }: { slug: string; name: st
           <Button disabled={loadingMore} onClick={loadMore} className="px-3 text-primary">重试</Button>
         </div>}
         {loadingMore && <div className="flex justify-center py-3"><Loader label="正在加载更多专题影片" className="w-6 h-6" /></div>}
-        {!loading && !loadingMore && hasMore && <Button onClick={loadMore} className="mt-3 w-full rounded-(--r-ctl) bg-s3 py-2.5 text-[13px] text-on pressable">
+        {!loading && !loadingMore && hasMore && <Button card onClick={loadMore} className="hg-loadmore">
           加载更多（{videos.length}/{total}）
         </Button>}
         {!loading && !loadingMore && !hasMore && videos.length > 0 && <div className="py-3 text-center text-[12px] text-dim">已加载全部 {total} 部</div>}
@@ -320,10 +340,11 @@ export function TagsSection({ wide }: { wide: boolean }) {
             </div>
             <div className="flex flex-wrap gap-2">
               {g.tags.map((t) => (
-                <Button key={t.id} onClick={() => push({ kind: "tag", tag: t.name, name: t.name })}
-                  className="ios-filter-pill max-w-full min-w-0 flex items-center gap-2 text-left">
+                <Button card key={t.id} onClick={() => push({ kind: "tag", tag: t.name, name: t.name })}
+                  className={`hg-tag-pill max-w-full min-w-0 text-left${t.is_hot ? " is-hot" : ""}`}>
+                  <span className="hg-tag-hash">#</span>
                   <span className="min-w-0 whitespace-normal break-all">{t.name}</span>
-                  {!!t.hot_score && <span aria-label={`热度 ${fmt(t.hot_score)}`} className="shrink-0 text-[12px] text-dim">热度 {fmt(t.hot_score)}</span>}
+                  {!!t.hot_score && <span aria-label={`热度 ${fmt(t.hot_score)}`} className="shrink-0 text-[11px] text-dim">{fmt(t.hot_score)}</span>}
                 </Button>
               ))}
             </div>
@@ -345,16 +366,19 @@ export function TagsPage({ onBack, wide }: { onBack: () => void; wide: boolean }
   return (
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
-      <div className="shrink-0 bg-s1/75 backdrop-blur-md relative z-10" style={{ paddingTop: "var(--sat, 0px)" }}>
-        <div className="pt-2 pb-3 flex items-center gap-2.5">
-          <Button aria-label="返回" onClick={onBack} className="w-10 h-10 rounded-full flex items-center justify-center text-on hover:bg-s3 pressable"><IBack size={20} /></Button>
-          <h1 className="text-[17px] font-bold text-on">标签</h1>
-          <Button onClick={() => setSearching(true)} aria-label="搜索短剧" className="ml-auto w-9 h-9 rounded-full flex items-center justify-center text-on hover:bg-s3 pressable"><ISearch size={19} /></Button>
-          <Button aria-label="刷新" disabled={loading} aria-busy={loading} onClick={() => void load()} className="w-9 h-9 rounded-full flex items-center justify-center text-mut hover:bg-s3 pressable">{loading ? <Loader className="w-4 h-4" /> : <IRefresh size={16} />}</Button>
+      <header className="shrink-0 hg-subpage-bar">
+        <Button card aria-label="返回" onClick={onBack} className="hg-sub-btn"><IBack size={19} /></Button>
+        <div className="hg-sub-titles">
+          <h1 className="hg-sub-title">标签</h1>
+          <p className="hg-sub-meta">按题材与话题检索内容</p>
         </div>
-      </div>
+        <Button card onClick={() => setSearching(true)} aria-label="搜索短剧" className="hg-sub-btn"><ISearch size={17} /></Button>
+        <Button card aria-label="刷新" disabled={loading} aria-busy={loading} onClick={() => void load()} className="hg-sub-btn">
+          {loading ? <Loader className="w-4 h-4" /> : <IRefresh size={16} />}
+        </Button>
+      </header>
 
-      <div className="flex-1 scroll-y px-4 pt-3 pb-8" aria-busy={loading}>
+      <div className="flex-1 scroll-y hg-page-x pt-3 pb-8 relative" aria-busy={loading}>
         {groups.length > 0 && <RefreshStatus loading={loading} error={err} onRetry={() => void load()} />}
         {loading && !groups.length ? (
           <div className="flex justify-center py-12"><Loader className="w-8 h-8 spinner" /></div>
@@ -369,10 +393,11 @@ export function TagsPage({ onBack, wide }: { onBack: () => void; wide: boolean }
               </div>
               <div className="flex flex-wrap gap-2">
                 {g.tags.map((t) => (
-                  <Button key={t.id} onClick={() => push({ kind: "tag", tag: t.name, name: t.name })}
-                    className="ios-filter-pill max-w-full min-w-0 flex items-center gap-2 text-left">
+                  <Button card key={t.id} onClick={() => push({ kind: "tag", tag: t.name, name: t.name })}
+                    className={`hg-tag-pill max-w-full min-w-0 text-left${t.is_hot ? " is-hot" : ""}`}>
+                    <span className="hg-tag-hash">#</span>
                     <span className="min-w-0 whitespace-normal break-all">{t.name}</span>
-                    {!!t.hot_score && <span aria-label={`热度 ${fmt(t.hot_score)}`} className="shrink-0 text-[12px] text-dim">热度 {fmt(t.hot_score)}</span>}
+                    {!!t.hot_score && <span aria-label={`热度 ${fmt(t.hot_score)}`} className="shrink-0 text-[11px] text-dim">{fmt(t.hot_score)}</span>}
                   </Button>
                 ))}
               </div>
@@ -388,7 +413,7 @@ export function TagsPage({ onBack, wide }: { onBack: () => void; wide: boolean }
   );
 }
 
-/* ================= 标签视频页 ================= */
+/* ================= 标签详情页（#标签铭牌 + 短剧/吃瓜一体玻璃滑块） ================= */
 export function TagPage({ tag, name, onBack, wide }: { tag: string; name: string; onBack: () => void; wide: boolean }) {
   const { push } = useStore();
   const { preferences, storageError, isTagBlocked, blockTags, unblockTag } = useContentPreferences();
@@ -396,6 +421,7 @@ export function TagPage({ tag, name, onBack, wide }: { tag: string; name: string
   const tagBlocked = isTagBlocked(name);
   const cannotAdd = !name.trim() || name.trim().length > MAX_TAG_LENGTH || preferences.blockedTags.length >= MAX_BLOCKED_TAGS;
   const [searching, setSearching] = useState(false);
+  const [tabChoice, setTabChoice] = useState<"auto" | "video" | "post">("auto");
   const [videos, setVideos] = useState<VideoCard[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [videoPage, setVideoPage] = useState(0);
@@ -419,6 +445,9 @@ export function TagPage({ tag, name, onBack, wide }: { tag: string; name: string
   const currentPosts = loadedPostTag === tag;
   const visibleVideos = currentVideos ? videos : [];
   const visiblePosts = currentPosts ? posts : [];
+  const activeTab: "video" | "post" = tabChoice !== "auto"
+    ? tabChoice
+    : (currentVideos && currentPosts && !visibleVideos.length && visiblePosts.length > 0 ? "post" : "video");
 
   const load = useCallback(async (kind: "video" | "post", next: number, reset = false) => {
     if (busy.current[kind] && !reset) return;
@@ -461,6 +490,7 @@ export function TagPage({ tag, name, onBack, wide }: { tag: string; name: string
   useEffect(() => {
     sequence.current.video++; sequence.current.post++;
     busy.current.video = false; busy.current.post = false;
+    setTabChoice("auto");
     setVideos([]); setPosts([]); setLoadedVideoTag(""); setLoadedPostTag("");
     setVideoPage(0); setPostPage(0); setVideoPages(1); setPostPages(1); setVideoTotal(0); setPostTotal(0);
     setVideoLoading(true); setPostLoading(true); setVideoErr(""); setPostErr(""); setSearching(false);
@@ -471,75 +501,110 @@ export function TagPage({ tag, name, onBack, wide }: { tag: string; name: string
   }, [load, tag]);
   useEffect(() => {
     const el = videoSentinel.current;
-    if (!el || filtering || videoErr || videoLoading || videoPage >= videoPages) return;
+    if (activeTab !== "video" || !el || filtering || videoErr || videoLoading || videoPage >= videoPages) return;
     const io = new IntersectionObserver(entries => {
       if (entries[0].isIntersecting) void load("video", videoPage + 1);
     }, { root: scrollContainer.current, rootMargin: "300px" });
     io.observe(el);
     return () => io.disconnect();
-  }, [load, videoPage, videoPages, videoErr, videoLoading, filtering]);
+  }, [activeTab, load, videoPage, videoPages, videoErr, videoLoading, filtering]);
   useEffect(() => {
     const el = postSentinel.current;
-    if (!el || filtering || postErr || postLoading || postPage >= postPages) return;
+    if (activeTab !== "post" || !el || filtering || postErr || postLoading || postPage >= postPages) return;
     const io = new IntersectionObserver(entries => {
       if (entries[0].isIntersecting) void load("post", postPage + 1);
     }, { root: scrollContainer.current, rootMargin: "300px" });
     io.observe(el);
     return () => io.disconnect();
-  }, [load, postPage, postPages, postErr, postLoading, filtering]);
+  }, [activeTab, load, postPage, postPages, postErr, postLoading, filtering]);
 
   return (
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
-      <div className="shrink-0 bg-s1/75 backdrop-blur-md relative z-10" style={{ paddingTop: "var(--sat, 0px)" }}>
-        <div className="pt-2 pb-3 flex items-center gap-2.5">
-          <Button aria-label="返回" onClick={onBack} className="w-10 h-10 rounded-full flex items-center justify-center text-on hover:bg-s3 pressable"><IBack size={20} /></Button>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-[16px] font-bold text-on truncate" title={name}>{name}</h1>
-            <div role="status" className="text-[12px] text-mut">短剧 {currentVideos ? videoTotal : 0} · 吃瓜 {currentPosts ? postTotal : 0}</div>
-          </div>
-          <Button onClick={() => setSearching(true)} aria-label="搜索短剧" className="ml-auto w-9 h-9 rounded-full flex items-center justify-center text-on hover:bg-s3 pressable"><ISearch size={19} /></Button>
+      <header className="shrink-0 hg-subpage-bar relative">
+        <Button card aria-label="返回" onClick={onBack} className="hg-sub-btn"><IBack size={19} /></Button>
+        <div className="hg-sub-titles">
+          <h1 className="hg-sub-title" title={name}>#{name}</h1>
+          <div role="status" className="hg-sub-meta">短剧 {currentVideos ? videoTotal : 0} · 吃瓜 {currentPosts ? postTotal : 0}</div>
         </div>
-      </div>
-      <div ref={scrollContainer} className="flex-1 scroll-y px-4 pt-3 pb-8" aria-busy={videoLoading || postLoading || !currentVideos || !currentPosts}>
-        <Surface className="mb-3 rounded-(--r-md) p-3">
+        {visibleVideos.length > 0 && (
+          <Button card className="hg-quick-action"
+            onClick={() => push({ kind: "feed", videoIds: visibleVideos.map(v => v.id), index: 0, title: `#${name}` })}>
+            <IBoltF size={13} /><span>连刷</span>
+          </Button>
+        )}
+        <Button card onClick={() => setSearching(true)} aria-label="搜索短剧" className="hg-sub-btn"><ISearch size={17} /></Button>
+      </header>
+
+      <div ref={scrollContainer} className="flex-1 scroll-y hg-page-x pt-3 pb-8 relative" aria-busy={videoLoading || postLoading || !currentVideos || !currentPosts}>
+        <section className="hg-tag-emblem" aria-label="标签偏好">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="min-w-0 text-[13px] text-mut">{tagBlocked ? "此标签已加入屏蔽列表" : "不喜欢这类内容？可屏蔽整个标签。"}</p>
-            <Button style={{ minBlockSize: 44 }} disabled={!tagBlocked && cannotAdd} aria-pressed={tagBlocked}
-              onClick={() => tagBlocked ? unblockTag(name) : blockTags([name])}
-              className="min-h-11 rounded-(--r-ctl) bg-s2 px-4 text-[13px] text-primary">{tagBlocked ? "取消屏蔽此标签" : "屏蔽此标签"}</Button>
+            <div className="min-w-0">
+              <div className="text-[14px] font-extrabold text-on"><span className="hg-tag-hash mr-0.5">#</span>{name}</div>
+              <p className="mt-0.5 text-[12px] text-mut">{tagBlocked ? "此标签已加入屏蔽列表" : "不喜欢这类内容？可一键屏蔽整个标签"}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button card disabled={!tagBlocked && cannotAdd} aria-pressed={tagBlocked}
+                onClick={() => tagBlocked ? unblockTag(name) : blockTags([name])}
+                className={`hg-tag-pill${tagBlocked ? " is-on" : ""}`}>
+                {tagBlocked ? "取消屏蔽此标签" : "屏蔽此标签"}
+              </Button>
+              <Button card className="hg-tag-pill" onClick={() => push({ kind: "settings", section: "内容偏好" })}>管理屏蔽标签</Button>
+            </div>
           </div>
           {preferences.paused && <p role="status" className="mt-2 text-[12px] text-mut">屏蔽已暂停，新增标签会保存，恢复后生效。</p>}
           {!tagBlocked && cannotAdd && <p role="status" className="mt-2 text-[12px] text-mut">{name.trim().length > MAX_TAG_LENGTH ? "标签过长，请在内容偏好中管理。" : `已达到 ${MAX_BLOCKED_TAGS} 个标签上限。`}</p>}
           {storageError && <p role="alert" className="mt-2 text-[13px] text-danger">{storageError}</p>}
-          <Button className="mt-1 min-h-11 px-3 text-[12px] text-primary" onClick={() => push({ kind: "settings", section: "内容偏好" })}>管理屏蔽标签</Button>
-        </Surface>
-        {videoLoading && !visibleVideos.length && <div className="flex justify-center py-8"><Loader className="w-7 h-7 spinner" /></div>}
-        {videoErr && !visibleVideos.length && <Empty icon={<TagIcon size={26} />} title="短剧加载失败" sub={videoErr} action="重试" onAction={() => void load("video", 1, true)} />}
-        {visibleVideos.length > 0 && <section className="mb-6">
-          <h2 className="mb-3 text-[14px] font-semibold text-on">短剧 <span className="text-[12px] font-normal text-mut">{videoTotal}</span></h2>
-          <Masonry videos={visibleVideos} scopeKey={`tag-video:${tag}`} wide={wide} onOpen={(v) => push({ kind: "series", id: v.id })} />
-        </section>}
-        <div ref={videoSentinel} className="h-2" />
-        {videoErr && visibleVideos.length > 0 && <div role="status" className="flex flex-wrap items-center justify-center gap-2 py-2 text-[12px] text-mut"><span>短剧加载失败：{videoErr}</span><Button onClick={() => void load("video", videoPage + 1)} className="px-3 text-primary">重试</Button></div>}
-        {videoLoading && visibleVideos.length > 0 && <div className="flex justify-center py-3"><Loader className="w-6 h-6 spinner" /></div>}
-        {!videoLoading && !videoErr && videoPage < videoPages && <Button onClick={() => void load("video", videoPage + 1)} className="my-2 px-4 text-primary">加载更多短剧</Button>}
+        </section>
 
-        {postLoading && !visiblePosts.length && <div className="flex justify-center py-8"><Loader className="w-7 h-7 spinner" /></div>}
-        {postErr && !visiblePosts.length && <Empty icon={<TagIcon size={26} />} title="吃瓜帖子加载失败" sub={postErr} action="重试" onAction={() => void load("post", 1, true)} />}
-        {visiblePosts.length > 0 && <section className="mb-6">
-          <h2 className="mb-3 text-[14px] font-semibold text-on">吃瓜 <span className="text-[12px] font-normal text-mut">{postTotal}</span></h2>
-          <FilteredContent items={visiblePosts} scopeKey={`tag-post:${tag}`}>{shownPosts => <div className={`ios-media-grid ${wide ? "is-wide" : ""}`}>
-            {shownPosts.map(post => <MediaCard key={post.id} title={post.title} cover={post.cover} subtitle={post.tags?.slice(0, 2).join(" · ")} onOpen={() => push({ kind: "post", id: post.id })} />)}
-          </div>}</FilteredContent>
-        </section>}
-        <div ref={postSentinel} className="h-2" />
-        {postErr && visiblePosts.length > 0 && <div role="status" className="flex flex-wrap items-center justify-center gap-2 py-2 text-[12px] text-mut"><span>吃瓜加载失败：{postErr}</span><Button onClick={() => void load("post", postPage + 1)} className="px-3 text-primary">重试</Button></div>}
-        {postLoading && visiblePosts.length > 0 && <div className="flex justify-center py-3"><Loader className="w-6 h-6 spinner" /></div>}
-        {!postLoading && !postErr && postPage < postPages && <Button onClick={() => void load("post", postPage + 1)} className="my-2 px-4 text-primary">加载更多吃瓜</Button>}
-        {!videoLoading && !postLoading && !videoErr && !postErr && !visibleVideos.length && !visiblePosts.length && <Empty icon={<TagIcon size={26} />} title="该标签下暂无内容" />}
+        <SegmentedControl className="hg-seg-track mb-3.5" role="tablist" aria-label="标签内容分类" activeIndex={activeTab === "video" ? 0 : 1}>
+          <Button role="tab" aria-selected={activeTab === "video"} className="ios-segmented-item"
+            onClick={() => setTabChoice("video")}>短剧 ({currentVideos ? videoTotal : 0})</Button>
+          <Button role="tab" aria-selected={activeTab === "post"} className="ios-segmented-item"
+            onClick={() => setTabChoice("post")}>吃瓜 ({currentPosts ? postTotal : 0})</Button>
+        </SegmentedControl>
+
+        {activeTab === "video" ? (
+          <>
+            {videoLoading && !visibleVideos.length && <div className="flex justify-center py-8"><Loader className="w-7 h-7 spinner" /></div>}
+            {videoErr && !visibleVideos.length && <Empty icon={<TagIcon size={26} />} title="短剧加载失败" sub={videoErr} action="重试" onAction={() => void load("video", 1, true)} />}
+            {visibleVideos.length > 0 && (
+              <Masonry videos={visibleVideos} scopeKey={`tag-video:${tag}`} wide={wide} onOpen={(v) => push({ kind: "series", id: v.id })} />
+            )}
+            <div ref={videoSentinel} className="h-2" />
+            {videoErr && visibleVideos.length > 0 && <div role="status" className="flex flex-wrap items-center justify-center gap-2 py-2 text-[12px] text-mut"><span>短剧加载失败：{videoErr}</span><Button onClick={() => void load("video", videoPage + 1)} className="px-3 text-primary">重试</Button></div>}
+            {videoLoading && visibleVideos.length > 0 && <div className="flex justify-center py-3"><Loader className="w-6 h-6 spinner" /></div>}
+            {!videoLoading && !videoErr && videoPage < videoPages && <Button card onClick={() => void load("video", videoPage + 1)} className="hg-loadmore">加载更多短剧</Button>}
+            {!videoLoading && !videoErr && !visibleVideos.length && (
+              <Empty icon={<TagIcon size={26} />} title="该标签下暂无短剧"
+                sub={visiblePosts.length > 0 ? `该标签下有 ${postTotal} 篇吃瓜帖子` : undefined}
+                action={visiblePosts.length > 0 ? "查看吃瓜帖" : undefined}
+                onAction={visiblePosts.length > 0 ? () => setTabChoice("post") : undefined} />
+            )}
+          </>
+        ) : (
+          <>
+            {postLoading && !visiblePosts.length && <div className="flex justify-center py-8"><Loader className="w-7 h-7 spinner" /></div>}
+            {postErr && !visiblePosts.length && <Empty icon={<TagIcon size={26} />} title="吃瓜帖子加载失败" sub={postErr} action="重试" onAction={() => void load("post", 1, true)} />}
+            {visiblePosts.length > 0 && (
+              <FilteredContent items={visiblePosts} scopeKey={`tag-post:${tag}`}>{shownPosts => <div className={`ios-media-grid ${wide ? "is-wide" : ""}`}>
+                {shownPosts.map(post => <MediaCard key={post.id} title={post.title} cover={post.cover} subtitle={post.tags?.slice(0, 2).join(" · ")} onOpen={() => push({ kind: "post", id: post.id })} />)}
+              </div>}</FilteredContent>
+            )}
+            <div ref={postSentinel} className="h-2" />
+            {postErr && visiblePosts.length > 0 && <div role="status" className="flex flex-wrap items-center justify-center gap-2 py-2 text-[12px] text-mut"><span>吃瓜加载失败：{postErr}</span><Button onClick={() => void load("post", postPage + 1)} className="px-3 text-primary">重试</Button></div>}
+            {postLoading && visiblePosts.length > 0 && <div className="flex justify-center py-3"><Loader className="w-6 h-6 spinner" /></div>}
+            {!postLoading && !postErr && postPage < postPages && <Button card onClick={() => void load("post", postPage + 1)} className="hg-loadmore">加载更多吃瓜</Button>}
+            {!postLoading && !postErr && !visiblePosts.length && (
+              <Empty icon={<TagIcon size={26} />} title="该标签下暂无吃瓜帖子"
+                sub={visibleVideos.length > 0 ? `该标签下有 ${videoTotal} 部短剧` : undefined}
+                action={visibleVideos.length > 0 ? "查看短剧" : undefined}
+                onAction={visibleVideos.length > 0 ? () => setTabChoice("video") : undefined} />
+            )}
+          </>
+        )}
       </div>
-      {searching && <InplaceSearch kind="video" wide={wide} onClose={() => setSearching(false)} onOpenVideo={(v, list) => push({ kind: "feed", videoIds: list.map(x => x.id), index: list.findIndex(x => x.id === v.id), title: name })} />}
+      {searching && <InplaceSearch kind="video" wide={wide} onClose={() => setSearching(false)} onOpenVideo={(v) => push({ kind: "series", id: v.id })} />}
     </div>
   );
 }

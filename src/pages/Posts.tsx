@@ -146,10 +146,14 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
     return (
       <div key={p.id} className="hg-post-card" onClick={() => push({ kind: "post", id: p.id })}>
         <div className="hg-post-head">
-          <span className="hg-post-avatar" aria-hidden="true">
+          <span className="hg-post-avatar" aria-hidden="true"
+            style={authorId ? { cursor: "pointer" } : undefined}
+            onClick={authorId ? (e) => { e.stopPropagation(); push({ kind: "user", id: authorId, name: info?.author?.name }); } : undefined}>
             {pic ? <Img src={pic} /> : (initial || "U")}
           </span>
-          <span className="hg-post-who">
+          <span className="hg-post-who"
+            style={authorId ? { cursor: "pointer" } : undefined}
+            onClick={authorId ? (e) => { e.stopPropagation(); push({ kind: "user", id: authorId, name: info?.author?.name }); } : undefined}>
             <span className="hg-post-name">{info?.author?.name || "匿名用户"}</span>
             <span className="hg-post-time">{postTime(p)}</span>
           </span>
@@ -217,46 +221,45 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
   return (
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
-      {/* 顶栏：左标题（二级栈页带返回），右全局搜索（默认选中吃瓜帖子） */}
-      <div className="shrink-0 hg-page-x flex items-center gap-2.5 relative z-10"
-        style={{ paddingTop: "calc(var(--sat, 0px) + 8px)", paddingBottom: 6 }}>
+      {/* 一级大字重流光顶栏：最新吃瓜 / 热门热议 直接融入顶栏，省去单独排序行 */}
+      <header className="shrink-0 hg-page-x hg-editorial-bar relative z-10">
         {!embedded && onBack && (
-          <Button aria-label="返回" onClick={onBack} className="ios-icon-button shrink-0"><IBack size={19} /></Button>
+          <Button card aria-label="返回" onClick={onBack} className="hg-sub-btn"><IBack size={19} /></Button>
         )}
-        <h1 className="text-[18px] font-bold text-on">吃瓜</h1>
-        <span className="flex-1" />
-        <Button card className="hg-icon-plain" aria-label="搜索社区" onClick={() => push({ kind: "search", initialTab: "post" })}>
-          <ISearch size={20} />
+        <h1 className="sr-only">吃瓜</h1>
+        <div className="hg-ed-tabs" role="tablist" aria-label="社区排序">
+          {SORTS.map((s) => (
+            <Button key={s.key} card role="tab" aria-selected={sort === s.key}
+              className="hg-ed-tab"
+              onClick={() => setSort(s.key)}>
+              {s.key === "latest" ? "最新吃瓜" : "热门热议"}
+            </Button>
+          ))}
+        </div>
+        <Button card className="hg-sub-btn" aria-label="搜索社区" onClick={() => push({ kind: "search", initialTab: "post" })}>
+          <ISearch size={18} />
         </Button>
-      </div>
+      </header>
 
-      {/* 第 1 层：社区分类胶囊（与分类页保持同一交互范式） */}
+      {/* 社区子话题标签条：仅真正的话题标签使用紧凑 #tag 小签 */}
       {categories.length > 0 && (
-        <div className="shrink-0 hg-page-x pb-1 relative z-10">
-          <div className="hg-pill-row" role="tablist" aria-label="社区分类">
+        <div className="shrink-0 hg-page-x pb-1.5 relative z-10">
+          <div className="hg-topic-strip" role="tablist" aria-label="社区分类">
             <Button card role="tab" aria-selected={cate === ""}
-              className="hg-pill"
-              onClick={() => setCate("")}>全部</Button>
+              className="hg-tag-pill"
+              onClick={() => setCate("")}>
+              <span className="hg-tag-hash">#</span><span>全部话题</span>
+            </Button>
             {categories.map((c) => (
               <Button key={c.route || c.id} card role="tab" aria-selected={cate === c.route}
-                className="hg-pill"
-                onClick={() => setCate(c.route)}>{c.name}</Button>
+                className="hg-tag-pill"
+                onClick={() => setCate(c.route)}>
+                <span className="hg-tag-hash">#</span><span>{c.name}</span>
+              </Button>
             ))}
           </div>
         </div>
       )}
-
-      {/* 第 2 层：排序下划线 tab（最新 / 热门） */}
-      <div className="shrink-0 hg-page-x pb-2 mt-0.5 flex gap-6 overflow-x-auto hg-chip-row relative z-10" role="tablist" aria-label="社区排序">
-        {SORTS.map((s) => {
-          const on = sort === s.key;
-          return (
-            <Button key={s.key} role="tab" aria-selected={on}
-              className={`hg-filter-text hg-tab-ul${on ? " is-on" : ""}`} data-on={String(on)}
-              onClick={() => setSort(s.key)}>{s.label}</Button>
-          );
-        })}
-      </div>
 
       <div ref={scrollRef} aria-busy={loading} className="flex-1 scroll-y hg-page-x relative z-10"
         style={{ paddingBottom: "calc(110px + var(--sab, 0px))" }}>
@@ -393,13 +396,18 @@ export function PostDetail({ id, onBack, active = true }: { id: number; onBack: 
   return (
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
-      <div className="shrink-0 flex items-center gap-2 px-2 bg-s1/75 backdrop-blur-md relative z-10" style={{ paddingTop: isMobile ? "var(--sat, 0px)" : 0, height: isMobile ? "calc(44px + var(--sat, 0px))" : 44 }}>
-        <Button aria-label="返回" onClick={onBack} className="w-9 h-9 rounded-full flex items-center justify-center text-on hover:bg-s3 pressable"><IBack size={19} /></Button>
-        <span className="text-[14px] font-semibold text-on">吃瓜详情</span>
-        <Button disabled={!currentPost} onClick={() => { if (active && allowed) setTagMenu(true); }} className="ml-auto px-3 text-[13px]">不感兴趣</Button>
-      </div>
+      <header className="shrink-0 hg-subpage-bar relative z-10">
+        <Button card aria-label="返回" onClick={onBack} className="hg-sub-btn"><IBack size={19} /></Button>
+        <div className="hg-sub-titles">
+          <span className="hg-sub-title">吃瓜详情</span>
+        </div>
+        <Button card disabled={!currentPost} onClick={() => { if (active && allowed) setTagMenu(true); }}
+          className="hg-tag-pill" style={{ minHeight: 30, padding: "0 11px" }}>
+          不感兴趣
+        </Button>
+      </header>
 
-      <div role="progressbar" aria-label="阅读进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={readProgress} className="h-1 shrink-0 bg-s3 overflow-hidden"><div className="h-full bg-primary" style={{ width: `${readProgress}%` }} /></div>
+      <div role="progressbar" aria-label="阅读进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={readProgress} className="hg-aurora-progress shrink-0 relative z-10"><div style={{ width: `${readProgress}%` }} /></div>
       <div ref={scrollRef} data-post-scroll className="flex-1 scroll-y" style={{ paddingBottom: "calc(84px + var(--sab, 0px))" }} onScroll={event => {
         const el = event.currentTarget;
         const range = el.scrollHeight - el.clientHeight;
@@ -436,13 +444,13 @@ export function PostDetail({ id, onBack, active = true }: { id: number; onBack: 
             {mediaError && !src && <div role="alert" className="flex flex-wrap items-center justify-center gap-3 px-4 py-3 text-[13px] text-danger"><span>{mediaError}</span><Button disabled={resolving} onClick={() => setMediaRetry(n => n + 1)}>重新解析</Button></div>}
               {segs.length > 1 && (
                 <div role="group" aria-label="视频分段" className="flex items-center gap-2 px-4 py-3 overflow-x-auto">
+                  <span className="text-[12px] text-mut shrink-0">视频分段</span>
                   {segs.map((_, i) => (
-                    <Button aria-label={`第 ${i + 1} 段`} aria-pressed={i === seg} key={i} onClick={() => { setSeg(i); setPlay(true); }}
-                      className="shrink-0 min-h-11 px-3 rounded-full text-[13px] font-semibold pressable"
-                      style={i === seg
-                        ? { background: "var(--p-primary)", color: "var(--p-on-primary)" }
-                        : { background: "var(--p-s3)", color: "var(--p-on)" }}>
-                      {i + 1}
+                    <Button card aria-label={`第 ${i + 1} 段`} aria-pressed={i === seg} key={i} onClick={() => { setSeg(i); setPlay(true); }}
+                      className={`hg-ep-cell shrink-0${i === seg ? " is-on" : ""}`}
+                      aria-current={i === seg ? "true" : undefined}
+                      style={{ width: 42, height: 34 }}>
+                      P{i + 1}
                     </Button>
                   ))}
                 </div>
@@ -459,10 +467,11 @@ export function PostDetail({ id, onBack, active = true }: { id: number; onBack: 
                 <span>{currentPost.publish_time || currentPost.created_at}</span>
                 <span className="flex items-center gap-1"><IFireF size={10} />{fmt(postHot(currentPost))}</span>
               </div>
-              <div className="flex flex-wrap gap-1.5 mt-2.5">
+              <div className="flex flex-wrap gap-2 mt-3">
                 {(currentPost.tags || []).filter((t) => !t.includes(HIDDEN_POST_TAG)).slice(0, 8).map((t) => (
-                  <button type="button" key={t} onClick={() => push({ kind: "tag", tag: t, name: t })}
-                    className="px-2.5 py-1 rounded-(--r-ctl) bg-s3 text-[12px] text-on/80 hover:text-on active:opacity-75 pressable">#{t}</button>
+                  <Button card key={t} onClick={() => push({ kind: "tag", tag: t, name: t })} className="hg-tag-pill">
+                    <span className="hg-tag-hash">#</span><span>{t}</span>
+                  </Button>
                 ))}
               </div>
               {currentPost.content && (

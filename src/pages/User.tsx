@@ -1,4 +1,4 @@
-import { Button, Surface } from "../components/ios/controls";
+import { Button } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, fmt } from "../api";
@@ -8,7 +8,7 @@ import { useContentPreferences } from "../contentPreferences";
 import { Masonry } from "../components/cards";
 import { InplaceSearch } from "../components/InplaceSearch";
 import { Avatar, Empty } from "../components/ui";
-import { IBack, IChevronDown, IGrid, ISearch, IUser } from "../icons";
+import { IBack, IBoltF, IChevronDown, IGrid, IPlayF, ISearch, IUser } from "../icons";
 
 /** Keep pagination local to the scrolling page and reject responses from an old account/author. */
 function useUserVideos(enabled: boolean, request: (page: number) => Promise<Paged<VideoCard>>) {
@@ -82,7 +82,7 @@ function PaginationFeedback({ state }: { state: VideoState }) {
       <Button onClick={() => void state.loadMore()} className="mt-2 px-4 text-primary">重试</Button>
     </div>}
     {state.loading ? <div className="flex justify-center py-3"><Loader label="加载更多作品" /></div>
-      : !state.err && state.hasMore ? <Button onClick={() => void state.loadMore()} className="mt-3 w-full rounded-(--r-ctl) bg-s3">加载更多</Button>
+      : !state.err && state.hasMore ? <Button card onClick={() => void state.loadMore()} className="hg-loadmore">加载更多</Button>
       : !state.err && <p className="py-3 text-center text-[12px] text-mut">— 已展示全部作品 —</p>}
     <div ref={state.sentinel} className="h-8" aria-hidden="true" />
   </>;
@@ -102,23 +102,29 @@ function FollowingContent({ onBack, wide }: { onBack: () => void; wide: boolean 
   const state = useUserVideos(!!user, request);
   return <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
     <span className="hg-aura" aria-hidden="true" />
-    <div className="shrink-0 bg-s1/75 backdrop-blur-md relative z-10" style={{ paddingTop: "var(--sat, 0px)" }}>
-      <div className="px-3 pt-2 pb-3 flex items-center gap-2.5">
-        <Button aria-label="返回" onClick={onBack} className="ios-icon-button"><IBack size={20} /></Button>
-        <div className="min-w-0 flex-1"><h1 className="text-[17px] font-bold text-on">关注</h1>
-          {user && <p className="text-[12px] text-mut" role="status">{countLabel(state)}</p>}</div>
-        <Button onClick={() => setSearching(true)} aria-label="搜索短剧" className="ios-icon-button"><ISearch size={19} /></Button>
+    <header className="shrink-0 hg-subpage-bar relative z-10">
+      <Button card aria-label="返回" onClick={onBack} className="hg-sub-btn"><IBack size={19} /></Button>
+      <div className="hg-sub-titles">
+        <h1 className="hg-sub-title">关注</h1>
+        {user && <p className="hg-sub-meta" role="status">{countLabel(state)}</p>}
       </div>
-    </div>
-    <div ref={state.scroller} className="flex-1 scroll-y px-4 pt-3 pb-8">
+      {user && state.items.length > 0 && (
+        <Button card className="hg-quick-action"
+          onClick={() => push({ kind: "feed", videoIds: state.items.map(item => item.id), index: 0, title: "关注" })}>
+          <IBoltF size={13} /><span>连刷关注</span>
+        </Button>
+      )}
+      <Button card onClick={() => setSearching(true)} aria-label="搜索短剧" className="hg-sub-btn"><ISearch size={17} /></Button>
+    </header>
+    <div ref={state.scroller} className="flex-1 scroll-y hg-page-x pt-3 pb-8 relative z-10">
       {!user ? <Empty icon={<IUser size={26} />} title="登录后查看关注流" sub="关注喜欢的作者，第一时间看到他们的新作品" action="去登录" onAction={() => setLoginOpen(true)} />
         : state.loading && !state.items.length ? <div className="flex justify-center py-12"><Loader /></div>
         : state.err && !state.items.length ? <Empty icon={<IGrid size={26} />} title="关注流加载失败" sub={state.err} action="重试" onAction={() => void state.loadMore()} />
-        : state.items.length ? <Masonry videos={state.items} scopeKey={`following:${accountScope}`} wide={wide} onOpen={video => push({ kind: "feed", videoIds: state.items.map(item => item.id), index: state.items.findIndex(item => item.id === video.id), title: "关注" })} />
-        : <Empty icon={<IGrid size={26} />} title="还没有关注内容" sub="在首页、分类或吃瓜中发现内容，关注喜欢的作者。" action="去分类看看" onAction={() => setTab("category")} />}
+        : state.items.length ? <Masonry videos={state.items} scopeKey={`following:${accountScope}`} wide={wide} onOpen={video => push({ kind: "series", id: video.id })} />
+        : <Empty icon={<IGrid size={26} />} title="还没有关注内容" sub="在首页、分类或吃瓜中发现内容，关注喜欢的作者。" action="去分类看看" onAction={() => { onBack(); setTab("category"); }} />}
       {user && <PaginationFeedback state={state} />}
     </div>
-    {searching && <InplaceSearch kind="video" wide={wide} onClose={() => setSearching(false)} onOpenVideo={(v, list) => push({ kind: "feed", videoIds: list.map(x => x.id), index: list.findIndex(x => x.id === v.id), title: "关注" })} />}
+    {searching && <InplaceSearch kind="video" wide={wide} onClose={() => setSearching(false)} onOpenVideo={(v) => push({ kind: "series", id: v.id })} />}
   </div>;
 }
 
@@ -188,47 +194,75 @@ function UserContent({ id, name, onBack, wide }: { id: number; name?: string; on
 
   return <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
     <span className="hg-aura" aria-hidden="true" />
-    <div className="shrink-0 bg-s1/75 backdrop-blur-md relative z-10" style={{ paddingTop: "var(--sat, 0px)" }}>
-      <div className="px-3 pt-2 pb-3 flex items-center gap-2.5">
-        <Button aria-label="返回" onClick={onBack} className="ios-icon-button"><IBack size={20} /></Button>
-        <h1 className="flex-1 min-w-0 text-[16px] font-bold text-on truncate">{profile?.nickname || name || "用户主页"}</h1>
-        <Button onClick={() => setSearching(true)} aria-label="搜索短剧" className="ios-icon-button"><ISearch size={19} /></Button>
+    <header className="shrink-0 hg-subpage-bar relative z-10">
+      <Button card aria-label="返回" onClick={onBack} className="hg-sub-btn"><IBack size={19} /></Button>
+      <div className="hg-sub-titles">
+        <h1 className="hg-sub-title">{profile?.nickname || name || "用户主页"}</h1>
+        <p className="hg-sub-meta">创作者空间 · ID {id}</p>
       </div>
-    </div>
-    <div ref={state.scroller} className="flex-1 scroll-y px-4 pt-3 pb-8">
-      <Surface className="rounded-(--r-lg) bg-s1 p-4 elev-1 a-rise">
+      <Button card onClick={() => setSearching(true)} aria-label="搜索短剧" className="hg-sub-btn"><ISearch size={17} /></Button>
+    </header>
+    <div ref={state.scroller} className="flex-1 scroll-y hg-page-x pt-3 pb-8 relative z-10">
+      <section className="hg-creator-card a-rise" aria-label="创作者资料">
         <div className="flex items-center gap-3.5">
-          <Avatar size={56} name={profile?.nickname || name || "U"} hue={220} ring />
+          <Avatar size={58} name={profile?.nickname || name || "U"} hue={220} ring />
           <div className="flex-1 min-w-0">
-            <p className="text-[16px] font-bold text-on break-words">{profile?.nickname || name || (infoLoading ? "正在读取资料…" : "用户资料暂不可用")}</p>
+            <p className="text-[17px] font-extrabold text-on break-words">{profile?.nickname || name || (infoLoading ? "正在读取资料…" : "用户资料暂不可用")}</p>
             {profile?.username && <p className="text-[12px] text-mut mt-0.5 break-words">@{profile.username} · ID {id}</p>}
           </div>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-mut" aria-busy={infoLoading}>
-            <span>作品 <b className="text-on">{stat(stats?.video_count)}</b></span>
-            <span>粉丝 <b className="text-on">{stat(stats?.followers)}</b></span>
-            <span>获赞 <b className="text-on">{stat(stats?.like_count)}</b></span>
-          </div>
-          <Button onClick={() => void onFollow()} disabled={followBusy || actionPending(`follow:${id}`)} aria-busy={followBusy || actionPending(`follow:${id}`)} aria-pressed={following}
-            className={`min-h-11 px-3.5 rounded-full text-[13px] font-semibold shrink-0 ${following ? "bg-s3 text-mut" : "bg-primary text-on-primary"}`}>
+          <Button card onClick={() => void onFollow()} disabled={followBusy || actionPending(`follow:${id}`)} aria-busy={followBusy || actionPending(`follow:${id}`)} aria-pressed={following}
+            className="shrink-0 px-4 text-[13px] font-bold"
+            style={{
+              height: 36,
+              borderRadius: 11,
+              background: following ? "rgba(255,255,255,0.08)" : "linear-gradient(135deg, #FF7A59 0%, #7C5CFF 100%)",
+              border: following ? "1px solid rgba(255,255,255,0.12)" : "none",
+              color: following ? "#A5AAC4" : "#fff",
+            }}>
             {followBusy || actionPending(`follow:${id}`) ? "处理中…" : following ? "已关注" : "+ 关注"}
           </Button>
         </div>
+
+        <div className="mt-3.5 pt-3 flex flex-wrap items-center justify-between gap-3" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-mut" aria-busy={infoLoading}>
+            <span>作品 <b className="text-on text-[14px]">{stat(stats?.video_count)}</b></span>
+            <span>粉丝 <b className="text-on text-[14px]">{stat(stats?.followers)}</b></span>
+            <span>获赞 <b className="text-on text-[14px]">{stat(stats?.like_count)}</b></span>
+          </div>
+          {state.items.length > 0 && (
+            <Button card className="hg-quick-action"
+              onClick={() => push({ kind: "feed", videoIds: state.items.map(x => x.id), index: 0, title: profile?.nickname || name || "用户作品" })}>
+              <IPlayF size={12} /><span>连刷TA的作品</span>
+            </Button>
+          )}
+        </div>
+
+        {profile?.sign && (
+          <details className="group mt-3 text-[12px] text-mut">
+            <summary className="cursor-pointer py-1 flex items-center gap-1.5 text-on font-semibold">
+              作者简介<IChevronDown size={15} className="group-open:rotate-180" />
+            </summary>
+            <p className="mt-1 leading-relaxed whitespace-pre-wrap break-words">{profile.sign}</p>
+          </details>
+        )}
         {followError && <p role="alert" className="mt-3 text-[13px] text-danger break-words">{followError}。关注状态未更改，请重试。</p>}
-      </Surface>
+      </section>
+
       {infoError && <div role="status" className="mt-3 rounded-(--r-md) bg-s2 p-3 text-[13px]">
         <p className="font-semibold">资料信息未完整加载</p><p className="mt-1 text-mut break-words">{infoError}</p>
         <Button disabled={infoLoading} onClick={() => setInfoReload(value => value + 1)} className="mt-2 px-3 text-primary">重试资料</Button>
       </div>}
-      {profile?.sign && <details className="group mt-3 text-[13px] text-mut"><summary className="cursor-pointer min-h-11 flex items-center gap-2 text-on">作者简介<IChevronDown size={16} className="group-open:rotate-180" /></summary><p className="leading-relaxed whitespace-pre-wrap break-words">{profile.sign}</p></details>}
-      <div className="mt-4 mb-2.5 flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-[14px] font-bold text-on">作品</h2><p role="status" className="text-[12px] text-mut">{countLabel(state)}</p></div>
+
+      <div className="mt-4 mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-[15px] font-extrabold text-on">TA 的作品</h2>
+        <p role="status" className="text-[12px] text-mut">{countLabel(state)}</p>
+      </div>
       {state.loading && !state.items.length ? <div className="flex justify-center py-12"><Loader /></div>
         : state.err && !state.items.length ? <Empty icon={<IGrid size={26} />} title="作品加载失败" sub={state.err} action="重试" onAction={() => void state.loadMore()} />
-        : state.items.length ? <Masonry videos={state.items} scopeKey={id} wide={wide} onOpen={v => push({ kind: "feed", videoIds: state.items.map(x => x.id), index: state.items.findIndex(x => x.id === v.id), title: profile?.nickname || name || "用户作品" })} />
+        : state.items.length ? <Masonry videos={state.items} scopeKey={id} wide={wide} onOpen={v => push({ kind: "series", id: v.id })} />
         : <Empty icon={<IGrid size={26} />} title="暂无作品" />}
       <PaginationFeedback state={state} />
     </div>
-    {searching && <InplaceSearch kind="video" wide={wide} onClose={() => setSearching(false)} onOpenVideo={(v, list) => push({ kind: "feed", videoIds: list.map(x => x.id), index: list.findIndex(x => x.id === v.id), title: profile?.nickname || name || "用户作品" })} />}
+    {searching && <InplaceSearch kind="video" wide={wide} onClose={() => setSearching(false)} onOpenVideo={(v) => push({ kind: "series", id: v.id })} />}
   </div>;
 }

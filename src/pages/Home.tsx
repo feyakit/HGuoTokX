@@ -1,35 +1,53 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "../api";
-import type { Detail, VideoCard } from "../types";
+import { api, fmt } from "../api";
+import type { Detail, RankItem, TopicCard, VideoCard } from "../types";
 import { useStore } from "../store";
 import { Button } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
-import { Empty } from "../components/ui";
-import { Img } from "../components/ui";
-import { IChevR, IClose, IPlayF, ISearch, Logo } from "../icons";
+import { Empty, Img } from "../components/ui";
+import { IBoltF, IChevR, IClose, IFireF, IPlayF, ISearch, Logo } from "../icons";
 import { useContentPreferences } from "../contentPreferences";
 import { PreferenceStorageNotice } from "../components/PreferenceStorageNotice";
 
 const RankView = lazy(() => import("./Search").then(m => ({ default: m.RankView })));
 
-/* 首页结构：
-   顶栏 = 状态栏 → 品牌行（左 HGuoX 品牌标，右 全局搜索入口）→ 页内胶囊分栏（全部 / 最新 / 榜单）
-   内容 = 全部/最新：Hero 轮播 → 最新上架横滑 → 3 列网格；榜单：页内热播榜 / 推荐榜 / 潜力榜
-   继续观看 = 登录且有观看记录时悬浮在底栏上方 */
+/* 首页 v5 差异化架构：
+   顶栏 = 大字重流光排版顶栏（推荐 / 上新 / 热榜 + 搜索，彻底告别独立胶囊行）
+   ① 推荐 = 影院单主推展台（含一键沉浸连刷）→ 热播风向标 TOP 10 空心数字横榜 → 独家原创 16:10 宽画幅双列 → 精选专题企划 → 为你推荐海报流
+   ② 上新 = 零轮播！时间轴新片速递（首发统计横幅 + 左竖图右看点杂志横卡 + 近期新片速览网格）
+   ③ 热榜 = 一体式玻璃滑块 + 金银铜 3D 错落三联领奖台 + 流光热度条列表 */
 
 const TABS = [
-  { key: "all", label: "全部" },
-  { key: "new", label: "最新" },
-  { key: "rank", label: "榜单" },
+  { key: "all", label: "推荐" },
+  { key: "new", label: "上新" },
+  { key: "rank", label: "热榜" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 type FeedTab = Exclude<TabKey, "rank">;
 
-/* NEW 角标：接口无 is_new 字段，按 created_at 是否 7 天内判（真数据，不编） */
-const WEEK = 7 * 24 * 60 * 60 * 1000;
+const DAY = 24 * 60 * 60 * 1000;
+const WEEK = 7 * DAY;
+
+const parseTime = (raw?: string) => {
+  if (!raw) return NaN;
+  return Date.parse(raw.trim().replace(" ", "T"));
+};
+
 const isNew = (v: VideoCard) => {
-  const t = Date.parse((v.created_at || "").replace(" ", "T"));
+  const t = parseTime(v.created_at);
   return Number.isFinite(t) && Date.now() - t < WEEK;
+};
+
+const releaseLabel = (v: VideoCard) => {
+  const raw = (v.created_at || "").trim();
+  const t = parseTime(raw);
+  if (Number.isFinite(t)) {
+    const diff = Date.now() - t;
+    if (diff >= 0 && diff < DAY) return "今日首发";
+    if (diff >= 0 && diff < 3 * DAY) return "近3日上新";
+  }
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  return m ? `${Number(m[2])}月${Number(m[3])}日 上新` : "新片上架";
 };
 
 export default function Home({ active }: { active: boolean; bottomInset?: number }) {
@@ -37,33 +55,21 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
   const { preferences, storageError, blockReason } = useContentPreferences();
   const [tab, setFeedTab] = useState<TabKey>("all");
   const [items, setItems] = useState<VideoCard[]>([]);
-  const [rail, setRail] = useState<VideoCard[]>([]);
+  const [topRanks, setTopRanks] = useState<RankItem[]>([]);
+  const [originals, setOriginals] = useState<VideoCard[]>([]);
+  const [topics, setTopics] = useState<TopicCard[]>([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
   const [heroIndex, setHeroIndex] = useState(0);
-  /* 轮播：原生横滑 + scroll-snap（Chrome 87 支持），圆点与滚动位置双向同步 */
-  const heroTrack = useRef<HTMLDivElement>(null);
-  const goHero = (i: number) => {
-    const el = heroTrack.current;
-    if (!el) return;
-    el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
-    setHeroIndex(i);
-  };
-  const onHeroScroll = () => {
-    const el = heroTrack.current;
-    if (!el || !el.clientWidth) return;
-    const i = Math.max(0, Math.min(heroes.length - 1, Math.round(el.scrollLeft / el.clientWidth)));
-    setHeroIndex(prev => (prev === i ? prev : i));
-  };
   const [continueCard, setContinueCard] = useState<{ detail: Detail; ep: number; t: number; dur: number; at: number } | null>(null);
-  /* 关掉的那一条按 updated_at 记：换了剧或看了新一集，卡片自己回来，不用等刷新 */
   const [dismissedContinue, setDismissedContinue] = useState(0);
   const loadingRef = useRef(false);
   const seq = useRef(0);
+  const shelvesKey = useRef("");
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  /* 列表：全部 → api.feed（/api/videos）；最新 → api.feed(sort=new) */
   const load = useCallback(async (p: number, key: FeedTab) => {
     if (loadingRef.current) return;
     loadingRef.current = true;
@@ -86,23 +92,39 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
     }
   }, []);
 
-  /* 最新上架横滑：始终 /api/videos?sort=new 第一页，和当前胶囊无关 */
-  const loadRail = useCallback(() => {
-    api.feed(1, 12, "new").then(r => setRail((r?.items ?? []).filter(v => v && v.cover))).catch(() => setRail([]));
-  }, []);
+  /* 推荐页专属异构货架数据（热播榜 TOP10 + 独家原创宽画幅 + 精选专题）：按线路缓存，切分栏不重复拉取 */
+  useEffect(() => {
+    if (!active || tab !== "all") return;
+    const key = String(lineEpoch);
+    if (shelvesKey.current === key) return;
+    let alive = true;
+    Promise.all([
+      api.rank("hot").then(r => (r?.items ?? []).filter(x => x && x.cover).slice(0, 10)).catch(() => [] as RankItem[]),
+      api.originalVideos("all", 1, 6, "new").then(r => (r?.items ?? []).filter(x => x && x.cover).slice(0, 4)).catch(() => [] as VideoCard[]),
+      api.topics().then(r => (r?.items ?? []).filter(x => x && x.cover).slice(0, 8)).catch(() => [] as TopicCard[]),
+    ]).then(([ranks, origs, tps]) => {
+      if (!alive) return;
+      shelvesKey.current = key;
+      setTopRanks(ranks);
+      setOriginals(origs);
+      setTopics(tps);
+    });
+    return () => { alive = false; };
+  }, [active, tab, lineEpoch]);
 
   useEffect(() => {
     if (!active || tab === "rank") return;
+    seq.current++;
+    loadingRef.current = false;
     setItems([]);
     setDone(false);
     setHeroIndex(0);
+    scrollRef.current?.scrollTo(0, 0);
     void load(1, tab);
-    loadRail();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, tab, lineEpoch]);
 
-  /* 继续观看：accountHistory（store.history 已按 updated_at 倒序，[0] 就是最近一条）
-     + api.video(id) 补标题/封面/总集数；游客态或历史为空 → 直接不渲染，不画空占位 */
+  /* 继续观看：登录且有最近进度时浮现 */
   useEffect(() => {
     if (!active || !user) { setContinueCard(null); return; }
     const latest = history[0];
@@ -117,111 +139,299 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
     return () => { alive = false; };
   }, [active, user, history]);
 
-  const visible = preferences.paused ? items : items.filter(v => !blockReason(v.tags));
+  const filterAllowed = useCallback(
+    <T extends { tags?: string[] }>(list: T[]) =>
+      preferences.paused ? list : list.filter(v => !blockReason(v.tags)),
+    [preferences.paused, blockReason],
+  );
+
+  const visible = useMemo(() => filterAllowed(items), [items, filterAllowed]);
+  const visibleRanks = useMemo(() => filterAllowed(topRanks), [topRanks, filterAllowed]);
+  const visibleOriginals = useMemo(() => filterAllowed(originals), [originals, filterAllowed]);
+
   const heroes = useMemo(() => visible.slice(0, 3), [visible]);
-  const hero = heroes[Math.min(heroIndex, Math.max(heroes.length - 1, 0))];
-  const grid = visible.slice(heroes.length);
-  /* 继续观看只在「登录 + 历史非空 + 没被本机关掉这一条」时存在；空态整个模块不渲染 */
+  const safeHeroIdx = Math.min(heroIndex, Math.max(heroes.length - 1, 0));
+  const hero = heroes[safeHeroIdx];
+  const recommendGrid = visible.slice(heroes.length);
+
+  /* 上新分栏数据切片：前 6 部用杂志横排首发看点卡，其余进入速览网格 */
+  const premiereFeatured = useMemo(() => visible.slice(0, 6), [visible]);
+  const premiereRest = useMemo(() => visible.slice(6), [visible]);
+  const finishedInNew = useMemo(() => visible.filter(v => v.is_finished).length, [visible]);
+
   const continueShown = !!(user && continueCard && continueCard.at !== dismissedContinue);
   const continuePct = continueShown && continueCard && continueCard.dur > 0
     ? Math.max(1, Math.min(100, Math.round((continueCard.t / continueCard.dur) * 100))) : 0;
+
   const openSeries = (id: number) => push({ kind: "series", id });
   const play = (id: number, ep = 1, startTime?: number) => push({
     kind: "feed", videoIds: [id], index: 0, title: "", startEp: ep,
     startTime: startTime && startTime > 0 ? startTime : undefined,
   });
+  const startSwipeFeed = (list: VideoCard[], startIdx = 0, title = "推荐连刷") => {
+    if (!list.length) return;
+    push({
+      kind: "feed",
+      videoIds: list.map(v => v.id),
+      index: Math.max(0, Math.min(startIdx, list.length - 1)),
+      title,
+    });
+  };
 
   return (
     <div className="ios-page hg-home-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
 
-      {/* 顶栏第 2 层：品牌行（左 HGuoX 品牌标，右 搜索 21） */}
-      <div className="shrink-0 hg-page-x hg-brand-row relative z-10">
-        <Logo size={24} className="mr-2 shrink-0" />
-        <span className="hg-brand">HGuoX</span>
-        <span className="flex-1" />
-        <Button card className="hg-icon-plain" aria-label="搜索" onClick={() => push({ kind: "search", initialTab: "video" })}><ISearch size={21} /></Button>
-      </div>
-
-      {/* 顶栏第 3 层：胶囊 tab（全部 / 最新 / 榜单 页内切换） */}
-      <div className="shrink-0 hg-page-x hg-chip-row relative z-10">
-        <div className="hg-pill-row" role="tablist" aria-label="首页分栏">
+      {/* 一级大字重流光顶栏：品牌徽标 + 推荐/上新/热榜 大字排版 + 全局搜索（省掉整排胶囊栏） */}
+      <header className="shrink-0 hg-page-x hg-editorial-bar relative z-10">
+        <Logo size={23} className="shrink-0 mr-1" />
+        <div className="hg-ed-tabs" role="tablist" aria-label="首页分栏">
           {TABS.map(t => (
-            <Button card key={t.key} role="tab" aria-selected={t.key === tab}
-              className="hg-pill"
-              onClick={() => setFeedTab(t.key)}>{t.label}</Button>
+            <Button key={t.key} card role="tab" aria-selected={t.key === tab}
+              className="hg-ed-tab"
+              onClick={() => setFeedTab(t.key)}>
+              {t.label}
+            </Button>
           ))}
         </div>
-      </div>
+        <Button card className="hg-sub-btn" aria-label="搜索" onClick={() => push({ kind: "search", initialTab: "video" })}>
+          <ISearch size={18} />
+        </Button>
+      </header>
 
-      <div className="flex-1 scroll-y hg-page-x relative z-10"
+      <div ref={scrollRef} className="flex-1 scroll-y hg-page-x relative z-10"
         style={{ paddingBottom: `calc(${continueShown ? 190 : 110}px + var(--sab, 0px))` }}>
         {storageError && <PreferenceStorageNotice />}
 
+        {/* ==================== 分栏 ③：热榜（三联领奖台 + 热度条榜单） ==================== */}
         {tab === "rank" ? (
-          <div className="pt-1">
+          <div className="pt-1.5">
             <Suspense fallback={<div className="flex justify-center py-10"><Loader className="w-7 h-7 spinner" /></div>}>
               <RankView wide={false} active={active} />
             </Suspense>
           </div>
-        ) : (
-          <>
-            {!items.length && loading && <div className="flex justify-center py-10"><Loader className="w-7 h-7 spinner" /></div>}
+        ) : tab === "new" ? (
+          /* ==================== 分栏 ②：上新（零轮播！时间轴杂志首发流） ==================== */
+          <div className="pt-1">
+            {!items.length && loading && <div className="flex justify-center py-12"><Loader className="w-7 h-7 spinner" /></div>}
             {!items.length && !loading && error && (
-              <Empty icon={<ISearch size={26} />} title="首页加载失败" sub={error} action="重试" onAction={() => void load(1, tab)} />
+              <Empty icon={<ISearch size={26} />} title="新片加载失败" sub={error} action="重试" onAction={() => void load(1, "new")} />
             )}
             {!items.length && !loading && !error && done && (
-              <Empty icon={<ISearch size={26} />} title="暂无视频" sub="稍后刷新试试" action="刷新" onAction={() => void load(1, tab)} />
+              <Empty icon={<ISearch size={26} />} title="暂无新片" sub="稍后刷新试试" action="刷新" onAction={() => void load(1, "new")} />
             )}
 
-            {/* Hero：列表前 3 条（358×220 约 16:10、圆角 20、主标题+副标题+深色 Play 胶囊、卡外 3 圆点） */}
-            {hero && (
-              <div className="hg-hero-wrap">
-                <div className="hg-hero-track" ref={heroTrack} onScroll={onHeroScroll}>
-                  {heroes.map((h, i) => (
-                    <Button key={h.id} card className="hg-hero" aria-label={`${h.title} 详情`} onClick={() => openSeries(h.id)}>
-                      <Img src={h.cover} eager={i === 0} alt="" />
-                      <span className="hg-hero-veil" aria-hidden="true" />
-                      <span className="hg-hero-copy">
-                        <span className="hg-hero-title">{h.title}</span>
-                        <span className="hg-hero-sub">
-                          {h.tags?.length ? h.tags.slice(0, 3).join(" · ") : (h.is_finished ? "已完结" : `共 ${h.episode_count ?? "?"} 集`)}
+            {visible.length > 0 && (
+              <>
+                {/* 首发统计横幅 + 一键连刷上新 */}
+                <div className="hg-drop-banner a-rise">
+                  <div className="min-w-0">
+                    <div className="hg-drop-title">新片速递 · 每日鲜看</div>
+                    <div className="hg-drop-sub">
+                      已收录 {visible.length} 部新上架剧集{finishedInNew > 0 ? ` · ${finishedInNew} 部已完结可一口气追完` : ""}
+                    </div>
+                  </div>
+                  <Button card className="hg-quick-action" onClick={() => startSwipeFeed(visible, 0, "新片连刷")}>
+                    <IBoltF size={13} /><span>连刷上新</span>
+                  </Button>
+                </div>
+
+                {/* 时间轴第一段：重点新剧杂志横排看点卡 */}
+                <div className="hg-timeline-head">
+                  <span className="hg-timeline-dot" aria-hidden="true" />
+                  <h2 className="hg-timeline-label">首发看点 · 重点新剧</h2>
+                  <span className="hg-timeline-line" aria-hidden="true" />
+                  <span className="hg-timeline-count">TOP {premiereFeatured.length}</span>
+                </div>
+
+                <div className="hg-premiere-list">
+                  {premiereFeatured.map((v, idx) => (
+                    <article key={v.id} className="hg-premiere-card pressable a-rise" onClick={() => openSeries(v.id)}>
+                      <div className="hg-premiere-art">
+                        <Img src={v.cover} eager={idx < 2} alt="" />
+                        <span className="hg-premiere-ep">
+                          {v.is_finished ? `全 ${v.episode_count || v.total_episodes || "?"} 集` : `更至 ${v.episode_count || "?"} 集`}
                         </span>
-                        <span className="hg-hero-play" role="button" tabIndex={0}
-                          onClick={e => { e.stopPropagation(); play(h.id); }}
-                          onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); play(h.id); } }}>
-                          <IPlayF size={12} />播放
-                        </span>
-                      </span>
-                    </Button>
+                      </div>
+                      <div className="hg-premiere-body">
+                        <div>
+                          <div className="hg-premiere-meta-top">
+                            <span>{releaseLabel(v)}</span>
+                            {v.score > 0 && <span>· ★ {v.score.toFixed(1)}</span>}
+                            {v.is_original === 1 && <span>· 原创</span>}
+                          </div>
+                          <h3 className="hg-premiere-title">{v.title}</h3>
+                          <p className="hg-premiere-desc">
+                            {v.description?.trim()
+                              || (v.tags?.length
+                                ? `主打${v.tags.slice(0, 3).join("、")}题材，${v.is_finished ? "全集已完结，适合一口气追完。" : `高能连载中，已更新 ${v.episode_count || 1} 集。`}`
+                                : `${v.is_finished ? "全集已完结" : `更新至 ${v.episode_count || 1} 集`} · 热度 ${fmt(v.hot)}`)}
+                          </p>
+                        </div>
+                        <div className="hg-premiere-foot">
+                          <div className="hg-premiere-tags">
+                            {(v.tags || []).slice(0, 3).map(tag => (
+                              <span key={tag} role="button" tabIndex={0}
+                                onClick={e => { e.stopPropagation(); push({ kind: "tag", tag, name: tag }); }}
+                                onKeyDown={e => { if (e.key === "Enter") { e.stopPropagation(); push({ kind: "tag", tag, name: tag }); } }}>
+                                #{tag}
+                              </span>
+                            ))}
+                          </div>
+                          <button type="button" className="hg-premiere-play"
+                            aria-label={`播放 ${v.title}`}
+                            onClick={e => { e.stopPropagation(); play(v.id); }}>
+                            <IPlayF size={11} />追剧
+                          </button>
+                        </div>
+                      </div>
+                    </article>
                   ))}
                 </div>
+
+                {/* 时间轴第二段：近期新片速览网格 */}
+                {premiereRest.length > 0 && (
+                  <section className="hg-section">
+                    <div className="hg-timeline-head">
+                      <span className="hg-timeline-dot" style={{ background: "#7C5CFF", boxShadow: "0 0 10px rgba(124,92,255,.7)" }} aria-hidden="true" />
+                      <h2 className="hg-timeline-label" style={{ color: "#E2E8F0" }}>近期新片速览</h2>
+                      <span className="hg-timeline-line" aria-hidden="true" />
+                      <span className="hg-timeline-count">{premiereRest.length} 部</span>
+                    </div>
+                    <div className="hg-grid-c3">
+                      {premiereRest.map(v => (
+                        <Button key={v.id} className="hg-poster is-c3" onClick={() => openSeries(v.id)}>
+                          <span className="hg-poster-art">
+                            <Img src={v.cover} alt="" />
+                            <span className="hg-poster-veil" aria-hidden="true" />
+                            <span className="hg-poster-badge">上新</span>
+                            <span className="hg-poster-views">{releaseLabel(v).replace(" 上新", "")}</span>
+                          </span>
+                          <span className="hg-poster-name">{v.title}</span>
+                          <span className="hg-poster-meta">{v.is_finished ? "全集完结" : `更至 ${v.episode_count ?? "?"} 集`}</span>
+                        </Button>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {!done && visible.length > 0 && (
+                  <Button className="hg-loadmore" onClick={() => void load(page + 1, "new")} disabled={loading}>
+                    {loading ? "加载中…" : "加载更多新片"}
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+        ) : (
+          /* ==================== 分栏 ①：推荐（影院主推 + 异构策展货架） ==================== */
+          <>
+            {!items.length && loading && <div className="flex justify-center py-12"><Loader className="w-7 h-7 spinner" /></div>}
+            {!items.length && !loading && error && (
+              <Empty icon={<ISearch size={26} />} title="首页加载失败" sub={error} action="重试" onAction={() => void load(1, "all")} />
+            )}
+            {!items.length && !loading && !error && done && (
+              <Empty icon={<ISearch size={26} />} title="暂无视频" sub="稍后刷新试试" action="刷新" onAction={() => void load(1, "all")} />
+            )}
+
+            {/* 1. 影院级单主推展台（右上角内置一键沉浸连刷） */}
+            {hero && (
+              <div className="hg-spotlight-shell a-rise">
+                <Button card className="hg-spotlight" aria-label={`${hero.title} 详情`} onClick={() => openSeries(hero.id)}>
+                  <Img src={hero.cover} eager alt="" />
+                  <span className="hg-spotlight-veil" aria-hidden="true" />
+                  <span className="hg-spotlight-top">
+                    <span className="hg-spotlight-kicker">
+                      <IFireF size={12} />
+                      <span>殿堂主推{hero.score > 0 ? ` · ${hero.score.toFixed(1)}分` : ""}</span>
+                    </span>
+                  </span>
+                  <span className="hg-spotlight-body">
+                    <span className="hg-spotlight-info">
+                      <span className="hg-spotlight-title">{hero.title}</span>
+                      <span className="hg-spotlight-sub">
+                        {hero.tags?.length ? hero.tags.slice(0, 3).join(" · ") : "精选剧集"}
+                        {" · "}
+                        {hero.is_finished ? `全 ${hero.episode_count || hero.total_episodes || "?"} 集` : `更新至 ${hero.episode_count ?? "?"} 集`}
+                      </span>
+                    </span>
+                    <span className="hg-spotlight-cta" role="button" tabIndex={0}
+                      onClick={e => { e.stopPropagation(); play(hero.id); }}
+                      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); play(hero.id); } }}>
+                      <IPlayF size={12} />播放
+                    </span>
+                  </span>
+                </Button>
+                <Button card className="hg-quick-action hg-spotlight-feed-btn"
+                  aria-label="沉浸连刷"
+                  onClick={() => startSwipeFeed(visible, safeHeroIdx, "沉浸连刷")}>
+                  <IBoltF size={12} /><span>沉浸连刷</span>
+                </Button>
                 {heroes.length > 1 && (
-                  <div className="hg-dots" role="tablist" aria-label="推荐轮播">
+                  <div className="hg-spotlight-bars" role="tablist" aria-label="精选焦点切换">
                     {heroes.map((h, i) => (
-                      <button key={h.id} type="button" className="hg-dot" data-on={String(i === heroIndex)}
-                        aria-label={`第 ${i + 1} 个推荐`} aria-selected={i === heroIndex}
-                        onClick={() => goHero(i)} />
+                      <button key={h.id} type="button" role="tab"
+                        className="hg-spotlight-bar"
+                        data-on={String(i === safeHeroIdx)}
+                        aria-selected={i === safeHeroIdx}
+                        aria-label={`焦点推荐 ${i + 1}: ${h.title}`}
+                        onClick={() => setHeroIndex(i)} />
                     ))}
                   </div>
                 )}
               </div>
             )}
 
-            {/* 最新上架横滑：仅在全部下显示，避免最新下重复两节 */}
-            {tab === "all" && rail.length > 0 && (
+            {/* 2. 热播风向标 TOP 10（空心大号描边数字横滑榜） */}
+            {visibleRanks.length > 0 && (
               <section className="hg-section">
                 <div className="hg-section-head">
-                  <h2 className="hg-section-title">最新上架</h2>
-                  <Button className="hg-section-more" onClick={() => setFeedTab("new")}>更多<IChevR size={10} /></Button>
+                  <h2 className="hg-section-title">热播风向标</h2>
+                  <Button className="hg-section-more" onClick={() => setFeedTab("rank")}>完整榜单<IChevR size={11} /></Button>
                 </div>
-                <div className="hg-rail">
-                  {rail.map(v => (
-                    <Button card key={v.id} className="hg-rail-card" onClick={() => openSeries(v.id)}>
-                      <span className="hg-rail-art">
+                <div className="hg-top10-rail">
+                  {visibleRanks.map((r, idx) => {
+                    const rankNum = r.rank || idx + 1;
+                    return (
+                      <Button key={`${r.video_id}-${rankNum}`} card className="hg-top10-card"
+                        onClick={() => openSeries(r.video_id)}>
+                        <span className="hg-top10-art">
+                          <Img src={r.cover} alt="" />
+                          {r.metric_label && <span className="hg-top10-heat">{r.metric_label}</span>}
+                        </span>
+                        <span className={`hg-top10-num${rankNum <= 3 ? " is-top3" : ""}`} aria-hidden="true">
+                          {String(rankNum).padStart(2, "0")}
+                        </span>
+                        <span className="hg-top10-title">{r.title}</span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* 3. 独家原创 · 16:10 宽画幅双列剧照（打破满屏竖版疲劳） */}
+            {visibleOriginals.length > 0 && (
+              <section className="hg-section">
+                <div className="hg-section-head">
+                  <h2 className="hg-section-title">独家原创 · 宽画幅精选</h2>
+                  <Button className="hg-section-more" onClick={() => push({ kind: "channel", cate: "original", name: "独家原创" })}>
+                    全部原创<IChevR size={11} />
+                  </Button>
+                </div>
+                <div className="hg-wide-grid">
+                  {visibleOriginals.map(v => (
+                    <Button key={v.id} card className="hg-wide-card" onClick={() => openSeries(v.id)}>
+                      <span className="hg-wide-art">
                         <Img src={v.cover} alt="" />
-                        {isNew(v) && <span className="hg-rail-badge">上新</span>}
-                        <span className="hg-rail-name">{v.title}</span>
+                        <span className="hg-wide-badge">原创</span>
+                        <span className="hg-wide-ep">{v.is_finished ? "已完结" : `更至 ${v.episode_count ?? "?"} 集`}</span>
+                      </span>
+                      <span className="hg-wide-copy">
+                        <span className="hg-wide-title">{v.title}</span>
+                        <span className="hg-wide-sub">
+                          {v.tags?.length ? v.tags.slice(0, 2).join(" · ") : "官方自制精品"} · ▶ {fmt(v.hot)}
+                        </span>
                       </span>
                     </Button>
                   ))}
@@ -229,25 +439,61 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
               </section>
             )}
 
-            {/* 3 列网格 */}
+            {/* 4. 精选专题企划横滑 */}
+            {topics.length > 0 && (
+              <section className="hg-section">
+                <div className="hg-section-head">
+                  <h2 className="hg-section-title">策展专题</h2>
+                  <Button className="hg-section-more" onClick={() => push({ kind: "topics" })}>全部专题<IChevR size={11} /></Button>
+                </div>
+                <div className="hg-topic-rail">
+                  {topics.map(t => (
+                    <Button key={t.id} card className="hg-topic-mini"
+                      onClick={() => push({ kind: "topic", slug: t.slug, name: t.title })}>
+                      <span className="hg-topic-mini-art">
+                        <Img src={t.cover} alt="" />
+                        <span className="hg-topic-mini-veil" aria-hidden="true" />
+                        <span className="hg-topic-mini-copy">
+                          <span className="hg-topic-mini-cnt">{t.video_count ?? 0} 部片单</span>
+                          <span className="hg-topic-mini-title">{t.title}</span>
+                        </span>
+                      </span>
+                    </Button>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* 5. 为你推荐海报流 */}
             <section className="hg-section">
               <div className="hg-section-head">
-                <h2 className="hg-section-title">{tab === "new" ? "最新上架" : "为你推荐"}</h2>
+                <h2 className="hg-section-title">为你推荐</h2>
+                {recommendGrid.length > 0 && (
+                  <Button className="hg-section-more" onClick={() => startSwipeFeed(recommendGrid, 0, "为你推荐")}>
+                    刷一刷<IChevR size={11} />
+                  </Button>
+                )}
               </div>
               <div className="hg-grid-c3">
-                {grid.map(v => (
+                {recommendGrid.map(v => (
                   <Button key={v.id} className="hg-poster is-c3" onClick={() => openSeries(v.id)}>
                     <span className="hg-poster-art">
                       <Img src={v.cover} alt="" />
-                      {isNew(v) && <span className="hg-poster-badge">上新</span>}
+                      <span className="hg-poster-veil" aria-hidden="true" />
+                      {v.is_hot === 1
+                        ? <span className="hg-poster-badge is-hot">热门</span>
+                        : isNew(v) ? <span className="hg-poster-badge">上新</span> : null}
+                      <span className="hg-poster-views">▶ {fmt(v.hot)}</span>
                     </span>
                     <span className="hg-poster-name">{v.title}</span>
-                    <span className="hg-poster-meta">{v.is_finished ? "全集" : `${v.episode_count ?? "?"} 集`}</span>
+                    <span className="hg-poster-meta">
+                      {v.tags?.[0] ? `${v.tags[0]} · ` : ""}{v.is_finished ? "全集" : `${v.episode_count ?? "?"} 集`}
+                    </span>
                   </Button>
                 ))}
               </div>
-              {!done && grid.length > 0 && (
-                <Button className="hg-loadmore" onClick={() => void load(page + 1, tab)} disabled={loading}>
+              {!done && recommendGrid.length > 0 && (
+                <Button className="hg-loadmore" onClick={() => void load(page + 1, "all")} disabled={loading}>
                   {loading ? "加载中…" : "加载更多"}
                 </Button>
               )}

@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { api, fmt, isMobile } from "../api";
 import type { HotSearchVideo, Post, RankItem, VideoCard } from "../types";
 import { useStore } from "../store";
-import { MediaCard, Masonry, RankRow } from "../components/cards";
+import { MediaCard, Masonry } from "../components/cards";
 import { FilteredContent } from "../components/FilteredContent";
-import { Empty } from "../components/ui";
+import { Empty, Img } from "../components/ui";
 import { useSearchResults } from "../useSearchResults";
 import { SearchTags } from "../components/SearchTags";
 import { IBack, IChevR, IClose, IFireF, IPlayF, IRefresh, ISearch, ITrophy } from "../icons";
@@ -42,8 +42,7 @@ export default function Search({
     setTab(initialTab);
   }, [initialTab]);
 
-  /* 移动端进入搜索页不自动聚焦：iOS 会立刻弹键盘遮住内容（#20）。
-     桌面端没有软键盘，聚焦便于直接打字。 */
+  /* 移动端进入搜索页不自动聚焦：iOS 会立刻弹键盘遮住内容（#20）。 */
   useEffect(() => {
     if (active && !isMobile) inputRef.current?.focus();
   }, [active]);
@@ -89,12 +88,11 @@ export default function Search({
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
       <h1 className="sr-only">搜索</h1>
-      {/* 顶栏：返回键 + 搜索输入框 + 榜单快捷入口 */}
-      <div className="shrink-0 hg-page-x pb-2.5 flex items-center gap-2.5 relative z-10"
-        style={{ paddingTop: "calc(var(--sat, 0px) + 8px)" }}>
+      {/* 统一次级极光磨砂顶栏：返回键 + 搜索输入框 + 榜单快捷入口 */}
+      <header className="shrink-0 hg-subpage-bar relative z-10">
         {onBack && (
-          <Button card className="hg-icon-plain shrink-0" aria-label="返回" onClick={onBack}>
-            <IBack size={20} />
+          <Button card className="hg-sub-btn" aria-label="返回" onClick={onBack}>
+            <IBack size={19} />
           </Button>
         )}
         <Form className="ios-search-form flex-1 min-w-0 flex items-center gap-2"
@@ -105,41 +103,44 @@ export default function Search({
             className="flex-1 min-w-0 bg-transparent text-[14px] text-on placeholder-dim outline-none" />
           {q && <Button aria-label="清空搜索" type="button" onClick={() => { results.clear(); setQ(""); setSubmitted(""); inputRef.current?.focus(); }} className="ios-icon-button ios-search-clear"><IClose size={16} /></Button>}
         </Form>
-        <Button onClick={() => push({ kind: "ranks" })} aria-label="排行榜"
-          variant="primary" className="ios-icon-button ios-search-shortcut shrink-0">
-          <ITrophy size={19} />
+        <Button card onClick={() => push({ kind: "ranks" })} aria-label="排行榜"
+          className="hg-sub-btn" style={{ color: "#FFD19A", borderColor: "rgba(255, 179, 71, 0.35)" }}>
+          <ITrophy size={18} />
         </Button>
-      </div>
+      </header>
 
-      {/* 搜索类型切换（短剧 / 帖子）：进入即可切换，吃瓜入口默认定位到帖子 */}
-      <div className="shrink-0 hg-page-x pb-2.5 relative z-10">
-        <SegmentedControl aria-label="搜索结果类型" activeIndex={tab === "video" ? 0 : 1}>
-          {([["video", "短剧"], ["post", "吃瓜帖子"]] as const).map(([k, label]) => (
+      {/* 一体式极光玻璃轨道滑块（短剧 / 吃瓜帖子） */}
+      <div className="shrink-0 hg-page-x pt-2.5 pb-2 relative z-10">
+        <SegmentedControl className="hg-seg-track" aria-label="搜索结果类型" activeIndex={tab === "video" ? 0 : 1}>
+          {([["video", "短剧剧集"], ["post", "吃瓜帖子"]] as const).map(([k, label]) => (
             <Button aria-pressed={tab === k} key={k} onClick={() => changeTab(k)}>{label}</Button>
           ))}
         </SegmentedControl>
       </div>
 
-      <div className="flex-1 scroll-y hg-page-x relative z-10" style={{ paddingBottom: "calc(32px + var(--sab, 0px))" }}>
+      <div className="flex-1 scroll-y hg-page-x pt-1 relative z-10" style={{ paddingBottom: "calc(32px + var(--sab, 0px))" }}>
         {!querying ? (
           <>
             {searchHist.length > 0 && (
-              <div className="mb-3.5 a-rise">
-                <div className="flex items-center justify-between">
-                  <span className="text-[14px] font-bold text-on">搜索历史</span>
+              <div className="mb-4 a-rise">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[13px] font-bold text-on">最近搜索</span>
                   <Button onClick={clearSearchHist} className="text-[12px] text-dim pressable">清空</Button>
                 </div>
-                <div className="flex flex-wrap gap-2 mt-2">
+                <div className="flex flex-wrap gap-2">
                   {searchHist.map((h) => (
-                    <Button key={h} onClick={() => { setQ(h); submit(h); }} className="px-3.5 h-8 rounded-(--r-ctl) bg-s3 text-[13px] text-on/80 pressable">{h}</Button>
+                    <Button key={h} card onClick={() => { setQ(h); submit(h); }} className="hg-tag-pill">{h}</Button>
                   ))}
                 </div>
               </div>
             )}
 
-            <Surface role="region" aria-label="热搜榜" className="mt-1 rounded-(--r-md) bg-s2 p-3.5 a-rise">
+            <Surface role="region" aria-label="热搜榜" className="mt-1 rounded-[16px] p-3.5 a-rise"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
               <div className="flex items-center justify-between">
-                <h2 className="flex items-center gap-1.5 text-[14px] font-semibold text-on/90"><IFireF size={15} className="text-primary" />热搜榜</h2>
+                <h2 className="flex items-center gap-1.5 text-[14px] font-bold text-on">
+                  <IFireF size={15} style={{ color: "#FF6B57" }} />全站热搜风向
+                </h2>
                 <Button onClick={() => void refreshHot()} disabled={hotLoading} aria-label="刷新热搜榜"
                   className="flex items-center gap-1 px-2 text-[12px] text-mut pressable">
                   {hotLoading ? <Loader className="w-3 h-3" /> : <IRefresh size={12} />}{hotLoading ? "刷新中" : "刷新"}
@@ -152,19 +153,25 @@ export default function Search({
                 const sortedHot = [...hotVideos].sort((a, b) => playsValue(b.plays) - playsValue(a.plays));
                 return (
                   <ol className="ios-search-hot-grid mt-3" aria-busy={hotLoading}>
-                    {sortedHot.map((video, i) => (
-                      <li key={video.video_id} className="min-w-0">
-                        <Button aria-label={`查看 ${video.title}`} title={video.title} className="ios-search-hot-item"
-                          onClick={() => push({ kind: "series", id: video.video_id })}>
-                          <span aria-hidden="true" className={`ios-search-hot-rank ${i < 3 ? "text-primary" : "text-mut"}`}>{String(i + 1).padStart(2, "0")}</span>
-                          <span className="ios-search-hot-content">
-                            <span className="ios-search-hot-title">{video.title}</span>
-                            {video.plays && <span className="ios-search-hot-plays"><IPlayF size={10} />{video.plays}</span>}
-                          </span>
-                          <IChevR size={15} className="text-mut" />
-                        </Button>
-                      </li>
-                    ))}
+                    {sortedHot.map((video, i) => {
+                      const rankColor = i === 0 ? "#FCD34D" : i === 1 ? "#E2E8F0" : i === 2 ? "#FDBA74" : undefined;
+                      return (
+                        <li key={video.video_id} className="min-w-0">
+                          <Button aria-label={`查看 ${video.title}`} title={video.title} className="ios-search-hot-item"
+                            onClick={() => push({ kind: "series", id: video.video_id })}>
+                            <span aria-hidden="true" className="ios-search-hot-rank text-mut"
+                              style={rankColor ? { color: rankColor, fontWeight: 800 } : undefined}>
+                              {String(i + 1).padStart(2, "0")}
+                            </span>
+                            <span className="ios-search-hot-content">
+                              <span className="ios-search-hot-title">{video.title}</span>
+                              {video.plays && <span className="ios-search-hot-plays"><IPlayF size={10} />{video.plays}</span>}
+                            </span>
+                            <IChevR size={15} className="text-mut" />
+                          </Button>
+                        </li>
+                      );
+                    })}
                   </ol>
                 );
               })() : !hotError && <p role="status" className="mt-3 text-[12px] text-mut">{hotLoading ? "加载中…" : "暂无热搜影片"}</p>}
@@ -172,7 +179,7 @@ export default function Search({
 
             <SearchTags key={JSON.stringify([lineEpoch, accountScope])} active={active} />
             <p className="mt-3 text-[12px] text-dim leading-relaxed">
-              输入关键词后按回车搜索，也可以点上面的题材直接看片单。
+              输入关键词后按回车搜索，或点击上方 #题材标签 直达片单。
             </p>
           </>
         ) : (
@@ -200,7 +207,7 @@ export default function Search({
                 <div className="flex justify-center py-4">
                   {loading ? <Loader label="搜索结果更新中" className="w-6 h-6 spinner" />
                     : !err && result.keyword === submitted && (result.page < result.pages ? (
-                      <Button onClick={results.loadMore} className="px-5 h-9 rounded-(--r-ctl) bg-s3 text-[13px] text-on/85 pressable">加载更多</Button>
+                      <Button onClick={results.loadMore} className="hg-loadmore">加载更多</Button>
                     ) : <span className="text-[12px] text-dim">— 已经到底啦 —</span>)}
                 </div>
               </> : loading ? (
@@ -217,14 +224,13 @@ export default function Search({
   );
 }
 
-/* ================= 排行榜（可内嵌于首页，也可作为独立二级栈页打开） ================= */
+/* ================= 排行榜（金银铜 3D 错落三联领奖台 + 流光热度条列表） ================= */
 const RANK_TABS = [
   { k: "hot", label: "热播榜" },
   { k: "recommend", label: "推荐榜" },
   { k: "potential", label: "潜力榜" },
 ] as const;
 
-/** 上游 plays 是「423.5w / 1.2亿」这类字符串：解析成数值用于排序 */
 function playsValue(v: string): number {
   const m = /([\d.]+)\s*([wW万亿]?)/.exec(v || "");
   if (!m) return 0;
@@ -277,38 +283,93 @@ export function RankView({ wide, active = true }: { wide: boolean; active?: bool
   const loading = state?.loading ?? true;
   const err = state?.error ?? "";
   const max = Math.max(1, ...items.map((x) => x.metric_value || 0));
-  const meta = RANK_TABS.find((t) => t.k === tab)!;
+  const activeIdx = Math.max(0, RANK_TABS.findIndex(t => t.k === tab));
+  const meta = RANK_TABS[activeIdx];
 
   return (
     <div>
-      <div className="flex items-center gap-6 pb-2.5 overflow-x-auto hg-chip-row" role="tablist" aria-label="榜单类型">
-        {RANK_TABS.map((t) => (
-          <Button key={t.k} role="tab" aria-selected={tab === t.k}
-            className={`hg-filter-text hg-tab-ul${tab === t.k ? " is-on" : ""}`} data-on={String(tab === t.k)}
-            onClick={() => setTab(t.k)}>{t.label}</Button>
-        ))}
-        <span className="flex-1" />
-        <Button card className="hg-icon-plain shrink-0" aria-label="刷新榜单" disabled={loading} onClick={() => void load(tab)}>
-          {loading ? <Loader label="正在更新榜单" className="w-4 h-4" /> : <IRefresh size={16} />}
+      {/* 一体式极光玻璃轨道滑块（替代旧下划线/胶囊） */}
+      <div className="flex items-center gap-2.5 pb-1">
+        <SegmentedControl className="hg-seg-track flex-1" aria-label="榜单类型" activeIndex={activeIdx}>
+          {RANK_TABS.map((t) => (
+            <Button key={t.k} aria-pressed={tab === t.k} onClick={() => setTab(t.k)}>{t.label}</Button>
+          ))}
+        </SegmentedControl>
+        <Button card className="hg-sub-btn" aria-label="刷新榜单" disabled={loading} onClick={() => void load(tab)}>
+          {loading ? <Loader label="正在更新榜单" className="w-4 h-4" /> : <IRefresh size={15} />}
         </Button>
       </div>
 
-      {err && <div role="alert" className="flex flex-wrap items-center gap-2 mb-3 text-[13px] text-danger">
+      {err && <div role="alert" className="flex flex-wrap items-center gap-2 my-2.5 text-[13px] text-danger">
         <span>榜单加载失败：{err}{items.length > 0 ? "；已保留上次榜单" : ""}</span>
         <Button onClick={() => void load(tab)} disabled={loading} className="px-3 text-primary">重试</Button>
       </div>}
 
       <section aria-label={meta.label} aria-busy={loading}>
         {items.length > 0 ? <>
-          {loading && <p role="status" className="text-[12px] text-mut mb-2">正在刷新，当前显示上次榜单…</p>}
-          <FilteredContent items={items} scopeKey={tab}>{visible => (
-            <div className="flex flex-col gap-3">
-              {visible.map((it) => (
-                <RankRow key={`${it.video_id}-${it.rank}`} item={it} metricMax={max}
-                  onOpen={() => push({ kind: "series", id: it.video_id })} />
-              ))}
-            </div>
-          )}</FilteredContent>
+          {loading && <p role="status" className="text-[12px] text-mut mt-2">正在刷新，当前显示上次榜单…</p>}
+          <FilteredContent items={items} scopeKey={tab}>{visible => {
+            const hasPodium = visible.length >= 3;
+            const podiumOrder = hasPodium ? [
+              { item: visible[1], tier: "is-silver", badge: "TOP 2", rankNo: 2 },
+              { item: visible[0], tier: "is-gold", badge: "👑 TOP 1", rankNo: 1 },
+              { item: visible[2], tier: "is-bronze", badge: "TOP 3", rankNo: 3 },
+            ] : [];
+            const listItems = hasPodium ? visible.slice(3) : visible;
+
+            return (
+              <>
+                {hasPodium && (
+                  <div className="hg-podium a-rise" role="list" aria-label="榜单前三名">
+                    {podiumOrder.map(({ item, tier, badge, rankNo }) => (
+                      <Button key={`podium-${item.video_id}-${rankNo}`} card role="listitem"
+                        className={`hg-podium-card ${tier}`}
+                        onClick={() => push({ kind: "series", id: item.video_id })}>
+                        <span className="hg-podium-crown">{badge}</span>
+                        <span className="hg-podium-art">
+                          <Img src={item.cover} eager alt="" />
+                        </span>
+                        <span className="hg-podium-title">{item.title}</span>
+                        <span className="hg-podium-metric">
+                          {item.metric_label || (item.is_finished ? "全集完结" : `更至 ${item.episode_count} 集`)}
+                        </span>
+                      </Button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-2.5">
+                  {listItems.map((it, idx) => {
+                    const displayRank = it.rank || (hasPodium ? idx + 4 : idx + 1);
+                    const pct = Math.max(12, Math.min(100, Math.round(((it.metric_value || 0) / max) * 100)));
+                    return (
+                      <Button key={`${it.video_id}-${displayRank}`} card className="hg-rank-row-v2"
+                        onClick={() => push({ kind: "series", id: it.video_id })}>
+                        <span className="hg-rank-idx">{String(displayRank).padStart(2, "0")}</span>
+                        <span className="hg-rank-thumb"><Img src={it.cover} alt="" /></span>
+                        <span className="flex-1 min-w-0">
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="text-[14px] font-bold text-on truncate">{it.title}</span>
+                            {it.metric_label && <span className="shrink-0 text-[11px] font-semibold" style={{ color: "#FFB347" }}>{it.metric_label}</span>}
+                          </span>
+                          <span className="block mt-1 text-[11px] text-mut truncate">
+                            {[
+                              it.cate_name,
+                              it.tags?.slice(0, 2).join(" · "),
+                              it.is_finished ? "已完结" : it.episode_count ? `更至 ${it.episode_count} 集` : "",
+                            ].filter(Boolean).join(" · ")}
+                          </span>
+                          <span className="hg-rank-bar" aria-hidden="true">
+                            <span className="hg-rank-bar-fill" style={{ width: `${pct}%` }} />
+                          </span>
+                        </span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </>
+            );
+          }}</FilteredContent>
         </> : loading ? (
           <div className="flex justify-center py-12"><Loader label="正在加载榜单" className="w-8 h-8 spinner" /></div>
         ) : !err && (
@@ -325,15 +386,17 @@ export function RankPage({ onBack, wide }: { onBack: () => void; wide: boolean }
   return (
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
-      <div className="shrink-0 hg-page-x flex items-center gap-2.5 relative z-10"
-        style={{ paddingTop: "calc(var(--sat, 0px) + 8px)", paddingBottom: 8 }}>
-        <Button card className="hg-icon-plain shrink-0" aria-label="返回" onClick={onBack}><IBack size={20} /></Button>
-        <h1 className="text-[18px] font-bold text-on flex-1">排行榜</h1>
-        <Button card className="hg-icon-plain shrink-0" aria-label="搜索" onClick={() => push({ kind: "search", initialTab: "video" })}>
-          <ISearch size={19} />
+      <header className="shrink-0 hg-subpage-bar relative z-10">
+        <Button card className="hg-sub-btn" aria-label="返回" onClick={onBack}><IBack size={19} /></Button>
+        <div className="hg-sub-titles">
+          <h1 className="hg-sub-title">巅峰排行榜</h1>
+          <div className="hg-sub-meta">实时热播 · 口碑精选 · 飙升潜力</div>
+        </div>
+        <Button card className="hg-sub-btn" aria-label="搜索" onClick={() => push({ kind: "search", initialTab: "video" })}>
+          <ISearch size={18} />
         </Button>
-      </div>
-      <div className="flex-1 scroll-y hg-page-x pt-1 relative z-10" style={{ paddingBottom: "calc(32px + var(--sab, 0px))" }}>
+      </header>
+      <div className="flex-1 scroll-y hg-page-x pt-3 relative z-10" style={{ paddingBottom: "calc(32px + var(--sab, 0px))" }}>
         <RankView wide={wide} />
       </div>
     </div>

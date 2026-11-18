@@ -1,4 +1,4 @@
-import { Button, Surface } from "../components/ios/controls";
+import { Button, SegmentedControl } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
 import { useEffect, useRef, useState } from "react";
 import { api, APP_VERSION, fmtTime, platform } from "../api";
@@ -7,7 +7,7 @@ import { useStore } from "../store";
 import { Empty, Img, Modal } from "../components/ui";
 import { MediaCard } from "../components/cards";
 import { useContentPreferences } from "../contentPreferences";
-import { IBack, IChevR, IClock, ILogout, IMenuFollow, IMenuHistory, IMenuLikes, IMenuPrefs, ISettings, IStar } from "../icons";
+import { IBack, IBoltF, IChevR, IClock, ILogout, IMenuFollow, IMenuHistory, IMenuLikes, IMenuPrefs, IPlayF, ISettings, IStar } from "../icons";
 
 function GuestCatAvatar() {
   return (
@@ -256,37 +256,80 @@ function HistoryContent({ onBack, wide }: { onBack: () => void; wide: boolean })
   return (
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
-      <div className="flex items-center gap-3 hg-page-x shrink-0 relative z-10"
-        style={{ paddingTop: "calc(var(--sat, 0px) + 10px)", paddingBottom: 10 }}>
-        <Button card className="hg-icon-plain" aria-label="返回" onClick={onBack}>
-          <IBack size={20} />
+      <header className="shrink-0 hg-subpage-bar relative z-10">
+        <Button card className="hg-sub-btn" aria-label="返回" onClick={onBack}>
+          <IBack size={19} />
         </Button>
-        <h1 className="text-[18px] font-bold text-on flex-1">观看历史</h1>
+        <div className="hg-sub-titles">
+          <h1 className="hg-sub-title">观看历史</h1>
+          <div className="hg-sub-meta">
+            {history.length > 0 ? `已记录 ${history.length} 部追剧进度` : "自动记忆上次观看集数与秒数"}
+          </div>
+        </div>
         {history.length > 0 && (
-          <Button aria-label="清空观看历史" disabled={clearBusy} onClick={() => { setClearError(""); setClearOpen(true); }}
-            className="px-3 h-8 rounded-full bg-s3 text-[12px] text-mut">
+          <Button card aria-label="清空观看历史" disabled={clearBusy} onClick={() => { setClearError(""); setClearOpen(true); }}
+            className="hg-tag-pill" style={{ minHeight: 32, padding: "0 12px" }}>
             {clearBusy ? "正在清空…" : "清空"}
           </Button>
         )}
-      </div>
+      </header>
 
-      <div className="flex-1 scroll-y hg-page-x relative z-10" style={{ paddingBottom: "calc(32px + var(--sab, 0px))" }}
+      <div className="flex-1 scroll-y hg-page-x pt-3 relative z-10" style={{ paddingBottom: "calc(32px + var(--sab, 0px))" }}
         aria-busy={loading}>
         {loading && !cards.length ? (
           <div className="flex justify-center py-8"><Loader className="w-7 h-7 spinner" /></div>
         ) : cards.length ? (
-          <div className={`ios-media-grid ${wide ? "is-wide" : ""}`}>
-            {cards.map((c) => {
+          <div className="hg-hist-list a-rise">
+            {cards.map((c, cardIdx) => {
               const progress = progressOf(c.id);
+              const blocked = blockReason(c.tags);
+              const pct = progress && progress.dur > 0
+                ? Math.max(4, Math.min(100, Math.round((progress.t / progress.dur) * 100)))
+                : 0;
+              const openResume = () => push({
+                kind: "feed", videoIds: cards.map(x => x.id), index: cardIdx,
+                title: "观看历史", startEp: progress?.ep, startTime: progress?.t,
+              });
+
+              if (blocked) {
+                return (
+                  <Button key={c.id} card className="hg-hist-card" onClick={openResume}
+                    aria-label="该内容命中屏蔽标签，查看提示">
+                    <span className="flex-1 min-w-0 py-1">
+                      <span className="block text-[14px] font-semibold text-mut">已屏蔽内容</span>
+                      <span className="block mt-1 text-[12px] text-dim truncate">{blocked}</span>
+                    </span>
+                    <span className="text-[12px] text-primary shrink-0">查看</span>
+                  </Button>
+                );
+              }
+
               return (
-                <MediaCard key={c.id} blockedReason={blockReason(c.tags)} title={c.title} cover={c.cover} score={c.score}
-                  badge={c.is_finished ? "已完结" : `${c.episode_count} 集`}
-                  subtitle={c.tags?.slice(0, 2).join(" · ")}
-                  progress={progress ? `第 ${progress.ep} 集 · ${fmtTime(progress.t)}` : undefined}
-                  onOpen={() => push({
-                    kind: "feed", videoIds: cards.map(x => x.id), index: cards.findIndex(x => x.id === c.id),
-                    title: "观看历史", startEp: progress?.ep, startTime: progress?.t,
-                  })} />
+                <Button key={c.id} card className="hg-hist-card" onClick={openResume}>
+                  <span className="hg-hist-thumb">
+                    <Img src={c.cover} alt="" />
+                    {pct > 0 && (
+                      <span className="hg-hist-prog" aria-hidden="true">
+                        <span style={{ width: `${pct}%` }} />
+                      </span>
+                    )}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[14px] font-bold text-on truncate">{c.title}</span>
+                    <span className="block mt-1 text-[12px] font-semibold" style={{ color: "#FFB347" }}>
+                      {progress
+                        ? `看到第 ${progress.ep} 集${progress.t > 0 ? ` · ${fmtTime(progress.t)}` : ""}`
+                        : "点击继续播放"}
+                    </span>
+                    <span className="block mt-1 text-[11px] text-mut truncate">
+                      {c.is_finished ? `全 ${c.episode_count || c.total_episodes || "?"} 集` : `更新至 ${c.episode_count || "?"} 集`}
+                      {c.tags?.length ? ` · ${c.tags.slice(0, 2).join(" / ")}` : ""}
+                    </span>
+                  </span>
+                  <span className="hg-hist-play-pill" aria-hidden="true">
+                    <IPlayF size={14} />
+                  </span>
+                </Button>
               );
             })}
           </div>
@@ -307,7 +350,7 @@ function HistoryContent({ onBack, wide }: { onBack: () => void; wide: boolean })
         {cards.length > 0 && loading && <div className="flex justify-center py-3"><Loader label="加载更多内容" /></div>}
         {visibleIds.length < ids.length && (
           <Button disabled={loading} onClick={() => setLimit(prev => prev + 12)}
-            className="mt-3 w-full rounded-(--r-ctl) bg-s3 text-[13px] text-on">加载更多</Button>
+            className="hg-loadmore">加载更多</Button>
         )}
         {clearError && !clearOpen && <p role="alert" className="mt-2 text-[13px] text-danger">{clearError}</p>}
       </div>
@@ -415,23 +458,29 @@ function FavoritesContent({ onBack, wide, initialTab }: { onBack: () => void; wi
   return (
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
-      <div className="flex items-center gap-3 hg-page-x shrink-0 relative z-10"
-        style={{ paddingTop: "calc(var(--sat, 0px) + 10px)", paddingBottom: 10 }}>
-        <Button card className="hg-icon-plain" aria-label="返回" onClick={onBack}>
-          <IBack size={20} />
+      <header className="shrink-0 hg-subpage-bar relative z-10">
+        <Button card className="hg-sub-btn" aria-label="返回" onClick={onBack}>
+          <IBack size={19} />
         </Button>
-        <h1 className="text-[18px] font-bold text-on flex-1">我的收藏</h1>
-      </div>
-
-      <div className="shrink-0 hg-page-x pb-3 relative z-10">
-        <div className="hg-pill-row" role="tablist" aria-label="收藏分类">
-          <Button card role="tab" aria-selected={favTab === "video"}
-            className="hg-pill"
-            onClick={() => setFavTab("video")}>短剧 ({favs.length})</Button>
-          <Button card role="tab" aria-selected={favTab === "post"}
-            className="hg-pill"
-            onClick={() => setFavTab("post")}>吃瓜 ({postFavs.length})</Button>
+        <div className="hg-sub-titles">
+          <h1 className="hg-sub-title">我的收藏</h1>
+          <p className="hg-sub-meta">短剧 {favs.length} 部 · 吃瓜 {postFavs.length} 篇</p>
         </div>
+        {favTab === "video" && cards.length > 0 && (
+          <Button card className="hg-quick-action"
+            onClick={() => push({ kind: "feed", videoIds: cards.map(x => x.id), index: 0, title: "我的收藏" })}>
+            <IBoltF size={13} /><span>连刷收藏</span>
+          </Button>
+        )}
+      </header>
+
+      <div className="shrink-0 hg-page-x pt-2.5 pb-3 relative z-10">
+        <SegmentedControl className="hg-seg-track" role="tablist" aria-label="收藏分类" activeIndex={favTab === "video" ? 0 : 1}>
+          <Button role="tab" aria-selected={favTab === "video"} className="ios-segmented-item"
+            onClick={() => setFavTab("video")}>短剧 ({favs.length})</Button>
+          <Button role="tab" aria-selected={favTab === "post"} className="ios-segmented-item"
+            onClick={() => setFavTab("post")}>吃瓜 ({postFavs.length})</Button>
+        </SegmentedControl>
       </div>
 
       <div className="flex-1 scroll-y hg-page-x relative z-10" style={{ paddingBottom: "calc(32px + var(--sab, 0px))" }}
@@ -481,8 +530,8 @@ function FavoritesContent({ onBack, wide, initialTab }: { onBack: () => void; wi
             )}
             {postCards.length > 0 && postLoading && <div className="flex justify-center py-3"><Loader label="加载更多内容" /></div>}
             {visiblePostIds.length < postFavs.length && (
-              <Button disabled={postLoading} onClick={() => setLimits(prev => ({ ...prev, post: prev.post + 12 }))}
-                className="mt-3 w-full rounded-(--r-ctl) bg-s3 text-[13px] text-on">加载更多</Button>
+              <Button card disabled={postLoading} onClick={() => setLimits(prev => ({ ...prev, post: prev.post + 12 }))}
+                className="hg-loadmore">加载更多</Button>
             )}
           </>
         ) : (
@@ -514,8 +563,8 @@ function FavoritesContent({ onBack, wide, initialTab }: { onBack: () => void; wi
             )}
             {cards.length > 0 && loading && <div className="flex justify-center py-3"><Loader label="加载更多内容" /></div>}
             {visibleIds.length < favs.length && (
-              <Button disabled={loading} onClick={() => setLimits(prev => ({ ...prev, video: prev.video + 12 }))}
-                className="mt-3 w-full rounded-(--r-ctl) bg-s3 text-[13px] text-on">加载更多</Button>
+              <Button card disabled={loading} onClick={() => setLimits(prev => ({ ...prev, video: prev.video + 12 }))}
+                className="hg-loadmore">加载更多</Button>
             )}
           </>
         )}

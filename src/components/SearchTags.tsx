@@ -53,28 +53,31 @@ export function SearchTags({ active }: { active: boolean }) {
   const visible = tags?.slice(batch * BATCH_SIZE, (batch + 1) * BATCH_SIZE) ?? [];
 
   return <Surface role="region" aria-label="热门题材" aria-busy={loading}
-    className="mt-5 rounded-(--r-md) bg-s2 p-3.5 a-rise">
+    className="mt-5 rounded-(--r-md) p-3.5 a-rise"
+    style={{ background: "rgba(255,255,255,0.038)", border: "1px solid rgba(255,255,255,0.075)" }}>
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <h2 className="flex items-center gap-1.5 text-[14px] font-semibold text-on/90"><IFireF size={15} className="text-primary" />热门题材</h2>
-      <Button onClick={() => push({ kind: "tags" })} className="min-h-11 px-2 text-[12px] text-primary font-semibold pressable">全部标签 ›</Button>
+      <h2 className="flex items-center gap-1.5 text-[14px] font-bold text-on"><IFireF size={15} className="text-primary" />热门题材</h2>
+      <Button card onClick={() => push({ kind: "tags" })} className="hg-section-more">全部标签 ›</Button>
     </div>
     {error && <p role="status" className="mt-2 text-[12px] text-mut break-words">
       {count > 0 ? "刷新失败，保留已加载标签。" : "标签暂未加载成功。"}{error}
     </p>}
     {count > 0 ? <div className="flex flex-wrap gap-2 mt-3">
-      {visible.map(tag => <Button key={tag.name}
+      {visible.map(tag => <Button card key={tag.name}
         onClick={() => push({ kind: "tag", tag: tag.name, name: tag.name })}
-        style={{ minBlockSize: 44 }} className="ios-filter-pill min-w-11 max-w-full whitespace-normal break-words text-left">{tag.name}</Button>)}
+        className={`hg-tag-pill max-w-full whitespace-normal break-words text-left${tag.is_hot ? " is-hot" : ""}`}>
+        <span className="hg-tag-hash">#</span><span>{tag.name}</span>
+      </Button>)}
     </div> : !error && <p role="status" className="mt-3 text-[13px] text-mut">
       {loading || tags === null ? "正在加载题材…" : "暂无可用标签"}
     </p>}
-    <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-      <Button onClick={() => void load()} disabled={loading} aria-label={error ? "重试加载题材" : "刷新题材"}
-        className="min-h-11 flex items-center gap-1 px-2 text-[12px] text-mut pressable">
+    <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
+      <Button card onClick={() => void load()} disabled={loading} aria-label={error ? "重试加载题材" : "刷新题材"}
+        className="hg-section-more flex items-center gap-1">
         {loading ? <Loader className="w-3 h-3" /> : <IRefresh size={13} />}{loading ? "加载中…" : error ? "重试" : "刷新"}
       </Button>
-      {count > BATCH_SIZE && <Button onClick={() => setBatch(value => (value + 1) % Math.ceil(count / BATCH_SIZE))}
-        className="min-h-11 px-2 text-[12px] text-primary pressable">换一批</Button>}
+      {count > BATCH_SIZE && <Button card onClick={() => setBatch(value => (value + 1) % Math.ceil(count / BATCH_SIZE))}
+        className="hg-section-more">换一批</Button>}
     </div>
   </Surface>;
 }

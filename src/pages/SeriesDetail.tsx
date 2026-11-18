@@ -4,23 +4,24 @@ import { useStore } from "../store";
 import { Button } from "../components/ios/controls";
 import { Img } from "../components/ui";
 import { Loader } from "../components/ios/effects";
-import { IBack, IPlayF } from "../icons";
+import { IBack, IPlayF, IStar, IStarF } from "../icons";
 import type { Detail, VideoCard } from "../types";
 
 /* 详情页（自定屏，依据 /opt/data/hguox-redesign/设计规范-自定屏.md）：
    顶部宽幅区 332×281 / 圆角 15：同张封面模糊放大铺底 + 暗蒙层，上面放 3:4 原比例封面（不裁）+ 剧名/评分/集数；
-   下面依次是标签胶囊、简介、选集（5 列 56×56）、相关推荐；底部主 CTA 332×41.7 全圆、距底 32。
-   颜色只用 v3 六色：--p-bg / --hg-surface / accent / #8B9AF9 / #fff / rgba(255,255,255,.58)。 */
+   下面依次是 #标签小签、简介、选集（5 列 56×56）、相关推荐；顶部悬浮返回 + 收藏按钮，底部智能续播主 CTA。 */
 export default function SeriesDetail({ id, onBack }: { id: number; onBack: () => void }) {
-  const { push, lineEpoch, history } = useStore();
+  const { push, lineEpoch, history, isFav, setCollected, actionPending, toast } = useStore();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [related, setRelated] = useState<VideoCard[]>([]);
   const [err, setErr] = useState("");
+  const [favDelta, setFavDelta] = useState(0);
   const seq = useRef(0);
 
   useEffect(() => {
     const my = ++seq.current;
     setErr("");
+    setFavDelta(0);
     api.video(id)
       .then(res => { if (my === seq.current) setDetail(res); })
       .catch(e => { if (my === seq.current) setErr((e as Error)?.message || "加载失败"); });
@@ -34,7 +35,15 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
     [detail],
   );
 
-  const openPlayer = (ep?: number) => {
+  const savedProg = useMemo(
+    () => history.find(h => String(h.id) === String(id)),
+    [history, id],
+  );
+
+  const faved = isFav(id, "video");
+  const favBusy = actionPending(`collect:video:${id}`);
+
+  const openPlayer = (ep?: number, startTime?: number) => {
     if (!detail) return;
     push({
       kind: "feed",
@@ -42,7 +51,20 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
       index: 0,
       title: detail.title,
       startEp: ep && ep > 0 ? ep : 1,
+      startTime: startTime && startTime > 3 ? startTime : undefined,
     });
+  };
+
+  const toggleFav = () => {
+    if (favBusy) return;
+    const next = !faved;
+    setFavDelta(d => d + (next ? 1 : -1));
+    void setCollected("video", id, next)
+      .then(() => toast(next ? "已加入收藏" : "已取消收藏", next ? "star" : "info"))
+      .catch(e => {
+        setFavDelta(d => d + (next ? -1 : 1));
+        toast((e as Error)?.message || "收藏操作失败", "info");
+      });
   };
 
   return (
@@ -70,10 +92,9 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
                     {" · 共 "}{detail.total_episodes || episodes.length}{" 集"}
                   </p>
                   <p className="hg-detail-counts">
-                    {/* 报告 12：每项单独 nowrap，数字不会和标签被拆到两行 */}
                     <span>点赞 {fmt(detail.counts?.like ?? 0)}</span>
                     <span>·</span>
-                    <span>收藏 {fmt(detail.counts?.collect ?? 0)}</span>
+                    <span>收藏 {fmt(Math.max(0, (detail.counts?.collect ?? 0) + favDelta))}</span>
                     <span>·</span>
                     <span>评论 {fmt(detail.counts?.comment ?? 0)}</span>
                   </p>
@@ -84,7 +105,9 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
             {!!detail.tags?.length && (
               <div className="hg-detail-tags">
                 {detail.tags.slice(0, 8).map(tag => (
-                  <Button key={tag} card className="hg-detail-tag" onClick={() => push({ kind: "tag", tag, name: tag })}>{tag}</Button>
+                  <Button key={tag} card className="hg-tag-pill" onClick={() => push({ kind: "tag", tag, name: tag })}>
+                    <span className="hg-tag-hash">#</span><span>{tag}</span>
+                  </Button>
                 ))}
               </div>
             )}
@@ -93,7 +116,6 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
               <section className="hg-section">
                 <div className="hg-section-head"><h3 className="hg-section-title">简介</h3></div>
                 <p className="hg-detail-desc">{detail.description}</p>
-
               </section>
             )}
 
@@ -105,8 +127,7 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
               {episodes.length === 0 && <p className="py-2 text-[12px] text-dim">暂无分集信息</p>}
               <div className="hg-ep-grid">
                 {episodes.map(ep => {
-                  /* 当前集 = 观看记录里的进度集；没有记录时默认第 1 集（规范要求「当前播放集中态」） */
-                  const cur = (history.find(h => String(h.id) === String(detail?.id))?.ep ?? 1) === ep.ep_num;
+                  const cur = (savedProg?.ep ?? 1) === ep.ep_num;
                   return (
                     <Button key={ep.ep_num} card className="hg-ep-cell" aria-current={cur ? "true" : undefined}
                       onClick={() => openPlayer(ep.ep_num)}>
@@ -138,15 +159,23 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
         )}
       </div>
 
-      {/* 返回：40×40 圆、距顶 12（含安全区）/ 距左 14，压在宽幅区上 */}
+      {/* 返回与右上角收藏按钮：对称悬浮于顶部宽幅区上方 */}
       <Button card className="hg-detail-back" aria-label="返回" onClick={onBack}><IBack size={22} /></Button>
+      {detail && (
+        <Button card disabled={favBusy} aria-pressed={faved} aria-label={faved ? "取消收藏" : "收藏剧集"}
+          className={`hg-detail-fav${faved ? " is-on" : ""}`}
+          onClick={toggleFav}>
+          {faved ? <IStarF size={15} /> : <IStar size={15} />}
+          <span>{faved ? "已收藏" : "收藏"}</span>
+        </Button>
+      )}
 
-      {/* 底部主 CTA：332×41.7 全圆、距底 32。放在 flex 列里而不是悬浮，
-          这样内容区永远不会被它盖住（滚到底能看全） */}
+      {/* 底部智能续播主 CTA */}
       {detail && (
         <div className="shrink-0 hg-detail-cta-wrap">
-          <Button card className="hg-cta" onClick={() => openPlayer(1)}>
-            <IPlayF size={16} /><span>播放</span>
+          <Button card className="hg-cta" onClick={() => savedProg ? openPlayer(savedProg.ep, savedProg.t) : openPlayer(1)}>
+            <IPlayF size={16} />
+            <span>{savedProg ? `继续播放 · 第 ${savedProg.ep} 集` : "立即播放"}</span>
           </Button>
         </div>
       )}
