@@ -7,7 +7,7 @@ import { useStore } from "../store";
 import { Empty, Img, Modal } from "../components/ui";
 import { MediaCard } from "../components/cards";
 import { useContentPreferences } from "../contentPreferences";
-import { IBack, IChevR, IClock, IHeart, ILogout, ISettings, IStar, IUser } from "../icons";
+import { IBack, IChevR, IClock, ILogout, IMenuFollow, IMenuHistory, IMenuLikes, IMenuPrefs, ISettings, IStar } from "../icons";
 
 function GuestCatAvatar() {
   return (
@@ -226,34 +226,34 @@ function ProfileContent({ wide }: { wide: boolean }) {
             className="mt-1 min-h-11 px-3 text-on">{accountSync.busy ? "正在重试…" : "重试同步"}</Button>
         </div>}
 
-        {/* 菜单列表：观看历史 / 我的收藏 / 我的关注 / 设置 / 退出登录 */}
+        {/* 菜单列表：观看历史 / 我的收藏 / 我的关注 / 内容偏好（+ 登录态退出登录） */}
         <div className="hg-menu">
           <Button className="hg-menu-row" aria-label={`观看历史，${history.length} 条`} onClick={() => setSection("history")}>
-            <span className="hg-menu-icon"><IClock size={18} /></span>
+            <span className="hg-menu-icon"><IMenuHistory size={19} strokeWidth={1.75} /></span>
             <span className="hg-menu-label">观看历史</span>
             <span className="hg-menu-meta">{history.length}</span>
             <IChevR size={14} className="hg-menu-chevron" />
           </Button>
           <Button className="hg-menu-row" aria-label={`我的收藏，${favs.length + postFavs.length} 项`} onClick={() => setSection("fav")}>
-            <span className="hg-menu-icon"><IHeart size={18} /></span>
+            <span className="hg-menu-icon"><IMenuLikes size={19} strokeWidth={1.75} /></span>
             <span className="hg-menu-label">我的收藏</span>
             <span className="hg-menu-meta">{favs.length + postFavs.length}</span>
             <IChevR size={14} className="hg-menu-chevron" />
           </Button>
           <Button className="hg-menu-row" aria-label={`我的关注，${follows.length} 人`} onClick={() => user ? push({ kind: "following" }) : setLoginOpen(true)}>
-            <span className="hg-menu-icon"><IUser size={18} /></span>
+            <span className="hg-menu-icon"><IMenuFollow size={19} strokeWidth={1.75} /></span>
             <span className="hg-menu-label">我的关注</span>
             <span className="hg-menu-meta">{follows.length}</span>
             <IChevR size={14} className="hg-menu-chevron" />
           </Button>
-          <Button className="hg-menu-row" onClick={() => push({ kind: "settings" })}>
-            <span className="hg-menu-icon"><ISettings size={18} /></span>
-            <span className="hg-menu-label">设置</span>
+          <Button className="hg-menu-row" onClick={() => push({ kind: "settings", section: "内容偏好" })}>
+            <span className="hg-menu-icon"><IMenuPrefs size={19} strokeWidth={1.75} /></span>
+            <span className="hg-menu-label">内容偏好</span>
             <IChevR size={14} className="hg-menu-chevron" />
           </Button>
           {user && (
             <Button className="hg-menu-row" onClick={() => { setLogoutError(""); setLogoutOpen(true); }}>
-              <span className="hg-menu-icon"><ILogout size={18} /></span>
+              <span className="hg-menu-icon"><ILogout size={19} strokeWidth={1.75} /></span>
               <span className="hg-menu-label">退出登录</span>
               <IChevR size={14} className="hg-menu-chevron" />
             </Button>

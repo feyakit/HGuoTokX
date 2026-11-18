@@ -13,43 +13,68 @@ const S = (d: React.ReactNode, fill = false) =>
   };
 
 
-/* 底栏图标（W7 实测外框 19.1×16.7 CSS、线宽 2；形状按参考重画）
-   参考语义：home=实心矮宽房子 / 吃瓜=圆形气泡+三点 / 分类=圆角方框+播放三角 / 我的=圆形包住人像
-   每图两版：outline 描边、solid 实心（选中态），外框尺寸不变。 */
+/* 底栏 4 图标（严格对齐设计稿：未选中 1.9px 圆润白描边，选中态左上柔紫高光实心渐变 + 内部镂空）
+   语义：首页=圆角五边形小屋+短横线 / 吃瓜=圆气泡+三圆点 / 分类=剧场盾屏+播放三角 / 我的=圆框+微笑弧 */
 type NavP = { className?: string; solid?: boolean };
-const NAV = (outline: React.ReactNode, solid: React.ReactNode) =>
+const NAV = (outline: React.ReactNode, solidPath: string) =>
   function NavIcon({ className = "", solid: isSolid = false }: NavP) {
+    const uid = React.useId().replace(/:/g, "");
     return (
-      <svg width={19.1} height={16.7} viewBox="0 0 24 21" className={className} aria-hidden
-        fill={isSolid ? "currentColor" : "none"} stroke={isSolid ? "none" : "currentColor"}
-        strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-        {isSolid ? solid : outline}
+      <svg width={21} height={21} viewBox="0 0 24 24" className={className} aria-hidden
+        fill="none" stroke={isSolid ? "none" : "currentColor"}
+        strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
+        {isSolid ? (
+          <>
+            <defs>
+              <radialGradient id={`${uid}-nav`} cx="26%" cy="20%" r="78%">
+                <stop offset="0%" stopColor="#9B7BFF" />
+                <stop offset="46%" stopColor="#E4DEFF" />
+                <stop offset="100%" stopColor="#FFFFFF" />
+              </radialGradient>
+            </defs>
+            <path fillRule="evenodd" clipRule="evenodd" fill={`url(#${uid}-nav)`} d={solidPath} />
+          </>
+        ) : outline}
       </svg>
     );
   };
 
-/* 首页：矮宽房子，屋顶圆角，门洞掏空 */
+/* 首页：圆角五边形小屋 + 中间短横线 */
 export const INavHome = NAV(
-  <><path d="M3.2 9.6 11.2 3.2a1.3 1.3 0 0 1 1.6 0l8 6.4" /><path d="M5.6 8.6v7.4a1.4 1.4 0 0 0 1.4 1.4h3.3v-3.9a1.7 1.7 0 0 1 3.4 0v3.9H17a1.4 1.4 0 0 0 1.4-1.4V8.6" /></>,
-  <path fillRule="evenodd" d="M11.15 2.3a1.5 1.5 0 0 1 1.7 0l8.6 6.5c.62.47.29 1.45-.49 1.45h-1.1v6.5c0 .94-.76 1.7-1.7 1.7h-4.05v-4.3a2.1 2.1 0 0 0-4.2 0v4.3H5.84c-.94 0-1.7-.76-1.7-1.7v-6.5h-1.1c-.78 0-1.11-.98-.49-1.45Z" />
+  <>
+    <path d="M10.6 3.8a2.2 2.2 0 0 1 2.8 0l5.4 4.5a2.4 2.4 0 0 1 .9 1.85v7.25a2.6 2.6 0 0 1-2.6 2.6H6.9a2.6 2.6 0 0 1-2.6-2.6v-7.25a2.4 2.4 0 0 1 .9-1.85Z" />
+    <path d="M9.8 14.3h4.4" />
+  </>,
+  "M10.6 3.8a2.2 2.2 0 0 1 2.8 0l5.4 4.5a2.4 2.4 0 0 1 .9 1.85v7.25a2.6 2.6 0 0 1-2.6 2.6H6.9a2.6 2.6 0 0 1-2.6-2.6v-7.25a2.4 2.4 0 0 1 .9-1.85ZM9.8 13.2a1.1 1.1 0 0 0 0 2.2h4.4a1.1 1.1 0 0 0 0-2.2Z"
 );
 
-/* 吃瓜：圆形气泡 + 左下小尾巴 + 三点 */
+/* 吃瓜：圆形气泡 + 左下微尖角 + 三圆点 */
 export const INavCommunity = NAV(
-  <><path d="M12 2.6a7.4 7.4 0 0 1 0 14.8c-1.1 0-2.2-.24-3.1-.68L5 18.4l.6-3.3A7.4 7.4 0 0 1 12 2.6Z" /><circle cx="8.7" cy="10" r=".9" fill="currentColor" stroke="none" /><circle cx="12" cy="10" r=".9" fill="currentColor" stroke="none" /><circle cx="15.3" cy="10" r=".9" fill="currentColor" stroke="none" /></>,
-  <path fillRule="evenodd" d="M12 2.1a7.9 7.9 0 0 1 0 15.8c-1.05 0-2.06-.2-2.98-.57L4.6 19.2a.7.7 0 0 1-1-.79l.62-3.4A7.9 7.9 0 0 1 12 2.1Zm-3.3 7a1.15 1.15 0 1 0 0 2.3 1.15 1.15 0 0 0 0-2.3Zm3.3 0a1.15 1.15 0 1 0 0 2.3 1.15 1.15 0 0 0 0-2.3Zm3.3 0a1.15 1.15 0 1 0 0 2.3 1.15 1.15 0 0 0 0-2.3Z" />
+  <>
+    <path d="M12 3.4a8.2 8.2 0 1 1 3.4 15.66 8.3 8.3 0 0 1-6.6.08l-3.15.86a.8.8 0 0 1-.98-.96l.82-2.85A8.18 8.18 0 0 1 12 3.4Z" />
+    <circle cx="8.6" cy="11.6" r="1.05" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="11.6" r="1.05" fill="currentColor" stroke="none" />
+    <circle cx="15.4" cy="11.6" r="1.05" fill="currentColor" stroke="none" />
+  </>,
+  "M12 3.4a8.2 8.2 0 1 1 3.4 15.66 8.3 8.3 0 0 1-6.6.08l-3.15.86a.8.8 0 0 1-.98-.96l.82-2.85A8.18 8.18 0 0 1 12 3.4Zm-3.4 7a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Zm3.4 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Zm3.4 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Z"
 );
 
-/* 分类：圆角方框 + 播放三角 */
+/* 分类：剧场盾屏外框 + 播放三角 */
 export const INavCategory = NAV(
-  <><rect x="3" y="2.7" width="18" height="15.6" rx="4.2" /><path d="M10.3 7.6 15 10.5l-4.7 2.9Z" fill="currentColor" stroke="none" /></>,
-  <path fillRule="evenodd" d="M7.2 2.2h9.6a4.7 4.7 0 0 1 4.7 4.7v6.6a4.7 4.7 0 0 1-4.7 4.7H7.2a4.7 4.7 0 0 1-4.7-4.7V6.9a4.7 4.7 0 0 1 4.7-4.7Zm3.1 5.2v5.9l4.9-2.95Z" />
+  <>
+    <path d="M6.8 3.6h10.4a2.6 2.6 0 0 1 2.6 2.6v9.4a2.6 2.6 0 0 1-1.35 2.28l-5.2 2.85a2.6 2.6 0 0 1-2.5 0l-5.2-2.85A2.6 2.6 0 0 1 4.2 15.6V6.2a2.6 2.6 0 0 1 2.6-2.6Z" />
+    <path d="M10.3 8.8c0-.65.72-1.04 1.27-.68l4.1 2.7a.82.82 0 0 1 0 1.36l-4.1 2.7c-.55.36-1.27-.03-1.27-.68Z" fill="currentColor" stroke="none" />
+  </>,
+  "M6.8 3.6h10.4a2.6 2.6 0 0 1 2.6 2.6v9.4a2.6 2.6 0 0 1-1.35 2.28l-5.2 2.85a2.6 2.6 0 0 1-2.5 0l-5.2-2.85A2.6 2.6 0 0 1 4.2 15.6V6.2a2.6 2.6 0 0 1 2.6-2.6Zm3.5 5.2v5.4c0 .65.72 1.04 1.27.68l4.1-2.7a.82.82 0 0 0 0-1.36l-4.1-2.7c-.55-.36-1.27.03-1.27.68Z"
 );
 
-/* 我的：圆形包住人像 */
+/* 我的：正圆外框 + 微笑圆弧 */
 export const INavProfile = NAV(
-  <><circle cx="12" cy="10.4" r="8" /><circle cx="12" cy="8.1" r="2.5" /><path d="M7.5 16.6c.6-1.9 2.3-3 4.5-3s3.9 1.1 4.5 3" /></>,
-  <path fillRule="evenodd" d="M12 2.1a8.4 8.4 0 1 1 0 16.8 8.4 8.4 0 0 1 0-16.8Zm0 3.6a2.9 2.9 0 1 0 0 5.8 2.9 2.9 0 0 0 0-5.8Zm0 7.2c-2.5 0-4.6 1.3-5.6 3.3a6.9 6.9 0 0 0 11.2 0c-1-2-3.1-3.3-5.6-3.3Z" />
+  <>
+    <circle cx="12" cy="12" r="8.4" />
+    <path d="M8.6 13.3c.85 2.1 2.15 3 3.4 3s2.55-.9 3.4-3" />
+  </>,
+  "M12 3.6a8.4 8.4 0 1 1 0 16.8 8.4 8.4 0 0 1 0-16.8Zm-4.15 9.5a1 1 0 0 0-.47 1.33C8.35 16.45 10.02 17.6 12 17.6s3.65-1.15 4.62-3.17a1 1 0 1 0-1.8-.86c-.65 1.35-1.62 2.03-2.82 2.03s-2.17-.68-2.82-2.03a1 1 0 0 0-1.33-.47Z"
 );
 
 export const IVertSwap = S(<><path d="M7 8 12 4l5 4" /><path d="M7 16l5 4 5-4" /><path d="M12 8v8" /></>);
@@ -88,7 +113,38 @@ export const ILockF = S(<><rect x="5" y="10.5" width="14" height="10" rx="2.6" /
 export const IBoltF = S(<path d="M13.4 2.3 4.8 13.1c-.4.5 0 1.2.6 1.2h5l-1.7 7.2c-.2.7.7 1.1 1.2.6l8.6-10.8c.4-.5 0-1.2-.6-1.2h-5l1.7-7.2c.2-.7-.7-1.1-1.2-.6Z" />, true);
 export const IVol = S(<><path d="M4 9.5v5h3.2L12 18.8V5.2L7.2 9.5Z" fill="currentColor" stroke="none" /><path d="M15.5 9a4.3 4.3 0 0 1 0 6" /><path d="M18 6.5a8 8 0 0 1 0 11" /></>);
 export const IVolMute = S(<><path d="M4 9.5v5h3.2L12 18.8V5.2L7.2 9.5Z" fill="currentColor" stroke="none" /><path d="m15.5 9.5 5 5" /><path d="m20.5 9.5-5 5" /></>);
-export const ISettings = S(<><circle cx="12" cy="12" r="3.2" /><path d="M12 2.8 13.6 5h2.7l.9 2.5 2.4 1.2-.5 2.7 1.7 2.1-1.7 2.1.5 2.7-2.4 1.2-.9 2.5h-2.7L12 21.2 10.4 19H7.7l-.9-2.5-2.4-1.2.5-2.7L3.2 10.5l1.7-2.1-.5-2.7L6.8 4.5 7.7 2h2.7Z" strokeWidth={1.6} /></>);
+export const ISettings = S(
+  <>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+  </>
+);
+export const IMenuHistory = S(
+  <>
+    <rect x="3.5" y="3.5" width="17" height="17" rx="4.2" />
+    <path d="M10.3 8.9c0-.5.55-.8.98-.53l4.2 2.65a.63.63 0 0 1 0 1.06l-4.2 2.65c-.43.27-.98-.03-.98-.53Z" />
+  </>
+);
+export const IMenuLikes = S(
+  <>
+    <path d="M12 20.4C6.5 16.8 3.2 13.5 3.2 9.8 3.2 7.1 5.3 5 7.9 5c1.65 0 3.1.8 4.1 2.1C13 5.8 14.45 5 16.1 5c2.6 0 4.7 2.1 4.7 4.8 0 3.7-3.3 7-8.8 10.6Z" />
+    <path d="M12 15.5c-2.1-1.4-3.3-2.7-3.3-4.1 0-1.05.8-1.85 1.8-1.85.65 0 1.18.32 1.5.84.32-.52.85-.84 1.5-.84 1 0 1.8.8 1.8 1.85 0 1.4-1.2 2.7-3.3 4.1Z" />
+  </>
+);
+export const IMenuFollow = S(
+  <>
+    <rect x="3.5" y="4" width="17" height="14.5" rx="4" />
+    <path d="M8 9.6h8M8 13.4h5" />
+    <path d="m9.2 18.5 2.8 2.2 2.8-2.2" />
+  </>
+);
+export const IMenuPrefs = S(
+  <>
+    <rect x="3.8" y="8.8" width="16.4" height="11.4" rx="3.2" />
+    <path d="M3.2 9h17.6M12 8.8v11.4" />
+    <path d="M12 8.8H8.6a2.3 2.3 0 1 1 2.1-3.2L12 8.8Zm0 0h3.4a2.3 2.3 0 1 0-2.1-3.2L12 8.8Z" />
+  </>
+);
 export const ILogout = S(<><path d="M14 4.5H7A2.5 2.5 0 0 0 4.5 7v10A2.5 2.5 0 0 0 7 19.5h7" /><path d="m16 8 4 4-4 4" /><path d="M20 12H9.5" /></>);
 export const ILogin = S(<><path d="M10 4.5h7A2.5 2.5 0 0 1 19.5 7v10a2.5 2.5 0 0 1-2.5 2.5h-7" /><path d="m12 8 4 4-4 4" /><path d="M16 12H4.5" /></>);
 export const ITrash = S(<><path d="M4.5 6.5h15" /><path d="M8 6.5V5a1.5 1.5 0 0 1 1.5-1.5h5A1.5 1.5 0 0 1 16 5v1.5" /><path d="M6.5 6.5 7.4 19a2 2 0 0 0 2 1.8h5.2a2 2 0 0 0 2-1.8l.9-12.5" /><path d="M10 10.5v6M14 10.5v6" /></>);
