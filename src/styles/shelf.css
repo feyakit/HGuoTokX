@@ -843,6 +843,15 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 /* 报告（重测 1）：flex 列里的滚动区必须 min-height:0，否则内容把底部 CTA 顶成重叠 */
 .flex-1.scroll-y { min-height: 0; }
 /* 详情滚动区底部再留出 CTA 高度 + 间距，双保险 */
+.ios-page.hg-canvas:not(.hg-home-page) {
+  background: var(--hg-canvas);
+}
+.hg-canvas > .shrink-0,
+.hg-canvas > .scroll-y,
+.hg-canvas > .ios-page-body {
+  position: relative;
+  z-index: 10;
+}
 .hg-canvas > .flex-1.scroll-y { padding-bottom: calc(41.7px + 24px + var(--sab, 0px)); }
 
 /* 详情页布局锁死（v3 报告 A）：根必须是 flex 列，滚动区吃掉剩余高度，CTA 是最后一个 flex 子项。
