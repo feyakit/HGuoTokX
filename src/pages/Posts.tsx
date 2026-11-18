@@ -147,7 +147,7 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
               if (!user) { setLoginOpen(true); return; }
               if (!authorId) { toast("作者信息加载中，请稍候", "info"); return; }
               void setFollowing(authorId, !isFollowed).catch((err) => {
-                toast((err as Error)?.message || "关注操作失败", "err");
+                toast((err as Error)?.message || "关注操作失败", "info");
               });
             }}>
             {followBusy ? "…" : isFollowed ? "Following" : "Follow"}
