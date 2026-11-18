@@ -7,7 +7,7 @@ import { useStore } from "../store";
 import { Empty, Img, Modal } from "../components/ui";
 import { MediaCard } from "../components/cards";
 import { useContentPreferences } from "../contentPreferences";
-import { IBack, IChevR, IClock, IComment, IHeart, ILogout, ISettings, IStar } from "../icons";
+import { IBack, IChevR, IClock, IHeart, ILogout, ISettings, IStar, IUser } from "../icons";
 
 function GuestCatAvatar() {
   return (
@@ -39,7 +39,7 @@ export default function Profile({ wide }: { wide: boolean }) {
 function ProfileContent({ wide }: { wide: boolean }) {
   const { blockReason } = useContentPreferences();
   const { user, setLoginOpen, logout, history, favs, follows, clearHistory, push, accountSync, syncAccount } = useStore();
-  const [section, setSection] = useState<"fav" | "history" | "comments" | null>(null);
+  const [section, setSection] = useState<"fav" | "history" | null>(null);
   const [cache, setCache] = useState<Record<number, Detail>>({});
   const cacheRef = useRef(cache);
   cacheRef.current = cache;
@@ -79,7 +79,7 @@ function ProfileContent({ wide }: { wide: boolean }) {
   const progressOf = (id: number) => (activeTab === "history" ? history.find((h) => h.id === id) : undefined);
 
   useEffect(() => {
-    if (!section || section === "comments") return;
+    if (!section) return;
     let alive = true;
     const missing = visibleIds.filter(id => !cacheRef.current[id]);
     setFailedIds([]);
@@ -193,7 +193,7 @@ function ProfileContent({ wide }: { wide: boolean }) {
             className="mt-1 min-h-11 px-3 text-on">{accountSync.busy ? "正在重试…" : "重试同步"}</Button>
         </div>}
 
-        {/* 菜单列表：观看历史 / 我的收藏 / 我的评论 / 设置 / 退出登录 */}
+        {/* 菜单列表：观看历史 / 我的收藏 / 我的关注 / 设置 / 退出登录 */}
         <div className="hg-menu">
           <Button className="hg-menu-row" aria-label={`观看历史，${history.length} 条`} onClick={() => setSection("history")}>
             <span className="hg-menu-icon"><IClock size={18} /></span>
@@ -207,9 +207,10 @@ function ProfileContent({ wide }: { wide: boolean }) {
             <span className="hg-menu-meta">{favs.length}</span>
             <IChevR size={14} className="hg-menu-chevron" />
           </Button>
-          <Button className="hg-menu-row" aria-label="我的评论" onClick={() => setSection("comments")}>
-            <span className="hg-menu-icon"><IComment size={18} /></span>
-            <span className="hg-menu-label">我的评论</span>
+          <Button className="hg-menu-row" aria-label={`我的关注，${follows.length} 人`} onClick={() => user ? push({ kind: "following" }) : setLoginOpen(true)}>
+            <span className="hg-menu-icon"><IUser size={18} /></span>
+            <span className="hg-menu-label">我的关注</span>
+            <span className="hg-menu-meta">{follows.length}</span>
             <IChevR size={14} className="hg-menu-chevron" />
           </Button>
           <Button className="hg-menu-row" onClick={() => push({ kind: "settings" })}>
@@ -229,7 +230,7 @@ function ProfileContent({ wide }: { wide: boolean }) {
         <div className="text-center text-[12px] text-dim mt-6">HGuoX {APP_VERSION} · {platform === "android" ? "Android" : platform === "ios" ? "iOS" : platform === "macos" ? "macOS" : platform === "linux" ? "Linux" : "Windows"} 客户端</div>
       </div>
 
-      {/* 子视图：观看历史 / 我的收藏 / 我的评论 */}
+      {/* 子视图：观看历史 / 我的收藏 */}
       {section && (
         <div className="ios-page hg-canvas absolute inset-0 z-30 flex flex-col">
           <div className="flex items-center gap-3 hg-page-x shrink-0"
@@ -238,7 +239,7 @@ function ProfileContent({ wide }: { wide: boolean }) {
               <IBack size={20} />
             </Button>
             <h2 className="text-[18px] font-bold text-on flex-1">
-              {section === "history" ? "观看历史" : section === "fav" ? "我的收藏" : "我的评论"}
+              {section === "history" ? "观看历史" : "我的收藏"}
             </h2>
             {section === "history" && history.length > 0 && (
               <Button disabled={clearBusy} onClick={() => { setClearError(""); setClearOpen(true); }}
@@ -249,11 +250,7 @@ function ProfileContent({ wide }: { wide: boolean }) {
           </div>
           <div className="flex-1 scroll-y hg-page-x" style={{ paddingBottom: "calc(110px + var(--sab, 0px))" }}
             aria-busy={loading || syncingFavorites}>
-            {section === "comments" ? (
-              <Empty icon={<IComment size={24} />} title="暂无我的评论"
-                sub="在社区或剧集页发表的评论会显示在这里"
-                action="去逛逛" onAction={() => { setSection(null); push({ kind: "ranks" }); }} />
-            ) : favoriteSyncFailed ? (
+            {favoriteSyncFailed ? (
               <Empty icon={<IStar size={24} />} title="收藏状态未知"
                 sub="账号同步未完成，暂时无法确认收藏内容。" action="重试"
                 onAction={() => { void syncAccount().catch(() => {}); }} />
@@ -285,14 +282,14 @@ function ProfileContent({ wide }: { wide: boolean }) {
                 sub={section === "fav" ? "在剧集页点收藏，之后就能在这里找到" : "看过的剧集会出现在这里"}
                 action="去逛逛" onAction={() => { setSection(null); push({ kind: "ranks" }); }} />
             )}
-            {section !== "comments" && cards.length > 0 && failed.length > 0 && (
+            {cards.length > 0 && failed.length > 0 && (
               <div role="status" className="mt-3 flex flex-wrap items-center gap-2 text-[13px] text-mut">
                 <span>{failed.length} 项内容加载失败，已加载内容仍可浏览。</span>
                 <Button disabled={loading} onClick={() => setReload(n => n + 1)} className="px-3 text-primary">重试失败内容</Button>
               </div>
             )}
-            {section !== "comments" && cards.length > 0 && loading && <div className="flex justify-center py-3"><Loader label="加载更多内容" /></div>}
-            {section !== "comments" && visibleIds.length < ids.length && (
+            {cards.length > 0 && loading && <div className="flex justify-center py-3"><Loader label="加载更多内容" /></div>}
+            {visibleIds.length < ids.length && (
               <Button disabled={loading} onClick={() => setLimits(previous => ({ ...previous, [activeTab]: previous[activeTab] + 12 }))}
                 className="mt-3 w-full rounded-(--r-ctl) bg-s3 text-[13px] text-on">加载更多</Button>
             )}

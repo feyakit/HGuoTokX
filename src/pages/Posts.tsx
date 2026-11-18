@@ -153,13 +153,11 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
           </button>
         </div>
         <div className="hg-post-title">{p.title}</div>
-        <div className="hg-post-grid2x2">
-          {[0, 1, 2, 3].map(idx => (
-            <span key={idx} className="hg-post-grid-cell">
-              <Img src={p.cover} alt="" />
-            </span>
-          ))}
-        </div>
+        {p.cover && (
+          <div className="hg-post-art">
+            <Img src={p.cover} alt="" />
+          </div>
+        )}
         <div className="hg-post-stats">
           <span className="hg-post-stat"><span className="hg-post-heart">♥</span>{fmt(info?.like ?? 0)}</span>
           <span className="hg-post-stat"><IComment size={16} />{fmt(info?.comment ?? 0)}</span>
@@ -185,7 +183,6 @@ export function PostsPage({ onBack, wide, embedded = false }: { onBack?: () => v
         </div>
         <span className="flex-1" />
         <Button card className="hg-icon-plain" aria-label="搜索社区" onClick={() => setSearching(true)}><ISearch size={19} /></Button>
-        <Button card className="hg-post-cta" onClick={() => toast("发帖功能暂未开放", "info")}>发布</Button>
       </div>
 
       <div ref={scrollRef} aria-busy={loading} className="flex-1 scroll-y hg-page-x relative z-10"
