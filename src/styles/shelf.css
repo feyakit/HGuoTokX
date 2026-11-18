@@ -443,7 +443,11 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.36);
   -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
 }
-.ios-mobile-nav .ios-mobile-nav-item { color: rgba(255, 255, 255, 0.72); }
+.ios-mobile-nav .ios-mobile-nav-item,
+.ios-mobile-nav[data-over-video="true"] .ios-mobile-nav-item {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+}
 .ios-mobile-nav .ios-mobile-nav-item[aria-current="page"],
 .ios-mobile-nav[data-over-video="true"] .ios-mobile-nav-item[aria-current="page"],
 .ios-mobile-nav[data-over-video="true"] .hg-glass > .ios-mobile-nav-items > .ios-mobile-nav-item[aria-current="page"] { color: #fff; }
@@ -474,8 +478,8 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
   border: 1px solid rgba(255, 255, 255, 0.22);
   -webkit-backdrop-filter: blur(28px) saturate(140%); backdrop-filter: blur(28px) saturate(140%);
 }
-.ios-mobile-nav .hg-drop { top: 5px; bottom: 5px; width: 84px; left: 0; }
-.ios-mobile-nav .hg-drop > .ios-liquid-fill { margin: 0; width: 100%; height: 100%; border-radius: 999px; }
+.ios-mobile-nav .hg-drop { top: 5px; bottom: 5px; width: 25%; left: 0; }
+.ios-mobile-nav .hg-drop > .ios-liquid-fill { margin: 0 5px; width: calc(100% - 10px); height: 100%; border-radius: 999px; }
 
 /* ------------------------------------------------------------------
    吃瓜（社区信息流）& 二级下划线 tab
