@@ -311,7 +311,12 @@
   border-radius: 999px; border: 0; background: var(--hg-surface); color: var(--p-on);
   font-size: 11px; font-weight: 500; line-height: 1;
 }
-.hg-detail-desc { font-size: 13px; line-height: 1.55; color: rgba(255, 255, 255, .58); white-space: pre-wrap; }
+.hg-detail-desc { font-size: 13px; line-height: 1.55; color: rgba(255, 255, 255, .58); white-space: pre-wrap;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.hg-detail-desc.is-open { display: block; -webkit-line-clamp: unset; overflow: visible; }
+/* 展开/收起：让首屏能放下完整第一行集数（v3 报告 A 的视觉判据） */
+.ios-button.hg-desc-toggle { height: 20px; min-block-size: 0; min-inline-size: 0; margin-top: 2px;
+  font-size: 12px; font-weight: 600; color: var(--p-mut); background: none; border: 0; padding: 0; }
 
 /* 返回钮（规范 2.5）：40×40 圆、bg 55% 半透明、图标 22、距顶 12 / 左 14 */
 .ios-button.hg-detail-back {
@@ -629,8 +634,12 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
   position: absolute; left: 6px; right: 6px; bottom: 6px;
   font-size: 11px; font-weight: 600; line-height: 1.25; color: #fff;
   text-align: center;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  /* v3 报告 C：允许两行再省略（原来 nowrap 只吃一行） */
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  white-space: normal; overflow: hidden;
   text-shadow: 0 1px 3px rgb(0 0 0 / .85);
+  background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0));
+  padding: 10px 2px 0; border-radius: 0 0 8px 8px;
 }
 
 /* 继续观看悬浮卡（参考 S1 底部那张）：压在底栏之上、左右 14、可关闭；
@@ -808,3 +817,15 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 .flex-1.scroll-y { min-height: 0; }
 /* 详情滚动区底部再留出 CTA 高度 + 间距，双保险 */
 .hg-canvas > .flex-1.scroll-y { padding-bottom: calc(41.7px + 24px + var(--sab, 0px)); }
+
+/* 详情页布局锁死（v3 报告 A）：根必须是 flex 列，滚动区吃掉剩余高度，CTA 是最后一个 flex 子项。
+   之前滚动区 h=525 直接压到容器底（640），CTA 在 542 —— 真机首屏第一行集数被盖 31px。 */
+.hg-detail-page { display: flex !important; flex-direction: column; }
+.hg-detail-page > .scroll-y { flex: 1 1 auto !important; min-height: 0 !important; }
+.hg-detail-page > .hg-detail-cta-wrap { flex: 0 0 auto; }
+
+/* 详情首屏：把标题块/标签/简介的竖向留白收 24px，让第一行集数在首屏完整可见（v3 报告 A） */
+.hg-detail-tags { margin-top: 8px; }
+.hg-detail-page .hg-section { margin-top: 14px; }
+.hg-detail-page .hg-section-head { margin-bottom: 8px; }
+.hg-detail-desc { margin-top: 6px; }

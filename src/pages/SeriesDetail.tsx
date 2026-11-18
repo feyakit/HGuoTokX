@@ -46,7 +46,7 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
   };
 
   return (
-    <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
+    <div className="ios-page hg-detail-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
 
       <div className="flex-1 scroll-y pb-6 relative z-10">
@@ -93,6 +93,7 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
               <section className="hg-section">
                 <div className="hg-section-head"><h3 className="hg-section-title">简介</h3></div>
                 <p className="hg-detail-desc">{detail.description}</p>
+
               </section>
             )}
 
