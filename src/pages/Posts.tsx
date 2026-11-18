@@ -534,7 +534,7 @@ export function PostDetail({ id, onBack, active = true }: { id: number; onBack: 
           <CommentsPanel videoId={id} ep={0} total={currentPost?.counts?.comment ?? 0} kind="post" onClose={() => setCommentOpen(false)} />
         </div>
       </Sheet>
-      <TagBlockMenu open={tagMenu && active} tags={currentPost?.tags || []} onClose={() => setTagMenu(false)} onSettings={() => push({ kind: "settings", section: "内容偏好" })} />
+      <TagBlockMenu open={tagMenu && active} tags={currentPost?.tags || []} onClose={() => setTagMenu(false)} />
     </div>
   );
 }

@@ -6,8 +6,8 @@ import { Button } from "./ios/controls";
 import { Modal, Sheet } from "./ui";
 import "../styles/content-preferences.css";
 
-export function TagBlockMenu({ open, tags, onClose, onSettings }: {
-  open: boolean; tags: readonly string[]; onClose: () => void; onSettings?: () => void;
+export function TagBlockMenu({ open, tags, onClose }: {
+  open: boolean; tags: readonly string[]; onClose: () => void;
 }) {
   const { preferences, revision, storageError, blockTags, isTagBlocked } = useContentPreferences();
   const [submittedAt, setSubmittedAt] = useState<number | null>(null);
@@ -61,7 +61,7 @@ export function TagBlockMenu({ open, tags, onClose, onSettings }: {
       </div> : <div className="content-preference-empty"><p className="font-semibold text-on">暂无可选标签</p><p className="mt-1">可在管理页添加标签。</p></div>}
       {options.length > 4 && <Button className="content-tag-menu-expand" aria-expanded={expanded} aria-controls={optionsId}
         onClick={() => setExpanded(value => !value)}>{expanded ? "收起标签" : `全部标签（${options.length}）`}</Button>}
-      {capacity === 0 && <p role="status" className="content-preference-note mt-3">已达到 {MAX_BLOCKED_TAGS} 个屏蔽标签上限，请到设置中清理后再添加。</p>}
+      {capacity === 0 && <p role="status" className="content-preference-note mt-3">已达到 {MAX_BLOCKED_TAGS} 个屏蔽标签上限，请到「我的 › 内容偏好」里移除后再添加。</p>}
       {capacity > 0 && capacity < options.filter(tag => !isTagBlocked(tag)).length && <p role="status" className="mt-3 text-[13px] text-mut">还可添加 {capacity} 个标签。</p>}
       {storageError && <div role="alert" className="content-preference-note mt-3 text-danger"><p>{storageError}</p>
         <Button className="min-h-11 px-3 text-on" onClick={() => { setSubmittedAt(revision); blockTags([]); }}>重试保存</Button>
@@ -70,7 +70,6 @@ export function TagBlockMenu({ open, tags, onClose, onSettings }: {
     <footer className="content-tag-menu-footer">
       <p id={selectionId} role="status" aria-live="polite" className="sr-only">{validSelected.length ? `已选择 ${validSelected.length} 个标签` : "请选择要屏蔽的标签"}</p>
       <div className="content-tag-menu-actions">
-        {onSettings && <Button className="content-tag-menu-manage text-mut" onClick={() => { onClose(); onSettings(); }}>管理屏蔽标签</Button>}
         {options.length > 0 && <Button variant="primary" aria-label="屏蔽所选标签" aria-describedby={selectionId} disabled={!validSelected.length} onClick={() => { setSubmittedAt(revision); blockTags(validSelected); }}>屏蔽 · {validSelected.length}</Button>}
       </div>
     </footer>

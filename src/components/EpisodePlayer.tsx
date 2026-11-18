@@ -231,7 +231,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const blocked = filtering && tagsReady ? blockReason(currentTags) : null;
   const allowed = !filtering || (tagsReady && !blocked);
   const closePanels = () => { setPanel(null); setTagMenu(false); };
-  const openPreferences = () => { closePanels(); store.push({ kind: "settings", section: "内容偏好" }); };
   const openTagMenu = () => { setPanel(null); setTagMenu(true); };
   const openTag = (tag: string) => { closePanels(); store.push({ kind: "tag", tag, name: tag }); };
   useEffect(() => { setTagMenu(false); }, [curId, store.lineEpoch, accountScope]);
@@ -1813,7 +1812,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
             className="hg-chip w-9 h-9 rounded-full flex items-center justify-center pressable elev-1"><ILockF size={17} /></Button>
         </div>
       )}
-      <TagBlockMenu open={active && tagMenu} tags={meta.tags} onClose={() => setTagMenu(false)} onSettings={openPreferences} />
+      <TagBlockMenu open={active && tagMenu} tags={meta.tags} onClose={() => setTagMenu(false)} />
       {/* 线路面板：播放页内就地弹，不跳设置页 */}
       {!isDesktop && <LineQuickSwitch open={active && lineOpen} onClose={() => setLineOpen(false)} />}
       {!isDesktop && <MobileHoldGuide open={showHoldGuide} onClose={holdGuide.dismiss} target={holdTargetRef} bottomInset={bottomInset} />}

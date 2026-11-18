@@ -17,7 +17,6 @@
 .content-tag-menu-footer { flex:none; padding:8px 18px 4px; border-top:1px solid var(--ios-edge); }
 .content-tag-menu-actions { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; }
 .content-tag-menu-actions>.ios-button { min-width:0; min-height:44px; padding:10px 12px; border-radius:999px; font-size:13px; line-height:1.4; overflow-wrap:anywhere; }
-.content-tag-menu-actions>.content-tag-menu-manage { padding-inline:0; font-size:12px; text-align:left; }
 .content-tag-menu-actions>.ios-button:only-child { grid-column:1/-1; }
 .content-preference-note { padding:12px; border-radius:14px; background:var(--p-s3); color:var(--p-mut); font-size:12px; line-height:1.6; overflow-wrap:anywhere; }
 .content-preference-note.text-danger { color:var(--p-danger); }
