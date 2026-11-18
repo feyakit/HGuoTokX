@@ -8,7 +8,7 @@ import { Masonry } from "../components/cards";
 import { useContentPreferences } from "../contentPreferences";
 import { InplaceSearch } from "../components/InplaceSearch";
 import { Empty, Img } from "../components/ui";
-import { IBack, IClapper, IClose, IGrid, ISearch, ISparkF, IStarsF } from "../icons";
+import { IBack, IClapper, IClose, IGrid, IRefresh, ISearch, ISparkF, IStarsF } from "../icons";
 import { TagsSection, TopicsSection } from "./Discover";
 
 export const CHANNELS = [
@@ -78,7 +78,10 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
   const [origCate, setOrigCate] = useState<(typeof ORIGINAL_CATES)[number]["value"]>("all");
   const [items, setItems] = useState<VideoCard[]>([]);
   const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [seedPage, setSeedPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [shuffling, setShuffling] = useState(false);
   const [done, setDone] = useState(false);
   const [err, setErr] = useState("");
   const loadingRef = useRef(false);
@@ -88,11 +91,14 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
 
   const isCollectionView = view === "topics" || view === "tags";
   const subKey = view === "" ? allSort : view === "original" ? origCate : chanSort;
+  const canShuffle = (view === "" && allSort === "all")
+    || ((view === "ai-duanju" || view === "ai-manju") && chanSort === "random");
 
-  const load = useCallback(async (p: number) => {
+  const load = useCallback(async (p: number, replaceBatch = false) => {
     if (isCollectionView || loadingRef.current) return;
     loadingRef.current = true;
     setLoading(true);
+    if (replaceBatch) setShuffling(true);
     setErr("");
     const my = ++seq.current;
     try {
@@ -103,15 +109,34 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
           : await api.feed(p, 24, allSort === "new" ? "new" : undefined);
       if (my !== seq.current) return;
       const rows = (res?.items ?? []).filter(v => v && v.cover);
-      setItems(prev => p === 1 ? rows : [...prev, ...rows.filter(r => !prev.some(x => x.id === r.id))]);
+      const pages = Math.max(1, res?.pagination?.pages || 1);
+      setTotalPages(pages);
+      setItems(prev => (p === 1 || replaceBatch) ? rows : [...prev, ...rows.filter(r => !prev.some(x => x.id === r.id))]);
       setPage(p);
-      setDone(!rows.length || !!(res?.pagination && p >= (res.pagination.pages || 1)));
+      if (replaceBatch) setSeedPage(p);
+      setDone(!rows.length || p >= pages);
     } catch (e) {
       if (my === seq.current) setErr((e as Error)?.message || "加载失败");
     } finally {
-      if (my === seq.current) { setLoading(false); loadingRef.current = false; }
+      if (my === seq.current) {
+        setLoading(false);
+        setShuffling(false);
+        loadingRef.current = false;
+      }
     }
   }, [view, allSort, chanSort, origCate, isCollectionView]);
+
+  const shuffleBatch = useCallback(() => {
+    if (loadingRef.current || !canShuffle) return;
+    if (view === "ai-duanju" || view === "ai-manju") {
+      /* 源站 sort=random 每次拉第一页即是全新随机抽样 */
+      void load(1, true);
+    } else {
+      const cap = Math.max(1, Math.min(totalPages, 15));
+      const nextSeed = cap > 1 ? (seedPage % cap) + 1 : 1;
+      void load(nextSeed, true);
+    }
+  }, [canShuffle, view, load, totalPages, seedPage]);
 
   useEffect(() => {
     if (!active || isCollectionView) return;
@@ -120,7 +145,10 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
     loadedKey.current = key;
     seq.current++;
     loadingRef.current = false;
+    setShuffling(false);
     setItems([]);
+    setSeedPage(1);
+    setTotalPages(1);
     setDone(false);
     scrollRef.current?.scrollTo(0, 0);
     void load(1);
@@ -171,7 +199,7 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
           })}
         </div>
 
-        {/* 单行标题与紧凑排序栏（无双层横滑冗余） */}
+        {/* 单行标题与紧凑排序栏（随机/推荐档位附带显式「换一批」淘片微交互） */}
         <div className="hg-cat-toolbar mt-1">
           <div className="hg-cat-scope">
             <span>{SCOPE_LABELS[view]}</span>
@@ -182,6 +210,13 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
                 <span>全部</span><IClose size={11} />
               </Button>
             )}
+            {!isCollectionView && canShuffle && items.length > 0 && (
+              <Button card className="hg-shuffle-btn" aria-label="换一批片单" aria-busy={shuffling}
+                style={{ height: 25, padding: "0 8px", fontSize: 11 }}
+                disabled={loading} onClick={shuffleBatch}>
+                <IRefresh size={11} /><span>{shuffling ? "换片中" : "换一批"}</span>
+              </Button>
+            )}
           </div>
 
           {!isCollectionView && (
@@ -189,12 +224,16 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
               {view === "" && ALL_SORTS.map(s => (
                 <Button key={s.key} card role="tab" aria-selected={allSort === s.key}
                   className="hg-inline-sort"
-                  onClick={() => setAllSort(s.key)}>{s.label}</Button>
+                  onClick={() => { if (allSort === s.key && s.key === "all") shuffleBatch(); else setAllSort(s.key); }}>
+                  {s.label}
+                </Button>
               ))}
               {(view === "ai-duanju" || view === "ai-manju") && CHANNEL_SORTS.map(s => (
                 <Button key={s.value} card role="tab" aria-selected={chanSort === s.value}
                   className="hg-inline-sort"
-                  onClick={() => setChanSort(s.value)}>{s.label}</Button>
+                  onClick={() => { if (chanSort === s.value && s.value === "random") shuffleBatch(); else setChanSort(s.value); }}>
+                  {s.label}
+                </Button>
               ))}
               {view === "original" && ORIGINAL_CATES.map(s => (
                 <Button key={s.value} card role="tab" aria-selected={origCate === s.value}
@@ -309,7 +348,13 @@ export function ChannelPage({ cate, name, onBack, wide }: { cate: string; name: 
   };
 
   const changeServerSort = (value: (typeof CHANNEL_SORTS)[number]["value"]) => {
-    if (value === serverSort) return;
+    if (value === serverSort) {
+      if (value === "random" && !busy.current) {
+        if (scrollContainer.current) scrollContainer.current.scrollTop = 0;
+        void loadMore(true, "random");
+      }
+      return;
+    }
     if (scrollContainer.current) scrollContainer.current.scrollTop = 0;
     setServerSort(value);
     setErr(null);
@@ -364,9 +409,9 @@ export function ChannelPage({ cate, name, onBack, wide }: { cate: string; name: 
         </Button>
       </header>
 
-      <div className="shrink-0 hg-page-x pt-2.5 pb-2 relative">
+      <div className="shrink-0 hg-page-x pt-2.5 pb-2 relative flex items-center gap-2">
         {cate === "original" ? (
-          <SegmentedControl className="hg-seg-track" aria-label="原创筛选" activeIndex={sortIdx}>
+          <SegmentedControl className="hg-seg-track flex-1 min-w-0" aria-label="原创筛选" activeIndex={sortIdx}>
             {CHANNEL_ORIGINAL_CATES.map((s) => (
               <Button aria-pressed={originalCate === s.value} key={s.value} onClick={() => changeOriginalCate(s.value)}>
                 {s.label}
@@ -374,13 +419,26 @@ export function ChannelPage({ cate, name, onBack, wide }: { cate: string; name: 
             ))}
           </SegmentedControl>
         ) : (
-          <SegmentedControl className="hg-seg-track" aria-label="频道排序" activeIndex={sortIdx}>
-            {CHANNEL_SORTS.map((s) => (
-              <Button aria-pressed={serverSort === s.value} key={s.value} onClick={() => changeServerSort(s.value)}>
-                {s.label}
+          <>
+            <SegmentedControl className="hg-seg-track flex-1 min-w-0" aria-label="频道排序" activeIndex={sortIdx}>
+              {CHANNEL_SORTS.map((s) => (
+                <Button aria-pressed={serverSort === s.value} key={s.value} onClick={() => changeServerSort(s.value)}>
+                  {s.label}
+                </Button>
+              ))}
+            </SegmentedControl>
+            {serverSort === "random" && (
+              <Button card className="hg-shuffle-btn shrink-0" style={{ height: 38, padding: "0 11px" }}
+                aria-label="换一批随机推荐" aria-busy={refreshing}
+                disabled={loading}
+                onClick={() => {
+                  if (scrollContainer.current) scrollContainer.current.scrollTop = 0;
+                  void loadMore(true, "random");
+                }}>
+                <IRefresh size={13} /><span>换一批</span>
               </Button>
-            ))}
-          </SegmentedControl>
+            )}
+          </>
         )}
       </div>
 

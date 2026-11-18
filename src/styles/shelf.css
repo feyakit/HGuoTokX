@@ -1496,3 +1496,26 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
   .hg-grid-c3 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 
+/* 换一批淘片微交互按钮（把被动随机转化为主动可控的盲盒刷新） */
+.hg-section-actions {
+  display: inline-flex; align-items: center; gap: 10px;
+}
+.ios-button.hg-shuffle-btn {
+  min-block-size: 0; min-inline-size: 0;
+  height: 28px; padding: 0 10px; border-radius: 9px;
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(124, 92, 255, 0.14);
+  border: 1px solid rgba(155, 123, 255, 0.30);
+  color: #E2DCFF; font-size: 12px; font-weight: 600;
+  white-space: nowrap;
+}
+.ios-button.hg-shuffle-btn:active {
+  transform: scale(0.96);
+  background: rgba(124, 92, 255, 0.24);
+}
+.ios-button.hg-shuffle-btn[aria-busy="true"] svg {
+  animation: hg-spin 0.75s linear infinite;
+}
+@keyframes hg-spin {
+  to { transform: rotate(360deg); }
+}

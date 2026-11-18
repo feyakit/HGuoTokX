@@ -5,17 +5,17 @@ import { useStore } from "../store";
 import { Button } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
 import { Empty, Img } from "../components/ui";
-import { IBoltF, IChevR, IClose, IFireF, IPlayF, ISearch, Logo } from "../icons";
+import { IBoltF, IChevR, IClose, IFireF, IPlayF, IRefresh, ISearch, Logo } from "../icons";
 import { useContentPreferences } from "../contentPreferences";
 import { PreferenceStorageNotice } from "../components/PreferenceStorageNotice";
 
 const RankView = lazy(() => import("./Search").then(m => ({ default: m.RankView })));
 
-/* 首页 v5 差异化架构：
+/* 首页 v5 差异化架构 + 真实品质编排：
    顶栏 = 大字重流光排版顶栏（推荐 / 上新 / 热榜 + 搜索，彻底告别独立胶囊行）
-   ① 推荐 = 影院单主推展台（含一键沉浸连刷）→ 热播风向标 TOP 10 空心数字横榜 → 独家原创 16:10 宽画幅双列 → 精选专题企划 → 为你推荐海报流
-   ② 上新 = 零轮播！时间轴新片速递（首发统计横幅 + 左竖图右看点杂志横卡 + 近期新片速览网格）
-   ③ 热榜 = 一体式玻璃滑块 + 金银铜 3D 错落三联领奖台 + 流光热度条列表 */
+   ① 推荐 = 官方口碑推荐榜主推展台（错峰避重）→ 热播风向标 TOP 10 真榜单 → 独家原创 16:10 宽画幅双列（跨模块去重）→ 精选专题企划 → 为你推荐海报流（支持一键「换一批」轮换淘片）
+   ② 上新 = 零轮播！严格按真实上架时间倒序的首发杂志流（首发 6 部大卡 + 近期新片速览）
+   ③ 热榜 = 一体式玻璃滑块 + 金银铜 3D 错落三联领奖台 + 真实比例流光热度条 */
 
 const TABS = [
   { key: "all", label: "推荐" },
@@ -24,6 +24,18 @@ const TABS = [
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 type FeedTab = Exclude<TabKey, "rank">;
+
+type HeroSpot = {
+  id: number;
+  title: string;
+  cover: string;
+  tags: string[];
+  score: number;
+  episode_count: number;
+  total_episodes?: number;
+  is_finished: boolean;
+  kicker: string;
+};
 
 const DAY = 24 * 60 * 60 * 1000;
 const WEEK = 7 * DAY;
@@ -55,11 +67,15 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
   const { preferences, storageError, blockReason } = useContentPreferences();
   const [tab, setFeedTab] = useState<TabKey>("all");
   const [items, setItems] = useState<VideoCard[]>([]);
+  const [recommendRanks, setRecommendRanks] = useState<RankItem[]>([]);
   const [topRanks, setTopRanks] = useState<RankItem[]>([]);
   const [originals, setOriginals] = useState<VideoCard[]>([]);
   const [topics, setTopics] = useState<TopicCard[]>([]);
   const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [seedPage, setSeedPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [shuffling, setShuffling] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
   const [heroIndex, setHeroIndex] = useState(0);
@@ -70,10 +86,11 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
   const shelvesKey = useRef("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const load = useCallback(async (p: number, key: FeedTab) => {
+  const load = useCallback(async (p: number, key: FeedTab, replaceBatch = false) => {
     if (loadingRef.current) return;
     loadingRef.current = true;
     setLoading(true);
+    if (replaceBatch) setShuffling(true);
     setError("");
     const my = ++seq.current;
     try {
@@ -82,30 +99,39 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
         : await api.feed(p, 21);
       if (my !== seq.current) return;
       const rows = (res?.items ?? []).filter(v => v && v.cover);
-      setItems(prev => p === 1 ? rows : [...prev, ...rows.filter(r => !prev.some(x => x.id === r.id))]);
+      const pages = Math.max(1, res?.pagination?.pages || 1);
+      setTotalPages(pages);
+      setItems(prev => (p === 1 || replaceBatch) ? rows : [...prev, ...rows.filter(r => !prev.some(x => x.id === r.id))]);
       setPage(p);
-      setDone(!rows.length || !!(res?.pagination && p >= (res.pagination.pages || 1)));
+      if (replaceBatch) setSeedPage(p);
+      setDone(!rows.length || p >= pages);
     } catch (e) {
       if (my === seq.current) setError((e as Error)?.message || "加载失败");
     } finally {
-      if (my === seq.current) { setLoading(false); loadingRef.current = false; }
+      if (my === seq.current) {
+        setLoading(false);
+        setShuffling(false);
+        loadingRef.current = false;
+      }
     }
   }, []);
 
-  /* 推荐页专属异构货架数据（热播榜 TOP10 + 独家原创宽画幅 + 精选专题）：按线路缓存，切分栏不重复拉取 */
+  /* 推荐页专属异构货架数据（官方口碑推荐榜 + 热播榜 TOP10 + 独家原创宽画幅 + 精选专题）：按线路缓存 */
   useEffect(() => {
     if (!active || tab !== "all") return;
     const key = String(lineEpoch);
     if (shelvesKey.current === key) return;
     let alive = true;
     Promise.all([
-      api.rank("hot").then(r => (r?.items ?? []).filter(x => x && x.cover).slice(0, 10)).catch(() => [] as RankItem[]),
-      api.originalVideos("all", 1, 6, "new").then(r => (r?.items ?? []).filter(x => x && x.cover).slice(0, 4)).catch(() => [] as VideoCard[]),
+      api.rank("recommend").then(r => (r?.items ?? []).filter(x => x && x.cover && x.video_id > 0).slice(0, 12)).catch(() => [] as RankItem[]),
+      api.rank("hot").then(r => (r?.items ?? []).filter(x => x && x.cover && x.video_id > 0).slice(0, 10)).catch(() => [] as RankItem[]),
+      api.originalVideos("all", 1, 10, "new").then(r => (r?.items ?? []).filter(x => x && x.cover && x.id > 0)).catch(() => [] as VideoCard[]),
       api.topics().then(r => (r?.items ?? []).filter(x => x && x.cover).slice(0, 8)).catch(() => [] as TopicCard[]),
-    ]).then(([ranks, origs, tps]) => {
+    ]).then(([recRanks, hotRanks, origs, tps]) => {
       if (!alive) return;
       shelvesKey.current = key;
-      setTopRanks(ranks);
+      setRecommendRanks(recRanks);
+      setTopRanks(hotRanks);
       setOriginals(origs);
       setTopics(tps);
     });
@@ -116,7 +142,10 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
     if (!active || tab === "rank") return;
     seq.current++;
     loadingRef.current = false;
+    setShuffling(false);
     setItems([]);
+    setSeedPage(1);
+    setTotalPages(1);
     setDone(false);
     setHeroIndex(0);
     scrollRef.current?.scrollTo(0, 0);
@@ -146,15 +175,108 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
   );
 
   const visible = useMemo(() => filterAllowed(items), [items, filterAllowed]);
+  const visibleRecRanks = useMemo(() => filterAllowed(recommendRanks), [recommendRanks, filterAllowed]);
+  /* 热播风向标 TOP 10 严格保持 100% 原始榜单真实名次，不做任何人为抽调 */
   const visibleRanks = useMemo(() => filterAllowed(topRanks), [topRanks, filterAllowed]);
   const visibleOriginals = useMemo(() => filterAllowed(originals), [originals, filterAllowed]);
 
-  const heroes = useMemo(() => visible.slice(0, 3), [visible]);
+  /* 1. 顶部主推优选：优先从源站真实「口碑推荐榜」挑选高分剧，并主动错峰避开紧随其后的热播榜前三名 */
+  const heroes = useMemo<HeroSpot[]>(() => {
+    const hotTop3 = new Set(visibleRanks.slice(0, 3).map(r => r.video_id));
+    const picked: HeroSpot[] = [];
+    const seen = new Set<number>();
+
+    const toHeroFromRank = (r: RankItem): HeroSpot => ({
+      id: r.video_id,
+      title: r.title,
+      cover: r.cover,
+      tags: r.tags || [],
+      score: r.score,
+      episode_count: r.episode_count,
+      is_finished: r.is_finished,
+      kicker: `口碑主推${r.score > 0 ? ` · ${r.score.toFixed(1)}分` : r.metric_label ? ` · ${r.metric_label}` : ""}`,
+    });
+
+    const toHeroFromVideo = (v: VideoCard): HeroSpot => ({
+      id: v.id,
+      title: v.title,
+      cover: v.cover,
+      tags: v.tags || [],
+      score: v.score,
+      episode_count: v.episode_count,
+      total_episodes: v.total_episodes,
+      is_finished: v.is_finished,
+      kicker: `殿堂主推${v.score > 0 ? ` · ${v.score.toFixed(1)}分` : ""}`,
+    });
+
+    for (const r of visibleRecRanks) {
+      if (picked.length >= 3) break;
+      if (!hotTop3.has(r.video_id) && !seen.has(r.video_id)) {
+        seen.add(r.video_id);
+        picked.push(toHeroFromRank(r));
+      }
+    }
+    for (const r of visibleRecRanks) {
+      if (picked.length >= 3) break;
+      if (!seen.has(r.video_id)) {
+        seen.add(r.video_id);
+        picked.push(toHeroFromRank(r));
+      }
+    }
+    /* 网络波动兜底：推荐榜为空时从默认流优先选高分/热门且不撞热播前三的剧集 */
+    if (picked.length < 3) {
+      const highQuality = [...visible].sort((a, b) => (Number(b.is_hot === 1) - Number(a.is_hot === 1)) || ((b.score || 0) - (a.score || 0)));
+      for (const v of highQuality) {
+        if (picked.length >= 3) break;
+        if (!hotTop3.has(v.id) && !seen.has(v.id)) {
+          seen.add(v.id);
+          picked.push(toHeroFromVideo(v));
+        }
+      }
+      for (const v of visible) {
+        if (picked.length >= 3) break;
+        if (!seen.has(v.id)) {
+          seen.add(v.id);
+          picked.push(toHeroFromVideo(v));
+        }
+      }
+    }
+    return picked;
+  }, [visibleRecRanks, visibleRanks, visible]);
+
   const safeHeroIdx = Math.min(heroIndex, Math.max(heroes.length - 1, 0));
   const hero = heroes[safeHeroIdx];
-  const recommendGrid = visible.slice(heroes.length);
 
-  /* 上新分栏数据切片：前 6 部用杂志横排首发看点卡，其余进入速览网格 */
+  /* 2. 跨模块级联去重：主推展示过的剧集不再重复出现在「独家原创」与「为你推荐」，一屏张张是新剧 */
+  const dedupedOriginals = useMemo(() => {
+    const heroIds = new Set(heroes.map(h => h.id));
+    const filtered = visibleOriginals.filter(v => !heroIds.has(v.id));
+    if (filtered.length >= 4) return filtered.slice(0, 4);
+    const ids = new Set(filtered.map(v => v.id));
+    const backfill = visibleOriginals.filter(v => !ids.has(v.id)).slice(0, 4 - filtered.length);
+    return [...filtered, ...backfill];
+  }, [visibleOriginals, heroes]);
+
+  const recommendGrid = useMemo(() => {
+    const shownAbove = new Set<number>([
+      ...heroes.map(h => h.id),
+      ...dedupedOriginals.map(v => v.id),
+    ]);
+    const filtered = visible.filter(v => !shownAbove.has(v.id));
+    if (filtered.length > 0 || visible.length <= heroes.length) return filtered;
+    const heroIds = new Set(heroes.map(h => h.id));
+    return visible.filter(v => !heroIds.has(v.id));
+  }, [visible, heroes, dedupedOriginals]);
+
+  /* 3. 为你推荐「换一批」：按真实分页池轮换下一批片单，原地平滑替换不跳滚 */
+  const rotateRecommend = useCallback(() => {
+    if (loadingRef.current) return;
+    const cap = Math.max(1, Math.min(totalPages, 15));
+    const nextSeed = cap > 1 ? (seedPage % cap) + 1 : 1;
+    void load(nextSeed, "all", true);
+  }, [load, seedPage, totalPages]);
+
+  /* 上新分栏数据切片：按真实上架时间倒序，前 6 部用杂志横排首发看点卡，其余进入速览网格 */
   const premiereFeatured = useMemo(() => visible.slice(0, 6), [visible]);
   const premiereRest = useMemo(() => visible.slice(6), [visible]);
   const finishedInNew = useMemo(() => visible.filter(v => v.is_finished).length, [visible]);
@@ -168,15 +290,25 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
     kind: "feed", videoIds: [id], index: 0, title: "", startEp: ep,
     startTime: startTime && startTime > 0 ? startTime : undefined,
   });
-  const startSwipeFeed = (list: VideoCard[], startIdx = 0, title = "推荐连刷") => {
-    if (!list.length) return;
+  const startSwipeIds = (ids: number[], startIdx = 0, title = "推荐连刷") => {
+    const unique: number[] = [];
+    const seen = new Set<number>();
+    for (const id of ids) {
+      if (id > 0 && !seen.has(id)) {
+        seen.add(id);
+        unique.push(id);
+      }
+    }
+    if (!unique.length) return;
     push({
       kind: "feed",
-      videoIds: list.map(v => v.id),
-      index: Math.max(0, Math.min(startIdx, list.length - 1)),
+      videoIds: unique,
+      index: Math.max(0, Math.min(startIdx, unique.length - 1)),
       title,
     });
   };
+  const startSwipeFeed = (list: VideoCard[], startIdx = 0, title = "推荐连刷") =>
+    startSwipeIds(list.map(v => v.id), startIdx, title);
 
   return (
     <div className="ios-page hg-home-page hg-canvas absolute inset-0 flex flex-col">
@@ -236,12 +368,12 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
                   </Button>
                 </div>
 
-                {/* 时间轴第一段：重点新剧杂志横排看点卡 */}
+                {/* 时间轴第一段：重点新剧杂志横排看点卡（按真实上架时间倒序，避免与热度 TOP 榜混淆） */}
                 <div className="hg-timeline-head">
                   <span className="hg-timeline-dot" aria-hidden="true" />
-                  <h2 className="hg-timeline-label">首发看点 · 重点新剧</h2>
+                  <h2 className="hg-timeline-label">首发看点 · 刚上架新剧</h2>
                   <span className="hg-timeline-line" aria-hidden="true" />
-                  <span className="hg-timeline-count">TOP {premiereFeatured.length}</span>
+                  <span className="hg-timeline-count">首发 {premiereFeatured.length} 部</span>
                 </div>
 
                 <div className="hg-premiere-list">
@@ -258,7 +390,9 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
                           <div className="hg-premiere-meta-top">
                             <span>{releaseLabel(v)}</span>
                             {v.score > 0 && <span>· ★ {v.score.toFixed(1)}</span>}
+                            {v.is_hot === 1 && <span>· 热门</span>}
                             {v.is_original === 1 && <span>· 原创</span>}
+                            {v.hot > 0 && <span>· ▶ {fmt(v.hot)}</span>}
                           </div>
                           <h3 className="hg-premiere-title">{v.title}</h3>
                           <p className="hg-premiere-desc">
@@ -334,7 +468,7 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
               <Empty icon={<ISearch size={26} />} title="暂无视频" sub="稍后刷新试试" action="刷新" onAction={() => void load(1, "all")} />
             )}
 
-            {/* 1. 影院级单主推展台（右上角内置一键沉浸连刷） */}
+            {/* 1. 影院级单主推展台（接入官方口碑推荐榜 + 错峰避重 + 一键沉浸连刷） */}
             {hero && (
               <div className="hg-spotlight-shell a-rise">
                 <Button card className="hg-spotlight" aria-label={`${hero.title} 详情`} onClick={() => openSeries(hero.id)}>
@@ -343,7 +477,7 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
                   <span className="hg-spotlight-top">
                     <span className="hg-spotlight-kicker">
                       <IFireF size={12} />
-                      <span>殿堂主推{hero.score > 0 ? ` · ${hero.score.toFixed(1)}分` : ""}</span>
+                      <span>{hero.kicker}</span>
                     </span>
                   </span>
                   <span className="hg-spotlight-body">
@@ -364,7 +498,7 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
                 </Button>
                 <Button card className="hg-quick-action hg-spotlight-feed-btn"
                   aria-label="沉浸连刷"
-                  onClick={() => startSwipeFeed(visible, safeHeroIdx, "沉浸连刷")}>
+                  onClick={() => startSwipeIds([...heroes.map(h => h.id), ...recommendGrid.map(v => v.id)], safeHeroIdx, "沉浸连刷")}>
                   <IBoltF size={12} /><span>沉浸连刷</span>
                 </Button>
                 {heroes.length > 1 && (
@@ -382,7 +516,7 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
               </div>
             )}
 
-            {/* 2. 热播风向标 TOP 10（空心大号描边数字横滑榜） */}
+            {/* 2. 热播风向标 TOP 10（空心大号描边数字横滑榜：100% 原始热播榜真名次） */}
             {visibleRanks.length > 0 && (
               <section className="hg-section">
                 <div className="hg-section-head">
@@ -410,8 +544,8 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
               </section>
             )}
 
-            {/* 3. 独家原创 · 16:10 宽画幅双列剧照（打破满屏竖版疲劳） */}
-            {visibleOriginals.length > 0 && (
+            {/* 3. 独家原创 · 16:10 宽画幅双列剧照（跨模块去重，打破满屏竖版疲劳） */}
+            {dedupedOriginals.length > 0 && (
               <section className="hg-section">
                 <div className="hg-section-head">
                   <h2 className="hg-section-title">独家原创 · 宽画幅精选</h2>
@@ -420,7 +554,7 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
                   </Button>
                 </div>
                 <div className="hg-wide-grid">
-                  {visibleOriginals.map(v => (
+                  {dedupedOriginals.map(v => (
                     <Button key={v.id} card className="hg-wide-card" onClick={() => openSeries(v.id)}>
                       <span className="hg-wide-art">
                         <Img src={v.cover} alt="" />
@@ -464,15 +598,23 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
               </section>
             )}
 
-            {/* 5. 为你推荐海报流 */}
+            {/* 5. 为你推荐海报流（已剔除上方主推与原创重复剧集，支持一键「换一批」淘片） */}
             <section className="hg-section">
               <div className="hg-section-head">
                 <h2 className="hg-section-title">为你推荐</h2>
-                {recommendGrid.length > 0 && (
-                  <Button className="hg-section-more" onClick={() => startSwipeFeed(recommendGrid, 0, "为你推荐")}>
-                    刷一刷<IChevR size={11} />
-                  </Button>
-                )}
+                <div className="hg-section-actions">
+                  {visible.length > 0 && (
+                    <Button card className="hg-shuffle-btn" aria-label="换一批推荐" aria-busy={shuffling}
+                      disabled={loading} onClick={rotateRecommend}>
+                      <IRefresh size={12} /><span>{shuffling ? "换片中" : "换一批"}</span>
+                    </Button>
+                  )}
+                  {recommendGrid.length > 0 && (
+                    <Button className="hg-section-more" onClick={() => startSwipeFeed(recommendGrid, 0, "为你推荐")}>
+                      刷一刷<IChevR size={11} />
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="hg-grid-c3">
                 {recommendGrid.map(v => (
