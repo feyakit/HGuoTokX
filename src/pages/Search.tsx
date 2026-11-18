@@ -73,8 +73,9 @@ export default function Search({ active, wide }: { active: boolean; wide: boolea
   const querying = submitted.length > 0;
 
   return (
-    <div className="ios-page absolute inset-0 bg-bg flex flex-col">
-      <div className="ios-page-heading shrink-0"><h1 className="ios-page-title">搜索</h1></div>
+    <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
+      <span className="hg-aura" aria-hidden="true" />
+      <div className="ios-page-heading shrink-0 relative z-10"><h1 className="ios-page-title">搜索</h1></div>
       {/* 搜索栏 */}
       <div className="shrink-0 px-4 pb-3 flex items-center gap-2.5" >
         <Form className="ios-search-form flex-1 min-w-0 flex items-center gap-2"

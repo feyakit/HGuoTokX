@@ -308,8 +308,9 @@ export function ChannelPage({ cate, name, onBack, wide }: { cate: string; name: 
   }, [page, pages, loading, err, replacing, filtering]);
 
   return (
-    <div className="ios-page absolute inset-0 bg-bg flex flex-col">
-      <div className="shrink-0 bg-s1" style={{ paddingTop: "var(--sat, 0px)" }}>
+    <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
+      <span className="hg-aura" aria-hidden="true" />
+      <div className="shrink-0 relative z-10" style={{ paddingTop: "var(--sat, 0px)" }}>
         <div className="px-3 pt-2 pb-3 flex items-center gap-2.5">
           <Button aria-label="返回" onClick={onBack} className="w-10 h-10 rounded-full flex items-center justify-center text-on hover:bg-s3 pressable"><IBack size={20} /></Button>
           <span className="w-[40px] h-[40px] rounded-(--r-sm) bg-pc text-on-pc flex items-center justify-center"><IGrid size={21} strokeWidth={1.9} /></span>

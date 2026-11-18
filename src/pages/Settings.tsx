@@ -116,8 +116,9 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
   };
 
   return (
-    <div className="ios-page ios-settings-page absolute inset-0 bg-bg flex flex-col">
-      <div data-settings-header className="ios-settings-header shrink-0">
+    <div className="ios-page ios-settings-page hg-canvas absolute inset-0 flex flex-col">
+      <span className="hg-aura" aria-hidden="true" />
+      <div data-settings-header className="ios-settings-header shrink-0 relative z-10">
         <div className="ios-settings-column">
           <Button onClick={onBack} aria-label="返回" className="ios-icon-button"><IBack size={20} /></Button>
         </div>

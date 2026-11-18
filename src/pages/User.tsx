@@ -100,8 +100,9 @@ function FollowingContent({ onBack, wide }: { onBack: () => void; wide: boolean 
   // Identity belongs in the dependency list: switching accounts discards the previous feed.
   const request = useCallback((page: number) => api.following(page, 20), [accountScope]);
   const state = useUserVideos(!!user, request);
-  return <div className="ios-page absolute inset-0 bg-bg flex flex-col">
-    <div className="shrink-0 bg-s1" style={{ paddingTop: "var(--sat, 0px)" }}>
+  return <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
+    <span className="hg-aura" aria-hidden="true" />
+    <div className="shrink-0 bg-s1/75 backdrop-blur-md relative z-10" style={{ paddingTop: "var(--sat, 0px)" }}>
       <div className="px-3 pt-2 pb-3 flex items-center gap-2.5">
         <Button aria-label="返回" onClick={onBack} className="ios-icon-button"><IBack size={20} /></Button>
         <div className="min-w-0 flex-1"><h1 className="text-[17px] font-bold text-on">关注</h1>
@@ -185,8 +186,9 @@ function UserContent({ id, name, onBack, wide }: { id: number; name?: string; on
   };
   const stat = (value: number | undefined) => value === undefined ? "—" : fmt(value);
 
-  return <div className="ios-page absolute inset-0 bg-bg flex flex-col">
-    <div className="shrink-0 bg-s1" style={{ paddingTop: "var(--sat, 0px)" }}>
+  return <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
+    <span className="hg-aura" aria-hidden="true" />
+    <div className="shrink-0 bg-s1/75 backdrop-blur-md relative z-10" style={{ paddingTop: "var(--sat, 0px)" }}>
       <div className="px-3 pt-2 pb-3 flex items-center gap-2.5">
         <Button aria-label="返回" onClick={onBack} className="ios-icon-button"><IBack size={20} /></Button>
         <h1 className="flex-1 min-w-0 text-[16px] font-bold text-on truncate">{profile?.nickname || name || "用户主页"}</h1>
