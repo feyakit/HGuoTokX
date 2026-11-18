@@ -348,7 +348,7 @@ export function useAccountData(initialGuest: GuestData, saveGuest: (data: GuestD
   }, []);
   const s = state.current;
   return { user: s.user, setUser, restoreSession, generation, logout, accountScope: `${s.key}:${s.generation}`, accountSync: s.sync,
-    syncAccount, likes: s.data.likes, favs: s.data.favs, follows: s.data.follows, history: s.data.history,
+    syncAccount, likes: s.data.likes, favs: s.data.favs, postFavs: s.data.postFavs, follows: s.data.follows, history: s.data.history,
     isFav: (id: number, kind: Kind = "video") => (kind === "video" ? s.data.favs : s.data.postFavs).includes(id),
     isLiked: (id: number, ep?: number, kind: Kind = "video") => kind === "post" ? s.data.postLikes.includes(id)
       : ep !== undefined && s.data.likeEpisodes ? s.data.likeEpisodes.some(row => row.video_id === id && row.ep === ep) : s.data.likes.includes(id),

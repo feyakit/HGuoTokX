@@ -81,7 +81,7 @@ type Persist = GuestData & {
 
 const LS = STORAGE_KEYS.app;
 const DEFAULTS: Persist = {
-  likes: [], favs: [], history: [], follows: [],
+  likes: [], favs: [], postFavs: [], history: [], follows: [],
   muted: true, muteOnStartup: true, volume: 0.7, searchHist: [], swipeEp: true, preferHevc: false,
 };
 
@@ -177,7 +177,7 @@ type Store = {
   actionPending: (key: string) => boolean;
   loginOpen: boolean; setLoginOpen: (b: boolean) => void;
   logout: () => Promise<void>;
-  likes: number[]; favs: number[]; history: WatchProgress[]; follows: number[];
+  likes: number[]; favs: number[]; postFavs: number[]; history: WatchProgress[]; follows: number[];
   isLiked: (id: number, ep?: number, kind?: "video" | "post") => boolean; isFav: (id: number, kind?: "video" | "post") => boolean;
   toggleLikeLocal: (id: number) => boolean;
   toggleFavLocal: (id: number) => boolean;
@@ -413,7 +413,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     tab, setTab, stack, push, pop,
     user, setUser, loginOpen, setLoginOpen, logout,
     accountScope: account.accountScope, accountSync: account.accountSync, syncAccount: account.syncAccount,
-    likes: account.likes, favs: account.favs, history: account.history, follows: account.follows,
+    likes: account.likes, favs: account.favs, postFavs: account.postFavs, history: account.history, follows: account.follows,
     isLiked: account.isLiked, isFav: account.isFav,
     setCollected: account.setCollected, setLiked: account.setLiked, setFollowing: account.setFollowing, actionPending: account.actionPending,
     toggleLikeLocal: account.toggleLikeLocal, toggleFavLocal: account.toggleFavLocal, toggleFollowLocal: account.toggleFollowLocal,

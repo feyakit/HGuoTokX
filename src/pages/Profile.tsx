@@ -2,7 +2,7 @@ import { Button, Surface } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
 import { useEffect, useRef, useState } from "react";
 import { api, APP_VERSION, fmtTime, platform } from "../api";
-import type { Detail } from "../types";
+import type { Detail, Post } from "../types";
 import { useStore } from "../store";
 import { Empty, Img, Modal } from "../components/ui";
 import { MediaCard } from "../components/cards";
@@ -38,15 +38,21 @@ export default function Profile({ wide }: { wide: boolean }) {
 
 function ProfileContent({ wide }: { wide: boolean }) {
   const { blockReason } = useContentPreferences();
-  const { user, setLoginOpen, logout, history, favs, follows, clearHistory, push, accountSync, syncAccount } = useStore();
+  const { user, setLoginOpen, logout, history, favs, postFavs, follows, clearHistory, push, setTab, accountSync, syncAccount } = useStore();
   const [section, setSection] = useState<"fav" | "history" | null>(null);
+  const [favTab, setFavTab] = useState<"video" | "post">("video");
   const [cache, setCache] = useState<Record<number, Detail>>({});
   const cacheRef = useRef(cache);
   cacheRef.current = cache;
-  const [limits, setLimits] = useState({ fav: 12, history: 12 });
+  const [postCache, setPostCache] = useState<Record<number, Post>>({});
+  const postCacheRef = useRef(postCache);
+  postCacheRef.current = postCache;
+  const [limits, setLimits] = useState({ fav: 12, history: 12, postFav: 12 });
   const [failedIds, setFailedIds] = useState<number[]>([]);
+  const [postFailedIds, setPostFailedIds] = useState<number[]>([]);
   const [reload, setReload] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [postLoading, setPostLoading] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [logoutBusy, setLogoutBusy] = useState(false);
   const [logoutError, setLogoutError] = useState("");
@@ -73,13 +79,17 @@ function ProfileContent({ wide }: { wide: boolean }) {
   const cards = visibleIds.map(id => cache[id]).filter((card): card is Detail => !!card);
   const failed = failedIds.filter(id => visibleIds.includes(id));
   const idsKey = visibleIds.join(",");
-  const favoriteStateUnknown = activeTab === "fav" && !!user && !accountSync.favoritesKnown && favs.length === 0;
+  const visiblePostIds = postFavs.slice(0, limits.postFav);
+  const postCards = visiblePostIds.map(id => postCache[id]).filter((p): p is Post => !!p);
+  const postFailed = postFailedIds.filter(id => visiblePostIds.includes(id));
+  const postIdsKey = visiblePostIds.join(",");
+  const favoriteStateUnknown = activeTab === "fav" && !!user && !accountSync.favoritesKnown && favs.length === 0 && postFavs.length === 0;
   const favoriteSyncFailed = favoriteStateUnknown && !accountSync.busy;
   const syncingFavorites = favoriteStateUnknown && !favoriteSyncFailed;
   const progressOf = (id: number) => (activeTab === "history" ? history.find((h) => h.id === id) : undefined);
 
   useEffect(() => {
-    if (!section) return;
+    if (!section || (section === "fav" && favTab === "post")) return;
     let alive = true;
     const missing = visibleIds.filter(id => !cacheRef.current[id]);
     setFailedIds([]);
@@ -99,7 +109,30 @@ function ProfileContent({ wide }: { wide: boolean }) {
         setLoading(false);
       });
     return () => { alive = false; };
-  }, [idsKey, section, reload]);
+  }, [idsKey, section, favTab, reload]);
+
+  useEffect(() => {
+    if (section !== "fav" || favTab !== "post") return;
+    let alive = true;
+    const missing = visiblePostIds.filter(id => !postCacheRef.current[id]);
+    setPostFailedIds([]);
+    if (!missing.length) { setPostLoading(false); return; }
+    setPostLoading(true);
+    Promise.allSettled(missing.map(id => api.post(id)))
+      .then(results => {
+        if (!alive) return;
+        const loaded: Record<number, Post> = {};
+        const failed: number[] = [];
+        results.forEach((result, index) => {
+          if (result.status === "fulfilled") loaded[missing[index]] = result.value;
+          else failed.push(missing[index]);
+        });
+        setPostCache(previous => ({ ...previous, ...loaded }));
+        setPostFailedIds(failed);
+        setPostLoading(false);
+      });
+    return () => { alive = false; };
+  }, [postIdsKey, section, favTab, reload]);
 
   const confirmLogout = async () => {
     if (logoutPending.current) return;
@@ -201,10 +234,10 @@ function ProfileContent({ wide }: { wide: boolean }) {
             <span className="hg-menu-meta">{history.length}</span>
             <IChevR size={14} className="hg-menu-chevron" />
           </Button>
-          <Button className="hg-menu-row" aria-label={`我的收藏，${favs.length} 部`} onClick={() => setSection("fav")}>
+          <Button className="hg-menu-row" aria-label={`我的收藏，${favs.length + postFavs.length} 项`} onClick={() => setSection("fav")}>
             <span className="hg-menu-icon"><IHeart size={18} /></span>
             <span className="hg-menu-label">我的收藏</span>
-            <span className="hg-menu-meta">{favs.length}</span>
+            <span className="hg-menu-meta">{favs.length + postFavs.length}</span>
             <IChevR size={14} className="hg-menu-chevron" />
           </Button>
           <Button className="hg-menu-row" aria-label={`我的关注，${follows.length} 人`} onClick={() => user ? push({ kind: "following" }) : setLoginOpen(true)}>
@@ -248,52 +281,111 @@ function ProfileContent({ wide }: { wide: boolean }) {
               </Button>
             )}
           </div>
+          {section === "fav" && (
+            <div className="shrink-0 hg-page-x pb-3">
+              <div className="hg-pill-row" role="tablist" aria-label="收藏分类">
+                <Button card role="tab" aria-selected={favTab === "video"}
+                  className={`hg-pill${favTab === "video" ? " is-on" : ""}`}
+                  onClick={() => setFavTab("video")}>短剧 ({favs.length})</Button>
+                <Button card role="tab" aria-selected={favTab === "post"}
+                  className={`hg-pill${favTab === "post" ? " is-on" : ""}`}
+                  onClick={() => setFavTab("post")}>吃瓜 ({postFavs.length})</Button>
+              </div>
+            </div>
+          )}
           <div className="flex-1 scroll-y hg-page-x" style={{ paddingBottom: "calc(110px + var(--sab, 0px))" }}
-            aria-busy={loading || syncingFavorites}>
+            aria-busy={(section === "fav" && favTab === "post" ? postLoading : loading) || syncingFavorites}>
             {favoriteSyncFailed ? (
               <Empty icon={<IStar size={24} />} title="收藏状态未知"
                 sub="账号同步未完成，暂时无法确认收藏内容。" action="重试"
                 onAction={() => { void syncAccount().catch(() => {}); }} />
             ) : syncingFavorites ? (
               <FavoriteSyncState wide={wide} />
-            ) : loading && !cards.length ? (
-              <div className="flex justify-center py-8"><Loader className="w-7 h-7 spinner" /></div>
-            ) : cards.length ? (
-              <div className={`ios-media-grid ${wide ? "is-wide" : ""}`}>
-                {cards.map((c) => {
-                  const progress = progressOf(c.id);
-                  return <MediaCard key={c.id} blockedReason={blockReason(c.tags)} title={c.title} cover={c.cover} score={c.score}
-                    badge={c.is_finished ? "已完结" : `${c.episode_count} 集`}
-                    subtitle={c.tags?.slice(0, 2).join(" · ")}
-                    progress={progress ? `第 ${progress.ep} 集 · ${fmtTime(progress.t)}` : undefined}
-                    onOpen={() => push({
-                      kind: "feed", videoIds: cards.map(x => x.id), index: cards.findIndex(x => x.id === c.id),
-                      title: section === "fav" ? "我的收藏" : "观看历史", startEp: progress?.ep, startTime: progress?.t,
-                    })} />;
-                })}
-              </div>
-            ) : failed.length ? (
-              <Empty icon={section === "fav" ? <IStar size={24} /> : <IClock size={24} />}
-                title={section === "fav" ? "收藏加载失败" : "观看记录加载失败"}
-                sub="记录仍在，重试后继续浏览。" action="重试" onAction={() => setReload(n => n + 1)} />
+            ) : section === "fav" && favTab === "post" ? (
+              <>
+                {postLoading && !postCards.length ? (
+                  <div className="flex justify-center py-8"><Loader className="w-7 h-7 spinner" /></div>
+                ) : postCards.length ? (
+                  <div className="hg-post-feed">
+                    {postCards.map((p) => (
+                      <div key={p.id} className="hg-post-card" onClick={() => push({ kind: "post", id: p.id })}>
+                        <div className="hg-post-head">
+                          <span className="hg-post-who">
+                            <span className="hg-post-name">{p.author?.name || "吃瓜帖"}</span>
+                            <span className="hg-post-time">{p.publish_time || p.created_at}</span>
+                          </span>
+                        </div>
+                        <div className="hg-post-title">{p.title}</div>
+                        {p.cover && (
+                          <div className="hg-post-art">
+                            <Img src={p.cover} alt="" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : postFailed.length ? (
+                  <Empty icon={<IStar size={24} />} title="收藏帖子加载失败"
+                    sub="记录仍在，重试后继续浏览。" action="重试" onAction={() => setReload(n => n + 1)} />
+                ) : (
+                  <Empty icon={<IStar size={24} />} title="还没有收藏的吃瓜帖"
+                    sub="在吃瓜详情页点收藏，之后就能在这里找到"
+                    action="去吃瓜看看" onAction={() => { setSection(null); setTab("posts"); }} />
+                )}
+                {postCards.length > 0 && postFailed.length > 0 && (
+                  <div role="status" className="mt-3 flex flex-wrap items-center gap-2 text-[13px] text-mut">
+                    <span>{postFailed.length} 篇帖子加载失败，已加载内容仍可浏览。</span>
+                    <Button disabled={postLoading} onClick={() => setReload(n => n + 1)} className="px-3 text-primary">重试失败内容</Button>
+                  </div>
+                )}
+                {postCards.length > 0 && postLoading && <div className="flex justify-center py-3"><Loader label="加载更多内容" /></div>}
+                {visiblePostIds.length < postFavs.length && (
+                  <Button disabled={postLoading} onClick={() => setLimits(previous => ({ ...previous, postFav: previous.postFav + 12 }))}
+                    className="mt-3 w-full rounded-(--r-ctl) bg-s3 text-[13px] text-on">加载更多</Button>
+                )}
+              </>
             ) : (
-              <Empty icon={section === "fav" ? <IStar size={24} /> : <IClock size={24} />}
-                title={section === "fav" ? "还没有喜欢的内容" : "还没有观看记录"}
-                sub={section === "fav" ? "在剧集页点收藏，之后就能在这里找到" : "看过的剧集会出现在这里"}
-                action="去逛逛" onAction={() => { setSection(null); push({ kind: "ranks" }); }} />
+              <>
+                {loading && !cards.length ? (
+                  <div className="flex justify-center py-8"><Loader className="w-7 h-7 spinner" /></div>
+                ) : cards.length ? (
+                  <div className={`ios-media-grid ${wide ? "is-wide" : ""}`}>
+                    {cards.map((c) => {
+                      const progress = progressOf(c.id);
+                      return <MediaCard key={c.id} blockedReason={blockReason(c.tags)} title={c.title} cover={c.cover} score={c.score}
+                        badge={c.is_finished ? "已完结" : `${c.episode_count} 集`}
+                        subtitle={c.tags?.slice(0, 2).join(" · ")}
+                        progress={progress ? `第 ${progress.ep} 集 · ${fmtTime(progress.t)}` : undefined}
+                        onOpen={() => push({
+                          kind: "feed", videoIds: cards.map(x => x.id), index: cards.findIndex(x => x.id === c.id),
+                          title: section === "fav" ? "我的收藏" : "观看历史", startEp: progress?.ep, startTime: progress?.t,
+                        })} />;
+                    })}
+                  </div>
+                ) : failed.length ? (
+                  <Empty icon={section === "fav" ? <IStar size={24} /> : <IClock size={24} />}
+                    title={section === "fav" ? "收藏加载失败" : "观看记录加载失败"}
+                    sub="记录仍在，重试后继续浏览。" action="重试" onAction={() => setReload(n => n + 1)} />
+                ) : (
+                  <Empty icon={section === "fav" ? <IStar size={24} /> : <IClock size={24} />}
+                    title={section === "fav" ? "还没有喜欢的内容" : "还没有观看记录"}
+                    sub={section === "fav" ? "在剧集页点收藏，之后就能在这里找到" : "看过的剧集会出现在这里"}
+                    action="去逛逛" onAction={() => { setSection(null); push({ kind: "ranks" }); }} />
+                )}
+                {cards.length > 0 && failed.length > 0 && (
+                  <div role="status" className="mt-3 flex flex-wrap items-center gap-2 text-[13px] text-mut">
+                    <span>{failed.length} 项内容加载失败，已加载内容仍可浏览。</span>
+                    <Button disabled={loading} onClick={() => setReload(n => n + 1)} className="px-3 text-primary">重试失败内容</Button>
+                  </div>
+                )}
+                {cards.length > 0 && loading && <div className="flex justify-center py-3"><Loader label="加载更多内容" /></div>}
+                {visibleIds.length < ids.length && (
+                  <Button disabled={loading} onClick={() => setLimits(previous => ({ ...previous, [activeTab]: previous[activeTab] + 12 }))}
+                    className="mt-3 w-full rounded-(--r-ctl) bg-s3 text-[13px] text-on">加载更多</Button>
+                )}
+                {clearError && !clearOpen && <p role="alert" className="mt-2 text-[13px] text-danger">{clearError}</p>}
+              </>
             )}
-            {cards.length > 0 && failed.length > 0 && (
-              <div role="status" className="mt-3 flex flex-wrap items-center gap-2 text-[13px] text-mut">
-                <span>{failed.length} 项内容加载失败，已加载内容仍可浏览。</span>
-                <Button disabled={loading} onClick={() => setReload(n => n + 1)} className="px-3 text-primary">重试失败内容</Button>
-              </div>
-            )}
-            {cards.length > 0 && loading && <div className="flex justify-center py-3"><Loader label="加载更多内容" /></div>}
-            {visibleIds.length < ids.length && (
-              <Button disabled={loading} onClick={() => setLimits(previous => ({ ...previous, [activeTab]: previous[activeTab] + 12 }))}
-                className="mt-3 w-full rounded-(--r-ctl) bg-s3 text-[13px] text-on">加载更多</Button>
-            )}
-            {clearError && !clearOpen && <p role="alert" className="mt-2 text-[13px] text-danger">{clearError}</p>}
           </div>
         </div>
       )}

@@ -114,7 +114,7 @@ function FollowingContent({ onBack, wide }: { onBack: () => void; wide: boolean 
         : state.loading && !state.items.length ? <div className="flex justify-center py-12"><Loader /></div>
         : state.err && !state.items.length ? <Empty icon={<IGrid size={26} />} title="关注流加载失败" sub={state.err} action="重试" onAction={() => void state.loadMore()} />
         : state.items.length ? <Masonry videos={state.items} scopeKey={`following:${accountScope}`} wide={wide} onOpen={video => push({ kind: "feed", videoIds: state.items.map(item => item.id), index: state.items.findIndex(item => item.id === video.id), title: "关注" })} />
-        : <Empty icon={<IGrid size={26} />} title="还没有关注内容" sub="在分类中发现作品，关注喜欢的作者。" action="去分类看看" onAction={() => setTab("category")} />}
+        : <Empty icon={<IGrid size={26} />} title="还没有关注内容" sub="在首页、分类或吃瓜中发现内容，关注喜欢的作者。" action="去分类看看" onAction={() => setTab("category")} />}
       {user && <PaginationFeedback state={state} />}
     </div>
     {searching && <InplaceSearch kind="video" wide={wide} onClose={() => setSearching(false)} onOpenVideo={(v, list) => push({ kind: "feed", videoIds: list.map(x => x.id), index: list.findIndex(x => x.id === v.id), title: "关注" })} />}

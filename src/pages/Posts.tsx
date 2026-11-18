@@ -452,7 +452,8 @@ export function PostDetail({ id, onBack, active = true }: { id: number; onBack: 
               </div>
               <div className="flex flex-wrap gap-1.5 mt-2.5">
                 {(currentPost.tags || []).filter((t) => !t.includes(HIDDEN_POST_TAG)).slice(0, 8).map((t) => (
-                  <span key={t} className="px-2 py-0.5 rounded-(--r-ctl) bg-s3 text-[12px] text-on/75">#{t}</span>
+                  <button type="button" key={t} onClick={() => push({ kind: "tag", tag: t, name: t })}
+                    className="px-2.5 py-1 rounded-(--r-ctl) bg-s3 text-[12px] text-on/80 hover:text-on active:opacity-75 pressable">#{t}</button>
                 ))}
               </div>
               {currentPost.content && (
