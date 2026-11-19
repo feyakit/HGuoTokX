@@ -304,7 +304,7 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
     kind: "feed", videoIds: [id], index: 0, title: "", startEp: ep,
     startTime: startTime && startTime > 0 ? startTime : undefined,
   });
-  const startSwipeIds = (ids: number[], startIdx = 0, title = "推荐连刷") => {
+  const startSwipeIds = (ids: number[], startIdx = 0, title = "推荐连刷", endless = false) => {
     const unique: number[] = [];
     const seen = new Set<number>();
     for (const id of ids) {
@@ -319,6 +319,7 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
       videoIds: unique,
       index: Math.max(0, Math.min(startIdx, unique.length - 1)),
       title,
+      endless,
     });
   };
   const startSwipeFeed = (list: VideoCard[], startIdx = 0, title = "推荐连刷") =>
@@ -342,6 +343,10 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
         </div>
         <Button card className="hg-sub-btn" aria-label="搜索" onClick={() => push({ kind: "search", initialTab: "video" })}>
           <ISearch size={18} />
+        </Button>
+        <Button card className="hg-binge-pill" aria-label="抖音模式"
+          onClick={() => startSwipeIds([...heroes.map(h => h.id), ...recommendGrid.map(v => v.id)], 0, "抖音模式", true)}>
+          <IBoltF size={12} /><span>抖音模式</span>
         </Button>
       </header>
 
@@ -522,11 +527,6 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
                       <IPlayF size={12} />播放
                     </span>
                   </span>
-                </Button>
-                <Button card className="hg-quick-action hg-spotlight-feed-btn"
-                  aria-label="沉浸连刷"
-                  onClick={() => startSwipeIds([...heroes.map(h => h.id), ...recommendGrid.map(v => v.id)], safeHeroIdx, "沉浸连刷")}>
-                  <IBoltF size={12} /><span>沉浸连刷</span>
                 </Button>
                 {heroes.length > 1 && (
                   <div className="hg-spotlight-bars" role="tablist" aria-label="精选焦点切换">

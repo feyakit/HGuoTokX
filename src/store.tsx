@@ -22,6 +22,8 @@ export type FeedContext = {
   title: string;
   source: string;
   feedKind?: "video" | "post";
+  /** 「抖音模式」：滑到尾部自动追加下一页，刷完给结束卡 */
+  endless?: boolean;
   /** 从观看记录续播：起始集数与秒数 */
   startEp?: number;
   startTime?: number;
@@ -46,7 +48,7 @@ export type Page =
   | { kind: "user"; key: string; id: number; name?: string };
 
 export type PageInput =
-  | { kind: "feed"; videoIds: number[]; index: number; title: string; source?: string; feedKind?: "video" | "post"; startEp?: number; startTime?: number }
+  | { kind: "feed"; videoIds: number[]; index: number; title: string; source?: string; feedKind?: "video" | "post"; endless?: boolean; startEp?: number; startTime?: number }
   | { kind: "search"; initialTab?: "video" | "post" }
   | { kind: "history" }
   | { kind: "favorites"; initialTab?: "video" | "post" }

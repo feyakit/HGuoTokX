@@ -9,6 +9,7 @@ import { addPluginListener, invoke } from "@tauri-apps/api/core";
 import { runBack } from "./back";
 import Home from "./pages/Home";
 import Feed from "./components/Feed";
+import EndlessFeed from "./components/EndlessFeed";
 import LoginModal from "./components/LoginModal";
 import { ToastHost } from "./components/ui";
 import { DesktopRail, DesktopTitleBar } from "./components/DesktopChrome";
@@ -74,6 +75,12 @@ function StackPageContent({ page, onBack, wide, top, bottomInset }: {
   page: Page; onBack: () => void; wide: boolean; top: boolean; bottomInset: number;
 }) {
   if (page.kind === "feed") {
+    if (page.endless) {
+      return (
+        <EndlessFeed seedIds={page.videoIds} startIndex={page.index} title={page.title}
+          active={top} bottomInset={bottomInset} onBack={onBack} />
+      );
+    }
     return (
       <Feed videoIds={page.videoIds} startIndex={page.index} title={page.title} kind={page.feedKind || "video"}
         startEp={page.startEp} startTime={page.startTime}

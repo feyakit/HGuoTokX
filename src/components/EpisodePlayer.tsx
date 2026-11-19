@@ -45,13 +45,17 @@ export type EpisodePlayerProps = {
   bottomInset: number;
   onBack?: () => void;
   onNearEnd?: () => void;
+  /** 当前条目变化时回调（「抖音模式」外壳用它判断是否已在尾部） */
+  onActiveIndex?: (index: number) => void;
+  /** 无限流：允许 onNearEnd 在 context 模式下也触发，并在右上角显示 ⚡ 序位 */
+  endless?: boolean;
   onBlocked?: (id: number) => void;
   /** 从观看记录续播：起始集数与秒数 */
   startEp?: number;
   startTime?: number;
 };
 
-export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mode, kind = "video", active, bottomInset, onBack, onNearEnd, onBlocked, startEp, startTime }: EpisodePlayerProps) {
+export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mode, kind = "video", active, bottomInset, onBack, onNearEnd, onActiveIndex, endless = false, onBlocked, startEp, startTime }: EpisodePlayerProps) {
   const store = useStore();
   const { isLiked, isFav, setLiked, setCollected, setFollowing, actionPending, accountScope, muted, setMuted, volume, setVolume, toast, addHistory, user, setLoginOpen, swipeEp, setSwipeEp, preferHevc, setPreferHevc } = store;
   const isDesktop = !isMobile;
@@ -292,6 +296,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     showControls();
     return () => window.clearTimeout(hideTimer.current);
   }, [playKey, showControls]);
+  /* 离场复位：clean 是**全局**状态（App 里 `!clean` 才渲染底栏），
+     播放器收起控件时置 true，不还原的话退出播放页后首页底栏会一直不出现。 */
+  useEffect(() => () => setClean(false), [setClean]);
   useEffect(() => {
     if (paused) window.clearTimeout(hideTimer.current);
     else armAutoHide();
@@ -467,10 +474,13 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     const h = el.clientHeight || 1;
     const i = Math.max(0, Math.min(effectiveVideoIds.length - 1, Math.round(el.scrollTop / h)));
     if (renderIndex !== i) setRenderIndex(i);
-    if (onNearEnd && mode === "home" && i >= effectiveVideoIds.length - 3) onNearEnd();
+    if (onNearEnd && (mode === "home" || endless) && i >= effectiveVideoIds.length - 3) onNearEnd();
     window.clearTimeout(swipeTimer.current);
     swipeTimer.current = window.setTimeout(() => resolveSwipe(i), 150);
-  }, [effectiveVideoIds.length, onNearEnd, resolveSwipe, fs, mode, renderIndex]);
+  }, [effectiveVideoIds.length, onNearEnd, resolveSwipe, fs, mode, endless, renderIndex]);
+
+  /* 无限流外壳要知道当前在哪一条：换条时回报一次（换剧/滑到尾部都在这里同步） */
+  useEffect(() => { onActiveIndex?.(index); }, [index, onActiveIndex]);
 
   const go = useCallback((delta: number) => {
     const el = boxRef.current;
@@ -870,6 +880,19 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       return;
     }
     if (g.mode === "scrub") {
+      /* 无限流（抖音模式）：控件收起时，够长够横的**左滑**是「进入该剧」，
+         不是拖进度——那时进度条根本没显示，用户在刷剧不在调进度。
+         控件显示时（hiddenAtDown=false）仍然一律当进度条定位。 */
+      const [ux, uy] = e ? stageXY(rotated, e.clientX, e.clientY) : [g.x, g.startY];
+      const tdx = ux - g.x;
+      const tdy = uy - g.startY;
+      if (endless && !cancelled && g.hiddenAtDown && tdx < -80 && Math.abs(tdx) > Math.abs(tdy) * 2) {
+        setScrub(null);
+        scrubTarget.current = null;
+        if (g.playing && active) videoRef.current?.play();
+        store.push({ kind: "series", id: curId });
+        return;
+      }
       const target = scrubTarget.current;
       if (!cancelled && target != null) videoRef.current?.seek(target, "mobile_gesture");
       setScrub(null);
@@ -888,6 +911,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
         const ep = epMap[curId] || 1;
         const total = episodes.length;
         const want = dir === 1 ? (total === 0 || ep < total ? ep + 1 : 0) : (ep > 1 ? ep - 1 : 0);
+        /* 抖音模式：竖滑固定「下一部」，不按集切（用户在这个模式里要的是换剧） */
+        if (endless) { go(dir); return; }
         if (swipeEp && kind === "video" && want) {
           setEpMap((m) => ({ ...m, [curId]: want }));
           toast(`第 ${want}集${total ? ` / ${total}` : ""}`, "info");
@@ -1339,6 +1364,13 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                 <span className="feed-position-pill absolute z-20 px-2.5 py-1 rounded-full hg-chip text-[12px] font-semibold tabular-nums"
                   style={{ top: "calc(var(--sat, 0px) + 52px)", left: 12, color: "rgba(255,255,255,.94)" }}>
                   {episodes.length > 1 ? `第 ${curEp} 集 / 共 ${episodes.length} 集` : `${index + 1} / ${effectiveVideoIds.length}`}
+                </span>
+              )}
+
+              {!fs && !clean && !isDesktop && mode === "context" && endless && (
+                <span className="hg-binge-badge absolute z-20 flex items-center gap-1 px-2 py-1 rounded-full hg-chip text-[12px] font-semibold tabular-nums"
+                  style={{ top: "calc(var(--sat, 0px) + 8px)", right: 12, color: "rgba(255,255,255,.94)" }}>
+                  <IBoltF size={12} />{index + 1}/{effectiveVideoIds.length}
                 </span>
               )}
 
