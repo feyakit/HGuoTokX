@@ -4,7 +4,7 @@
 //! 所以图片与视频统一走本地自定义协议（Windows/Android 为 `http://hg.localhost`，
 //! macOS 为 `hg://localhost`，见 [`LOCAL_ORIGIN`]）。
 
-use crate::net::fetch_bytes;
+use crate::net::{fetch_bytes, fetch_bytes_with_url};
 use aes::cipher::{BlockDecrypt, KeyInit};
 use aes::Aes128;
 use once_cell::sync::Lazy;
@@ -250,18 +250,21 @@ fn image_kind(buf: &[u8]) -> Option<&'static str> {
 
 /// 取封面：命中缓存直接返回；同地址的进行中请求共享下载和解密结果。
 pub async fn load_image(url: &str) -> ImageResult {
-    let generation = {
+    // 缓存 key 带请求作用域：切代理/改严格模式后，旧代次解密出来的图不能当新一代的用。
+    let req_scope = crate::net::request_scope();
+    let generation = IMG_GENERATION.load(Ordering::Acquire);
+    let cache_key = image_cache_key(url, req_scope, generation);
+    {
         let cache = IMG_CACHE.lock().unwrap();
-        if let Some(hit) = cache.get(url).cloned() {
+        if let Some(hit) = cache.get(&cache_key).cloned() {
             let kind = image_kind(&hit).unwrap_or("image/jpeg");
             return Ok((kind.to_string(), hit));
         }
-        IMG_GENERATION.load(Ordering::Acquire)
-    };
+    }
     let loading = {
         let mut requests = IMG_LOADING.lock().unwrap();
         requests.retain(|_, request| request.strong_count() > 0);
-        let key = (generation, url.to_string());
+        let key = (generation, cache_key.clone());
         if let Some(request) = requests.get(&key).and_then(Weak::upgrade) {
             request
         } else {
@@ -270,12 +273,21 @@ pub async fn load_image(url: &str) -> ImageResult {
             request
         }
     };
-    loading.get_or_init(|| download_image(url, generation)).await.clone()
+    loading.get_or_init(|| download_image(url, &cache_key, req_scope, generation)).await.clone()
 }
 
-async fn download_image(url: &str, generation: u64) -> ImageResult {
+fn image_cache_key(url: &str, scope: crate::net::RequestScope, generation: u64) -> String {
+    format!("{}:{}:{generation}:{url}", u8::from(scope.strict), scope.generation)
+}
+
+async fn download_image(
+    url: &str,
+    cache_key: &str,
+    req_scope: crate::net::RequestScope,
+    generation: u64,
+) -> ImageResult {
     // 缓存检查与领取任务之间，另一请求可能已完成。
-    if let Some(hit) = IMG_CACHE.lock().unwrap().get(url).cloned() {
+    if let Some(hit) = IMG_CACHE.lock().unwrap().get(cache_key).cloned() {
         let kind = image_kind(&hit).unwrap_or("image/jpeg");
         return Ok((kind.to_string(), hit));
     }
@@ -286,17 +298,21 @@ async fn download_image(url: &str, generation: u64) -> ImageResult {
         let dec = aes_cbc_decrypt(&bytes).ok_or_else(|| "封面解密失败".to_string())?;
         strip_padding(dec)
     };
-    let kind = image_kind(&plain).unwrap_or("image/jpeg").to_string();
+    // 解密后仍认不出格式就是坏图：以前一律当 jpeg 发出去，WebView 拿到花屏，
+    // 而且坏结果会一直留在缓存里。这里直接报错，让上层走占位图。
+    let kind = image_kind(&plain)
+        .ok_or_else(|| "封面格式无效".to_string())?
+        .to_string();
     let arc = Arc::new(plain);
     let mut cache = IMG_CACHE.lock().unwrap();
-    // 清缓存后，旧下载可完成当前显示，但不再把结果写回新一代缓存。
-    if IMG_GENERATION.load(Ordering::Acquire) == generation {
+    // 清缓存或切配置代次后，旧下载可完成当前显示，但不再把结果写回新一代缓存。
+    if IMG_GENERATION.load(Ordering::Acquire) == generation && crate::net::request_scope() == req_scope {
         if cache.len() >= IMG_CACHE_MAX {
             if let Some(key) = cache.keys().next().cloned() {
                 cache.remove(&key);
             }
         }
-        cache.insert(url.to_string(), arc.clone());
+        cache.insert(cache_key.to_string(), arc.clone());
     }
     Ok((kind, arc))
 }
@@ -350,13 +366,15 @@ fn map_uri_attributes(line: &str, mut rewrite: impl FnMut(&str) -> String) -> St
         .into_iter()
         .map(|attribute| {
             if let Some((key, value)) = attribute.split_once('=') {
-                if key.trim() == "URI" {
+                // 大小写与前后缀都要认：SERVER-URI / X-ASSET-URI 之类同样指向真实资源，
+                // 只匹配 "URI" 会让它们绕过本地代理（严格模式下直接失败）。
+                if key.trim().to_ascii_uppercase().ends_with("URI") {
                     if let Some(uri) = value
                         .trim()
                         .strip_prefix('"')
                         .and_then(|v| v.strip_suffix('"'))
                     {
-                        return format!("{key}=\"{}\"", rewrite(uri));
+                        return format!("{}=\"{}\"", key.trim(), rewrite(uri));
                     }
                 }
             }
@@ -372,22 +390,25 @@ fn rewrite_uri_attr(line: &str, prefix: &str) -> String {
 
 /// 取 m3u8 并把 key / 分片地址改写到本地协议。
 pub async fn load_playlist(url: &str, prefix: &str) -> Result<Arc<String>, String> {
-    // 缓存 key 要带 prefix：同一份 m3u8 在不同 scheme 下改写结果不一样
-    let cache_key = format!("{prefix}|{url}");
+    // 缓存 key 要带请求作用域与 prefix：同一份 m3u8 在不同 scheme 或不同安全/代理代次下
+    // 改写结果不一样，混用会把旧配置下的改写结果发给新一代播放。
+    let req_scope = crate::net::request_scope();
     let generation = PL_CACHE_GENERATION.load(Ordering::Acquire);
+    let cache_key = format!("{}:{}:{generation}:{prefix}|{url}", u8::from(req_scope.strict), req_scope.generation);
     if let Some(hit) = PL_CACHE.lock().unwrap().get(&cache_key).cloned() {
         return Ok(hit);
     }
-    let (_, bytes) = fetch_bytes(url).await?;
+    let (final_url, _, bytes) = fetch_bytes_with_url(url).await?;
     let text = std::str::from_utf8(&bytes).map_err(|_| "播放列表不是 UTF-8 文本")?;
     if !text.trim_start_matches('\u{feff}').starts_with("#EXTM3U") {
         return Err("响应不是 HLS 播放列表".into());
     }
-    let arc = Arc::new(rewrite_playlist(url, text, prefix));
+    // 相对分片 / key 以重定向后的最终地址为基准。
+    let arc = Arc::new(rewrite_playlist(&final_url, text, prefix));
     let mut cache = PL_CACHE.lock().unwrap();
     // clear_caches advances the epoch first; never let an older in-flight
     // playlist repopulate the cache after that clear.
-    if PL_CACHE_GENERATION.load(Ordering::Acquire) == generation {
+    if PL_CACHE_GENERATION.load(Ordering::Acquire) == generation && crate::net::request_scope() == req_scope {
         if cache.len() >= PL_CACHE_MAX {
             if let Some(key) = cache.keys().next().cloned() {
                 cache.remove(&key);
@@ -429,7 +450,7 @@ fn rewrite_playlist(url: &str, text: &str, prefix: &str) -> String {
                 }
                 continue;
             }
-            if line.contains("URI=\"") {
+            if line.to_ascii_uppercase().contains("URI") && line.contains('"') {
                 // KEY/MAP/MEDIA/SESSION-KEY/PART/PRELOAD-HINT 等 URI 都必须经过目标检查。
                 let absolute = absolutize_uri_in_attr(url, line);
                 out.push_str(&rewrite_uri_attr(&absolute, prefix));

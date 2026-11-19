@@ -954,12 +954,17 @@ fn normalize_play_info(info: &mut Value) {
             }
         }
     }
+    // 上游有些源只给 HEVC：前端只认 video_url，缺了就被判「无播放地址」。
+    // 主地址为空时用 HEVC 兜底，播放能走多远是解码器的事，不要卡在这一层。
+    if non_empty(obj.get("video_url")).is_none() {
+        if let Some(hevc) = non_empty(obj.get("video_url_hevc")).cloned() {
+            obj.insert("video_url".into(), hevc);
+        }
+    }
 }
 
 fn has_play_url(info: &Value) -> bool {
-    info.get("video_url")
-        .and_then(|v| v.as_str())
-        .is_some_and(|s| !s.trim().is_empty())
+    non_empty(info.get("video_url")).is_some() || non_empty(info.get("video_url_hevc")).is_some()
 }
 
 #[tauri::command]
