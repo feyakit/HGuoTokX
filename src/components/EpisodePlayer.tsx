@@ -1715,13 +1715,13 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                         <>
                           {episodes.length > 1 && (
                             <Button aria-label={`选集，当前第 ${curEp} 集，共 ${episodes.length} 集`} onClick={() => setPanel("episodes")}
-                              className="min-h-11 flex items-center gap-1 text-[12px] font-medium hg-ink-3 hg-ov-shadow-strong pressable">
-                              <IList size={13} />选集 · 第 {curEp} 集 / 共 {episodes.length} 集
+                              className="min-h-11 flex items-center gap-1 text-[12px] font-medium hg-ink-2 hg-ov-shadow-strong pressable">
+                              <IList size={13} />选集 · 第 {curEp}/{episodes.length} 集
                             </Button>
                           )}
                           <Button aria-label="视频详情" onClick={() => setPanel("detail")}
                             className="min-h-11 flex items-center gap-0.5 text-[12px] font-medium hg-ink-3 hg-ov-shadow-strong pressable">
-                            详情 · 第 {curEp} 集<IChevR size={11} />
+                            详情<IChevR size={11} />
                           </Button>
                         </>
                       )}
@@ -1908,13 +1908,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
               className="hg-chip-strong shrink-0 w-9 h-9 rounded-full backdrop-blur-md flex items-center justify-center pressable elev-1">
               <IBack size={18} />
             </Button>
-            <div className="min-w-0 flex items-center gap-2">
+            <div className="min-w-0 flex items-center">
               <span className="text-[14px] font-semibold hg-ink hg-ov-shadow truncate">{meta.title || title || "正在播放"}</span>
-              {episodes.length > 1 && (
-                <span className="shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold tabular-nums hg-chip hg-ink-2">
-                  第 {curEp} 集
-                </span>
-              )}
             </div>
           </div>
 
@@ -1931,7 +1926,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
           <div
             className="absolute inset-x-0 z-40 px-4"
             style={{
-              bottom: rotated ? 54 : "calc(var(--sab, 0px) + 54px)",
+              bottom: rotated ? 52 : "calc(var(--sab, 0px) + 52px)",
               paddingLeft: rotated ? "calc(var(--sat, 0px) + 16px)" : undefined,
               paddingRight: rotated ? "calc(var(--sab, 0px) + 16px)" : undefined,
               height: 22,
@@ -1947,11 +1942,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
           {/* 全屏底栏：当前/总时长 + 缩放还原/倍速/选集/下集 */}
           <div className="absolute inset-x-0 z-40 flex items-center gap-2.5 px-4"
             style={{
-              bottom: rotated ? 10 : "calc(var(--sab, 0px) + 10px)",
+              bottom: rotated ? 12 : "calc(var(--sab, 0px) + 12px)",
               paddingLeft: rotated ? "calc(var(--sat, 0px) + 16px)" : undefined,
               paddingRight: rotated ? "calc(var(--sab, 0px) + 16px)" : undefined,
             }}>
-            <span className="shrink-0 text-[12px] font-semibold hg-ink-2 tabular-nums">
+            <span className="shrink-0 text-[13px] font-semibold hg-ink-2 tabular-nums">
               <PlaybackTime clock={playbackClock} /> <span className="hg-ink-4 font-normal">/ {fmtTime(duration)}</span>
             </span>
             <div className="ml-auto flex items-center gap-2">
@@ -1974,9 +1969,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
               </Button>
               {episodes.length > 1 && (
                 <Button onClick={() => setPanel("episodes")}
-                  className="shrink-0 flex items-center gap-1 px-2.5 h-8 rounded-full text-[12px] font-semibold hg-chip hg-ink-2 pressable"
-                  aria-label="选集">
-                  <IList size={13} />选集
+                  className="shrink-0 flex items-center gap-1 px-2.5 h-8 rounded-full text-[12px] font-semibold hg-chip hg-ink-2 pressable tabular-nums"
+                  aria-label={`选集，当前第 ${curEp} 集`}>
+                  <IList size={13} />第 {curEp}/{episodes.length} 集
                 </Button>
               )}
               {curEp < episodes.length && (
