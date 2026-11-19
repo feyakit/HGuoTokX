@@ -77,8 +77,7 @@ function StackPageContent({ page, onBack, wide, top, bottomInset }: {
   if (page.kind === "feed") {
     if (page.endless) {
       return (
-        <EndlessFeed seedIds={page.videoIds} startIndex={page.index} title={page.title}
-          active={top} bottomInset={bottomInset} onBack={onBack} />
+        <EndlessFeed title={page.title} active={top} bottomInset={bottomInset} onBack={onBack} />
       );
     }
     return (

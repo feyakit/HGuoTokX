@@ -967,22 +967,7 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 .ios-button.hg-binge-pill::after { content: ""; position: absolute; inset: -8px -4px; }
 .ios-button.hg-binge-pill:active { background: rgba(255, 255, 255, 0.16); }
 
-/* 无限流刷完的收尾卡：不造假内容，只给出口。
-   位置抬到剧名/选集/进度那一块之上（那块起始于 sab + 44，本身约 110 高）。 */
-.hg-binge-end {
-  position: absolute; left: 50%; bottom: calc(var(--sab, 0px) + 205px);
-  transform: translateX(-50%); z-index: 30;
-  display: flex; flex-direction: column; align-items: center; gap: 10px;
-  padding: 18px 22px; border-radius: 16px;
-  background: rgba(18, 19, 23, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
-}
-.hg-binge-end-text { margin: 0; font-size: 14px; font-weight: 600; color: #fff; }
-.ios-button.hg-binge-end-btn {
-  min-height: 44px; min-block-size: 0; padding: 0 20px; border-radius: 999px;
-  background: #fff; color: #14161c; font-size: 14px; font-weight: 700;
-}
+
 .hg-sub-title {
   font-size: 17px; font-weight: 700; line-height: 1.25; color: #fff;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;

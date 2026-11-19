@@ -1353,13 +1353,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   </div>
                 )
               ) : null}
-              {!fs && !clean && !isDesktop && mode === "context" && endless && (
-                <span className="hg-binge-badge absolute z-20 flex items-center gap-1 px-2 py-1 rounded-full hg-chip text-[12px] font-semibold tabular-nums"
-                  style={{ top: "calc(var(--sat, 0px) + 56px)", right: 12, color: "rgba(255,255,255,.94)" }}>
-                  <IBoltF size={12} />{index + 1}/{effectiveVideoIds.length}
-                </span>
-              )}
-
               {/* 竖屏下的快捷操作（#19）：
                   横版视频 → 保持原样，居中横排一条（画面上下有黑边，居中不压主体）；
                   竖版视频 → 只剩「切集」图标，贴右边缘，避免压住画面正中。
@@ -1413,7 +1406,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   颜色写死不跟主题走：浅色主题下这些字必须仍是白色 */}
               {!fs && !clean && !isDesktop && (
                 <div className="mobile-video-action-rail absolute right-4 z-20 flex flex-col items-center gap-[14px]"
-                  style={{ bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bottomInset + 124}px)` }}>
+                  /* 右栏以底部为锚：栏底落在「暂停/进度那一行」上方 16px（那两个行都是贴底定位，
+   所以 96px 这个偏移在任何屏高下都成立），不再用顶部固定偏移。 */
+                  style={{ bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bottomInset + 96}px)` }}>
                   {episodes.length > 1 && (
                     <Button type="button" onClick={() => { setSwipeEp(!swipeEp); toast(swipeEp ? "上下划切集已关闭" : "上下划切集已开启"); }}
                       className="flex flex-col items-center gap-1 pressable" aria-pressed={swipeEp} aria-label="上下划切集开关">
@@ -1422,10 +1417,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                     </Button>
                   )}
                   {hevcUrl && (
+                    /* 只留胶囊这一行：没有文字占位，靠 h-12（48，用 height 而不是 min-height，
+                       —— ios.css 的 44px 触控地板是 min-block-size 且权重 0,4,0）撑出和对齐其它项的行距 62 */
                     <Button type="button" onClick={() => { setPreferHevc(!preferHevc); toast(preferHevc ? "已切回标准画质" : "已切换高清 HEVC", "ok"); }}
-                      className="flex flex-col items-center gap-1 pressable" aria-pressed={preferHevc} aria-label="画质切换">
+                      className="flex items-center justify-center min-w-11 h-12 pressable" aria-pressed={preferHevc} aria-label="画质切换">
                       <span className={`flex items-center justify-center h-[22px] min-w-[30px] px-1 rounded-md text-[12px] font-bold hg-ov-shadow ${preferHevc ? "bg-primary text-on-primary" : "hg-chip hg-ink-2"}`}>{preferHevc ? "高清" : "标清"}</span>
-                      <span className="text-[12px] hg-ov-shadow" style={{ color: preferHevc ? "#fff" : undefined }}>画质</span>
                     </Button>
                   )}
                   {kind === "video" && (

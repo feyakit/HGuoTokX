@@ -1,79 +1,196 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api";
+import { pickLine } from "../autoLine";
 import EpisodePlayer from "./EpisodePlayer";
-import { Button } from "./ios/controls";
 
 /**
- * 「抖音模式」外壳：在全屏沉浸 feed 之上加一层「无限流」。
+ * 「抖音模式」外壳：全站随机、真·无限刷。
  *
- * 内核（播放、手势、控件、选集、进度）全在 EpisodePlayer 里；这里只做三件事：
- *  1. 持有 ids —— 滑动到剩 3 条时向推荐接口要下一页、去重追加，当前条不跳；
- *  2. 没有更多了就置 exhausted，末尾给一张「已刷完 · 回首页」的卡，不造假内容；
- *  3. 拉取失败只是不追加（不置 exhausted），下次滑动再试——线路自动切换在 autoLine 里。
+ * 取数口径：
+ *  - `api.feed(page, size)` 就是 /api/videos；先拉第 1 页拿 total 算出总页数；
+ *  - 每批随机挑 2–3 个页码并发拉取 → 合并 → 洗牌 → 去重 → append；
+ *  - 预取：剩余未播 < 3 条就立刻补（onNearEnd 只是其中一条触发路径），快速划也不会空位；
+ *  - 失败：当前条照常播，后台按 2/4/8/16/30s（封顶）退避重试，成功后静默续上，**不弹任何提示**；
+ *  - 去重只看最近 300 个已播 id（FIFO 淘汰），内存有上限；很久以后允许重新刷到同一部；
+ *  - 没有「已刷完」这回事：池子枯竭就清空重洗，永远不停。
  *
  * 内部标识用中性名（endless），「抖音模式」只出现在 UI 文案里。
  */
 
 const NEAR_END = 3;
 const PAGE_SIZE = 20;
+/** 每批随机页码数：2–3 */
+const PICK_MIN = 2;
+const PICK_MAX = 3;
+/** 去重窗口：只记最近 300 个已播 id */
+const SEEN_MEMORY = 300;
+/** 失败退避：2s → 4s → 8s → 16s → 30s（封顶） */
+const BACKOFF_BASE = 2000;
+const BACKOFF_MAX = 30000;
 
-const dedupe = (ids: number[], seen: Set<number>): number[] => {
-  const out: number[] = [];
-  for (const id of ids) {
-    if (!Number.isFinite(id) || id <= 0 || seen.has(id)) continue;
-    seen.add(id);
-    out.push(id);
+type Card = { id: number };
+
+const shuffle = <T,>(list: T[]): T[] => {
+  const out = list.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
   }
   return out;
 };
 
-export default function EndlessFeed({ seedIds, startIndex = 0, title = "", bottomInset = 0, active, onBack }: {
-  seedIds: number[];
-  startIndex?: number;
+/** 在 [1, total] 里取 count 个互不相同的页码 */
+const pickPages = (total: number, count: number): number[] => {
+  const max = Math.max(1, total);
+  const picked = new Set<number>();
+  while (picked.size < Math.min(count, max)) picked.add(1 + Math.floor(Math.random() * max));
+  return [...picked];
+};
+
+export default function EndlessFeed({ title = "", bottomInset = 0, active, onBack }: {
   title?: string;
   bottomInset?: number;
   active: boolean;
   onBack: () => void;
 }) {
   const seen = useRef<Set<number>>(new Set());
-  const [ids, setIds] = useState<number[]>(() => dedupe(seedIds, seen.current));
-  /* 只在挂载时算一次：去重后长度可能变短，越界要夹回来；之后 index 由播放器回调同步 */
-  const initialIndex = useRef(Math.max(0, Math.min(startIndex, Math.max(0, ids.length - 1)))).current;
-  const [index, setIndex] = useState(initialIndex);
-  const [exhausted, setExhausted] = useState(false);
-  const page = useRef(1);
+  const seenOrder = useRef<number[]>([]);
+  const pages = useRef(0);
   const loading = useRef(false);
+  const retryTimer = useRef(0);
+  const backoffStep = useRef(0);
+  const alive = useRef(true);
+  const [ids, setIds] = useState<number[]>([]);
+  const [booting, setBooting] = useState(true);
+  const [index, setIndex] = useState(0);
 
-  const loadMore = useCallback(async () => {
-    if (loading.current || exhausted) return;
+  useEffect(() => () => {
+    alive.current = false;
+    window.clearTimeout(retryTimer.current);
+    retryTimer.current = 0;
+  }, []);
+
+  /* 一次请求可能正好赶上坏线路：先让自动选线强制重选一次，再试同一批页码 */
+  const requestPages = useCallback(async (list: number[]): Promise<{ items: Card[]; totalPages: number; ok: boolean }> => {
+    const grab = async () => {
+      const results = await Promise.all(list.map(page => api.feed(page, PAGE_SIZE)));
+      return {
+        items: results.flatMap(result => (result?.items || []) as Card[]),
+        totalPages: results.reduce((max, result) => Math.max(max, Number(result?.pagination?.pages) || 0), 0),
+        ok: true,
+      };
+    };
+    try {
+      return await grab();
+    } catch {
+      try { await pickLine("binge-retry", true); } catch { /* 线路也救不回来就走空结果 */ }
+      try { return await grab(); } catch { return { items: [], totalPages: 0, ok: false }; }
+    }
+  }, []);
+
+  /** 洗牌后的候选里取没播过的；超过 300 个就丢掉最旧的（允许很久以后重刷到） */
+  const takeFresh = useCallback((items: Card[]): number[] => {
+    const fresh: number[] = [];
+    for (const item of items) {
+      const id = Number(item?.id);
+      if (!Number.isFinite(id) || id <= 0 || seen.current.has(id)) continue;
+      if (seenOrder.current.length >= SEEN_MEMORY) {
+        const oldest = seenOrder.current.shift();
+        if (oldest !== undefined) seen.current.delete(oldest);
+      }
+      seen.current.add(id);
+      seenOrder.current.push(id);
+      fresh.push(id);
+    }
+    return fresh;
+  }, []);
+
+  const scheduleRetry = useCallback(() => {
+    if (!alive.current || retryTimer.current) return;
+    const delay = Math.min(BACKOFF_BASE * 2 ** backoffStep.current, BACKOFF_MAX);
+    backoffStep.current = Math.min(backoffStep.current + 1, 5);
+    retryTimer.current = window.setTimeout(() => {
+      retryTimer.current = 0;
+      if (!alive.current) return;
+      window.dispatchEvent(new Event("hg:binge-tick"));
+    }, delay);
+  }, []);
+
+  /* 一轮取数：随机 2–3 页 → 合并 → 洗牌 → 去重 → append。返回是否拿到新内容 */
+  const pull = useCallback(async (): Promise<boolean> => {
+    if (loading.current) return false;
     loading.current = true;
     try {
-      const next = page.current + 1;
-      const res = await api.feed(next, PAGE_SIZE);
-      const items = res?.items || [];
-      page.current = next;
-      const fresh = dedupe(items.map(item => item.id), seen.current);
-      if (fresh.length) setIds(prev => [...prev, ...fresh]);
-      const pages = res?.pagination?.pages;
-      if (!items.length || !fresh.length || (typeof pages === "number" && next >= pages)) setExhausted(true);
-    } catch { /* 网络/线路问题：保持现状，下次滑到尾部再试 */ }
-    finally { loading.current = false; }
-  }, [exhausted]);
+      let fresh: number[] = [];
+      for (let attempt = 0; attempt < 2 && !fresh.length; attempt++) {
+        const count = PICK_MIN + Math.round(Math.random() * (PICK_MAX - PICK_MIN));
+        const batch = await requestPages(pickPages(pages.current, count));
+        if (!batch.ok) return false;
+        if (batch.totalPages) pages.current = batch.totalPages;
+        if (!batch.items.length) return false;
+        fresh = takeFresh(shuffle(batch.items));
+        /* 这一轮全站都刷过了：清空窗口重新洗牌，再取一次 */
+        if (!fresh.length) { seen.current.clear(); seenOrder.current = []; }
+      }
+      if (!fresh.length) return false;
+      setIds(prev => [...prev, ...fresh]);
+      backoffStep.current = 0;
+      return true;
+    } finally {
+      loading.current = false;
+    }
+  }, [requestPages, takeFresh]);
 
-  const atEnd = exhausted && ids.length > 0 && index >= ids.length - 1;
+  /* 启动：第 1 页只为拿 total，再随机 2 页一起洗牌；失败就按退避重来，不空等 */
+  const bootstrap = useCallback(async () => {
+    const probe = await requestPages([1]);
+    if (!alive.current) return;
+    if (!probe.ok) { scheduleRetry(); return; }
+    pages.current = probe.totalPages;
+    const extra = pages.current > 1 ? pickPages(pages.current, PICK_MIN) : [];
+    const more = extra.length ? await requestPages(extra) : { items: [], totalPages: 0, ok: true };
+    if (!alive.current) return;
+    if (!pages.current && more.totalPages) pages.current = more.totalPages;
+    const fresh = takeFresh(shuffle([...probe.items, ...more.items]));
+    if (fresh.length) {
+      setIds(fresh);
+      setBooting(false);
+      backoffStep.current = 0;
+    } else {
+      scheduleRetry();
+    }
+  }, [requestPages, takeFresh, scheduleRetry]);
+
+  useEffect(() => { void bootstrap(); }, [bootstrap]);
+
+  /* 退避到点：还没起来就重跑启动，已经起来了就只补尾巴 */
+  useEffect(() => {
+    const onTick = () => { if (booting) void bootstrap(); else void pull(); };
+    window.addEventListener("hg:binge-tick", onTick);
+    return () => window.removeEventListener("hg:binge-tick", onTick);
+  }, [booting, bootstrap, pull]);
+
+  /* 预取：剩余未播不足 3 条就立刻补，不等用户划到头 */
+  useEffect(() => {
+    if (booting || !ids.length) return;
+    if (ids.length - index - 1 >= NEAR_END) return;
+    void pull().then(ok => { if (!ok) scheduleRetry(); });
+  }, [index, ids.length, booting, pull, scheduleRetry]);
+
+  if (booting) {
+    return (
+      <div className="absolute inset-0 grid place-items-center bg-black">
+        <span className="text-[13px] text-white/70">正在随机挑剧…</span>
+      </div>
+    );
+  }
 
   return (
     <div className="absolute inset-0">
-      <EpisodePlayer videoIds={ids} startIndex={initialIndex} title={title} kind="video"
+      <EpisodePlayer videoIds={ids} startIndex={0} title={title} kind="video"
         mode="context" endless active={active} bottomInset={bottomInset} onBack={onBack}
-        onNearEnd={() => { if (index >= ids.length - NEAR_END) void loadMore(); }}
+        onNearEnd={() => { if (index >= ids.length - NEAR_END) void pull().then(ok => { if (!ok) scheduleRetry(); }); }}
         onActiveIndex={setIndex} />
-      {atEnd && (
-        <div className="hg-binge-end" role="dialog" aria-label="已刷完">
-          <p className="hg-binge-end-text">已刷完 · 共 {ids.length} 部</p>
-          <Button onClick={onBack} className="hg-binge-end-btn">回首页</Button>
-        </div>
-      )}
     </div>
   );
 }
