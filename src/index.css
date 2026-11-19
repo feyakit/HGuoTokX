@@ -444,6 +444,26 @@ input[type="range"].hg-range::-webkit-slider-thumb { -webkit-appearance: none; w
 .player-surface .player-root,
 .player-root { background: #15181d; }
 
+/* —— 播放页氛围底：非视频区（信箱区/上下条/桌面周边）用当前剧封面的取色 ——
+   --deep 是封面主色压到 L=.12 的暗版，--ambient 是钳制过的原强调色，都由 ambientStyle() 挂在
+   .hg-player-ambient 根节点上。视频是不透明元素、盖在这层之上，所以画面本身不受影响。
+   取色失败时根节点带 data-ambient="fallback"，整层不渲染，保持原来的黑，避免品牌紫闪一下。 */
+.hg-player-ambient-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-color: var(--deep, #05060a);
+  /* 中间压回近黑（那里被视频盖住，只防加载瞬间发灰），上下两端露出封面取色 */
+  background-image: linear-gradient(180deg,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, .42) 16%,
+    rgba(0, 0, 0, .78) 34%,
+    rgba(0, 0, 0, .78) 66%,
+    rgba(0, 0, 0, .42) 84%,
+    rgba(0, 0, 0, 0) 100%);
+}
+.hg-player-ambient[data-ambient="fallback"] .hg-player-ambient-layer { display: none; }
+
 /* —— 移动端沉浸全屏：固定铺满视口，不受外层滚动容器影响 —— */
 .fs-immersive {
   position: fixed;

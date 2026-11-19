@@ -27,7 +27,7 @@ import {
   IBack, IBoltF, IChevR, IChevronDown, IChevronUp, IClose, ICommentF, ICompress, IExpand, IFileText, IGlobe, IHeart, IHeartF, IMore,
   ILink, IList, ILockF, IPauseF, IPlayF, ISearch, IStar, IStarF, IVertSwap, IVol, IVolMute,
 } from "../icons";
-import { useAccent } from "../useAccent";
+import { ambientStyle, useAccent } from "../useAccent";
 
 /* 单击判定窗口：首次轻点先等这么久再落「暂停/继续」，
    这样双击（净屏）不会先闪一下暂停。人眼对这个量级不敏感，真机上等的是「有没有反应」。 */
@@ -1229,7 +1229,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
 
   return (
     <div
-      className={`hg-player-ui ${rotated ? "fs-landscape" : (!isDesktop && fs ? "fs-immersive" : "absolute inset-0")} overflow-hidden bg-black player-root ${controlsLocked ? "is-locked" : ""} ${isDesktop ? "player-surface" : ""} ${theater ? "is-theater" : ""} ${isDesktop && idle ? "is-idle" : ""}`}
+      className={`hg-player-ui hg-player-ambient ${rotated ? "fs-landscape" : (!isDesktop && fs ? "fs-immersive" : "absolute inset-0")} overflow-hidden bg-black player-root ${controlsLocked ? "is-locked" : ""} ${isDesktop ? "player-surface" : ""} ${theater ? "is-theater" : ""} ${isDesktop && idle ? "is-idle" : ""}`}
+      data-ambient={accentScheme.source}
+      style={ambientStyle(accentScheme)}
       data-clean={clean}
       inert={!active || undefined}
       aria-hidden={!active || undefined}
@@ -1237,6 +1239,10 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       onPointerMove={() => { if (isDesktop || fs) wake(); }}
       onPointerDown={() => { if (!isDesktop && fs) wake(); }}>
       <div className="absolute inset-0" inert={controlsLocked}>
+      {/* 封面取色氛围底：颜色来自当前剧封面（根节点上 ambientStyle 挂的 --deep / --ambient）。
+          视频是不透明元素、盖在它上面，所以这层只在视频以外的信箱区/上下条可见，
+          不给 video 加任何滤镜。取色失败时 data-ambient="fallback" → 这一层不渲染，回纯黑。 */}
+      <div aria-hidden="true" className="hg-player-ambient-layer" />
       {/* 氛围背景 */}
       {!isDesktop && posterUrl && (
         <div className="absolute inset-0 scale-110 blur-3xl opacity-25 pointer-events-none">
