@@ -56,13 +56,10 @@ try {
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   assert.equal((await calls()).length, 0, "Hidden categories must not prefetch");
 
-  /* 分类页重建后只剩「题材 tab + 二级 chips + 一个网格」，没有按频道的分区与「重试AI成人漫剧」按钮了。
-     现在的取数是：激活时 3 个 api_feed(size=30) 统计 chips + 1 个 api_feed(size=24) 拉网格首页。
+  /* 分类页重建为 2×2 Bento 磁贴后，激活时只发 1 个 api_feed(size=24) 拉网格首页，不再发 3 个 size=30 统计 chips。
      断言口径不变：隐藏不发请求、失败给可读错误、重试只重发这一次、拿到数据后正常渲染。 */
   await page.evaluate(() => window.apiLoadingFixture.setActive(true));
-  await page.waitForFunction(() => window.apiLoadingFixture.pendingCountBySize("api_feed", 30) >= 1
-    && window.apiLoadingFixture.pendingCountBySize("api_feed", 24) >= 1);
-  for (let i = 0; i < 3; i++) await page.evaluate(() => window.apiLoadingFixture.completeBySize("api_feed", 30, "empty"));
+  await page.waitForFunction(() => window.apiLoadingFixture.pendingCountBySize("api_feed", 24) >= 1);
   await page.evaluate(() => window.apiLoadingFixture.completeBySize("api_feed", 24, "503"));
   await visible(page.getByText(/服务器请求失败（HTTP 503）/));
   assert(!await page.locator("body").innerText().then(text => text.includes("<html>")), "Hide gateway HTML from UI");

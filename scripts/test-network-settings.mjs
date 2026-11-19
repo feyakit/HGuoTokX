@@ -104,14 +104,14 @@ try {
     await input.fill("https://custom.fixture.invalid");
     await dialog.getByRole("button", { name: "保存镜像" }).click();
     await page.waitForFunction(() => window.networkSettingsFixture.custom && window.lineSelectionSnapshot.lineEpoch > 0);
-    assert.equal(await page.evaluate(() => window.lineSelectionControls.autoLineEnabled()), false);
+    assert.equal(await page.evaluate(() => window.lineSelectionControls.autoLineEnabled()), true);
     assert.equal(await page.evaluate(() => window.lineSelectionSnapshot.user), null);
     assert.equal(await input.inputValue(), "https://custom.fixture.invalid");
     await dialog.getByRole("button", { name: "恢复主站" }).click();
     await page.waitForFunction(() => window.networkSettingsFixture.base === "https://main.fixture.invalid");
     assert.equal(await input.inputValue(), "");
     assert.equal((await calls(page, "line_reset")).length, 1);
-    report.passed.push("Custom HTTPS validation, saved line reflected, manual mode persists, cross-origin user cleared, reset restores main; existing published rows retained");
+    report.passed.push("Custom HTTPS validation, saved line reflected, auto-line stays enabled, cross-origin user cleared, reset restores main; existing published rows retained");
     await context.close();
   }
   {

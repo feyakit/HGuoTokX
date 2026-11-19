@@ -148,7 +148,7 @@ function AppBody() {
       if (loginOpen) { if (e.key === "Escape") setLoginOpen(false); return; }
       if (e.key === "Escape") { if (stack.length) pop(); return; }
       if (e.key === "/") { e.preventDefault(); push({ kind: "search" }); return; }
-      if (["1", "2", "3", "4"].includes(e.key) && !e.repeat) {
+      if (stack.length === 0 && ["1", "2", "3", "4"].includes(e.key) && !e.repeat) {
         setTab((["home", "posts", "category", "profile"] as Tab[])[Number(e.key) - 1]);
       }
     };
@@ -224,7 +224,7 @@ function ShellInner({ collapsed, theater }: { collapsed: boolean; theater: boole
       if (loginOpen) { if (e.key === "Escape") setLoginOpen(false); return; }
       if (e.key === "Escape") { if (stack.length) pop(); return; }
       if (e.key === "/") { e.preventDefault(); push({ kind: "search" }); return; }
-      if (["1", "2", "3", "4"].includes(e.key) && !e.repeat) {
+      if (stack.length === 0 && ["1", "2", "3", "4"].includes(e.key) && !e.repeat) {
         setTab((["home", "posts", "category", "profile"] as Tab[])[Number(e.key) - 1]);
       }
     };

@@ -456,10 +456,10 @@ input[type="range"].hg-range::-webkit-slider-thumb { -webkit-appearance: none; w
   /* 中间压回近黑（那里被视频盖住，只防加载瞬间发灰），上下两端露出封面取色 */
   background-image: linear-gradient(180deg,
     rgba(0, 0, 0, 0) 0%,
-    rgba(0, 0, 0, .42) 16%,
-    rgba(0, 0, 0, .78) 34%,
-    rgba(0, 0, 0, .78) 66%,
-    rgba(0, 0, 0, .42) 84%,
+    rgba(0, 0, 0, .28) 18%,
+    rgba(0, 0, 0, .72) 36%,
+    rgba(0, 0, 0, .72) 64%,
+    rgba(0, 0, 0, .28) 82%,
     rgba(0, 0, 0, 0) 100%);
 }
 .hg-player-ambient[data-ambient="fallback"] .hg-player-ambient-layer { display: none; }

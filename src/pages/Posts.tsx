@@ -35,7 +35,7 @@ const postTime = (p: Post) => {
 };
 
 export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; wide?: boolean; embedded?: boolean }) {
-  const { push, toast, follows, setFollowing, isLiked, setLiked, actionPending, user, setLoginOpen } = useStore();
+  const { push, toast, follows, setFollowing, isLiked, setLiked, actionPending, user, setLoginOpen, lineEpoch } = useStore();
   const { preferences } = useContentPreferences();
   const filtering = !preferences.paused && (preferences.blockedTags.length > 0 || preferences.hideUntagged);
   const [sort, setSort] = useState<SortKey>("latest");
@@ -50,6 +50,7 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const busy = useRef(false);
+  const lastEpoch = useRef(lineEpoch);
   const sentinel = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -59,7 +60,7 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
       if (alive && res?.items?.length) setCategories(res.items);
     }).catch(() => {});
     return () => { alive = false; };
-  }, []);
+  }, [lineEpoch]);
 
   const loadMore = async (reset = false) => {
     if (busy.current) return;
@@ -88,15 +89,20 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
     }
   };
 
-  /* 换排序或分类：清空列表重新拉 */
+  /* 换排序、分类或切换线路：清空列表重新拉 */
   useEffect(() => {
+    if (lastEpoch.current !== lineEpoch) {
+      lastEpoch.current = lineEpoch;
+      postExtra.clear();
+      setExtra({});
+    }
     setItems([]);
     setPage(0);
     setPages(1);
     scrollRef.current?.scrollTo(0, 0);
     void loadMore(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sort, cate]);
+  }, [sort, cate, lineEpoch]);
 
   /* 补详情：3 路并发，顺序按列表顺序；失败就只显示列表字段，不阻塞也不重试打扰 */
   useEffect(() => {

@@ -145,6 +145,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const [paused, setPaused] = useState(false);
   const [controlsLocked, setControlsLocked] = useState(false);
   const [rate, setRate] = useState(1);
+  const [nextEpPrompt, setNextEpPrompt] = useState(false);
+  const [nextEpDismissedKey, setNextEpDismissedKey] = useState("");
   const [waiting, setWaiting] = useState(false);
   const [err, setErr] = useState("");
   const [panel, setPanel] = useState<"episodes" | "comments" | "article" | "detail" | null>(null);
@@ -204,7 +206,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const [barPct, setBarPct] = useState<number | null>(null);
   const gesture = useRef<{
     x: number; y: number; startY: number; t: number; timer: number | null;
-    mode: "idle" | "hold" | "scrub" | "pan"; base: number; width: number; playing: boolean;
+    mode: "idle" | "hold" | "scrub" | "pan" | "enterSeries"; base: number; width: number; playing: boolean;
     zone: HoldZone; hiddenAtDown: boolean;
   } | null>(null);
   /* 单击 / 双击判定：单击净屏，双击暂停 */
@@ -283,12 +285,14 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     }, MOBILE_AUTOHIDE_MS) as unknown as number;
   }, [isDesktop, setClean]);
   const showControls = useCallback(() => {
+    window.clearTimeout(idleTimer.current);
     setClean(false);
     setIdle(false);
     armAutoHide();
   }, [armAutoHide, setClean]);
   const hideControls = useCallback(() => {
     window.clearTimeout(hideTimer.current);
+    window.clearTimeout(idleTimer.current);
     if (!isDesktop && fs) setIdle(true); else setClean(true);
   }, [isDesktop, fs, setClean]);
   useEffect(() => {
@@ -307,17 +311,24 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     else armAutoHide();
   }, [panel, armAutoHide]);
 
-  /* 线路名与「有没有多条」：本机命令，不发网络请求；换线路后刷新标签 */
+  /* 线路名与「有没有多条」：读取固定线路 + 镜像列表，任一侧多于一条即可就地切换 */
   useEffect(() => {
     if (isDesktop || !active) return undefined;
     let alive = true;
     const read = () => {
-      api.lineState()
-        .then(s => {
+      Promise.all([
+        api.lineState(),
+        api.lineMirrors().catch(() => ({ items: [] as { url: string; name?: string }[] })),
+      ])
+        .then(([s, m]) => {
           if (!alive) return;
-          const items = s.fixed || [];
-          const cur = items.find(i => i.url === s.base);
-          setLineInfo({ label: cur?.name?.trim() || hostOf(s.base) || "线路", multi: items.length > 1 });
+          const all = [...(s.fixed || []), ...(m?.items || [])];
+          const urls = new Set<string>();
+          for (const item of all) {
+            if (item?.url) urls.add(item.url);
+          }
+          const cur = all.find(i => i.url === s.base);
+          setLineInfo({ label: cur?.name?.trim() || hostOf(s.base) || "线路", multi: urls.size > 1 });
         })
         .catch(() => { /* 读不到就不显示入口 */ });
     };
@@ -356,6 +367,12 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     if (active) historyWriter.current = addHistory;
     liveRef.current = { id: curId, ep: curEp, dur: duration, t, permissionKey, accountScope };
     playbackClock.publish(t);
+    const hasNextEp = !endless && kind === "video" && episodes.some((e) => e.ep_num === curEp + 1);
+    if (hasNextEp && duration > 15 && duration - t <= 5 && duration - t > 0.2 && nextEpDismissedKey !== playKey) {
+      if (!nextEpPrompt) setNextEpPrompt(true);
+    } else if (nextEpPrompt) {
+      setNextEpPrompt(false);
+    }
     const now = Date.now();
     if (duration > 0 && now - lastSaveRef.current > 5000) {
       lastSaveRef.current = now;
@@ -668,6 +685,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   useEffect(() => {
     setDuration(0); setErr(""); setWaiting(true); setPaused(false);
     setPlayingKey("");
+    setNextEpPrompt(false);
     playbackClock.publish(0);
     setPortraitFit("contain");
   }, [playKey]);
@@ -728,10 +746,18 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   }, [panel]);
 
   useEffect(() => {
-    const onFs = () => setFullscreen(!!document.fullscreenElement);
+    const onFs = () => {
+      const activeFs = !!document.fullscreenElement;
+      setFullscreen(activeFs);
+      if (!isDesktop && !activeFs && uiRef.current.fs) {
+        setFs(false);
+        setFsLandscape(false);
+        showControls();
+      }
+    };
     document.addEventListener("fullscreenchange", onFs);
     return () => document.removeEventListener("fullscreenchange", onFs);
-  }, []);
+  }, [isDesktop, setFs, showControls]);
 
   useEffect(() => {
     const onVis = () => {
@@ -843,8 +869,12 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     if (g.mode === "idle") {
       if (Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy)) {
         if (g.timer) window.clearTimeout(g.timer);
-        g.mode = "scrub";
-        videoRef.current?.pause();
+        if (endless && g.hiddenAtDown && dx < 0) {
+          g.mode = "enterSeries";
+        } else {
+          g.mode = "scrub";
+          videoRef.current?.pause();
+        }
       } else if (Math.abs(dy) > 14) {
         if (g.timer) window.clearTimeout(g.timer);
         g.mode = "pan";
@@ -892,20 +922,16 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       setLockArmed(false);
       return;
     }
-    if (g.mode === "scrub") {
-      /* 无限流（抖音模式）：控件收起时，够长够横的**左滑**是「进入该剧」，
-         不是拖进度——那时进度条根本没显示，用户在刷剧不在调进度。
-         控件显示时（hiddenAtDown=false）仍然一律当进度条定位。 */
+    if (g.mode === "enterSeries") {
       const [ux, uy] = e ? stageXY(rotated, e.clientX, e.clientY) : [g.x, g.startY];
       const tdx = ux - g.x;
       const tdy = uy - g.startY;
-      if (endless && !cancelled && g.hiddenAtDown && tdx < -80 && Math.abs(tdx) > Math.abs(tdy) * 2) {
-        setScrub(null);
-        scrubTarget.current = null;
-        if (g.playing && active) videoRef.current?.play();
+      if (!cancelled && tdx < -80 && Math.abs(tdx) > Math.abs(tdy) * 2) {
         store.push({ kind: "series", id: curId });
-        return;
       }
+      return;
+    }
+    if (g.mode === "scrub") {
       const target = scrubTarget.current;
       if (!cancelled && target != null) videoRef.current?.seek(target, "mobile_gesture");
       setScrub(null);
@@ -1039,6 +1065,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       try { if (document.fullscreenElement) void document.exitFullscreen?.()?.catch(() => {}); } catch { /* ignore */ }
     }
   }, [isDesktop, keepAlive, setClean, setFs, showControls]);
+
+  useEffect(() => {
+    if (isDesktop || !fs) return undefined;
+    return registerOverlayBack(() => { exitFs(); return true; });
+  }, [isDesktop, fs, exitFs]);
 
   /* 若用户在视频首帧宽高解析出来前已点进全屏，解析出横屏后自动补发横屏方向请求 */
   useEffect(() => {
@@ -1269,6 +1300,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     <div
       className={`hg-player-ui hg-player-ambient ${rotated ? "fs-landscape" : (!isDesktop && fs ? "fs-immersive" : "absolute inset-0")} overflow-hidden bg-black player-root ${controlsLocked ? "is-locked" : ""} ${isDesktop ? "player-surface" : ""} ${theater ? "is-theater" : ""} ${isDesktop && idle ? "is-idle" : ""}`}
       data-ambient={accentScheme.source}
+      data-player-mode={endless ? "feed" : "cinema"}
       style={ambientStyle(accentScheme)}
       data-clean={clean}
       /* W20 对账用：当前第几条 / 当前剧 id / 已装载条数（滚动与追加是否错位一眼可见） */
@@ -1279,8 +1311,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       inert={!active || undefined}
       aria-hidden={!active || undefined}
       onFocusCapture={() => { if (active && isDesktop) wake(); }}
-      onPointerMove={() => { if (isDesktop || fs) wake(); }}
-      onPointerDown={() => { if (!isDesktop && fs) wake(); }}>
+      onPointerMove={() => { if (isDesktop) wake(); }}>
       <div className="absolute inset-0" inert={controlsLocked}>
       {/* 封面取色氛围底：颜色来自当前剧封面（根节点上 ambientStyle 挂的 --deep / --ambient）。
           视频是不透明元素、盖在它上面，所以这层只在视频以外的信箱区/上下条可见，
@@ -1372,12 +1403,25 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                     <small>{index + 1} / {effectiveVideoIds.length}</small>
                   </div>
                 ) : (
-                  <div className="absolute inset-x-0 z-20 flex items-center gap-2 px-2.5" style={{ top: "calc(var(--sat, 0px) + 8px)", paddingRight: 132 }}>
+                  <div className="absolute inset-x-0 z-20 flex items-center gap-2 px-2.5" style={{ top: "calc(var(--sat, 0px) + 8px)", paddingRight: endless ? 180 : 132 }}>
                     <Button onClick={onBack} aria-label="返回" className="hg-chip w-9 h-9 rounded-full flex items-center justify-center pressable elev-1"><IBack size={20} /></Button>
-                    <span className="text-[15px] font-semibold hg-ink hg-ov-shadow truncate">{title}</span>
+                    {!endless && <span className="text-[15px] font-semibold hg-ink hg-ov-shadow truncate">{title}</span>}
                   </div>
                 )
               ) : null}
+              {!fs && !clean && !isDesktop && mode === "context" && !endless && (
+                <span className="feed-position-pill absolute z-20 px-2.5 py-1 rounded-full hg-chip text-[12px] font-semibold tabular-nums"
+                  style={{ top: "calc(var(--sat, 0px) + 52px)", left: 12, color: "rgba(255,255,255,.94)" }}>
+                  {episodes.length > 1 ? `第 ${curEp} 集 / 共 ${episodes.length} 集` : `${index + 1} / ${effectiveVideoIds.length}`}
+                </span>
+              )}
+
+              {!fs && !clean && !isDesktop && mode === "context" && endless && (
+                <span className="hg-binge-badge absolute z-20 flex items-center gap-1 px-2.5 h-9 rounded-full hg-chip text-[12px] font-semibold tabular-nums"
+                  style={{ top: "calc(var(--sat, 0px) + 6px)", right: 96, color: "rgba(255,255,255,.94)" }}>
+                  <IBoltF size={12} className="hg-gold" />{index + 1}/{effectiveVideoIds.length}
+                </span>
+              )}
               {/* 竖屏下的快捷操作（#19）：
                   横版视频 → 保持原样，居中横排一条（画面上下有黑边，居中不压主体）；
                   竖版视频 → 只剩「切集」图标，贴右边缘，避免压住画面正中。
@@ -1392,7 +1436,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                     left: landscapeVideo ? "50%" : undefined,
                     right: landscapeVideo ? undefined : 8,
                     top: landscapeVideo ? "64%" : "auto",
-                    bottom: landscapeVideo ? undefined : `calc(var(--sab, 0px) + ${bottomInset + 460}px)`,
+                    bottom: landscapeVideo ? undefined : `min(calc(var(--sab, 0px) + ${bottomInset + 460}px), calc(100% - var(--sat, 0px) - 120px))`,
                     transform: landscapeVideo
                       ? `translate(-50%, ${isActive && capsuleOn ? 0 : 10}px)`
                       : `translateY(${isActive && capsuleOn ? 0 : 10}px)`,
@@ -1430,20 +1474,17 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
               {/* 右侧操作栏（移动端）：切集 / 画质 / 点赞 / 收藏 / 评论
                   颜色写死不跟主题走：浅色主题下这些字必须仍是白色 */}
               {!fs && !clean && !isDesktop && (
-                <div className="mobile-video-action-rail absolute right-4 z-20 flex flex-col items-center gap-[14px]"
-                  /* 右栏以底部为锚：栏底落在「暂停/进度那一行」上方 16px（那两个行都是贴底定位，
-   所以 96px 这个偏移在任何屏高下都成立），不再用顶部固定偏移。 */
-                  style={{ bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bottomInset + 96}px)` }}>
-                  {episodes.length > 1 && (
+                <div className="mobile-video-action-rail absolute right-3 z-20 flex flex-col items-center gap-[16px]"
+                  style={{ bottom: `calc(var(--sab, 0px) + ${bottomInset + (endless ? 92 : 168)}px)` }}>
+                  {!endless && episodes.length > 1 && (
                     <Button type="button" onClick={() => { setSwipeEp(!swipeEp); toast(swipeEp ? "上下划切集已关闭" : "上下划切集已开启"); }}
                       className="flex flex-col items-center gap-1 pressable" aria-pressed={swipeEp} aria-label="上下划切集开关">
                       <IVertSwap size={26} className={swipeEp ? "hg-gold hg-ov-shadow" : "hg-ink hg-ov-shadow"} />
                       <span className="text-[12px] hg-ov-shadow" style={{ color: swipeEp ? "#f3c969" : undefined }}>切集</span>
                     </Button>
                   )}
-                  {hevcUrl && (
-                    /* 只留胶囊这一行：没有文字占位，靠 h-12（48，用 height 而不是 min-height，
-                       —— ios.css 的 44px 触控地板是 min-block-size 且权重 0,4,0）撑出和对齐其它项的行距 62 */
+                  {!endless && hevcUrl && (
+                    /* 只留胶囊这一行：没有文字占位，靠 h-12 撑出和对齐其它项的行距 */
                     <Button type="button" onClick={() => { setPreferHevc(!preferHevc); toast(preferHevc ? "已切回标准画质" : "已切换高清 HEVC", "ok"); }}
                       className="flex items-center justify-center min-w-11 h-12 pressable" aria-pressed={preferHevc} aria-label="画质切换">
                       <span className={`flex items-center justify-center h-[22px] min-w-[30px] px-1 rounded-md text-[12px] font-bold hg-ov-shadow ${preferHevc ? "bg-primary text-on-primary" : "hg-chip hg-ink-2"}`}>{preferHevc ? "高清" : "标清"}</span>
@@ -1544,13 +1585,74 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
               </div>
               )}
 
-              {/* 移动端：标题 + 详情标签 + 进度线
-                  不加任何压暗层——黑边彻底去掉，全靠文字阴影保读；
-                  进度条轨道几乎不可见，只用白点标播放位置。 */}
-              {!fs && !clean && !isDesktop && (
-                <div className="absolute inset-x-0 z-20" style={{ bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bottomInset + 4}px)` }}>
-                  {/* 集数条默认不摆：默认只留视频 + 顶部返回/标题 + 播放键 + 进度区；
-                      要选集点这一行里的「选集」（显示当前集/总集数），弹出底部面板（含当前集自动居中） */}
+              {/* 移动端：抖音模式（左下剧名 + 看全集 CTA + 贴底 2px 细进度条） vs 普通剧场模式（完整控台） */}
+              {!fs && !clean && !isDesktop && endless && (
+                <div className="hg-feed-bottom absolute inset-x-0 z-20" style={{ bottom: `calc(var(--sab, 0px) + ${bottomInset}px)` }}>
+                  <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0"
+                    style={{ height: 180, background: "linear-gradient(to top, rgba(0,0,0,.68) 0%, rgba(0,0,0,.35) 50%, rgba(0,0,0,0) 100%)", zIndex: 0 }} />
+                  <div className="relative z-10 px-4 pb-3 space-y-2" style={{ paddingRight: 80 }}>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-[15px] font-bold hg-ink hg-ov-shadow-strong truncate">
+                        {meta.author ? `@${meta.author} · ` : ""}{meta.title}
+                      </span>
+                    </div>
+                    <p className="text-[12px] hg-ink-3 hg-ov-shadow-strong truncate">
+                      {kind === "video" ? `第 ${curEp} 集 · 上下滑刷下一部` : meta.desc || "上下滑刷下一条"}
+                    </p>
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <Button
+                        type="button"
+                        aria-label={episodes.length > 1 ? `看全集，共 ${episodes.length} 集` : "剧集详情"}
+                        onClick={() => kind === "video" ? store.push({ kind: "series", id: curId }) : setPanel("detail")}
+                        className="h-9 px-3.5 rounded-full text-[12px] font-semibold text-white inline-flex items-center gap-1 pressable"
+                        style={{
+                          background: "linear-gradient(135deg, rgba(168,85,247,.88), rgba(59,130,246,.88))",
+                          border: "1px solid rgba(255,255,255,.28)",
+                          boxShadow: "0 4px 16px rgba(139,92,246,.32)",
+                        }}>
+                        <span>{episodes.length > 1 ? `看全集 · 共 ${episodes.length} 集` : "剧集详情"}</span>
+                        <IChevR size={13} />
+                      </Button>
+                      {isActive && (
+                        <Button aria-label="不感兴趣" title="不感兴趣 / 内容偏好" onClick={openTagMenu}
+                          className="hg-chip w-9 h-9 rounded-full flex items-center justify-center pressable">
+                          <IMore size={17} aria-hidden="true" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  {/* 贴底 2px 细进度条，拖动时才浮出时间气泡 */}
+                  <div ref={barRef} className="relative z-10 w-full" style={{ height: 20, touchAction: "none" }}
+                    onPointerDown={onBarDown} onPointerMove={onBarMove} onPointerUp={onBarUp} onPointerCancel={onBarUp}>
+                    <div className="absolute inset-x-0 bottom-0 h-[2.5px]" style={{ background: "rgba(255,255,255,.22)" }}>
+                      <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} className="h-full"
+                        style={{ background: "linear-gradient(90deg, #a855f7, #38bdf8)", transition: barPct !== null ? "none" : "width .25s linear" }} />
+                    </div>
+                    {barPct !== null && (
+                      <div className="absolute left-1/2 -translate-x-1/2 -top-8 px-2.5 py-1 rounded-md hg-chip-strong backdrop-blur-md text-[13px] font-bold tabular-nums whitespace-nowrap">
+                        {fmtTime(barPct * (duration || 0))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {!fs && !clean && !isDesktop && !endless && (
+                <div className="hg-cinema-bottom absolute inset-x-0 z-20" style={{ bottom: `calc(var(--sab, 0px) + ${bottomInset + 4}px)` }}>
+                  {isActive && nextEpPrompt && curEp < episodes.length && (
+                    <div className="mx-4 mb-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-full hg-chip-strong backdrop-blur-md text-[12px] elev-2">
+                      <span className="text-sky-300 font-semibold">即将连播第 {curEp + 1} 集</span>
+                      <Button type="button" onClick={() => { setNextEpPrompt(false); pickEp(curEp + 1); }}
+                        className="px-2 py-0.5 rounded-full bg-white/20 text-white font-semibold pressable">
+                        立即播放
+                      </Button>
+                      <Button type="button" aria-label="取消连播提示"
+                        onClick={() => { setNextEpPrompt(false); setNextEpDismissedKey(playKey); }}
+                        className="w-5 h-5 rounded-full flex items-center justify-center text-white/70">
+                        <IClose size={12} />
+                      </Button>
+                    </div>
+                  )}
                   <div className="mobile-video-meta-copy relative pb-2 flex items-center gap-2" style={{ paddingRight: 76 }}>
                     <p className="flex-1 min-w-0 text-[15px] font-semibold leading-snug hg-ink-2 hg-ov-shadow-strong clamp-2">{meta.title}</p>
                   </div>
@@ -1575,17 +1677,16 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                           <IGlobe size={13} />{lineInfo.label}
                         </Button>
                       )}
-                      {/* 全屏/横屏入口（曾按报告删掉，用户明确要回来）：系统能给真横屏就给，
-                          给不了走 CSS 伪横屏；横过来后再点右上角「退出全屏」回竖屏 */}
+                      {/* 全屏/横屏入口 */}
                       <Button aria-label="全屏横屏播放" onClick={() => enterFs(true)}
                         className="min-h-11 flex items-center gap-1 text-[12px] font-medium hg-ink-3 hg-ov-shadow-strong pressable">
                         <IExpand size={13} />全屏
                       </Button>
                     </div>
-                    {/* 报告 5：字幕烧在画面里，改控件层——底部加自上而下 0→60% 黑渐变，保证按钮文字可读 */}
+                    {/* 底部渐变保护层 */}
                     <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0"
                       style={{ height: 196, background: "linear-gradient(to top, rgba(0,0,0,.72) 0%, rgba(0,0,0,.5) 45%, rgba(0,0,0,0) 100%)", zIndex: 0 }} />
-                    {/* 竖屏也要能暂停与看进度：暂停钮 + 当前/总时长（报告问题 3） */}
+                    {/* 剧场控制行：播放/暂停 + 时间 + 快捷倍速 + 下一集 */}
                     <div className="mx-4 mt-2 flex items-center gap-2.5 relative z-10">
                       <Button aria-label={paused ? "播放" : "暂停"} aria-pressed={paused}
                         onPointerDown={(e) => e.stopPropagation()}
@@ -1594,19 +1695,41 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                         className="hg-chip shrink-0 w-11 h-11 rounded-full flex items-center justify-center pressable">
                         {paused ? <IPlayF size={17} /> : <IPauseF size={16} />}
                       </Button>
-                      {/* 报告 5：字幕（片源自带、烧在画面里）会压住这行读数——读数自己带半透明底衬 */}
-                      <span className="hg-video-time" >
+                      <span className="hg-video-time">
                         <PlaybackTime clock={playbackClock} /> <span className="opacity-60">/ {fmtTime(duration || 0)}</span>
                       </span>
+                      <div className="ml-auto flex items-center gap-1.5">
+                        <Button
+                          type="button"
+                          aria-label={`倍速 ${effRate}x`}
+                          onClick={() => {
+                            if (speedLock) { setSpeedLock(false); return; }
+                            const seq = [1, 1.25, 1.5, 2];
+                            const idx = seq.indexOf(rate);
+                            setRate(seq[(idx + 1) % seq.length]);
+                          }}
+                          className={`h-8 px-2.5 rounded-full text-[12px] font-bold flex items-center gap-1 pressable ${effRate !== 1 ? "bg-primary text-on-primary" : "hg-chip hg-ink-2"}`}>
+                          <IBoltF size={11} />{effRate}x
+                        </Button>
+                        {curEp < episodes.length && (
+                          <Button
+                            type="button"
+                            aria-label={`下一集 第${curEp + 1}集`}
+                            onClick={() => pickEp(curEp + 1)}
+                            className="h-8 px-2.5 rounded-full text-[12px] font-semibold hg-chip hg-ink-2 flex items-center gap-1 pressable">
+                            下一集
+                          </Button>
+                        )}
+                      </div>
                     </div>
                     <div ref={barRef} className="mx-4 mt-1 relative z-10" style={{ height: 28, touchAction: "none" }}
                       onPointerDown={onBarDown} onPointerMove={onBarMove} onPointerUp={onBarUp} onPointerCancel={onBarUp}>
-                      {/* 轨道：几乎看不见，只暗示可拖动 */}
+                      {/* 轨道 */}
                       <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[3px] rounded-full" style={{ background: "rgba(255,255,255,.24)" }}>
                         <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} className="h-full rounded-full"
                           style={{ background: "rgba(255,255,255,.72)", transition: barPct !== null ? "none" : "width .25s linear" }} />
                       </div>
-                      {/* 进度点：整个进度条唯一的实心元素 */}
+                      {/* 进度点 */}
                       <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} position className="absolute top-1/2 w-[9px] h-[9px] rounded-full bg-white pointer-events-none"
                         style={{
                           transform: "translate(-50%, -50%)",
@@ -1866,7 +1989,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       {/* 线路面板：播放页内就地弹，不跳设置页 */}
       {!isDesktop && <LineQuickSwitch open={active && lineOpen} onClose={() => setLineOpen(false)} />}
       {!isDesktop && <MobileHoldGuide open={showHoldGuide} onClose={holdGuide.dismiss} target={holdTargetRef} bottomInset={bottomInset} />}
-      {controlsLocked && <PlaybackLock active={active} onUnlock={() => { setControlsLocked(false); wake(); }} />}
+      {controlsLocked && <PlaybackLock active={active} onUnlock={() => { setControlsLocked(false); if (isDesktop) wake(); else showControls(); }} />}
     </div>
   );
 }

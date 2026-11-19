@@ -32,8 +32,8 @@ function GuestCatAvatar() {
 
 /* Account changes discard cached details synchronously, before another account can paint. */
 export default function Profile({ wide }: { wide: boolean }) {
-  const { accountScope } = useStore();
-  return <ProfileContent key={accountScope} wide={wide} />;
+  const { accountScope, lineEpoch } = useStore();
+  return <ProfileContent key={`${accountScope}:${lineEpoch}`} wide={wide} />;
 }
 
 function ProfileContent({ wide: _wide }: { wide: boolean }) {
@@ -100,25 +100,29 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
               </span>
             </Button>
           )}
-          <Button card className="hg-icon-plain" aria-label="打开设置"
-            onClick={() => push({ kind: "settings" })}><ISettings size={22} strokeWidth={1.7} /></Button>
+          <Button card className="hg-sub-btn" aria-label="打开设置"
+            onClick={() => push({ kind: "settings" })}><ISettings size={20} strokeWidth={1.7} /></Button>
         </div>
 
-        {/* 3 列数据统计：关注 / 粉丝 / 作品 */}
-        <div className="hg-profile-stats">
-          <Button card className="hg-profile-stat" onClick={() => user ? push({ kind: "following" }) : setLoginOpen(true)}>
-            <span className="hg-profile-stat-num">{follows.length}</span>
-            <span className="hg-profile-stat-lbl">关注</span>
-          </Button>
-          <Button card className="hg-profile-stat" onClick={() => user ? push({ kind: "user", id: user.id, name: user.nickname }) : setLoginOpen(true)}>
-            <span className="hg-profile-stat-num">{stats?.followers ?? user?.counts?.followers ?? user?.counts?.follower_count ?? 0}</span>
-            <span className="hg-profile-stat-lbl">粉丝</span>
-          </Button>
-          <Button card className="hg-profile-stat" onClick={() => user ? push({ kind: "user", id: user.id, name: user.nickname }) : setLoginOpen(true)}>
-            <span className="hg-profile-stat-num">{stats?.post_count ?? stats?.video_count ?? user?.counts?.posts ?? user?.counts?.post_count ?? user?.counts?.videos ?? 0}</span>
-            <span className="hg-profile-stat-lbl">作品</span>
-          </Button>
-        </div>
+        {/* 3 列数据统计：仅已登录时展示，避免游客态出现无意义的 0/0/0 */}
+        {user && (
+          <div className="hg-profile-stats">
+            <Button card className="hg-profile-stat" onClick={() => push({ kind: "following" })}>
+              <span className="hg-profile-stat-num">{follows.length}</span>
+              <span className="hg-profile-stat-lbl">关注</span>
+            </Button>
+            <Button card className="hg-profile-stat" onClick={() => push({ kind: "user", id: user.id, name: user.nickname })}>
+              <span className="hg-profile-stat-num">{stats?.followers ?? user?.counts?.followers ?? user?.counts?.follower_count ?? 0}</span>
+              <span className="hg-profile-stat-lbl">粉丝</span>
+            </Button>
+            <Button card className="hg-profile-stat" onClick={() => push({ kind: "user", id: user.id, name: user.nickname })}>
+              <span className="hg-profile-stat-num">
+                {stats ? (stats.post_count ?? 0) + (stats.video_count ?? 0) : ((user?.counts?.posts ?? user?.counts?.post_count ?? 0) + (user?.counts?.videos ?? 0))}
+              </span>
+              <span className="hg-profile-stat-lbl">作品</span>
+            </Button>
+          </div>
+        )}
 
         {!user && (
           <Button card className="hg-profile-login-cta" onClick={() => setLoginOpen(true)}>
@@ -149,7 +153,7 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
           <Button className="hg-menu-row" aria-label="我的关注" onClick={() => user ? push({ kind: "following" }) : setLoginOpen(true)}>
             <span className="hg-menu-icon"><IMenuFollow size={19} strokeWidth={1.75} /></span>
             <span className="hg-menu-label">我的关注</span>
-            <span className="hg-menu-meta" aria-hidden="true">{follows.length}</span>
+            <span className="hg-menu-meta" aria-hidden="true">{user ? follows.length : "需登录"}</span>
             <IChevR size={14} className="hg-menu-chevron" />
           </Button>
           <Button className="hg-menu-row" aria-label="内容偏好" onClick={() => push({ kind: "settings", section: "内容偏好" })}>
@@ -157,14 +161,17 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
             <span className="hg-menu-label">内容偏好</span>
             <IChevR size={14} className="hg-menu-chevron" />
           </Button>
-          {user && (
+        </div>
+
+        {user && (
+          <div className="hg-menu hg-menu-danger">
             <Button className="hg-menu-row" onClick={() => { setLogoutError(""); setLogoutOpen(true); }}>
               <span className="hg-menu-icon"><ILogout size={19} strokeWidth={1.75} /></span>
               <span className="hg-menu-label">退出登录</span>
               <IChevR size={14} className="hg-menu-chevron" />
             </Button>
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="text-center text-[12px] text-dim mt-6">HGuoX {APP_VERSION} · {platform === "android" ? "Android" : platform === "ios" ? "iOS" : platform === "macos" ? "macOS" : platform === "linux" ? "Linux" : "Windows"} 客户端</div>
       </div>
@@ -188,8 +195,8 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
 
 /* ================= 二级栈页：观看历史 ================= */
 export function HistoryPage({ onBack, wide }: { onBack: () => void; wide: boolean }) {
-  const { accountScope } = useStore();
-  return <HistoryContent key={accountScope} onBack={onBack} wide={wide} />;
+  const { accountScope, lineEpoch } = useStore();
+  return <HistoryContent key={`${accountScope}:${lineEpoch}`} onBack={onBack} wide={wide} />;
 }
 
 function HistoryContent({ onBack, wide }: { onBack: () => void; wide: boolean }) {
@@ -280,20 +287,22 @@ function HistoryContent({ onBack, wide }: { onBack: () => void; wide: boolean })
           <div className="flex justify-center py-8"><Loader className="w-7 h-7 spinner" /></div>
         ) : cards.length ? (
           <div className="hg-hist-list a-rise">
-            {cards.map((c, cardIdx) => {
+            {cards.map((c) => {
               const progress = progressOf(c.id);
               const blocked = blockReason(c.tags);
               const pct = progress && progress.dur > 0
                 ? Math.max(4, Math.min(100, Math.round((progress.t / progress.dur) * 100)))
                 : 0;
+              const unblockedIds = cards.filter(x => !blockReason(x.tags)).map(x => x.id);
+              const unblockedIdx = Math.max(0, unblockedIds.indexOf(c.id));
               const openResume = () => push({
-                kind: "feed", videoIds: cards.map(x => x.id), index: cardIdx,
+                kind: "feed", videoIds: unblockedIds.length ? unblockedIds : [c.id], index: unblockedIds.length ? unblockedIdx : 0,
                 title: "观看历史", startEp: progress?.ep, startTime: progress?.t,
               });
 
               if (blocked) {
                 return (
-                  <Button key={c.id} card className="hg-hist-card" onClick={openResume}
+                  <Button key={c.id} card className="hg-hist-card" onClick={() => push({ kind: "series", id: c.id })}
                     aria-label="该内容命中屏蔽标签，查看提示">
                     <span className="flex-1 min-w-0 py-1">
                       <span className="block text-[14px] font-semibold text-mut">已屏蔽内容</span>
@@ -374,8 +383,8 @@ function HistoryContent({ onBack, wide }: { onBack: () => void; wide: boolean })
 
 /* ================= 二级栈页：我的收藏 ================= */
 export function FavoritesPage({ onBack, wide, initialTab = "video" }: { onBack: () => void; wide: boolean; initialTab?: "video" | "post" }) {
-  const { accountScope } = useStore();
-  return <FavoritesContent key={accountScope} onBack={onBack} wide={wide} initialTab={initialTab} />;
+  const { accountScope, lineEpoch } = useStore();
+  return <FavoritesContent key={`${accountScope}:${lineEpoch}`} onBack={onBack} wide={wide} initialTab={initialTab} />;
 }
 
 function FavoritesContent({ onBack, wide, initialTab }: { onBack: () => void; wide: boolean; initialTab: "video" | "post" }) {
@@ -466,9 +475,12 @@ function FavoritesContent({ onBack, wide, initialTab }: { onBack: () => void; wi
           <h1 className="hg-sub-title">我的收藏</h1>
           <p className="hg-sub-meta">短剧 {favs.length} 部 · 吃瓜 {postFavs.length} 篇</p>
         </div>
-        {favTab === "video" && cards.length > 0 && (
+        {favTab === "video" && favs.length > 0 && (
           <Button card className="hg-quick-action"
-            onClick={() => push({ kind: "feed", videoIds: cards.map(x => x.id), index: 0, title: "我的收藏" })}>
+            onClick={() => {
+              const bingeIds = favs.filter(id => !cache[id] || !blockReason(cache[id].tags));
+              if (bingeIds.length) push({ kind: "feed", videoIds: bingeIds, index: 0, title: "我的收藏" });
+            }}>
             <IBoltF size={13} /><span>连刷收藏</span>
           </Button>
         )}
@@ -497,22 +509,34 @@ function FavoritesContent({ onBack, wide, initialTab }: { onBack: () => void; wi
               <div className="flex justify-center py-8"><Loader className="w-7 h-7 spinner" /></div>
             ) : postCards.length ? (
               <div className="hg-post-feed">
-                {postCards.map((p) => (
-                  <div key={p.id} className="hg-post-card" onClick={() => push({ kind: "post", id: p.id })}>
-                    <div className="hg-post-head">
-                      <span className="hg-post-who">
-                        <span className="hg-post-name">{p.author?.name || "吃瓜帖"}</span>
-                        <span className="hg-post-time">{p.publish_time || p.created_at}</span>
-                      </span>
-                    </div>
-                    <div className="hg-post-title">{p.title}</div>
-                    {p.cover && (
-                      <div className="hg-post-art">
-                        <Img src={p.cover} alt="" />
+                {postCards.map((p) => {
+                  const blocked = blockReason(p.tags);
+                  if (blocked) {
+                    return (
+                      <Button key={p.id} card className="hg-post-card text-left" onClick={() => push({ kind: "post", id: p.id })}
+                        aria-label="该内容命中屏蔽标签，查看提示">
+                        <div className="text-[14px] font-semibold text-mut">已屏蔽内容</div>
+                        <div className="mt-1 text-[12px] text-dim truncate">{blocked}</div>
+                      </Button>
+                    );
+                  }
+                  return (
+                    <div key={p.id} className="hg-post-card" onClick={() => push({ kind: "post", id: p.id })}>
+                      <div className="hg-post-head">
+                        <span className="hg-post-who">
+                          <span className="hg-post-name">{p.author?.name || "吃瓜帖"}</span>
+                          <span className="hg-post-time">{p.publish_time || p.created_at}</span>
+                        </span>
                       </div>
-                    )}
-                  </div>
-                ))}
+                      <div className="hg-post-title">{p.title}</div>
+                      {p.cover && (
+                        <div className="hg-post-art">
+                          <Img src={p.cover} alt="" />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ) : postFailed.length ? (
               <Empty icon={<IStar size={24} />} title="收藏帖子加载失败"

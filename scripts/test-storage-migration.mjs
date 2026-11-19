@@ -72,18 +72,19 @@ try {
 
   {
     const { context, page } = await open(oldData);
-    assert.deepEqual(await snapshot(page), { ...state, theme: "light" });
+    assert.deepEqual(await snapshot(page), { ...state, theme: "dark" });
     assert.equal(await page.evaluate(() => window.storageMigrationFixture.getThemePreference()), "light");
     assert.equal(await page.evaluate(() => window.initialTheme), true);
     const saved = await storage(page);
     assert.deepEqual(Object.keys(saved).sort(), ["hguox_app_v1", "hguox_swipe_ep_v2", "hguox_theme"]);
-    assert.deepEqual(JSON.parse(saved.hguox_app_v1), state);
+    assert.equal(saved.hguox_theme, "light");
+    assert.deepEqual(JSON.parse(saved.hguox_app_v1), { ...state, postFavs: [] });
     await page.evaluate(() => window.storageMigrationFixture.setTheme("system"));
     await page.waitForFunction(() => localStorage.getItem("hguox_theme") === "system");
     await page.emulateMedia({ colorScheme: "dark" });
     await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
     await page.emulateMedia({ colorScheme: "light" });
-    await page.waitForFunction(() => document.documentElement.dataset.theme === "light");
+    await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
     assert.equal(await page.evaluate(() => localStorage.getItem("hguox_theme")), "system");
     await page.evaluate(() => {
       window.storageMigrationFixture.setTheme("dark");
@@ -112,9 +113,10 @@ try {
       [`${prev}theme`]: "light",
       [`${prev}swipe_ep_v2`]: "1",
     });
-    assert.deepEqual(await snapshot(page), { ...state, theme: "light" });
+    assert.deepEqual(await snapshot(page), { ...state, theme: "dark" });
     const saved = await storage(page);
     assert.deepEqual(Object.keys(saved).sort(), ["hguox_app_v1", "hguox_swipe_ep_v2", "hguox_theme"]);
+    assert.equal(saved.hguox_theme, "light");
     await context.close();
     console.log("PASS: previous-brand keys migrate to hguox_* and the old keys are removed");
   }
@@ -130,12 +132,14 @@ try {
   }
   for (const failure of ["write", "remove"]) {
     const { context, page } = await open(oldData, failure);
-    assert.deepEqual(await snapshot(page), { ...state, theme: "light" });
+    assert.deepEqual(await snapshot(page), { ...state, theme: "dark" });
+    assert.equal(await page.evaluate(() => window.storageMigrationFixture.getThemePreference()), "light");
     const saved = await storage(page);
     for (const [key, value] of Object.entries(oldData)) assert.equal(saved[key], value);
     await page.reload();
     await page.waitForFunction(() => window.storageMigrationFixture?.strictSecurityReady);
-    assert.deepEqual(await snapshot(page), { ...state, theme: "light" });
+    assert.deepEqual(await snapshot(page), { ...state, theme: "dark" });
+    assert.equal(await page.evaluate(() => window.storageMigrationFixture.getThemePreference()), "light");
     await context.close();
     console.log(`PASS: ${failure} failure retains legacy data and preferences across restarts`);
   }

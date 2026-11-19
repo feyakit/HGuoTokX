@@ -65,7 +65,7 @@ const releaseLabel = (v: VideoCard) => {
 };
 
 export default function Home({ active }: { active: boolean; bottomInset?: number }) {
-  const { push, lineEpoch, user, history } = useStore();
+  const { push, lineEpoch, user, history, toast } = useStore();
   const { preferences, storageError, blockReason } = useContentPreferences();
   const [tab, setFeedTab] = useState<TabKey>("all");
   const [items, setItems] = useState<VideoCard[]>([]);
@@ -313,7 +313,10 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
         unique.push(id);
       }
     }
-    if (!unique.length) return;
+    if (!unique.length) {
+      toast(loading ? "内容加载中，请稍候" : "暂无可连刷内容", "info");
+      return;
+    }
     push({
       kind: "feed",
       videoIds: unique,
@@ -342,7 +345,7 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
           ))}
         </div>
         <Button card className="hg-binge-pill" aria-label="抖音模式"
-          onClick={() => startSwipeIds([...heroes.map(h => h.id), ...recommendGrid.map(v => v.id)], 0, "抖音模式", true)}>
+          onClick={() => push({ kind: "feed", videoIds: [], index: 0, title: "抖音模式", endless: true })}>
           <IBoltF size={12} /><span>抖音模式</span>
         </Button>
         <Button card className="hg-sub-btn" aria-label="搜索" onClick={() => push({ kind: "search", initialTab: "video" })}>

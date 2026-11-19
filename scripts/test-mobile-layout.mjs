@@ -38,7 +38,7 @@ try {
         if (cmd === "playback_log_status") return Promise.resolve({ enabled: false, path: null, error: null });
         if (["debug_log", "set_text_interaction"].includes(cmd)) return Promise.resolve();
         if (cmd === "line_auto") return Promise.resolve({ base: "https://fixture.invalid", previous: "https://fixture.invalid", switched: false, pick: { tier: "main", ms: 1, reason: "fixture", candidates: [] } });
-        if (["api_feed", "api_category", "api_posts", "api_original_videos", "api_post_category", "api_search_hot"].includes(cmd)) return Promise.resolve(emptyPage);
+        if (["api_feed", "api_category", "api_posts", "api_original_videos", "api_post_category", "api_post_categories", "api_search_hot", "api_rank", "api_topics"].includes(cmd)) return Promise.resolve(emptyPage);
         // App's development-only playback self-test must not fetch media upstream.
         if (cmd === "api_play") return Promise.reject("Layout fixture has no playback media");
         fixture.unexpected.push(cmd);
