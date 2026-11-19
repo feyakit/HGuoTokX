@@ -341,12 +341,12 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
             </Button>
           ))}
         </div>
-        <Button card className="hg-sub-btn" aria-label="搜索" onClick={() => push({ kind: "search", initialTab: "video" })}>
-          <ISearch size={18} />
-        </Button>
         <Button card className="hg-binge-pill" aria-label="抖音模式"
           onClick={() => startSwipeIds([...heroes.map(h => h.id), ...recommendGrid.map(v => v.id)], 0, "抖音模式", true)}>
           <IBoltF size={12} /><span>抖音模式</span>
+        </Button>
+        <Button card className="hg-sub-btn" aria-label="搜索" onClick={() => push({ kind: "search", initialTab: "video" })}>
+          <ISearch size={18} />
         </Button>
       </header>
 

@@ -12,7 +12,6 @@ import { PlaybackProgress, PlaybackTime } from "./PlaybackProgress";
 import PlaybackLock from "./PlaybackLock";
 import { ArticlePanel, CommentsPanel, EpisodesPanel } from "./Panels";
 import { registerOverlayBack } from "../back";
-import { copyText } from "../clipboard";
 import { tracePlayback } from "../playbackDiagnostics";
 import { createPlaybackClock } from "../playbackClock";
 import { useContentPreferences } from "../contentPreferences";
@@ -25,7 +24,7 @@ import { getHoldZone, stageXY, HOLD_DELAY_MS, HOLD_LOCK_DISTANCE, type HoldZone 
 import { useMobileHoldGuide } from "../useMobileHoldGuide";
 import {
   IBack, IBoltF, IChevR, IChevronDown, IChevronUp, IClose, ICommentF, ICompress, IExpand, IFileText, IGlobe, IHeart, IHeartF, IMore,
-  ILink, IList, ILockF, IPauseF, IPlayF, ISearch, IStar, IStarF, IVertSwap, IVol, IVolMute,
+  IList, ILockF, IPauseF, IPlayF, ISearch, IStar, IStarF, IVertSwap, IVol, IVolMute,
 } from "../icons";
 import { ambientStyle, useAccent } from "../useAccent";
 
@@ -412,12 +411,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const setAccent = useStore().setAccent;
   useEffect(() => { setAccent(accentScheme); }, [accentScheme, setAccent]);
   const articleHtml = kind === "post" && !post?.video_url ? (post?.content || "") : "";
-
-  /* 分享：复制播放链接 */
-  const shareLink = () => {
-    const u = kind === "post" ? (posts[curId]?.video_url || meta.title) : `https://huangguoai.com/video/${curId}/`;
-    copyText(u).then(() => toast("链接已复制", "ok")).catch(() => toast("复制失败", "info"));
-  };
 
   /* 倍速：中心小方块打开偏好，外侧右上 2.0x / 左下 0.5x。 */
   const effRate = holdSpeed || speedLock ? 2 : holdSlow ? 0.5 : rate;
@@ -1360,16 +1353,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   </div>
                 )
               ) : null}
-              {!fs && !clean && !isDesktop && mode === "context" && (
-                <span className="feed-position-pill absolute z-20 px-2.5 py-1 rounded-full hg-chip text-[12px] font-semibold tabular-nums"
-                  style={{ top: "calc(var(--sat, 0px) + 52px)", left: 12, color: "rgba(255,255,255,.94)" }}>
-                  {episodes.length > 1 ? `第 ${curEp} 集 / 共 ${episodes.length} 集` : `${index + 1} / ${effectiveVideoIds.length}`}
-                </span>
-              )}
-
               {!fs && !clean && !isDesktop && mode === "context" && endless && (
                 <span className="hg-binge-badge absolute z-20 flex items-center gap-1 px-2 py-1 rounded-full hg-chip text-[12px] font-semibold tabular-nums"
-                  style={{ top: "calc(var(--sat, 0px) + 8px)", right: 12, color: "rgba(255,255,255,.94)" }}>
+                  style={{ top: "calc(var(--sat, 0px) + 56px)", right: 12, color: "rgba(255,255,255,.94)" }}>
                   <IBoltF size={12} />{index + 1}/{effectiveVideoIds.length}
                 </span>
               )}
@@ -1423,11 +1409,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   </div>
                 </div>
               )}
-              {/* 右侧操作栏（移动端）：收藏 / 评论 / 全屏 / 分享
+              {/* 右侧操作栏（移动端）：切集 / 画质 / 点赞 / 收藏 / 评论
                   颜色写死不跟主题走：浅色主题下这些字必须仍是白色 */}
               {!fs && !clean && !isDesktop && (
-                <div className="mobile-video-action-rail absolute right-3 z-20 flex flex-col items-center gap-[16px]"
-                  style={{ bottom: `calc(var(--sab, 0px) + ${bottomInset + 168}px)` }}>
+                <div className="mobile-video-action-rail absolute right-4 z-20 flex flex-col items-center gap-[14px]"
+                  style={{ bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bottomInset + 124}px)` }}>
                   {episodes.length > 1 && (
                     <Button type="button" onClick={() => { setSwipeEp(!swipeEp); toast(swipeEp ? "上下划切集已关闭" : "上下划切集已开启"); }}
                       className="flex flex-col items-center gap-1 pressable" aria-pressed={swipeEp} aria-label="上下划切集开关">
@@ -1439,26 +1425,22 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                     <Button type="button" onClick={() => { setPreferHevc(!preferHevc); toast(preferHevc ? "已切回标准画质" : "已切换高清 HEVC", "ok"); }}
                       className="flex flex-col items-center gap-1 pressable" aria-pressed={preferHevc} aria-label="画质切换">
                       <span className={`flex items-center justify-center h-[22px] min-w-[30px] px-1 rounded-md text-[12px] font-bold hg-ov-shadow ${preferHevc ? "bg-primary text-on-primary" : "hg-chip hg-ink-2"}`}>{preferHevc ? "高清" : "标清"}</span>
-                      <span className="text-[12px] hg-ov-shadow" style={{ color: preferHevc ? "#fff" : undefined }}>{preferHevc ? "高清" : "标清"}</span>
+                      <span className="text-[12px] hg-ov-shadow" style={{ color: preferHevc ? "#fff" : undefined }}>画质</span>
                     </Button>
                   )}
                   {kind === "video" && (
                     <Button onClick={() => void onLike()} disabled={likePending} aria-busy={likePending} className="flex flex-col items-center gap-1 pressable" aria-pressed={liked} aria-label="点赞">
-                      {liked ? <IHeartF size={27} className="text-neon" /> : <IHeart size={27} className="hg-ink hg-ov-shadow" />}
+                      {liked ? <IHeartF size={26} className="text-neon" /> : <IHeart size={26} className="hg-ink hg-ov-shadow" />}
                       <span className="text-[12px] text-white/90 tabular-nums">{fmt(likeCount)}</span>
                     </Button>
                   )}
                   <Button onClick={() => void onFav()} disabled={collectPending} aria-busy={collectPending} className="flex flex-col items-center gap-1 pressable" aria-pressed={collected} aria-label="收藏">
-                    {collected ? <IStarF size={27} className="hg-gold" /> : <IStar size={27} className="hg-ink hg-ov-shadow" />}
+                    {collected ? <IStarF size={26} className="hg-gold" /> : <IStar size={26} className="hg-ink hg-ov-shadow" />}
                     <span className="text-[12px] text-white/90 tabular-nums">{fmt(collectCount)}</span>
                   </Button>
                   <Button onClick={() => setPanel("comments")} className="flex flex-col items-center gap-1 pressable" aria-label={`评论 ${fmt(meta.comment)} 条`}>
                     <ICommentF size={26} className="hg-ink hg-ov-shadow" />
                     <span className="text-[12px] hg-ink-2 hg-ov-shadow tabular-nums">{fmt(meta.comment)}</span>
-                  </Button>
-                  <Button onClick={shareLink} className="flex flex-col items-center gap-1 pressable" aria-label="分享">
-                    <ILink size={25} className="hg-ink hg-ov-shadow" />
-                    <span className="text-[12px] hg-ink-2 hg-ov-shadow">分享</span>
                   </Button>
                 </div>
               )}
@@ -1491,7 +1473,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                     </Button>
 
                     <Button onClick={() => void onFav()} disabled={collectPending} aria-busy={collectPending} aria-label="收藏" className="flex flex-col items-center gap-1 pressable" aria-pressed={collected}>
-                      {collected ? <IStarF size={27} className="hg-gold" /> : <IStar size={27} className="hg-ink hg-ov-shadow" />}
+                      {collected ? <IStarF size={26} className="hg-gold" /> : <IStar size={26} className="hg-ink hg-ov-shadow" />}
                       <span className="text-[12px] text-white/90 tabular-nums">{fmt(meta.collect)}</span>
                     </Button>
 
@@ -1502,10 +1484,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   </>
                 )}
 
-                <Button onClick={shareLink} aria-label="分享" className="flex flex-col items-center gap-1 pressable">
-                  <ILink size={25} className="text-white tsh" />
-                  <span className="text-[12px] text-white/90">分享</span>
-                </Button>
               </div>
               )}
 
@@ -1549,13 +1527,13 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   不加任何压暗层——黑边彻底去掉，全靠文字阴影保读；
                   进度条轨道几乎不可见，只用白点标播放位置。 */}
               {!fs && !clean && !isDesktop && (
-                <div className="absolute inset-x-0 z-20" style={{ bottom: `calc(var(--sab, 0px) + ${bottomInset + 44}px)` }}>
+                <div className="absolute inset-x-0 z-20" style={{ bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bottomInset + 4}px)` }}>
                   {/* 集数条默认不摆：默认只留视频 + 顶部返回/标题 + 播放键 + 进度区；
                       要选集点这一行里的「选集」（显示当前集/总集数），弹出底部面板（含当前集自动居中） */}
                   <div className="mobile-video-meta-copy relative pb-2 flex items-center gap-2" style={{ paddingRight: 76 }}>
                     <p className="flex-1 min-w-0 text-[15px] font-semibold leading-snug hg-ink-2 hg-ov-shadow-strong clamp-2">{meta.title}</p>
                   </div>
-                  <div className="relative pt-1.5 pb-2.5">
+                  <div className="relative pt-1.5 pb-0">
                     <div className="mobile-video-meta-copy relative z-10 flex flex-wrap items-center gap-2" style={{ paddingRight: 76 }}>
                       {episodes.length > 1 && (
                         <Button aria-label={`选集，当前第 ${curEp} 集，共 ${episodes.length} 集`} onClick={() => setPanel("episodes")}
