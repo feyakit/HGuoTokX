@@ -1772,13 +1772,13 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                       {/* 轨道 */}
                       <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[3px] rounded-full" style={{ background: "rgba(255,255,255,.24)" }}>
                         <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} className="h-full rounded-full"
-                          style={{ background: "rgba(255,255,255,.72)", transition: barPct !== null ? "none" : "width .25s linear" }} />
+                          style={{ background: "var(--p-primary, #7C5CFF)", boxShadow: "0 0 8px rgba(124,92,255,.45)", transition: barPct !== null ? "none" : "width .25s linear" }} />
                       </div>
                       {/* 进度点 */}
-                      <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} position className="absolute top-1/2 w-[9px] h-[9px] rounded-full bg-white pointer-events-none"
+                      <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} position className="absolute top-1/2 w-[10px] h-[10px] rounded-full bg-white pointer-events-none"
                         style={{
                           transform: "translate(-50%, -50%)",
-                          boxShadow: "0 0 8px rgba(0,0,0,.55)",
+                          boxShadow: "0 0 0 2px var(--p-primary, #7C5CFF), 0 0 8px rgba(124,92,255,.65)",
                           transition: barPct !== null ? "none" : "left .25s linear",
                         }} />
                       {barPct !== null && (
@@ -1929,13 +1929,25 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
               bottom: rotated ? 52 : "calc(var(--sab, 0px) + 52px)",
               paddingLeft: rotated ? "calc(var(--sat, 0px) + 16px)" : undefined,
               paddingRight: rotated ? "calc(var(--sab, 0px) + 16px)" : undefined,
-              height: 22,
+              height: 28,
             }}>
             <div ref={barRef} className="relative h-full" style={{ touchAction: "none" }}
               onPointerDown={onBarDown} onPointerMove={onBarMove} onPointerUp={onBarUp} onPointerCancel={onBarUp}>
-              <div className="absolute inset-x-0 bottom-[8px] h-[3px] rounded-full" style={{ background: "rgba(255,255,255,.3)" }}>
-                <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} className="h-full rounded-full bg-white" />
+              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[3px] rounded-full" style={{ background: "rgba(255,255,255,.24)" }}>
+                <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} className="h-full rounded-full"
+                  style={{ background: "var(--p-primary, #7C5CFF)", boxShadow: "0 0 8px rgba(124,92,255,.45)", transition: barPct !== null ? "none" : "width .25s linear" }} />
               </div>
+              <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} position className="absolute top-1/2 w-[10px] h-[10px] rounded-full bg-white pointer-events-none"
+                style={{
+                  transform: "translate(-50%, -50%)",
+                  boxShadow: "0 0 0 2px var(--p-primary, #7C5CFF), 0 0 8px rgba(124,92,255,.65)",
+                  transition: barPct !== null ? "none" : "left .25s linear",
+                }} />
+              {barPct !== null && (
+                <div className="absolute left-1/2 -translate-x-1/2 -top-8 px-2.5 py-1 rounded-md hg-chip-strong backdrop-blur-md text-[13px] font-bold tabular-nums whitespace-nowrap">
+                  {fmtTime(barPct * (duration || 0))}
+                </div>
+              )}
             </div>
           </div>
 
