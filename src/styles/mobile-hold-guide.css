@@ -27,15 +27,19 @@
 .mobile-hold-guide-zone.is-menu>strong { font-size:15px; line-height:1.4; }
 .mobile-hold-guide-zone.is-menu>span { font-size:12px; }
 .mobile-hold-guide-dot { width:14px; height:14px; border:2px solid #fff; border-radius:50%; box-shadow:0 0 0 5px rgb(255 255 255 / .12); margin-bottom:3px; }
-.mobile-hold-guide-footer { position:absolute; left:24px; right:24px; bottom:calc(max(18px,env(safe-area-inset-bottom,0px)) + var(--hold-guide-bottom,0px)); display:flex; flex-direction:column; align-items:center; gap:14px; }
+/* 报告 N1：引导的「知道了」原来离底只有 18px，安卓三键导航条（约 60dp）直接盖住它，
+   点正中连续 6 次没反应。这里给系统导航栏留出固定空间（60 + 18 间距），
+   dp 360×640 / 360×792 两种高度下按钮都完整落在安全区内。 */
+.mobile-hold-guide-footer { position:absolute; left:24px; right:24px; bottom:calc(max(18px,env(safe-area-inset-bottom,0px)) + 78px + var(--hold-guide-bottom,0px)); display:flex; flex-direction:column; align-items:center; gap:14px; }
 .mobile-hold-guide-footer p { margin:0; font-size:13px; line-height:1.5; color:rgb(255 255 255 / .8); }
 .mobile-hold-guide .mobile-hold-guide-done.ios-button { width:min(100%,280px); min-height:48px; padding:12px 24px; border-radius:999px; border:1px solid rgb(255 255 255 / .4); background:#f5f6fc; color:#192132; font-size:15px; font-weight:700; box-shadow:0 8px 24px rgb(0 0 0 / .18); }
 .mobile-hold-guide .mobile-hold-guide-done.ios-button:focus-visible { outline:3px solid #b5fff6; outline-offset:4px; }
+.mobile-hold-guide-hint { font-size:12px; line-height:1.4; color:rgb(255 255 255 / .6); pointer-events:none; }
 .mobile-hold-guide[data-compact=true] .mobile-hold-guide-heading { top:max(12px,env(safe-area-inset-top,0px)); }
 .mobile-hold-guide[data-compact=true] .mobile-hold-guide-heading>span { display:none; }
 .mobile-hold-guide[data-compact=true] .mobile-hold-guide-heading h2 { font-size:18px; margin:0 0 4px; }
 .mobile-hold-guide[data-compact=true] .mobile-hold-guide-heading p { font-size:12px; }
-.mobile-hold-guide[data-compact=true] .mobile-hold-guide-footer { bottom:calc(max(10px,env(safe-area-inset-bottom,0px)) + var(--hold-guide-bottom,0px)); flex-direction:row; justify-content:center; gap:20px; }
+.mobile-hold-guide[data-compact=true] .mobile-hold-guide-footer { bottom:calc(max(10px,env(safe-area-inset-bottom,0px)) + 34px + var(--hold-guide-bottom,0px)); flex-direction:row; justify-content:center; gap:20px; }
 .mobile-hold-guide[data-compact=true] .mobile-hold-guide-done.ios-button { width:148px; min-height:44px; padding:10px 18px; }
 .mobile-hold-guide[data-compact=true] .mobile-hold-guide-zone>strong { font-size:30px; }
 .mobile-hold-guide[data-compact=true] .mobile-hold-guide-zone.is-menu>strong { font-size:15px; }
@@ -43,7 +47,7 @@
   .mobile-hold-guide-heading { top:max(16px,env(safe-area-inset-top,0px)); }
   .mobile-hold-guide-heading h2 { font-size:19px; }
   .mobile-hold-guide-heading>span { display:none; }
-  .mobile-hold-guide-footer { gap:8px; bottom:calc(max(10px,env(safe-area-inset-bottom,0px)) + var(--hold-guide-bottom,0px)); }
+  .mobile-hold-guide-footer { gap:8px; bottom:calc(max(10px,env(safe-area-inset-bottom,0px)) + 70px + var(--hold-guide-bottom,0px)); }
   .mobile-hold-guide-footer p { display:none; }
   .mobile-hold-guide .mobile-hold-guide-done.ios-button { min-height:44px; padding:10px 24px; }
   .mobile-hold-guide-zone>strong { font-size:28px; }

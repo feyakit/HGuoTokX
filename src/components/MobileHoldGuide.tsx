@@ -22,6 +22,9 @@ function GuideContent({ target, bottomInset, onClose }: Omit<Props, "open">) {
   const root = useRef<HTMLDivElement>(null);
   const [layout, setLayout] = useState<Layout | null>(null);
   const maskId = useId();
+  /* 报告 N1：引导原来只有「知道了」能关，而且它被系统导航栏盖住 → 首次安装就卡住。
+     现在三条退出路都通：点按钮任意位置 / 点引导任意空白处 / 上滑。 */
+  const down = useRef<{ x: number; y: number } | null>(null);
   useLayoutEffect(() => {
     const frame = root.current;
     const surface = target.current;
@@ -70,8 +73,19 @@ function GuideContent({ target, bottomInset, onClose }: Omit<Props, "open">) {
     : {};
   return <div ref={root} className="mobile-hold-guide" data-mobile-hold-guide data-ready={!!layout}
     data-compact={compact} style={{ "--hold-guide-bottom": `${Math.max(0, bottomInset)}px` } as CSSProperties}
-    onPointerDown={event => event.stopPropagation()} onPointerMove={event => event.stopPropagation()}
-    onPointerUp={event => event.stopPropagation()} onPointerCancel={event => event.stopPropagation()}
+    onPointerDown={event => { event.stopPropagation(); down.current = { x: event.clientX, y: event.clientY }; }}
+    onPointerMove={event => event.stopPropagation()}
+    onPointerUp={event => {
+      event.stopPropagation();
+      const start = down.current;
+      down.current = null;
+      if (!start) return;
+      /* 上滑 48px 即关闭（报告里「上滑不生效」的诉求） */
+      if (start.y - event.clientY > 48) { onClose(); return; }
+      /* 轻点任意位置也关闭：首次安装的用户不该被一个引导困住 */
+      if (Math.abs(event.clientX - start.x) < 16 && Math.abs(event.clientY - start.y) < 16) onClose();
+    }}
+    onPointerCancel={event => { event.stopPropagation(); down.current = null; }}
     onClick={event => event.stopPropagation()} onContextMenu={event => event.preventDefault()}>
     {layout && bounds && <>
       <svg className="mobile-hold-guide-map" viewBox={`0 0 ${layout.width} ${layout.height}`} aria-hidden="true">
@@ -107,6 +121,7 @@ function GuideContent({ target, bottomInset, onClose }: Omit<Props, "open">) {
     <div className="mobile-hold-guide-footer">
       <p>加速时上滑，可锁定 2×</p>
       <Button className="mobile-hold-guide-done" onClick={onClose} data-autofocus>知道了</Button>
+      <span className="mobile-hold-guide-hint">点任意处或上滑也能关闭</span>
     </div>
   </div>;
 }
