@@ -62,11 +62,20 @@ const originalSort = (cate: "all" | "ai-duanju" | "ai-manju") =>
   cate === "all" ? "new" : "latest";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const parseTs = (raw?: string | number) => {
+  if (raw == null || raw === "") return NaN;
+  if (typeof raw === "number") return raw > 1e12 ? raw : raw * 1000;
+  const s = raw.trim();
+  if (/^\d+$/.test(s)) {
+    const n = Number(s);
+    return n > 1e12 ? n : n * 1000;
+  }
+  return Date.parse(s.replace(" ", "T"));
+};
 const isNew = (v: VideoCard) => {
-  const raw = v.created_at;
-  if (!raw) return false;
-  const t = Date.parse(raw.replace(" ", "T"));
-  return Number.isFinite(t) && Date.now() - t < WEEK_MS;
+  const ts = [parseTs(v.last_ep_at), parseTs(v.new_at), parseTs(v.created_at)].filter(Number.isFinite);
+  if (!ts.length) return false;
+  return Date.now() - Math.max(...ts) < WEEK_MS;
 };
 
 /* ================= 分类（片库：2×2 Bento 玻璃磁贴 + 紧凑内联筛选） ================= */
@@ -267,9 +276,11 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
                   <span className="hg-poster-art">
                     <Img src={v.cover} alt="" />
                     <span className="hg-poster-veil" aria-hidden="true" />
+                    {v.score > 0 && <span className="hg-poster-score">★ {v.score.toFixed(1)}</span>}
                     {v.is_hot === 1
                       ? <span className="hg-poster-badge is-hot">热门</span>
-                      : isNew(v) ? <span className="hg-poster-badge">上新</span> : null}
+                      : isNew(v) ? <span className="hg-poster-badge">上新</span>
+                      : v.is_original === 1 ? <span className="hg-poster-badge is-orig">原创</span> : null}
                     <span className="hg-poster-views">▶ {fmt(v.hot)}</span>
                   </span>
                   <span className="hg-poster-name">{v.title}</span>

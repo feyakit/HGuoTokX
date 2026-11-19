@@ -42,24 +42,37 @@ const WEEK = 7 * DAY;
 /* 主推展台自动轮换间隔：2.1.2 有、3.0.0 重构时丢了（报告 7「三分钟内无自动轮换」） */
 const HERO_ROTATE_MS = 6000;
 
-const parseTime = (raw?: string) => {
-  if (!raw) return NaN;
-  return Date.parse(raw.trim().replace(" ", "T"));
+const parseTime = (raw?: string | number) => {
+  if (raw == null || raw === "") return NaN;
+  if (typeof raw === "number") return raw > 1e12 ? raw : raw * 1000;
+  const trimmed = raw.trim();
+  if (/^\d+$/.test(trimmed)) {
+    const n = Number(trimmed);
+    return n > 1e12 ? n : n * 1000;
+  }
+  return Date.parse(trimmed.replace(" ", "T"));
+};
+
+const latestTimestamp = (v: VideoCard) => {
+  const candidates = [parseTime(v.last_ep_at), parseTime(v.new_at), parseTime(v.created_at)].filter(Number.isFinite);
+  return candidates.length ? Math.max(...candidates) : NaN;
 };
 
 const isNew = (v: VideoCard) => {
-  const t = parseTime(v.created_at);
+  const t = latestTimestamp(v);
   return Number.isFinite(t) && Date.now() - t < WEEK;
 };
 
 const releaseLabel = (v: VideoCard) => {
-  const raw = (v.created_at || "").trim();
-  const t = parseTime(raw);
+  const t = latestTimestamp(v);
   if (Number.isFinite(t)) {
     const diff = Date.now() - t;
     if (diff >= 0 && diff < DAY) return "今日首发";
     if (diff >= 0 && diff < 3 * DAY) return "近3日上新";
+    const d = new Date(t);
+    return `${d.getMonth() + 1}月${d.getDate()}日 上新`;
   }
+  const raw = (v.created_at || "").trim();
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
   return m ? `${Number(m[2])}月${Number(m[3])}日 上新` : "新片上架";
 };
@@ -184,8 +197,9 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
   const visibleRanks = useMemo(() => filterAllowed(topRanks), [topRanks, filterAllowed]);
   const visibleOriginals = useMemo(() => filterAllowed(originals), [originals, filterAllowed]);
 
-  /* 1. 顶部主推优选：优先从源站真实「口碑推荐榜」挑选高分剧，并主动错峰避开紧随其后的热播榜前三名 */
+  /* 1. 顶部主推优选：优先从源站真实「口碑推荐榜」挑选高分剧，并主动错峰避开下方热播榜前 10 */
   const heroes = useMemo<HeroSpot[]>(() => {
+    const hotTop10 = new Set(visibleRanks.map(r => r.video_id));
     const hotTop3 = new Set(visibleRanks.slice(0, 3).map(r => r.video_id));
     const picked: HeroSpot[] = [];
     const seen = new Set<number>();
@@ -215,6 +229,13 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
 
     for (const r of visibleRecRanks) {
       if (picked.length >= 3) break;
+      if (!hotTop10.has(r.video_id) && !seen.has(r.video_id)) {
+        seen.add(r.video_id);
+        picked.push(toHeroFromRank(r));
+      }
+    }
+    for (const r of visibleRecRanks) {
+      if (picked.length >= 3) break;
       if (!hotTop3.has(r.video_id) && !seen.has(r.video_id)) {
         seen.add(r.video_id);
         picked.push(toHeroFromRank(r));
@@ -232,7 +253,7 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
       const highQuality = [...visible].sort((a, b) => (Number(b.is_hot === 1) - Number(a.is_hot === 1)) || ((b.score || 0) - (a.score || 0)));
       for (const v of highQuality) {
         if (picked.length >= 3) break;
-        if (!hotTop3.has(v.id) && !seen.has(v.id)) {
+        if (!hotTop10.has(v.id) && !seen.has(v.id)) {
           seen.add(v.id);
           picked.push(toHeroFromVideo(v));
         }
@@ -262,7 +283,7 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
     return () => window.clearInterval(timer);
   }, [active, tab, heroes.length, safeHeroIdx]);
 
-  /* 2. 跨模块级联去重：主推展示过的剧集不再重复出现在「独家原创」与「为你推荐」，一屏张张是新剧 */
+  /* 2. 跨模块级联去重：主推、热播 TOP 10、独家原创展示过的剧集不再重复出现在「为你推荐」 */
   const dedupedOriginals = useMemo(() => {
     const heroIds = new Set(heroes.map(h => h.id));
     const filtered = visibleOriginals.filter(v => !heroIds.has(v.id));
@@ -275,13 +296,14 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
   const recommendGrid = useMemo(() => {
     const shownAbove = new Set<number>([
       ...heroes.map(h => h.id),
+      ...visibleRanks.map(r => r.video_id),
       ...dedupedOriginals.map(v => v.id),
     ]);
     const filtered = visible.filter(v => !shownAbove.has(v.id));
     if (filtered.length > 0 || visible.length <= heroes.length) return filtered;
     const heroIds = new Set(heroes.map(h => h.id));
     return visible.filter(v => !heroIds.has(v.id));
-  }, [visible, heroes, dedupedOriginals]);
+  }, [visible, heroes, visibleRanks, dedupedOriginals]);
 
   /* 3. 为你推荐「换一批」：按真实分页池轮换下一批片单，原地平滑替换不跳滚 */
   const rotateRecommend = useCallback(() => {
@@ -466,6 +488,7 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
                           <span className="hg-poster-art">
                             <Img src={v.cover} alt="" />
                             <span className="hg-poster-veil" aria-hidden="true" />
+                            {v.score > 0 && <span className="hg-poster-score">★ {v.score.toFixed(1)}</span>}
                             <span className="hg-poster-badge">上新</span>
                             <span className="hg-poster-views">{releaseLabel(v).replace(" 上新", "")}</span>
                           </span>
@@ -683,11 +706,6 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
                       <IRefresh size={12} /><span>{shuffling ? "换片中" : "换一批"}</span>
                     </Button>
                   )}
-                  {recommendGrid.length > 0 && (
-                    <Button className="hg-section-more" onClick={() => startSwipeFeed(recommendGrid, 0, "为你推荐")}>
-                      刷一刷<IChevR size={11} />
-                    </Button>
-                  )}
                 </div>
               </div>
               <div className="hg-grid-c3">
@@ -696,9 +714,11 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
                     <span className="hg-poster-art">
                       <Img src={v.cover} alt="" />
                       <span className="hg-poster-veil" aria-hidden="true" />
+                      {v.score > 0 && <span className="hg-poster-score">★ {v.score.toFixed(1)}</span>}
                       {v.is_hot === 1
                         ? <span className="hg-poster-badge is-hot">热门</span>
-                        : isNew(v) ? <span className="hg-poster-badge">上新</span> : null}
+                        : isNew(v) ? <span className="hg-poster-badge">上新</span>
+                        : v.is_original === 1 ? <span className="hg-poster-badge is-orig">原创</span> : null}
                       <span className="hg-poster-views">▶ {fmt(v.hot)}</span>
                     </span>
                     <span className="hg-poster-name">{v.title}</span>
