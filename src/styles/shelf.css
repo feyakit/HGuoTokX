@@ -273,15 +273,15 @@
   font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums;
 }
 .hg-ep-cell[aria-current="true"] {
-  background: var(--accent, var(--p-primary)); color: var(--hg-canvas);
+  background: var(--p-primary); color: var(--p-on-primary);
   box-shadow: inset 0 0 0 2px #8B9AF9;
 }
 
-/* 主 CTA（规范 2.3）：332×41.7 全圆、14/600、accent 底、距底 32 */
+/* 主 CTA（规范 2.3）：332×41.7 全圆、14/600、固定品牌主色、距底 32 */
 .hg-cta {
   display: flex; align-items: center; justify-content: center; gap: 6px;
   width: 100%; height: 41.7px; border: 0; border-radius: 999px; padding: 0 24px;
-  background: var(--accent, var(--p-primary)); color: var(--hg-canvas);
+  background: var(--p-primary); color: var(--p-on-primary);
   font-size: 14px; font-weight: 600;
 }
 .hg-detail-cta-wrap {

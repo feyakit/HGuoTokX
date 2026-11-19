@@ -90,7 +90,7 @@ type Persist = GuestData & {
 const LS = STORAGE_KEYS.app;
 const DEFAULTS: Persist = {
   likes: [], favs: [], postFavs: [], history: [], follows: [],
-  muted: true, muteOnStartup: true, volume: 0.7, searchHist: [], swipeEp: true, preferHevc: false,
+  muted: true, muteOnStartup: true, volume: 0.7, searchHist: [], swipeEp: true, preferHevc: true,
 };
 
 /** 旧版本 history 是 number[]，读出来时升级成带进度的结构 */

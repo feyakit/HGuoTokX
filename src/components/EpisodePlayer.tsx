@@ -56,7 +56,7 @@ export type EpisodePlayerProps = {
 
 export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mode, kind = "video", active, bottomInset, onBack, onNearEnd, onActiveIndex, endless = false, onBlocked, startEp, startTime }: EpisodePlayerProps) {
   const store = useStore();
-  const { isLiked, isFav, setLiked, setCollected, setFollowing, actionPending, accountScope, muted, setMuted, volume, setVolume, toast, addHistory, user, setLoginOpen, swipeEp, setSwipeEp, preferHevc, setPreferHevc } = store;
+  const { isLiked, isFav, setLiked, setCollected, setFollowing, actionPending, accountScope, muted, setMuted, volume, setVolume, toast, addHistory, user, setLoginOpen, swipeEp, setSwipeEp, preferHevc } = store;
   const isDesktop = !isMobile;
   const holdGuide = useMobileHoldGuide();
   const contentPreferences = useContentPreferences();
@@ -339,17 +339,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     window.addEventListener("hg:line-changed", read);
     return () => { alive = false; window.removeEventListener("hg:line-changed", read); };
   }, [isDesktop, active]);
+  const [hevcFallback, setHevcFallback] = useState<Record<string, boolean>>({});
   const mainUrl = playUrls[playKey] || "";
   const hevcUrl = hevcUrls[playKey] || "";
-  const playUrl = preferHevc && hevcUrl ? hevcUrl : mainUrl;
-  const toggleQuality = useCallback(() => {
-    const nextHevc = !preferHevc;
-    const v = videoRef.current?.el();
-    const curT = v && Number.isFinite(v.currentTime) ? v.currentTime : liveRef.current.t;
-    if (curT > 0.5) resumeRef.current = { key: playKey, t: curT };
-    setPreferHevc(nextHevc);
-    toast(nextHevc ? "已切换高清 HEVC" : "已切回标准画质", "ok");
-  }, [preferHevc, playKey, setPreferHevc, toast]);
+  const useHevc = preferHevc && !!hevcUrl && !hevcFallback[playKey];
+  const playUrl = useHevc ? hevcUrl : mainUrl;
   const openFullSeries = useCallback(() => {
     if (kind !== "video" || !curId) { setPanel("detail"); return; }
     const v = videoRef.current?.el();
@@ -1428,11 +1422,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   onError={(m) => {
                     if (!isCurrentPlayback()) return;
                     setErr(m); setWaiting(false);
-                    if (preferHevc && hevcUrl) {
+                    if (useHevc) {
                       const v = videoRef.current?.el();
                       const curT = v && Number.isFinite(v.currentTime) ? v.currentTime : liveRef.current.t;
                       if (curT > 0.5) resumeRef.current = { key: playKey, t: curT };
-                      setPreferHevc(false);
+                      setHevcFallback((prev) => ({ ...prev, [playKey]: true }));
                       toast("高清播不了，已切回标准", "info");
                     }
                   }} />
@@ -1527,18 +1521,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   </div>
                 </div>
               )}
-              {/* 右侧操作栏（移动端）：切集 / 画质 / 点赞 / 收藏 / 评论
+              {/* 右侧操作栏（移动端）：点赞 / 收藏 / 评论 / 全屏
                   颜色写死不跟主题走：浅色主题下这些字必须仍是白色 */}
               {!fs && !clean && !isDesktop && (
                 <div className="mobile-video-action-rail absolute right-3 z-20 flex flex-col items-center gap-[16px]"
                   style={{ bottom: `calc(var(--sab, 0px) + ${bottomInset + 168}px)` }}>
-                  {hevcUrl && (
-                    /* 只留胶囊这一行：没有文字占位，靠 h-12 撑出和对齐其它项的行距 */
-                    <Button type="button" onClick={toggleQuality}
-                      className="flex items-center justify-center min-w-11 h-12 pressable" aria-pressed={preferHevc} aria-label="画质切换">
-                      <span className={`flex items-center justify-center h-[22px] min-w-[30px] px-1 rounded-md text-[12px] font-bold hg-ov-shadow ${preferHevc ? "bg-primary text-on-primary" : "hg-chip hg-ink-2"}`}>{preferHevc ? "高清" : "标清"}</span>
-                    </Button>
-                  )}
                   {kind === "video" && (
                     <Button onClick={() => void onLike()} disabled={likePending} aria-busy={likePending} className="flex flex-col items-center gap-1 pressable" aria-pressed={liked} aria-label="点赞">
                       {liked ? <IHeartF size={26} className="text-neon" /> : <IHeart size={26} className="hg-ink hg-ov-shadow" />}
@@ -1613,13 +1600,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                       第 {curEp}/{episodes.length} 集
                     </span>
                   )}
-                   {hevcUrl && (
-                     <Button type="button" aria-pressed={preferHevc}
-                       onClick={toggleQuality}
-                       className={`shrink-0 h-[18px] px-1.5 rounded-md text-[12px] font-bold flex items-center pressable transition-colors ${preferHevc ? "bg-primary text-on-primary" : "text-white border border-white/30"}`}>
-                       {preferHevc ? "HD" : "标清"}
-                     </Button>
-                   )}
                    {!!meta.score && (
                   <span className="shrink-0 text-[12px] font-bold hg-gold hg-ov-shadow">{meta.score.toFixed(1)} 分</span>
                   )}
