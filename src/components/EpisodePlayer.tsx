@@ -447,6 +447,30 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
      整块舞台用 CSS 旋转 90°，用户把手机横过来就看到「横屏播放器」。系统真转了就不用兜底。 */
   const rotated = !isDesktop && fs && fsLandscape && !vpLandscape;
   const landscapeVideo = videoSize.w > 0 && videoSize.h > 0 && videoSize.w > videoSize.h;
+  const portraitVideo = videoSize.w > 0 && videoSize.h > 0 && videoSize.w <= videoSize.h;
+  const ambientCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [ambientLive, setAmbientLive] = useState(false);
+
+  useEffect(() => {
+    setAmbientLive(false);
+    if (isDesktop || !active) return undefined;
+    let alive = true;
+    const paint = () => {
+      if (!alive) return;
+      const v = videoRef.current?.el();
+      const canvas = ambientCanvasRef.current;
+      if (!v || !canvas || v.readyState < 2 || v.videoWidth <= 0) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      try {
+        ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+        setAmbientLive((prev) => (prev ? prev : true));
+      } catch { /* ignore */ }
+    };
+    paint();
+    const timer = window.setInterval(paint, 220);
+    return () => { alive = false; window.clearInterval(timer); };
+  }, [isDesktop, active, playKey, paused]);
   /* 竖屏快捷胶囊：仅双指放大后显示「还原」按钮，横屏视频不再在竖屏下弹「铺满」裁切提示 */
   const capsuleOn = !fs && !clean && !isDesktop && zoom.s > 1.05;
 
@@ -1364,11 +1388,33 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
           视频是不透明元素、盖在它上面，所以这层只在视频以外的信箱区/上下条可见，
           不给 video 加任何滤镜。取色失败时 data-ambient="fallback" → 这一层不渲染，回纯黑。 */}
       <div aria-hidden="true" className="hg-player-ambient-layer" />
-      {/* 氛围背景 */}
+      {/* 氛围背景：起播前由增强版封面毛玻璃垫底，起播后由实时视频流光接管 */}
       {!isDesktop && posterUrl && (
-        <div className="absolute inset-0 scale-110 blur-3xl opacity-25 pointer-events-none">
+        <div className="absolute inset-0 pointer-events-none"
+          style={{
+            transform: "scale(1.16)",
+            filter: "blur(42px) saturate(1.45) brightness(0.62)",
+            opacity: ambientLive ? 0.15 : 0.45,
+            transition: "opacity 0.5s ease",
+          }}>
           <Image src={posterUrl} alt="" className="w-full h-full object-cover" />
         </div>
+      )}
+      {!isDesktop && (
+        <canvas
+          ref={ambientCanvasRef}
+          width={32}
+          height={18}
+          aria-hidden="true"
+          className="absolute inset-0 w-full h-full pointer-events-none"
+          style={{
+            objectFit: "cover",
+            transform: "scale(1.18)",
+            filter: "blur(46px) saturate(1.55) brightness(0.64)",
+            opacity: ambientLive ? 0.72 : 0,
+            transition: "opacity 0.5s ease",
+          }}
+        />
       )}
 
       <div ref={boxRef} onScroll={onScroll}
@@ -1405,8 +1451,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   diagnosticContext={{ active: active && !tagMenu && !showHoldGuide, view: mode, kind, video_id: curId, episode: curEp }}
                   volume={volume} rate={effRate}
                   measurementKey={measurementKey}
-                  /* 一律 contain 完整显示，不裁切画面；横屏剧点全屏直接横屏完整观看 */
-                  fit="contain"
+                  /* 竖屏 9:16 片源在竖屏下铺满消黑边；横屏剧无论竖看还是横屏全屏一律 contain 不裁切 */
+                  fit={isDesktop ? "contain" : (portraitVideo && !rotated && !vpLandscape) ? "cover" : "contain"}
                   onClick={() => { if (isDesktop) videoRef.current?.toggle(); }}
                   onTime={onTimeTick}
                   onDuration={onDurationTick}
