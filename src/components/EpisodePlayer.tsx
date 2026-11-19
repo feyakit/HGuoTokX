@@ -18,10 +18,8 @@ import { useContentPreferences } from "../contentPreferences";
 import { TagBlockMenu } from "./TagBlockMenu";
 import VideoDetailsPanel from "./VideoDetailsPanel";
 import { PreferenceStorageNotice } from "./PreferenceStorageNotice";
-import MobileHoldGuide from "./MobileHoldGuide";
 import LineQuickSwitch from "./LineQuickSwitch";
 import { getHoldZone, stageXY, HOLD_DELAY_MS, HOLD_LOCK_DISTANCE, type HoldZone } from "../mobileHold";
-import { useMobileHoldGuide } from "../useMobileHoldGuide";
 import {
   IBack, IBoltF, IChevR, IChevronDown, IChevronUp, IClose, ICommentF, ICompress, IExpand, IFileText, IGlobe, IHeart, IHeartF, IMore,
   IList, ILockF, IPauseF, IPlayF, ISearch, IStar, IStarF, IVertSwap, IVol, IVolMute,
@@ -58,7 +56,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const store = useStore();
   const { isLiked, isFav, setLiked, setCollected, setFollowing, actionPending, accountScope, muted, setMuted, volume, setVolume, toast, addHistory, user, setLoginOpen, swipeEp, setSwipeEp, preferHevc } = store;
   const isDesktop = !isMobile;
-  const holdGuide = useMobileHoldGuide();
   const contentPreferences = useContentPreferences();
   const { preferences, revision, blockReason } = contentPreferences;
   const filtering = !preferences.paused && (preferences.blockedTags.length > 0 || preferences.hideUntagged);
@@ -194,7 +191,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const [lineInfo, setLineInfo] = useState<{ label: string; multi: boolean }>({ label: "线路", multi: false });
   /* —— 移动端手势 —— */
   const [holdSpeed, setHoldSpeed] = useState(false);
-  const [holdSlow, setHoldSlow] = useState(false);
   const [speedLock, setSpeedLock] = useState(false);
   const [lockArmed, setLockArmed] = useState(false);
   const holdRef = useRef(false);
@@ -359,9 +355,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   }, [curId]);
   const measurementKey = JSON.stringify([accountScope, store.lineEpoch, permissionKey, playKey, playUrl]);
   const videoSize = vsize.key === measurementKey ? vsize : { key: measurementKey, w: 0, h: 0 };
-  // 等播放画面就绪再提示，启动动画/协议、加载失败和其他面板不叠加教程。
-  const showHoldGuide = !isDesktop && !holdGuide.seen && active && allowed
-    && !!playUrl && duration > 0 && !err && !panel && !tagMenu && !controlsLocked;
+  const showHoldGuide = false;
   useEffect(() => {
     const retry = () => {
       setErr("");
@@ -447,8 +441,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   useEffect(() => { setAccent(accentScheme); }, [accentScheme, setAccent]);
   const articleHtml = kind === "post" && !post?.video_url ? (post?.content || "") : "";
 
-  /* 倍速：中心小方块打开偏好，外侧右上 2.0x / 左下 0.5x。 */
-  const effRate = holdSpeed || speedLock ? 2 : holdSlow ? 0.5 : rate;
+  /* 倍速：中心小方块打开偏好，两侧长按 2.0x。 */
+  const effRate = holdSpeed || speedLock ? 2 : rate;
   /* 伪横屏：系统不给转（安卓 WebView 的 orientation.lock 需要 Fullscreen API，通常拿不到）时，
      整块舞台用 CSS 旋转 90°，用户把手机横过来就看到「横屏播放器」。系统真转了就不用兜底。 */
   const rotated = !isDesktop && fs && fsLandscape && !vpLandscape;
@@ -814,7 +808,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       };
       if (gesture.current?.timer) window.clearTimeout(gesture.current.timer);
       gesture.current = null;
-      if (holdRef.current) { holdRef.current = false; setHoldSpeed(false); setHoldSlow(false); }
+      if (holdRef.current) { holdRef.current = false; setHoldSpeed(false); }
       lockArmedRef.current = false;
       setLockArmed(false);
       setZoom((z) => ({ ...z, g: true }));
@@ -847,8 +841,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
           openTagMenu();
         } else {
           holdRef.current = true;
-          if (cur.zone === "slow") setHoldSlow(true);
-          else setHoldSpeed(true);
+          setHoldSpeed(true);
         }
         setLockArmed(false);
         lockArmedRef.current = false;
@@ -878,9 +871,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     const dx = msx - g.x;
     const dy = msy - g.y;
 
-    /* 长按中：右上加速区上滑 64px 进入「松开即锁定」；减速/不感兴趣区不锁 */
+    /* 长按中：任意一侧长按加速时上滑 64px 进入「松开即锁定」 */
     if (g.mode === "hold") {
-      if (g.zone !== "fast") return;
+      if (g.zone === "menu") return;
       const armed = g.startY - msy > HOLD_LOCK_DISTANCE;
       if (armed !== lockArmedRef.current) {
         lockArmedRef.current = armed;
@@ -911,7 +904,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       const target = Math.max(0, Math.min(total, g.base + (dx / g.width) * total));
       scrubTarget.current = target;
       setScrub({ pct: (target / total) * 100, target });
-    } else if (g.mode === "pan" && !endless && swipeEp && kind === "video" && zoom.s <= 1.05) {
+    } else if (g.mode === "pan" && !fs && !endless && swipeEp && kind === "video" && zoom.s <= 1.05) {
       const pdy = msy - g.startY;
       const damped = Math.max(-96, Math.min(96, pdy * 0.42));
       setEpSlide({ y: damped, animate: false });
@@ -931,7 +924,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     /* 长按状态必须无条件复位：切集 / 组件重建会把手势对象清掉，
        但 holdRef 若留在 true，下面的 touchmove 会一直 preventDefault，
        整个列表就再也滑不动（表现为「播放后不能上滑」）。 */
-    if (holdRef.current) { holdRef.current = false; setHoldSpeed(false); setHoldSlow(false); }
+    if (holdRef.current) { holdRef.current = false; setHoldSpeed(false); }
     const wasLockArmed = lockArmedRef.current;
     if (lockArmedRef.current) { lockArmedRef.current = false; setLockArmed(false); }
     if (!g) { setEpSlide({ y: 0, animate: true }); return; }
@@ -941,7 +934,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       setEpSlide({ y: 0, animate: true });
       holdRef.current = false;
       setHoldSpeed(false);
-      setHoldSlow(false);
       if (!cancelled && wasLockArmed) {
         setSpeedLock(true);
         toast("已锁定 2.0x 倍速 · 点顶部标签解除", "info");
@@ -969,9 +961,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       if (g.playing && active) videoRef.current?.play();
       return;
     }
-    /* 上下划手势（swipeEp 开启时 overlay 是 touch-action:none，
-       原生滚动不参与，这里抬手一次性判定；关着时走原生滚动切剧） */
-    if (!cancelled && e && g.mode === "pan") {
+    /* 上下划手势（全屏态屏蔽上下滑切集防误触） */
+    if (!cancelled && !fs && e && g.mode === "pan") {
       const [ux2, uy2] = stageXY(rotated, e.clientX, e.clientY);
       const dy = uy2 - g.startY;
       const dx2 = ux2 - g.x;
@@ -998,13 +989,31 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       }
     }
     setEpSlide({ y: 0, animate: true });
-    /* 控件收起来时：轻点先把控件唤回来，不动播放（否则「点哪都点不出菜单」，报告反馈过） */
-    if (!cancelled && g.mode === "idle" && Date.now() - g.t < 260 && (g.hiddenAtDown || clean || (!isDesktop && fs && idle))) {
-      showControls();
-      return;
-    }
-    /* 控件显示时：单击 = 暂停 / 继续（180ms 判定窗）；双击 = 沉浸净屏 */
+    /* 全屏态：控件隐藏时单击呼出；控件显示时单击收起、双击暂停/继续
+       竖屏非全屏态：净屏时单击呼出；显示时单击暂停/继续、双击净屏 */
     if (!cancelled && g.mode === "idle" && Date.now() - g.t < 260) {
+      if (fs) {
+        if (g.hiddenAtDown || idle) {
+          showControls();
+          return;
+        }
+        if (lastTapRef.current.timer) {
+          window.clearTimeout(lastTapRef.current.timer);
+          lastTapRef.current.timer = null;
+          videoRef.current?.toggle();
+          armAutoHide();
+          return;
+        }
+        lastTapRef.current.timer = window.setTimeout(() => {
+          lastTapRef.current.timer = null;
+          hideControls();
+        }, TAP_DELAY_MS) as unknown as number;
+        return;
+      }
+      if (g.hiddenAtDown || clean) {
+        showControls();
+        return;
+      }
       if (lastTapRef.current.timer) {
         window.clearTimeout(lastTapRef.current.timer);
         lastTapRef.current.timer = null;
@@ -1462,12 +1471,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   </div>
                 )
               ) : null}
-              {!fs && !clean && !isDesktop && mode === "context" && !endless && (
-                <span className="feed-position-pill absolute z-20 px-2.5 py-1 rounded-full hg-chip text-[12px] font-semibold tabular-nums"
-                  style={{ top: "calc(var(--sat, 0px) + 52px)", left: 12, color: "rgba(255,255,255,.94)" }}>
-                  {episodes.length > 1 ? `第 ${curEp} 集 / 共 ${episodes.length} 集` : `${index + 1} / ${effectiveVideoIds.length}`}
-                </span>
-              )}
               {/* 竖屏下的快捷操作（#19）：
                   横版视频 → 保持原样，居中横排一条（画面上下有黑边，居中不压主体）；
                   竖版视频 → 只剩「切集」图标，贴右边缘，避免压住画面正中。
@@ -1826,7 +1829,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       )}
 
       {/* 移动端：倍速状态 / 锁定提示 */}
-      {!isDesktop && (holdSpeed || holdSlow || speedLock || rate !== 1) && (!fs || !idle) && (
+      {!isDesktop && (holdSpeed || speedLock || rate !== 1) && (!fs || !idle) && (
         <Button
           onClick={() => {
             if (speedLock) { setSpeedLock(false); toast("已解除倍速锁定", "info"); }
@@ -1835,7 +1838,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
           className={`absolute left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 px-3.5 h-8 rounded-full backdrop-blur-md text-[13px] font-bold elev-2 pressable ${speedLock ? "bg-primary text-on-primary" : "hg-chip hg-gold"}`}
           style={{ top: "calc(var(--sat, 0px) + 54px)" }}>
           <IBoltF size={13} />
-          {effRate}x {speedLock ? "已锁定 · 点按解除" : holdSpeed ? "倍速中 · 松开恢复" : holdSlow ? "减速中 · 松开恢复" : "倍速"}
+          {effRate}x {speedLock ? "已锁定 · 点按解除" : holdSpeed ? "倍速中 · 松开恢复" : "倍速"}
         </Button>
       )}
       {!isDesktop && holdSpeed && (
@@ -1990,7 +1993,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       <TagBlockMenu open={active && tagMenu} tags={meta.tags} onClose={() => setTagMenu(false)} />
       {/* 线路面板：播放页内就地弹，不跳设置页 */}
       {!isDesktop && <LineQuickSwitch open={active && lineOpen} onClose={() => setLineOpen(false)} />}
-      {!isDesktop && <MobileHoldGuide open={showHoldGuide} onClose={holdGuide.dismiss} target={holdTargetRef} bottomInset={bottomInset} />}
       {controlsLocked && <PlaybackLock active={active} onUnlock={() => { setControlsLocked(false); if (isDesktop) wake(); else showControls(); }} />}
     </div>
   );
