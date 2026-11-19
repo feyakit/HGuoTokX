@@ -1810,18 +1810,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                 </div>
               )}
 
-              {/* 暂停 / 缓冲 */}
-              {isActive && paused && !err && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-                  <button type="button" aria-label="继续播放"
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={(e) => { e.stopPropagation(); videoRef.current?.play(); }}
-                    className="pointer-events-auto w-[66px] h-[66px] rounded-full flex items-center justify-center backdrop-blur-md border-0 cursor-pointer"
-                    style={{ background: "rgba(0,0,0,.55)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,.12)" }}>
-                    <IPlayF size={28} className="hg-ink ml-0.5" />
-                  </button>
-                </div>
-              )}
+              {/* 缓冲 / 错误 */}
               {isActive && waiting && !err && !paused && (
                 <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none"><Loader className="w-9 h-9 spinner" /></div>
               )}
@@ -1896,28 +1885,35 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
         </div>
       )}
 
-      {/* 移动端全屏进度条，普通模式的进度条位于标题下方 */}
-      {!isDesktop && fs && !idle && (
-        <div
-          className="absolute inset-x-0 z-30 px-4"
-          style={{
-            bottom: rotated ? 52 : "calc(var(--sab, 0px) + 52px)",
-            paddingLeft: rotated ? "calc(var(--sat, 0px) + 16px)" : undefined,
-            paddingRight: rotated ? "calc(var(--sab, 0px) + 16px)" : undefined,
-            height: 22,
-          }}>
-          <div ref={barRef} className="relative h-full" style={{ touchAction: "none" }}
-            onPointerDown={onBarDown} onPointerMove={onBarMove} onPointerUp={onBarUp} onPointerCancel={onBarUp}>
-            <div className="absolute inset-x-0 bottom-[8px] h-[2.5px] rounded-full" style={{ background: "rgba(255,255,255,.3)" }}>
-              <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} className="h-full rounded-full bg-white" />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 移动端：沉浸全屏（安卓 WebView 不支持 Fullscreen API，改用应用内沉浸层） */}
+      {/* 移动端：沉浸全屏顶栏 / 进度条 / 底栏 */}
       {!isDesktop && fs && !idle && (
         <>
+          <div className="absolute inset-x-0 top-0 z-30 pointer-events-none"
+            style={{ height: 96, background: "linear-gradient(180deg, rgba(0,0,0,.72) 0%, rgba(0,0,0,0) 100%)" }} />
+          <div className="absolute inset-x-0 bottom-0 z-30 pointer-events-none"
+            style={{ height: 116, background: "linear-gradient(0deg, rgba(0,0,0,.78) 0%, rgba(0,0,0,0) 100%)" }} />
+
+          {/* 全屏顶部：返回退出全屏 + 剧名 + 集数 */}
+          <div className="absolute inset-x-0 z-40 flex items-center gap-2.5 px-4"
+            style={{
+              top: rotated ? 12 : "calc(var(--sat, 0px) + 6px)",
+              paddingLeft: rotated ? "calc(var(--sat, 0px) + 16px)" : undefined,
+              paddingRight: rotated ? "calc(var(--sab, 0px) + 108px)" : 108,
+            }}>
+            <Button onClick={exitFs} aria-label="退出全屏"
+              className="hg-chip-strong shrink-0 w-9 h-9 rounded-full backdrop-blur-md flex items-center justify-center pressable elev-1">
+              <IBack size={18} />
+            </Button>
+            <div className="min-w-0 flex items-center gap-2">
+              <span className="text-[14px] font-semibold hg-ink hg-ov-shadow truncate">{meta.title || title || "正在播放"}</span>
+              {episodes.length > 1 && (
+                <span className="shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold tabular-nums hg-chip hg-ink-2">
+                  第 {curEp} 集
+                </span>
+              )}
+            </div>
+          </div>
+
           <Button onClick={exitFs} aria-label="退出全屏"
             className="hg-chip-strong absolute z-40 w-9 h-9 rounded-full backdrop-blur-md flex items-center justify-center pressable elev-1"
             style={{
@@ -1926,42 +1922,71 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
             }}>
             <ICompress size={18} />
           </Button>
-          <div className="absolute inset-x-0 z-40 flex items-center gap-3 px-4"
+
+          {/* 全屏进度条 */}
+          <div
+            className="absolute inset-x-0 z-40 px-4"
+            style={{
+              bottom: rotated ? 54 : "calc(var(--sab, 0px) + 54px)",
+              paddingLeft: rotated ? "calc(var(--sat, 0px) + 16px)" : undefined,
+              paddingRight: rotated ? "calc(var(--sab, 0px) + 16px)" : undefined,
+              height: 22,
+            }}>
+            <div ref={barRef} className="relative h-full" style={{ touchAction: "none" }}
+              onPointerDown={onBarDown} onPointerMove={onBarMove} onPointerUp={onBarUp} onPointerCancel={onBarUp}>
+              <div className="absolute inset-x-0 bottom-[8px] h-[3px] rounded-full" style={{ background: "rgba(255,255,255,.3)" }}>
+                <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} className="h-full rounded-full bg-white" />
+              </div>
+            </div>
+          </div>
+
+          {/* 全屏底栏：播放/暂停 + 当前/总时长 + 缩放还原/倍速/选集/下集 */}
+          <div className="absolute inset-x-0 z-40 flex items-center gap-2.5 px-4"
             style={{
               bottom: rotated ? 10 : "calc(var(--sab, 0px) + 10px)",
               paddingLeft: rotated ? "calc(var(--sat, 0px) + 16px)" : undefined,
               paddingRight: rotated ? "calc(var(--sab, 0px) + 16px)" : undefined,
             }}>
             <Button onClick={() => videoRef.current?.toggle()} aria-label={paused ? "播放" : "暂停"} aria-pressed={paused}
-              className="hg-chip shrink-0 w-11 h-11 rounded-full flex items-center justify-center pressable">
-              {paused ? <IPlayF size={18} /> : <IPauseF size={17} />}
+              className="hg-chip shrink-0 w-10 h-10 rounded-full flex items-center justify-center pressable">
+              {paused ? <IPlayF size={17} /> : <IPauseF size={16} />}
             </Button>
-            <PlaybackTime clock={playbackClock} className="shrink-0 text-[12px] font-semibold hg-ink-2 tabular-nums" />
-            {zoom.s > 1.05 && (
-              <Button onClick={() => setZoom({ s: 1, x: 0, y: 0, g: false })}
-                className="shrink-0 flex items-center gap-1 px-2.5 h-8 rounded-full text-[12px] font-semibold hg-chip hg-ink-2 pressable"
-                aria-label="还原画面">
-                还原 {zoom.s.toFixed(1)}x
+            <span className="shrink-0 text-[12px] font-semibold hg-ink-2 tabular-nums">
+              <PlaybackTime clock={playbackClock} /> <span className="hg-ink-4 font-normal">/ {fmtTime(duration)}</span>
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              {zoom.s > 1.05 && (
+                <Button onClick={() => setZoom({ s: 1, x: 0, y: 0, g: false })}
+                  className="shrink-0 flex items-center gap-1 px-2.5 h-8 rounded-full text-[12px] font-semibold hg-chip hg-ink-2 pressable"
+                  aria-label="还原画面">
+                  还原 {zoom.s.toFixed(1)}x
+                </Button>
+              )}
+              <Button
+                onClick={() => {
+                  if (speedLock) { setSpeedLock(false); return; }
+                  const seq = [1, 1.25, 1.5, 2];
+                  const i = seq.indexOf(rate);
+                  setRate(seq[(i + 1) % seq.length]);
+                }}
+                className={`shrink-0 flex items-center gap-1 px-2.5 h-8 rounded-full text-[12px] font-bold pressable ${effRate !== 1 ? "bg-primary text-on-primary" : "hg-chip hg-ink-2"}`}>
+                <IBoltF size={12} />{effRate}x
               </Button>
-            )}
-            <Button
-              onClick={() => {
-                if (speedLock) { setSpeedLock(false); return; }
-                const seq = [1, 1.25, 1.5, 2];
-                const i = seq.indexOf(rate);
-                setRate(seq[(i + 1) % seq.length]);
-              }}
-              className={`ml-auto shrink-0 flex items-center gap-1 px-2.5 h-8 rounded-full text-[13px] font-bold pressable ${effRate !== 1 ? "bg-primary text-on-primary" : "hg-chip hg-ink-2"}`}>
-              <IBoltF size={12} />{effRate}x
-            </Button>
-            {curEp < episodes.length && (
-              <Button onClick={() => pickEp(curEp + 1)}
-                className="shrink-0 flex items-center gap-1 px-2.5 h-8 rounded-full text-[13px] font-semibold hg-chip hg-ink-2 pressable"
-                aria-label={`下一集 第${curEp + 1}集`}>
-                <IVertSwap size={12} />下集
-              </Button>
-            )}
-            <span className="shrink-0 text-[12px] hg-ink-4 tabular-nums">{fmtTime(duration)}</span>
+              {episodes.length > 1 && (
+                <Button onClick={() => setPanel("episodes")}
+                  className="shrink-0 flex items-center gap-1 px-2.5 h-8 rounded-full text-[12px] font-semibold hg-chip hg-ink-2 pressable"
+                  aria-label="选集">
+                  <IList size={13} />选集
+                </Button>
+              )}
+              {curEp < episodes.length && (
+                <Button onClick={() => pickEp(curEp + 1)}
+                  className="shrink-0 flex items-center gap-1 px-2.5 h-8 rounded-full text-[12px] font-semibold hg-chip hg-ink-2 pressable"
+                  aria-label={`下一集 第${curEp + 1}集`}>
+                  <IVertSwap size={12} />下集
+                </Button>
+              )}
+            </div>
           </div>
         </>
       )}
