@@ -1165,14 +1165,15 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 
 /* 1. 一级大字重流光顶栏（首页 & 吃瓜共用，直接省去独立胶囊行） */
 .hg-editorial-bar {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 8px;
   min-height: 48px; padding-top: calc(var(--sat, 0px) + 6px); padding-bottom: 6px;
 }
 .hg-ed-tabs {
-  display: flex; align-items: baseline; gap: 20px; flex: 1; min-width: 0;
+  display: flex; align-items: baseline; gap: 14px; flex: 1; min-width: 0;
 }
 .ios-button.hg-ed-tab {
   position: relative; background: none; border: 0; border-radius: 0;
+  flex-shrink: 0; white-space: nowrap;
   min-block-size: 0; min-inline-size: 0; padding: 4px 2px 9px;
   font-size: 15px; font-weight: 600; line-height: 1.15;
   color: rgba(255, 255, 255, 0.52);
