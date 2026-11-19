@@ -393,6 +393,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
         return s;
       }
+      if (top && top.kind === pg.kind) {
+        if (pg.kind === "series" && top.kind === "series" && top.id === pg.id) return s;
+        if (pg.kind === "post" && top.kind === "post" && top.id === pg.id) return s;
+        if (pg.kind === "topic" && top.kind === "topic" && top.slug === pg.slug) return s;
+        if (pg.kind === "tag" && top.kind === "tag" && top.tag === pg.tag) return s;
+        if (pg.kind === "channel" && top.kind === "channel" && top.cate === pg.cate) return s;
+        if (pg.kind === "tags" || pg.kind === "ranks" || pg.kind === "history" || pg.kind === "favorites" || pg.kind === "settings") return s;
+      }
       return [...s, { ...pg, key: `p${++seq}` } as Page];
     });
   }, []);

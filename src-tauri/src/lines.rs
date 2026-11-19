@@ -17,15 +17,19 @@ const PUBLISH_PAGES: [&str; 2] = [
 const MIRROR_MAX: usize = 60;
 const PUBLISH_ARRAY_MAX: usize = 256;
 const RECOMMENDED_MAX: usize = 20;
-const PAGE_TIMEOUT: Duration = Duration::from_secs(8);
+const PAGE_TIMEOUT: Duration = Duration::from_secs(6);
 const MAX_PUBLISH_BYTES: usize = 512 * 1024;
 const AUTO_PROBE_PATH: &str = "/api/videos?page=1&size=1";
-const AUTO_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
+const AUTO_PROBE_TIMEOUT: Duration = Duration::from_secs(3);
 const AUTO_MIRROR_MAX: usize = 10;
+const MIRROR_CACHE_TTL: Duration = Duration::from_secs(300);
+const MAIN_HEAD_START: Duration = Duration::from_millis(1000);
+const SETTLE_GRACE: Duration = Duration::from_millis(350);
 
 /// Only origins actually parsed from a trusted publisher can enter this set.
 /// Loading line.json, displaying the current line and probing a host never add trust.
 static TRUSTED_MIRRORS: RwLock<Vec<String>> = RwLock::new(Vec::new());
+static MIRRORS_CACHE: RwLock<Option<(Instant, Value)>> = RwLock::new(None);
 
 fn remember_published(items: &[Value]) {
     let mut known = TRUSTED_MIRRORS
@@ -78,7 +82,23 @@ pub async fn mirrors() -> Result<Value, String> {
     if let Some(items) = result.get("items").and_then(Value::as_array) {
         remember_published(items);
     }
+    if let Ok(mut cache) = MIRRORS_CACHE.write() {
+        *cache = Some((Instant::now(), result.clone()));
+    }
     Ok(result)
+}
+
+/// Auto-pick uses a short-lived in-memory cache so repeated failovers avoid
+/// re-fetching the publish pages every time.
+async fn mirrors_cached() -> Result<Value, String> {
+    if let Ok(cache) = MIRRORS_CACHE.read() {
+        if let Some((at, value)) = cache.as_ref() {
+            if at.elapsed() < MIRROR_CACHE_TTL {
+                return Ok(value.clone());
+            }
+        }
+    }
+    mirrors().await
 }
 
 fn merge_publishers(
@@ -585,11 +605,11 @@ async fn probe_hit(tier: &'static str, raw: &str) -> Hit {
     };
     hit.url = origin.clone();
     let started = Instant::now();
-    // edge sends the upstream's real envelope. None explicitly omits credentials.
-    // This total deadline also covers edge retries and the response body.
+    // edge_once sends the upstream's real envelope without retry backoff.
+    // This total deadline covers DNS, TLS, and the response body.
     match tokio::time::timeout(
         AUTO_PROBE_TIMEOUT,
-        crate::net::edge(&origin, "GET", AUTO_PROBE_PATH, None, None),
+        crate::net::edge_once(&origin, "GET", AUTO_PROBE_PATH, None, None),
     )
     .await
     {
@@ -605,7 +625,7 @@ async fn probe_hit(tier: &'static str, raw: &str) -> Hit {
             hit.error = Some(error);
         }
         Err(_) => {
-            hit.error = Some("视频接口探测超时（5 秒）".into());
+            hit.error = Some("视频接口探测超时（3 秒）".into());
         }
     }
     hit.ms = started.elapsed().as_millis() as u64;
@@ -673,32 +693,72 @@ fn pick_from_hits(hits: &[Hit]) -> Value {
     }
 }
 
-/// Prefer the real main API; otherwise probe trusted published mirrors in
-/// parallel. Publisher errors never discard another publisher's valid result.
+/// Prefer the real main API when it responds promptly; otherwise fetch cached
+/// mirrors concurrently and settle shortly after the first healthy mirror.
 pub async fn auto_pick() -> Value {
-    let mut hits = vec![probe_hit("main", FIXED[0].1).await];
-    if hits[0].ok {
-        return pick_from_hits(&hits);
+    let mut main_handle = tokio::spawn(probe_hit("main", FIXED[0].1));
+    let mut mirrors_handle = tokio::spawn(mirrors_cached());
+    let mut hits = Vec::new();
+    let mut main_pending = true;
+
+    tokio::select! {
+        res = &mut main_handle => {
+            main_pending = false;
+            if let Ok(hit) = res {
+                let ok = hit.ok;
+                hits.push(hit);
+                if ok {
+                    mirrors_handle.abort();
+                    return pick_from_hits(&hits);
+                }
+            }
+        }
+        _ = tokio::time::sleep(MAIN_HEAD_START) => {}
     }
-    let listing = mirrors().await;
+
+    let listing = match mirrors_handle.await {
+        Ok(res) => res,
+        Err(err) => Err(format!("获取镜像列表失败: {err}")),
+    };
+
+    let mut set = tokio::task::JoinSet::new();
+    if main_pending {
+        set.spawn(async move { main_handle.await.ok() });
+    }
     if let Ok(listing) = &listing {
         let items = listing
             .get("items")
             .and_then(Value::as_array)
             .map(Vec::as_slice)
             .unwrap_or(&[]);
-        let mut handles = Vec::new();
         for origin in auto_candidates(items, &crate::net::base(), is_trusted_mirror) {
-            handles.push(tokio::spawn(
-                async move { probe_hit("mirror", &origin).await },
-            ));
+            set.spawn(async move { Some(probe_hit("mirror", &origin).await) });
         }
-        for handle in handles {
-            if let Ok(hit) = handle.await {
-                hits.push(hit);
+    }
+
+    let mut settle_deadline: Option<tokio::time::Instant> = None;
+    loop {
+        let next = if let Some(deadline) = settle_deadline {
+            tokio::select! {
+                res = set.join_next() => res,
+                _ = tokio::time::sleep_until(deadline) => None,
+            }
+        } else {
+            set.join_next().await
+        };
+        let Some(joined) = next else {
+            break;
+        };
+        if let Ok(Some(hit)) = joined {
+            let ok = hit.ok;
+            hits.push(hit);
+            if ok && settle_deadline.is_none() {
+                settle_deadline = Some(tokio::time::Instant::now() + SETTLE_GRACE);
             }
         }
     }
+    set.abort_all();
+
     let mut result = pick_from_hits(&hits);
     if let Err(error) = listing {
         result["mirror_error"] = json!(error);

@@ -438,6 +438,7 @@ html.theme-light {
 .ios-settings-fields>.ios-appearance-row { display:grid; grid-template-columns:36px minmax(0,1fr); column-gap:12px; row-gap:14px; padding:14px 18px; }
 .ios-appearance-picker { grid-column:1/-1; min-width:0; width:100%; }
 .ios-appearance-picker>.ios-segmented-items>.ios-button { padding-inline:8px; }
+.ios-appearance-picker>.ios-segmented-items>.ios-button:disabled:not([aria-pressed="true"]) { opacity:0.38; cursor:not-allowed; }
 @media (min-width:560px) {
   .ios-settings-fields>.ios-appearance-row { grid-template-columns:36px minmax(0,1fr) auto; }
   .ios-appearance-picker { grid-column:auto; width:228px; }

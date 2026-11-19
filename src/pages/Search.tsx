@@ -369,6 +369,7 @@ export function RankView({ wide, active = true }: { wide: boolean; active?: bool
                     );
                   })}
                 </div>
+                <p className="hg-list-end">已经到底了 · 共 {(hasPodium ? podiumOrder.length : 0) + listItems.length} 部</p>
               </>
             );
           }}</FilteredContent>

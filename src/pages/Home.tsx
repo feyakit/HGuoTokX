@@ -410,7 +410,7 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
                   <div className="min-w-0">
                     <div className="hg-drop-title">新片速递 · 每日鲜看</div>
                     <div className="hg-drop-sub">
-                      已收录 {visible.length} 部新上架剧集{finishedInNew > 0 ? ` · ${finishedInNew} 部已完结可一口气追完` : ""}
+                      已加载 {visible.length} 部新上架剧集{finishedInNew > 0 ? ` · ${finishedInNew} 部已完结可一口气追完` : ""}
                     </div>
                   </div>
                   <Button card className="hg-quick-action" onClick={() => startSwipeFeed(visible, 0, "新片连刷")}>
@@ -501,9 +501,10 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
                 )}
 
                 {!done && visible.length > 0 && (
-                  <Button className="hg-loadmore" onClick={() => void load(page + 1, "new")} disabled={loading}>
-                    {loading ? "加载中…" : "加载更多新片"}
-                  </Button>
+                  <p className="hg-list-end">{loading ? "正在加载更多新片…" : "上滑自动加载更多"}</p>
+                )}
+                {done && visible.length > 0 && (
+                  <p className="hg-list-end">已经到底了 · 共 {visible.length} 部</p>
                 )}
               </>
             )}
@@ -729,9 +730,7 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
                 ))}
               </div>
               {!done && recommendGrid.length > 0 && (
-                <Button className="hg-loadmore" onClick={() => void load(page + 1, "all")} disabled={loading}>
-                  {loading ? "加载中…" : "加载更多"}
-                </Button>
+                <p className="hg-list-end">{loading ? "正在加载更多…" : "上滑自动加载更多"}</p>
               )}
               {done && recommendGrid.length > 0 && (
                 <p className="hg-list-end">已经到底了 · 共 {recommendGrid.length} 部</p>

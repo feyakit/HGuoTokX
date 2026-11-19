@@ -1356,6 +1356,28 @@ pub async fn edge(
     body: Option<Value>,
     token: Option<&str>,
 ) -> Result<Value, String> {
+    edge_inner(origin, method, path, body, token, true).await
+}
+
+/// 单次探测用边缘信封：不做 3 次重试与退避等待，避免死线路拖慢自动选线。
+pub async fn edge_once(
+    origin: &str,
+    method: &str,
+    path: &str,
+    body: Option<Value>,
+    token: Option<&str>,
+) -> Result<Value, String> {
+    edge_inner(origin, method, path, body, token, false).await
+}
+
+async fn edge_inner(
+    origin: &str,
+    method: &str,
+    path: &str,
+    body: Option<Value>,
+    token: Option<&str>,
+    allow_retry: bool,
+) -> Result<Value, String> {
     let cur = normalize_base(origin).ok_or("业务请求必须使用安全 HTTPS 线路")?;
     if network_policy::strict_security()
         && (token.is_some()
@@ -1397,7 +1419,7 @@ pub async fn edge(
     let operation = edge_operation(path);
     let mut attempt = 0;
     let guest_get = method.eq_ignore_ascii_case("GET") && body.is_none() && token.is_none();
-    let can_retry = method.eq_ignore_ascii_case("GET") && body.is_none();
+    let can_retry = allow_retry && method.eq_ignore_ascii_case("GET") && body.is_none();
     let value = with_retry(can_retry, || {
         attempt += 1;
         let attempt = attempt;

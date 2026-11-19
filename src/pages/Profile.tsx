@@ -205,7 +205,7 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
                     card
                     className="hg-recent-card"
                     aria-label={`继续观看 ${detail?.title || `第 ${h.ep} 集`}`}
-                    onClick={() => push({ kind: "feed", videoIds: [h.id], index: 0, title: "继续观看", startEp: h.ep, startTime: h.t })}
+                    onClick={() => push({ kind: "feed", videoIds: [h.id], index: 0, title: detail?.title || "继续观看", startEp: h.ep, startTime: h.t })}
                   >
                     <div className="hg-recent-thumb">
                       {detail?.cover ? (
@@ -249,7 +249,7 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
           </div>
         )}
 
-        <div className="text-center text-[12px] text-dim mt-6">HGuoX {APP_VERSION} · {platform === "android" ? "Android" : platform === "ios" ? "iOS" : platform === "macos" ? "macOS" : platform === "linux" ? "Linux" : "Windows"} 客户端</div>
+        <div className="text-center text-[12px] text-dim mt-6 mb-6 pb-2">HGuoX {APP_VERSION} · {platform === "android" ? "Android" : platform === "ios" ? "iOS" : platform === "macos" ? "macOS" : platform === "linux" ? "Linux" : "Windows"} 客户端</div>
       </div>
 
       <Modal open={logoutOpen} onClose={() => { if (!logoutPending.current) setLogoutOpen(false); }} label="退出登录">

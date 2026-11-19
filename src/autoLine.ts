@@ -11,7 +11,7 @@ import { decideLine } from "./linePolicy";
 import { migrateLegacyAutoLine, normalizeBase, readPreferredLine } from "./linePreference";
 
 const HEALTH_STEPS = [60_000, 120_000, 300_000];
-const RECHECK_MS = 4_000;
+const RECHECK_MS = 1_500;
 const DOWN_RETRY_MS = 10_000;
 const PICK_COOLDOWN_MS = 15_000;
 /** 让位给别的线路后，这段时间内不再试图回切偏好（避免两条都抖的时候来回跳） */
@@ -206,13 +206,13 @@ async function check(reason: string): Promise<void> {
     downStreak += 1;
     logLine(`[line] health(${reason}) down=${downStreak} base=${hostOf(health.base)} ms=${health.ms}`);
     tracePlayback("line.health", { reason, line: hostOf(health.base), down: downStreak, ms: health.ms, status: health.status });
-    if (downStreak < 2) {
+    if (reason !== "api-fail" && downStreak < 2) {
       schedule(RECHECK_MS);
       return;
     }
     downStreak = 0;
     step = 0;
-    /* 连续 2 次失败：如果失败的就是偏好线路，这次让位并允许提示 */
+    /* 连续失败：如果失败的就是偏好线路，这次让位并允许提示 */
     const preferred = readPreferredLine();
     await pickLine(reason, true, !!preferred && sameBase(health.base, preferred));
   } catch (error) {

@@ -20,10 +20,10 @@ export const CHANNELS = [
 type CategoryView = "" | "ai-duanju" | "ai-manju" | "original" | "topics" | "tags";
 
 const BENTO_TILES = [
-  { key: "ai-duanju" as const, label: "AI 短剧", desc: "高能反转 · 爽剧连看", cls: "is-duanju", Icon: IClapper },
-  { key: "ai-manju" as const, label: "AI 漫剧", desc: "国创漫改 · 每周热更", cls: "is-manju", Icon: IStarsF },
-  { key: "original" as const, label: "独家原创", desc: "自制精品 · 官方出品", cls: "is-orig", Icon: ISparkF },
-  { key: "topics" as const, label: "精选专题", desc: "策展合集 · 主题片单", cls: "is-topic", Icon: IGrid },
+  { key: "ai-duanju" as const, label: "AI 短剧", desc: "高能反转连看", cls: "is-duanju", Icon: IClapper },
+  { key: "ai-manju" as const, label: "AI 漫剧", desc: "国创漫改热更", cls: "is-manju", Icon: IStarsF },
+  { key: "original" as const, label: "独家原创", desc: "自制精品出品", cls: "is-orig", Icon: ISparkF },
+  { key: "topics" as const, label: "精选专题", desc: "策展主题片单", cls: "is-topic", Icon: IGrid },
 ];
 
 const SCOPE_LABELS: Record<CategoryView, string> = {
@@ -179,10 +179,10 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
         <Button className="hg-searchbar flex-1 min-w-0" aria-label="搜索" onClick={() => push({ kind: "search", initialTab: "video" })}>
           <ISearch size={16} /><span className="truncate">搜索短剧、漫剧、演员、题材</span>
         </Button>
-        <Button card role="tab" aria-selected={view === "tags"}
-          className={`hg-tag-pill${view === "tags" ? " is-on" : ""}`}
-          style={{ height: 42, borderRadius: 12, padding: "0 12px" }}
-          onClick={() => toggleTile("tags")}>
+        <Button card aria-label="打开细分标签库"
+          className="hg-tag-pill"
+          style={{ minHeight: 44, borderRadius: 12, padding: "0 12px" }}
+          onClick={() => push({ kind: "tags" })}>
           <span className="hg-tag-hash">#</span><span>标签库</span>
         </Button>
       </header>
@@ -221,7 +221,7 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
             )}
             {!isCollectionView && canShuffle && items.length > 0 && (
               <Button card className="hg-shuffle-btn" aria-label="换一批片单" aria-busy={shuffling}
-                style={{ height: 25, padding: "0 8px", fontSize: 11 }}
+                style={{ minHeight: 44, padding: "0 10px", fontSize: 12 }}
                 disabled={loading} onClick={shuffleBatch}>
                 <IRefresh size={11} /><span>{shuffling ? "换片中" : "换一批"}</span>
               </Button>

@@ -238,7 +238,7 @@ export function TopicPage({ slug, name, onBack, wide }: { slug: string; name: st
         {videos.length > 0 && (
           <Button card className="hg-quick-action"
             onClick={() => push({ kind: "feed", videoIds: videos.map(v => v.id), index: 0, title: topic?.title || name })}>
-            <IPlayF size={12} /><span>连刷本专题</span>
+            <IPlayF size={12} /><span>连刷</span>
           </Button>
         )}
         <Button card onClick={() => setSearching(true)} aria-label="搜索短剧" className="hg-sub-btn"><ISearch size={17} /></Button>

@@ -265,10 +265,10 @@
   font-size: 11px; line-height: 1.3;
 }
 
-/* 选集（自定屏规范 2.4）：5 列 56×56、圆角 10、间距 11、13/600 */
-.hg-ep-grid { display: grid; grid-template-columns: repeat(5, 56px); gap: 11px; justify-content: space-between; }  /* 规范：5 列 56×56 / gap 11 */
+/* 选集（自定屏规范 2.4）：5 列 56×46、圆角 10、间距 8、13/600 */
+.hg-ep-grid { display: grid; grid-template-columns: repeat(5, 56px); gap: 8px; justify-content: space-between; }
 .hg-ep-cell {
-  height: 56px; border-radius: 10px; border: 0;
+  height: 46px; border-radius: 10px; border: 0;
   background: var(--hg-surface); color: var(--p-on);
   font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums;
 }
@@ -292,7 +292,7 @@
 /* 详情顶部宽幅区（规范 2.1 + 用户补充：封面 3:4 不裁） */
 .hg-detail-hero {
   position: relative; width: 100%; border-radius: 15px; overflow: hidden;
-  padding-top: 84.37%;                    /* 332 → 280.1（比例 1.179） */
+  padding-top: 72%;
   background: var(--hg-surface);
 }
 .hg-detail-hero-bg { position: absolute; inset: 0; display: block; }
@@ -1065,7 +1065,7 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 .hg-rank-edge.is-back { left: 4px; }
 .hg-rank-edge.is-refresh { right: 4px; color: #9CA3AF; }
 
-.ios-button.hg-section-more { min-block-size: 0; min-inline-size: 0; padding: 0; background: none; border: 0; }
+.ios-button.hg-section-more { min-block-size: 44px; min-inline-size: 44px; padding: 0 4px; display: inline-flex; align-items: center; background: none; border: 0; }
 
 /* 播放页集数条 */
 .hg-player-eps {
@@ -1209,9 +1209,9 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
    视觉高度按规格，热区用 ::after 外扩 8px，手指不必精准点中那 28px。 */
 .ios-button.hg-binge-pill {
   position: relative;
-  flex: none; height: 28px; min-block-size: 0; min-inline-size: 0;
-  padding: 0 10px; border-radius: 8px;
-  display: inline-flex; align-items: center; gap: 4px;
+  flex: none; min-height: 44px; min-block-size: 44px; min-inline-size: 44px;
+  padding: 0 12px; border-radius: 12px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
   font-size: 12px; font-weight: 600; line-height: 1;
   background: rgba(255, 255, 255, 0.10);
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -1364,22 +1364,23 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
   transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.2s ease;
 }
 .hg-spotlight-bars {
-  display: flex; align-items: center; gap: 6px; margin-top: 9px; justify-content: center;
+  display: flex; align-items: center; gap: 0; margin-top: 0; justify-content: center;
   position: relative; z-index: 2;
 }
 .hg-spotlight-bar {
   position: relative;
-  height: 3px; width: 18px; padding: 0; border: 0; border-radius: 999px;
+  min-width: 44px; min-height: 44px; width: 44px; height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0; border: 0; background: transparent;
+}
+.hg-spotlight-bar::before {
+  content: "";
+  display: block;
+  height: 3px; width: 18px; border-radius: 999px;
   background: rgba(255, 255, 255, 0.22);
   transition: width 0.34s cubic-bezier(0.22, 1, 0.36, 1), background 0.3s ease;
 }
-/* 报告 7：圆点只有 3px 高，手指点不中就等于「点圆点没反应」——视觉不变，热区上下各扩 12px。
-   ::after 属于按钮自身，落在它上面的点按仍然算点击这个按钮。 */
-.hg-spotlight-bar::after {
-  content: ""; position: absolute; left: -6px; right: -6px; top: -12px; bottom: -30px;
-  z-index: 2;
-}
-.hg-spotlight-bar[data-on="true"] {
+.hg-spotlight-bar[data-on="true"]::before {
   width: 34px;
   background: linear-gradient(90deg, #FFB347, #FF6B57, #7C5CFF);
 }
@@ -1701,7 +1702,7 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 .hg-bento-name { display: block; font-size: 14px; font-weight: 700; color: #fff; line-height: 1.2; }
 .hg-bento-desc {
   display: block; margin-top: 2px; font-size: 11px; color: #9CA3AF;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  line-height: 1.25; white-space: normal;
 }
 
 .hg-cat-toolbar {
@@ -1714,8 +1715,8 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 }
 .hg-inline-sorts { display: flex; align-items: center; gap: 4px; overflow-x: auto; }
 .ios-button.hg-inline-sort {
-  flex: none; height: 28px; min-block-size: 0; min-inline-size: 0;
-  padding: 0 10px; border-radius: 8px; border: 0;
+  flex: none; min-height: 44px; min-block-size: 44px; min-inline-size: 44px;
+  padding: 0 12px; border-radius: 10px; border: 0;
   background: transparent; color: #8E93AD; font-size: 12px; font-weight: 600;
 }
 .ios-button.hg-inline-sort[aria-selected="true"] {
@@ -1845,9 +1846,9 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
   display: inline-flex; align-items: center; gap: 10px;
 }
 .ios-button.hg-shuffle-btn {
-  min-block-size: 0; min-inline-size: 0;
-  height: 28px; padding: 0 10px; border-radius: 9px;
-  display: inline-flex; align-items: center; gap: 5px;
+  min-block-size: 44px; min-inline-size: 44px;
+  min-height: 44px; padding: 0 12px; border-radius: 11px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
   background: rgba(124, 92, 255, 0.14);
   border: 1px solid rgba(155, 123, 255, 0.30);
   color: #E2DCFF; font-size: 12px; font-weight: 600;

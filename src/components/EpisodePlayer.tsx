@@ -1524,23 +1524,23 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
               {/* 右侧操作栏（移动端）：点赞 / 收藏 / 评论 / 全屏
                   颜色写死不跟主题走：浅色主题下这些字必须仍是白色 */}
               {!fs && !clean && !isDesktop && (
-                <div className="mobile-video-action-rail absolute right-3 z-20 flex flex-col items-center gap-[16px]"
-                  style={{ bottom: `calc(var(--sab, 0px) + ${bottomInset + 168}px)` }}>
+                <div className={`mobile-video-action-rail absolute right-3 z-20 flex flex-col items-center ${vpLandscape ? "gap-1.5" : "gap-3"}`}
+                  style={{ bottom: vpLandscape ? "calc(var(--sab, 0px) + 12px)" : `calc(var(--sab, 0px) + ${bottomInset + 178}px)` }}>
                   {kind === "video" && (
-                    <Button onClick={() => void onLike()} disabled={likePending} aria-busy={likePending} className="flex flex-col items-center gap-1 pressable" aria-pressed={liked} aria-label="点赞">
+                    <Button onClick={() => void onLike()} disabled={likePending} aria-busy={likePending} className="min-w-11 min-h-11 flex flex-col items-center justify-center gap-1 pressable" aria-pressed={liked} aria-label="点赞">
                       {liked ? <IHeartF size={26} className="text-neon" /> : <IHeart size={26} className="hg-ink hg-ov-shadow" />}
                       <span className="text-[12px] text-white/90 tabular-nums">{fmt(likeCount)}</span>
                     </Button>
                   )}
-                  <Button onClick={() => void onFav()} disabled={collectPending} aria-busy={collectPending} className="flex flex-col items-center gap-1 pressable" aria-pressed={collected} aria-label="收藏">
+                  <Button onClick={() => void onFav()} disabled={collectPending} aria-busy={collectPending} className="min-w-11 min-h-11 flex flex-col items-center justify-center gap-1 pressable" aria-pressed={collected} aria-label="收藏">
                     {collected ? <IStarF size={26} className="hg-gold" /> : <IStar size={26} className="hg-ink hg-ov-shadow" />}
                     <span className="text-[12px] text-white/90 tabular-nums">{fmt(collectCount)}</span>
                   </Button>
-                  <Button onClick={() => setPanel("comments")} className="flex flex-col items-center gap-1 pressable" aria-label={`评论 ${fmt(meta.comment)} 条`}>
+                  <Button onClick={() => setPanel("comments")} className="min-w-11 min-h-11 flex flex-col items-center justify-center gap-1 pressable" aria-label={`评论 ${fmt(meta.comment)} 条`}>
                     <ICommentF size={26} className="hg-ink hg-ov-shadow" />
                     <span className="text-[12px] hg-ink-2 hg-ov-shadow tabular-nums">{fmt(meta.comment)}</span>
                   </Button>
-                  <Button type="button" onClick={() => enterFs(true)} className="flex flex-col items-center gap-1 pressable" aria-label="全屏横屏播放">
+                  <Button type="button" onClick={() => enterFs(true)} className="min-w-11 min-h-11 flex flex-col items-center justify-center gap-1 pressable" aria-label="全屏横屏播放">
                     <IExpand size={22} className="hg-ink hg-ov-shadow" />
                     <span className="text-[12px] hg-ink-2 hg-ov-shadow">全屏</span>
                   </Button>
@@ -1620,7 +1620,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
 
               {/* 移动端：统一以剧场模式为基准的底部控台（抖音模式同步支持线路/全屏/倍速/进度条，且「看全集」直达剧场续播） */}
               {!fs && !clean && !isDesktop && (
-                <div className="hg-cinema-bottom absolute inset-x-0 z-20" style={{ bottom: `calc(var(--sab, 0px) + ${bottomInset + 4}px)` }}>
+                <div className="hg-cinema-bottom absolute inset-x-0 z-20"
+                  style={{
+                    bottom: `calc(var(--sab, 0px) + ${bottomInset + 14}px)`,
+                    paddingRight: vpLandscape ? 64 : undefined,
+                  }}>
                   {!endless && isActive && nextEpPrompt && curEp < episodes.length && (
                     <div className="mx-4 mb-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-full hg-chip-strong backdrop-blur-md text-[12px] elev-2">
                       <span className="text-sky-300 font-semibold">即将连播第 {curEp + 1} 集</span>
