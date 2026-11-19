@@ -222,10 +222,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const keepAliveTimers = useRef<number[]>([]);
   /* 双指缩放：scale 1~4，平移跟手指 */
   const [zoom, setZoom] = useState({ s: 1, x: 0, y: 0, g: false });
-  /* 竖屏下看横屏视频：contain = 完整显示，cover = 放大铺满 */
-  const [portraitFit, setPortraitFit] = useState<"contain" | "cover">("contain");
-  /* 全屏下看横屏视频/伪横屏：独立于竖屏模式，避免状态串扰 */
-  const [fsFit, setFsFit] = useState<"contain" | "cover">("contain");
   const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
   const pinchRef = useRef<{ d0: number; mx0: number; my0: number; s0: number; x0: number; y0: number } | null>(null);
 
@@ -457,8 +453,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
      整块舞台用 CSS 旋转 90°，用户把手机横过来就看到「横屏播放器」。系统真转了就不用兜底。 */
   const rotated = !isDesktop && fs && fsLandscape && !vpLandscape;
   const landscapeVideo = videoSize.w > 0 && videoSize.h > 0 && videoSize.w > videoSize.h;
-  /* 竖屏快捷胶囊的显隐：不卸载、只改 opacity，这样淡入淡出都能过渡（#19） */
-  const capsuleOn = !fs && !clean && !isDesktop && (landscapeVideo || zoom.s > 1.05);
+  /* 竖屏快捷胶囊：仅双指放大后显示「还原」按钮，横屏视频不再在竖屏下弹「铺满」裁切提示 */
+  const capsuleOn = !fs && !clean && !isDesktop && zoom.s > 1.05;
 
   /* ── 上下划切集 ──────────────────────────────────────────
    * 「上下划切集」开启时，播放区 overlay 的 touch-action 是 none，
@@ -715,7 +711,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     setPlayingKey("");
     setNextEpPrompt(false);
     playbackClock.publish(0);
-    setPortraitFit("contain");
   }, [playKey]);
 
   /* 音量/静音同步 */
@@ -1401,9 +1396,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   diagnosticContext={{ active: active && !tagMenu && !showHoldGuide, view: mode, kind, video_id: curId, episode: curEp }}
                   volume={volume} rate={effRate}
                   measurementKey={measurementKey}
-                  /* 非全屏：仅横屏源在竖屏下保留 适应/铺满（portraitFit）。
-                     全屏：无论是 CSS 伪横屏（rotated）还是系统真横屏（vpLandscape），横屏源都响应 fsFit。 */
-                  fit={isDesktop ? "contain" : fs ? ((rotated || landscapeVideo) ? fsFit : "contain") : (landscapeVideo ? portraitFit : "contain")}
+                  /* 一律 contain 完整显示，不裁切画面；横屏剧点全屏直接横屏完整观看 */
+                  fit="contain"
                   onClick={() => { if (isDesktop) videoRef.current?.toggle(); }}
                   onTime={onTimeTick}
                   onDuration={onDurationTick}
@@ -1480,45 +1474,24 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   显隐用 opacity + 轻微位移过渡（不卸载），净屏/全屏时慢慢淡出。 */}
               {!isDesktop && (
                 <div
-                  className={landscapeVideo
-                    ? "absolute z-20 w-max max-w-[calc(100%-24px)] whitespace-nowrap"
-                    : "absolute z-20"}
+                  className="absolute z-20"
                   aria-hidden={!(isActive && capsuleOn)}
                   style={{
-                    left: landscapeVideo ? "50%" : undefined,
-                    right: landscapeVideo ? undefined : 8,
-                    top: landscapeVideo ? "64%" : "auto",
-                    bottom: landscapeVideo ? undefined : `min(calc(var(--sab, 0px) + ${bottomInset + 460}px), calc(100% - var(--sat, 0px) - 120px))`,
-                    transform: landscapeVideo
-                      ? `translate(-50%, ${isActive && capsuleOn ? 0 : 10}px)`
-                      : `translateY(${isActive && capsuleOn ? 0 : 10}px)`,
+                    right: 8,
+                    bottom: `min(calc(var(--sab, 0px) + ${bottomInset + 460}px), calc(100% - var(--sat, 0px) - 120px))`,
+                    transform: `translateY(${isActive && capsuleOn ? 0 : 10}px)`,
                     opacity: isActive && capsuleOn ? 1 : 0,
                     pointerEvents: isActive && capsuleOn ? "auto" : "none",
                     transition: "opacity .38s cubic-bezier(.4,0,.2,1), transform .38s cubic-bezier(.4,0,.2,1)",
                   }}>
-                  <div className={landscapeVideo
-                    ? "inline-flex items-center gap-0.5 h-8 px-1 rounded-full backdrop-blur-xl elev-2 whitespace-nowrap"
-                    : "flex flex-col items-stretch gap-1 p-1 rounded-[18px] backdrop-blur-xl elev-2"}
+                  <div className="flex flex-col items-stretch gap-1 p-1 rounded-[18px] backdrop-blur-xl elev-2"
                     style={{ background: "rgba(12,15,22,.58)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,.09)" }}>
-                    {landscapeVideo && (
-                      <>
-                        <Button type="button" onClick={() => {
-                          if (zoom.s > 1.05) { setZoom({ s: 1, x: 0, y: 0, g: false }); setPortraitFit("contain"); }
-                          else setPortraitFit((f) => (f === "contain" ? "cover" : "contain"));
-                        }} className="whitespace-nowrap flex items-center justify-center gap-1 h-[26px] px-3 rounded-full text-[12px] font-semibold pressable transition-colors duration-150"
-                          style={{ color: "rgba(255,255,255,.9)" }}>
-                          {zoom.s > 1.05 ? `还原 ${zoom.s.toFixed(1)}x` : portraitFit === "contain" ? "铺满" : "适应"}
-                        </Button>
-                      </>
-                    )}
-                    {!landscapeVideo && zoom.s > 1.05 && (
-                      <>
-                        <Button type="button" onClick={() => setZoom({ s: 1, x: 0, y: 0, g: false })}
-                          className="whitespace-nowrap flex items-center justify-center gap-1 h-[26px] px-3 rounded-full text-[12px] font-semibold pressable transition-colors duration-150"
-                          style={{ color: "rgba(255,255,255,.9)" }}>
-                          还原 {zoom.s.toFixed(1)}x
-                        </Button>
-                      </>
+                    {zoom.s > 1.05 && (
+                      <Button type="button" onClick={() => setZoom({ s: 1, x: 0, y: 0, g: false })}
+                        className="whitespace-nowrap flex items-center justify-center gap-1 h-[26px] px-3 rounded-full text-[12px] font-semibold pressable transition-colors duration-150"
+                        style={{ color: "rgba(255,255,255,.9)" }}>
+                        还原 {zoom.s.toFixed(1)}x
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -1915,15 +1888,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
               {paused ? <IPlayF size={18} /> : <IPauseF size={17} />}
             </Button>
             <PlaybackTime clock={playbackClock} className="shrink-0 text-[12px] font-semibold hg-ink-2 tabular-nums" />
-            {/* 伪横屏/横屏源：铺满会把画面放大到填满（会裁边），适应则留黑边保完整 */}
-            {(rotated || landscapeVideo) && (
-              <Button onClick={() => {
-                if (zoom.s > 1.05) { setZoom({ s: 1, x: 0, y: 0, g: false }); setFsFit("contain"); }
-                else setFsFit(f => (f === "contain" ? "cover" : "contain"));
-              }}
+            {zoom.s > 1.05 && (
+              <Button onClick={() => setZoom({ s: 1, x: 0, y: 0, g: false })}
                 className="shrink-0 flex items-center gap-1 px-2.5 h-8 rounded-full text-[12px] font-semibold hg-chip hg-ink-2 pressable"
-                aria-label={zoom.s > 1.05 ? "还原画面" : fsFit === "contain" ? "画面铺满" : "画面适应"}>
-                {zoom.s > 1.05 ? `还原 ${zoom.s.toFixed(1)}x` : fsFit === "contain" ? "铺满" : "适应"}
+                aria-label="还原画面">
+                还原 {zoom.s.toFixed(1)}x
               </Button>
             )}
             <Button
