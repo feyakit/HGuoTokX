@@ -1738,15 +1738,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                     {/* 底部渐变保护层 */}
                     <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0"
                       style={{ height: 196, background: "linear-gradient(to top, rgba(0,0,0,.72) 0%, rgba(0,0,0,.5) 45%, rgba(0,0,0,0) 100%)", zIndex: 0 }} />
-                    {/* 剧场控制行：播放/暂停 + 时间 + 快捷倍速 + 下一集 */}
+                    {/* 剧场控制行：时间 + 快捷倍速 + 下一集 */}
                     <div className="mx-4 mt-2 flex items-center gap-2.5 relative z-10">
-                      <Button aria-label={paused ? "播放" : "暂停"} aria-pressed={paused}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onPointerUp={(e) => e.stopPropagation()}
-                        onClick={(e) => { e.stopPropagation(); videoRef.current?.toggle(); }}
-                        className="hg-chip shrink-0 w-11 h-11 rounded-full flex items-center justify-center pressable">
-                        {paused ? <IPlayF size={17} /> : <IPauseF size={16} />}
-                      </Button>
                       <span className="hg-video-time">
                         <PlaybackTime clock={playbackClock} /> <span className="opacity-60">/ {fmtTime(duration || 0)}</span>
                       </span>
@@ -1810,7 +1803,18 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                 </div>
               )}
 
-              {/* 缓冲 / 错误 */}
+              {/* 暂停 / 缓冲 / 错误 */}
+              {isActive && paused && !err && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+                  <button type="button" aria-label="继续播放"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => { e.stopPropagation(); videoRef.current?.play(); }}
+                    className="pointer-events-auto w-[66px] h-[66px] rounded-full flex items-center justify-center backdrop-blur-md border-0 cursor-pointer"
+                    style={{ background: "rgba(0,0,0,.55)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,.12)" }}>
+                    <IPlayF size={28} className="hg-ink ml-0.5" />
+                  </button>
+                </div>
+              )}
               {isActive && waiting && !err && !paused && (
                 <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none"><Loader className="w-9 h-9 spinner" /></div>
               )}
@@ -1940,17 +1944,13 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
             </div>
           </div>
 
-          {/* 全屏底栏：播放/暂停 + 当前/总时长 + 缩放还原/倍速/选集/下集 */}
+          {/* 全屏底栏：当前/总时长 + 缩放还原/倍速/选集/下集 */}
           <div className="absolute inset-x-0 z-40 flex items-center gap-2.5 px-4"
             style={{
               bottom: rotated ? 10 : "calc(var(--sab, 0px) + 10px)",
               paddingLeft: rotated ? "calc(var(--sat, 0px) + 16px)" : undefined,
               paddingRight: rotated ? "calc(var(--sab, 0px) + 16px)" : undefined,
             }}>
-            <Button onClick={() => videoRef.current?.toggle()} aria-label={paused ? "播放" : "暂停"} aria-pressed={paused}
-              className="hg-chip shrink-0 w-10 h-10 rounded-full flex items-center justify-center pressable">
-              {paused ? <IPlayF size={17} /> : <IPauseF size={16} />}
-            </Button>
             <span className="shrink-0 text-[12px] font-semibold hg-ink-2 tabular-nums">
               <PlaybackTime clock={playbackClock} /> <span className="hg-ink-4 font-normal">/ {fmtTime(duration)}</span>
             </span>
