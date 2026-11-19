@@ -42,6 +42,7 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
   const [logoutBusy, setLogoutBusy] = useState(false);
   const [logoutError, setLogoutError] = useState("");
   const [recentDetails, setRecentDetails] = useState<Record<number, Detail>>({});
+  const [recentFailed, setRecentFailed] = useState<Record<number, boolean>>({});
   const recentDetailsRef = useRef(recentDetails);
   recentDetailsRef.current = recentDetails;
   const logoutPending = useRef(false);
@@ -55,10 +56,13 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
     void Promise.allSettled(missing.map((id) => api.video(id))).then((res) => {
       if (!alive) return;
       const next: Record<number, Detail> = {};
+      const failed: Record<number, boolean> = {};
       res.forEach((r, idx) => {
         if (r.status === "fulfilled" && r.value) next[missing[idx]] = r.value;
+        else failed[missing[idx]] = true;
       });
       if (Object.keys(next).length) setRecentDetails((m) => ({ ...m, ...next }));
+      if (Object.keys(failed).length) setRecentFailed((m) => ({ ...m, ...failed }));
     });
     return () => { alive = false; };
   }, [recentIdsKey]);
@@ -197,7 +201,7 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
                         </span>
                       )}
                     </div>
-                    <div className="hg-recent-title">{detail?.title || "加载中…"}</div>
+                    <div className="hg-recent-title">{detail?.title || (recentFailed[h.id] ? `短剧 #${h.id}` : "加载中…")}</div>
                     <div className="hg-recent-sub">
                       {h.t > 3 ? `续播 ${fmtTime(h.t)}` : "刚看过"}
                     </div>

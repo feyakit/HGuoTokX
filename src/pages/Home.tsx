@@ -513,6 +513,11 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
                   if (!start || !t || heroes.length < 2) return;
                   const dx = t.clientX - start.x;
                   const dy = t.clientY - start.y;
+                  if (Math.abs(dy) > Math.abs(dx) * 1.35 && Math.abs(dy) > 10) {
+                    heroTouch.current = null;
+                    setHeroDragX(0);
+                    return;
+                  }
                   if (Math.abs(dx) > Math.abs(dy) * 1.15 && Math.abs(dx) > 8) {
                     setHeroDragX(Math.max(-120, Math.min(120, dx * 0.48)));
                   }

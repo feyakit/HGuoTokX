@@ -228,13 +228,21 @@ export const api = {
 
   comments: (id: number, ep: number, page = 1, size = 20) =>
     call<CommentPage>("api_comments", { id, ep, page, size }),
-  commentSend: (id: number, ep: number, text: string, replyId?: number) =>
-    call<unknown>("api_comment_send", { id, ep, text, replyId: replyId ?? null }),
+  commentSend: (id: number, ep: number, text: string, replyId?: number) => {
+    READ_CACHE.delete(cacheKey("api_video", { id }));
+    return call<unknown>("api_comment_send", { id, ep, text, replyId: replyId ?? null });
+  },
 
-  clearCache: () => invoke<{ webCache: boolean; platform: string }>("cache_clear"),
+  clearCache: () => invoke<{ webCache: boolean; platform: string }>("cache_clear").finally(clearApiReadCache),
   netDiag: () => invoke<Record<string, unknown>>("net_diag"),
-  postLike: (id: number, on: boolean, identity?: AccountIdentity) => invoke<unknown>("api_post_like", { id, on, expectedUserId: identity?.expectedUserId, expectedOrigin: identity?.expectedOrigin }),
-  postCollect: (id: number, on: boolean, identity?: AccountIdentity) => invoke<unknown>("api_post_collect", { id, on, expectedUserId: identity?.expectedUserId, expectedOrigin: identity?.expectedOrigin }),
+  postLike: (id: number, on: boolean, identity?: AccountIdentity) => {
+    READ_CACHE.delete(cacheKey("api_post", { id }));
+    return invoke<unknown>("api_post_like", { id, on, expectedUserId: identity?.expectedUserId, expectedOrigin: identity?.expectedOrigin });
+  },
+  postCollect: (id: number, on: boolean, identity?: AccountIdentity) => {
+    READ_CACHE.delete(cacheKey("api_post", { id }));
+    return invoke<unknown>("api_post_collect", { id, on, expectedUserId: identity?.expectedUserId, expectedOrigin: identity?.expectedOrigin });
+  },
   postComments: (id: number, page: number, size: number) => call<CommentPage>("api_post_comments", { id, page, size }),
   postCategories: () => call<{ items: PostCategory[] }>("api_post_categories"),
   postCategory: (route: string, page = 1, size = 20, sort?: string) =>
@@ -244,8 +252,14 @@ export const api = {
   user: (id: number) => call<UserProfile>("api_user", { id }),
   userStats: (id: number) => call<{ user_id: number; like_count: number; following: number; followers: number; video_count: number; post_count: number }>("api_user_stats", { id }),
   userVideos: (id: number, page = 1, size = 20) => call<Paged<VideoCard>>("api_user_videos", { id, page, size }),
-  like: (id: number, ep: number, on: boolean, identity?: AccountIdentity) => call<unknown>("api_like", { id, ep, on, expectedUserId: identity?.expectedUserId, expectedOrigin: identity?.expectedOrigin }),
-  collect: (id: number, on: boolean, identity?: AccountIdentity) => call<unknown>("api_collect", { id, on, expectedUserId: identity?.expectedUserId, expectedOrigin: identity?.expectedOrigin }),
+  like: (id: number, ep: number, on: boolean, identity?: AccountIdentity) => {
+    READ_CACHE.delete(cacheKey("api_video", { id }));
+    return call<unknown>("api_like", { id, ep, on, expectedUserId: identity?.expectedUserId, expectedOrigin: identity?.expectedOrigin });
+  },
+  collect: (id: number, on: boolean, identity?: AccountIdentity) => {
+    READ_CACHE.delete(cacheKey("api_video", { id }));
+    return call<unknown>("api_collect", { id, on, expectedUserId: identity?.expectedUserId, expectedOrigin: identity?.expectedOrigin });
+  },
   follow: (uid: number, on: boolean, identity?: AccountIdentity) => call<unknown>("api_follow", { uid, on, expectedUserId: identity?.expectedUserId, expectedOrigin: identity?.expectedOrigin }),
 
   /* 线路（数据源）：固定线路写死在 Rust 侧，镜像线路从地址发布页拉、推荐镜像从发布入口页拉 */
