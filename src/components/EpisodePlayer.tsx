@@ -1515,7 +1515,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                     <ICommentF size={26} className="hg-ink hg-ov-shadow" />
                     <span className="text-[12px] hg-ink-2 hg-ov-shadow tabular-nums">{fmt(meta.comment)}</span>
                   </Button>
-                  <Button type="button" onClick={() => enterFs(true)} className="min-w-11 min-h-11 flex flex-col items-center justify-center gap-1 pressable" aria-label="全屏横屏播放">
+                  <Button type="button" onClick={() => enterFs(landscapeVideo)} className="min-w-11 min-h-11 flex flex-col items-center justify-center gap-1 pressable" aria-label={landscapeVideo ? "全屏横屏播放" : "全屏沉浸播放"}>
                     <IExpand size={22} className="hg-ink hg-ov-shadow" />
                     <span className="text-[12px] hg-ink-2 hg-ov-shadow">全屏</span>
                   </Button>
