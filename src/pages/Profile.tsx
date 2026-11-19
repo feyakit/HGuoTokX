@@ -7,7 +7,7 @@ import { useStore } from "../store";
 import { Empty, Img, Modal } from "../components/ui";
 import { MediaCard } from "../components/cards";
 import { useContentPreferences } from "../contentPreferences";
-import { IBack, IBoltF, IChevR, IClock, ILogout, IMenuFollow, IMenuHistory, IMenuLikes, IMenuPrefs, IPlayF, ISettings, IStar } from "../icons";
+import { IBack, IBoltF, IChevR, IClock, ILogout, IMenuFollow, IMenuHistory, IMenuLikes, IPlayF, ISettings, IStar } from "../icons";
 
 function GuestCatAvatar() {
   return (
@@ -41,8 +41,27 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [logoutBusy, setLogoutBusy] = useState(false);
   const [logoutError, setLogoutError] = useState("");
+  const [recentDetails, setRecentDetails] = useState<Record<number, Detail>>({});
+  const recentDetailsRef = useRef(recentDetails);
+  recentDetailsRef.current = recentDetails;
   const logoutPending = useRef(false);
   const mounted = useRef(true);
+  const recentIdsKey = history.slice(0, 8).map((h) => h.id).join(",");
+  useEffect(() => {
+    const ids = recentIdsKey ? recentIdsKey.split(",").map(Number).filter(Boolean) : [];
+    const missing = ids.filter((id) => !recentDetailsRef.current[id]);
+    if (!missing.length) return;
+    let alive = true;
+    void Promise.allSettled(missing.map((id) => api.video(id))).then((res) => {
+      if (!alive) return;
+      const next: Record<number, Detail> = {};
+      res.forEach((r, idx) => {
+        if (r.status === "fulfilled" && r.value) next[missing[idx]] = r.value;
+      });
+      if (Object.keys(next).length) setRecentDetails((m) => ({ ...m, ...next }));
+    });
+    return () => { alive = false; };
+  }, [recentIdsKey]);
   const [stats, setStats] = useState<{ followers: number; post_count: number; video_count: number } | null>(null);
 
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -136,29 +155,82 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
             className="mt-1 min-h-11 px-3 text-on">{accountSync.busy ? "正在重试…" : "重试同步"}</Button>
         </div>}
 
-        {/* 菜单列表：全部压入标准二级路由栈，手势/安卓物理返回键完全一致 */}
-        <div className="hg-menu">
-          <Button className="hg-menu-row" aria-label="观看历史" onClick={() => push({ kind: "history" })}>
-            <span className="hg-menu-icon"><IMenuHistory size={19} strokeWidth={1.75} /></span>
-            <span className="hg-menu-label">观看历史</span>
-            <span className="hg-menu-meta" aria-hidden="true">{history.length + postHistory.length}</span>
+        {/* 最近观看：直接展示在个人中心，一键续播，不再深埋在二级菜单 */}
+        <section className="hg-profile-recent" aria-label="最近观看">
+          <div className="hg-profile-sec-head">
+            <span className="hg-profile-sec-title">
+              <IMenuHistory size={16} strokeWidth={1.85} />
+              <span>最近观看</span>
+              {(history.length + postHistory.length) > 0 && (
+                <span className="hg-profile-sec-count">{history.length + postHistory.length}</span>
+              )}
+            </span>
+            <Button className="hg-section-more" aria-label="观看历史" onClick={() => push({ kind: "history" })}>
+              全部 <IChevR size={12} />
+            </Button>
+          </div>
+
+          {history.length > 0 ? (
+            <div className="hg-recent-rail">
+              {history.slice(0, 8).map((h) => {
+                const detail = recentDetails[h.id];
+                const pct = h.dur && h.t ? Math.min(100, Math.max(4, Math.round((h.t / h.dur) * 100))) : 0;
+                return (
+                  <Button
+                    key={h.id}
+                    card
+                    className="hg-recent-card"
+                    aria-label={`继续观看 ${detail?.title || `第 ${h.ep} 集`}`}
+                    onClick={() => push({ kind: "feed", videoIds: [h.id], index: 0, title: "继续观看", startEp: h.ep, startTime: h.t })}
+                  >
+                    <div className="hg-recent-thumb">
+                      {detail?.cover ? (
+                        <Img src={detail.cover} alt="" />
+                      ) : (
+                        <div className="hg-recent-skeleton shimmer" />
+                      )}
+                      <span className="hg-recent-ep">第 {h.ep} 集</span>
+                      <span className="hg-recent-play" aria-hidden="true"><IPlayF size={12} /></span>
+                      {pct > 0 && (
+                        <span className="hg-recent-progress" aria-hidden="true">
+                          <span style={{ width: `${pct}%` }} />
+                        </span>
+                      )}
+                    </div>
+                    <div className="hg-recent-title">{detail?.title || "加载中…"}</div>
+                    <div className="hg-recent-sub">
+                      {h.t > 3 ? `续播 ${fmtTime(h.t)}` : "刚看过"}
+                    </div>
+                  </Button>
+                );
+              })}
+            </div>
+          ) : postHistory.length > 0 ? (
+            <Button card className="hg-recent-empty-card" onClick={() => push({ kind: "history" })}>
+              <span>已浏览 {postHistory.length} 篇吃瓜记录</span>
+              <IChevR size={14} className="text-mut" />
+            </Button>
+          ) : (
+            <div className="hg-recent-empty">暂无观看记录 · 去首页刷剧会自动记录进度</div>
+          )}
+        </section>
+
+        {/* 快捷功能双列玻璃卡片（去除与设置页重复的「内容偏好」） */}
+        <div className="hg-profile-quick">
+          <Button card className="hg-quick-card" aria-label="我的收藏" onClick={() => push({ kind: "favorites" })}>
+            <span className="hg-quick-icon is-fav"><IMenuLikes size={19} strokeWidth={1.85} /></span>
+            <span className="hg-quick-copy">
+              <span className="hg-quick-title">我的收藏</span>
+              <span className="hg-quick-sub">{favs.length + postFavs.length} 项内容</span>
+            </span>
             <IChevR size={14} className="hg-menu-chevron" />
           </Button>
-          <Button className="hg-menu-row" aria-label="我的收藏" onClick={() => push({ kind: "favorites" })}>
-            <span className="hg-menu-icon"><IMenuLikes size={19} strokeWidth={1.75} /></span>
-            <span className="hg-menu-label">我的收藏</span>
-            <span className="hg-menu-meta" aria-hidden="true">{favs.length + postFavs.length}</span>
-            <IChevR size={14} className="hg-menu-chevron" />
-          </Button>
-          <Button className="hg-menu-row" aria-label="我的关注" onClick={() => user ? push({ kind: "following" }) : setLoginOpen(true)}>
-            <span className="hg-menu-icon"><IMenuFollow size={19} strokeWidth={1.75} /></span>
-            <span className="hg-menu-label">我的关注</span>
-            <span className="hg-menu-meta" aria-hidden="true">{user ? follows.length : "需登录"}</span>
-            <IChevR size={14} className="hg-menu-chevron" />
-          </Button>
-          <Button className="hg-menu-row" aria-label="内容偏好" onClick={() => push({ kind: "settings", section: "内容偏好" })}>
-            <span className="hg-menu-icon"><IMenuPrefs size={19} strokeWidth={1.75} /></span>
-            <span className="hg-menu-label">内容偏好</span>
+          <Button card className="hg-quick-card" aria-label="我的关注" onClick={() => user ? push({ kind: "following" }) : setLoginOpen(true)}>
+            <span className="hg-quick-icon is-follow"><IMenuFollow size={19} strokeWidth={1.85} /></span>
+            <span className="hg-quick-copy">
+              <span className="hg-quick-title">我的关注</span>
+              <span className="hg-quick-sub">{user ? `${follows.length} 位创作者` : "登录后同步"}</span>
+            </span>
             <IChevR size={14} className="hg-menu-chevron" />
           </Button>
         </div>

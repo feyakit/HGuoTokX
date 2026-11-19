@@ -8,6 +8,7 @@ import ProxySettings from "../components/ProxySettings";
 import ContentPreferencesSettings from "../components/ContentPreferencesSettings";
 import SettingsSection from "../components/SettingsSection";
 import { autoLineEnabled, setAutoLine } from "../autoLine";
+import { useContentPreferences } from "../contentPreferences";
 import { copyPlaybackLog, initPlaybackLog, setPlaybackLog, tracePlayback, usePlaybackLog } from "../playbackDiagnostics";
 import { formatNetDiag, shortVerdict } from "../netDiagReport";
 import { copyText } from "../clipboard";
@@ -23,18 +24,20 @@ const GROUP_SUMMARIES: Record<SettingGroup, string> = {
   本地数据: "收藏、观看记录与缓存",
   网络: "代理、线路与连接诊断",
   播放诊断: "详细日志与问题排查",
-  其他: "检查更新、使用协议与关于应用",
+  其他: "检查更新、版本信息与开源许可",
 };
 
 /* 独立设置页：线路 / 外观 / 播放 / 本地数据 / 清理缓存 / 网络诊断 / 关于
    入口：Windows 侧栏「设置」、Android「我的」右上角齿轮 */
 export default function Settings({ onBack, initialSection }: { onBack: () => void; wide: boolean; initialSection?: "内容偏好" }) {
-  const { theme, themePreference, setTheme, favs, history, muteOnStartup, setMuteOnStartup, preferHevc, setPreferHevc, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity, toast } = useStore();
+  const { theme, themePreference, setTheme, favs, postFavs, history, postHistory, muteOnStartup, setMuteOnStartup, preferHevc, setPreferHevc, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity, toast } = useStore();
+  const { preferences: contentPrefs } = useContentPreferences();
   const [about, setAbout] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
   const [lineOpen, setLineOpen] = useState(false);
   const [lineBase, setLineBase] = useState("");
   const [autoLineOn, setAutoLineOn] = useState(autoLineEnabled);
+  const [autoLineBusy, setAutoLineBusy] = useState(false);
   const clearBusy = useRef(false);
   const [clearError, setClearError] = useState("");
   const [lineError, setLineError] = useState("");
@@ -59,7 +62,32 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
     });
     return () => cancelAnimationFrame(frame);
   }, [initialSection]);
+  const jumpToGroup = (title: SettingGroup) => {
+    setOpenGroups((prev) => new Set(prev).add(title));
+    requestAnimationFrame(() => {
+      const target = contentRef.current?.querySelector<HTMLElement>(`#settings-${title}`);
+      target?.scrollIntoView({ block: "start", behavior: "smooth" });
+    });
+  };
+  const totalSaved = favs.length + postFavs.length;
+  const totalHistory = history.length + postHistory.length;
+  const groupBadges: Partial<Record<SettingGroup, string>> = {
+    外观: "深色",
+    播放: preferHevc ? "高清优先" : "标准画质",
+    内容偏好: contentPrefs.paused
+      ? "已暂停"
+      : contentPrefs.blockedTags.length > 0
+        ? `屏蔽 ${contentPrefs.blockedTags.length}`
+        : contentPrefs.hideUntagged
+          ? "隐藏无标签"
+          : "未开启",
+    本地数据: `${totalSaved + totalHistory} 项`,
+    网络: lineBase ? hostOf(lineBase) : undefined,
+    播放诊断: playbackLog.enabled ? "已开启" : "基础日志",
+    其他: `v${APP_VERSION}`,
+  };
   const section = (title: SettingGroup, children: ReactNode) => <SettingsSection title={title} summary={GROUP_SUMMARIES[title]}
+    badge={groupBadges[title]}
     open={openGroups.has(title)} onToggle={() => setOpenGroups(previous => {
       const next = new Set(previous);
       if (next.has(title)) next.delete(title); else next.add(title);
@@ -125,6 +153,25 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
           <div className="pt-1 pb-4">
             <h1 className="ios-page-title text-on">设置</h1>
             <p className="text-[13px] text-mut mt-2">让 HGuoX 更合你的习惯</p>
+            <div className="ios-settings-overview">
+              <div className="ios-settings-overview-row">
+                <span className="ios-settings-overview-chip">
+                  <IBoltF size={13} />
+                  <span>{lineBase ? hostOf(lineBase) : "自动线路"}</span>
+                </span>
+                <span className="ios-settings-overview-chip">
+                  <ILockF size={13} />
+                  <span>{strictSecurity ? "严格安全" : "兼容模式"}</span>
+                </span>
+              </div>
+              <div className="ios-settings-quick-jumps">
+                {(["播放", "内容偏好", "网络"] as const).map((g) => (
+                  <Button key={g} onClick={() => jumpToGroup(g)} className="ios-settings-jump-btn">
+                    {g}
+                  </Button>
+                ))}
+              </div>
+            </div>
           </div>
           {section("外观", <>
             <div className="ios-appearance-row items-center">
@@ -171,7 +218,7 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
               <span className="ios-setting-icon"><IHeart size={16} /></span>
               <div className="flex-1">
                 <div className="text-[14px] text-on">本地片库</div>
-                <div className="text-[12px] text-mut">{favs.length} 部收藏 · {history.length} 条观看记录</div>
+                <div className="text-[12px] text-mut">{totalSaved} 项收藏 · {totalHistory} 条观看与浏览记录</div>
               </div>
             </div>
             <Button onClick={() => { setClearError(""); setClearOpen(true); }} className="w-full flex items-center gap-3 px-3.5 py-3 text-left pressable">
@@ -200,10 +247,20 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
                 <div className="text-[14px] text-on">自动选择线路</div>
                 <div className="text-[12px] text-mut">手动选的线只作优先，不会关掉这里；关掉才是完全不自动</div>
               </div>
-              <Toggle desktop label="自动选择线路" on={autoLineOn} onChange={(on) => {
-                void setAutoLine(on).catch(() => toast("自动选线暂停失败，请重试", "info"));
+              <Toggle desktop label="自动选择线路" disabled={autoLineBusy} on={autoLineOn} onChange={(on) => {
+                if (autoLineBusy) return;
+                const previous = autoLineOn;
+                setAutoLineBusy(true);
                 setAutoLineOn(on);
-                toast(on ? "已开启自动选择线路" : "已关闭自动选线，可手动选择播放源", "info");
+                void setAutoLine(on)
+                  .then(() => {
+                    toast(on ? "已开启自动选择线路" : "已关闭自动选线，可手动选择播放源", "info");
+                  })
+                  .catch(() => {
+                    setAutoLineOn(previous);
+                    toast(on ? "开启自动选线失败，请重试" : "关闭自动选线失败，请重试", "info");
+                  })
+                  .finally(() => setAutoLineBusy(false));
               }} />
             </div>
             <div className="flex items-center gap-3 px-3.5 py-3">

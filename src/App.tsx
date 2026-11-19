@@ -354,6 +354,23 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const warm = () => {
+      void import("./pages/Posts");
+      void import("./pages/Category");
+      void import("./pages/Profile");
+      void import("./pages/Settings");
+      void import("./pages/Search");
+    };
+    const ric = (window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
+    if (ric) {
+      const id = ric(warm, { timeout: 2200 });
+      return () => (window as Window & { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(id);
+    }
+    const t = window.setTimeout(warm, 900);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
     if (!import.meta.env.DEV) return;
     const t = window.setTimeout(() => {
       selfTest().then((r) => { invoke("debug_log", { msg: r }).catch(() => {}); }).catch(() => {});

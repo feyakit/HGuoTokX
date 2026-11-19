@@ -260,8 +260,8 @@ html.theme-light .ios-overlay-sheet .ios-dialog { background:rgb(250 249 246 / .
   --motion-paper:#121212;
   --motion-paper-2:#292929;
   --motion-accent:#7C5CFF;
-  --motion-spring:cubic-bezier(.34,1.56,.64,1);
-  --motion-spring-soft:cubic-bezier(.22,1.28,.36,1);
+  --motion-spring:cubic-bezier(.22,1,.36,1);
+  --motion-spring-soft:cubic-bezier(.25,1,.5,1);
   --ios-spring:var(--motion-spring);
   --p-canvas:#0A0B14; --p-bg:#0A0B14; --p-s1:#1E1E2E; --p-s2:#26263A; --p-s3:#2A2A3E; --p-s4:#45455E;
   --p-on:#ffffff; --p-mut:#C7C7D1; --p-dim:#9CA3AF; --p-primary:#7C5CFF; --p-on-primary:#ffffff;
@@ -336,25 +336,25 @@ body { background:var(--motion-paper); }
 .ios-mobile-nav .ios-mobile-nav-item[aria-current=page] { color:var(--motion-on-ink); }
 
 .ios-dialog { border-radius:32px; background:var(--glass-bg); border-color:var(--glass-edge); box-shadow:var(--ios-shadow); backdrop-filter:blur(28px) saturate(150%); -webkit-backdrop-filter:blur(28px) saturate(150%); }
-.ios-overlay.is-open .ios-dialog { animation:motion-dialog-in .36s var(--motion-spring) both; }
-.ios-overlay-sheet.is-open .ios-dialog { animation:motion-sheet-in .4s var(--motion-spring) both; }
-.ios-overlay.is-closing .ios-dialog { animation:motion-dialog-out .18s cubic-bezier(.55,0,1,.45) both; }
+.ios-overlay.is-open .ios-dialog { animation:motion-dialog-in .26s var(--motion-spring) both; }
+.ios-overlay-sheet.is-open .ios-dialog { animation:motion-sheet-in .32s var(--motion-spring) both; }
+.ios-overlay.is-closing .ios-dialog { animation:motion-dialog-out .16s cubic-bezier(.4,0,1,1) both; }
 .ios-toast-host>div { background:var(--glass-bg); border-color:var(--glass-edge); box-shadow:var(--ios-shadow); backdrop-filter:blur(22px) saturate(145%); -webkit-backdrop-filter:blur(22px) saturate(145%); }
 
-.pressable { transition:scale .24s var(--motion-spring),opacity .16s ease,background-color .2s ease,color .2s ease; }
-.pressable:active { scale:.965; }
+.pressable { transition:scale .2s var(--motion-spring-soft),opacity .16s ease,background-color .18s ease,color .18s ease; }
+.pressable:active { scale:.972; }
 
-@keyframes motion-title-in { from{opacity:0;transform:translate3d(-10px,6px,0)} 72%{opacity:1;transform:translate3d(2px,0,0)} to{opacity:1;transform:none} }
-@keyframes motion-rise { 0%{opacity:0;transform:translate3d(0,14px,0) scale(.98)} 72%{opacity:1;transform:translate3d(0,-2px,0)} 100%{opacity:1;transform:none} }
-@keyframes motion-page-in { 0%{opacity:0;transform:translate3d(18px,0,0) scale(.99)} 72%{opacity:1;transform:translate3d(-2px,0,0)} 100%{opacity:1;transform:none} }
-@keyframes motion-tab-in { 0%{opacity:.2;transform:translate3d(0,20px,0)} 70%{opacity:1;transform:translate3d(0,-3px,0)} 100%{opacity:1;transform:none} }
-@keyframes motion-dialog-in { 0%{opacity:0;transform:translate3d(0,14px,0) scale(.97)} 72%{opacity:1;transform:translate3d(0,-2px,0) scale(1.005)} 100%{opacity:1;transform:none} }
-@keyframes motion-sheet-in { 0%{opacity:0;transform:translate3d(0,36px,0)} 72%{opacity:1;transform:translate3d(0,-3px,0)} 100%{opacity:1;transform:none} }
+@keyframes motion-title-in { from{opacity:0;transform:translate3d(0,6px,0)} to{opacity:1;transform:translate3d(0,0,0)} }
+@keyframes motion-rise { from{opacity:0;transform:translate3d(0,12px,0)} to{opacity:1;transform:translate3d(0,0,0)} }
+@keyframes motion-page-in { from{opacity:0;transform:translate3d(24px,0,0)} to{opacity:1;transform:translate3d(0,0,0)} }
+@keyframes motion-tab-in { from{opacity:.35;transform:translate3d(0,10px,0)} to{opacity:1;transform:translate3d(0,0,0)} }
+@keyframes motion-dialog-in { from{opacity:0;transform:translate3d(0,10px,0) scale(.97)} to{opacity:1;transform:translate3d(0,0,0) scale(1)} }
+@keyframes motion-sheet-in { from{opacity:0;transform:translate3d(0,28px,0)} to{opacity:1;transform:translate3d(0,0,0)} }
 @keyframes motion-dialog-out { from{opacity:1;transform:none} to{opacity:0;transform:translate3d(0,8px,0) scale(.985)} }
-.a-rise { animation:motion-rise .42s var(--motion-spring) both; }
-.a-page-in,.win-page-in { animation:motion-page-in .4s var(--motion-spring) both; }
-.ios-tab-active { animation:motion-tab-in .34s var(--motion-spring) both; }
-.a-toast { animation:motion-dialog-in .34s var(--motion-spring) both; }
+.a-rise { animation:motion-rise .3s var(--motion-spring) both; }
+.a-page-in,.win-page-in { animation:motion-page-in .28s var(--motion-spring) both; }
+.ios-tab-active { animation:motion-tab-in .26s var(--motion-spring) both; }
+.a-toast { animation:motion-dialog-in .26s var(--motion-spring) both; }
 
 @media(prefers-reduced-motion:reduce) {
   .ios-page-heading,.a-rise,.a-page-in,.win-page-in,.ios-tab-active,.a-toast,.ios-overlay.is-open .ios-dialog,.ios-overlay-sheet.is-open .ios-dialog,.ios-overlay.is-closing .ios-dialog { animation:none!important; }
@@ -483,6 +483,13 @@ html.theme-light {
 .ios-settings-heading { display:flex; flex:1; min-width:0; flex-direction:column; gap:4px; }
 .ios-settings-title { font-size:16px; line-height:1.5; font-weight:700; overflow-wrap:anywhere; }
 .ios-settings-summary { font-size:12px; line-height:1.5; font-weight:400; color:var(--p-mut); overflow-wrap:anywhere; }
+.ios-settings-badge { flex:none; max-width:136px; padding:3px 9px; border-radius:999px; background:rgba(255,255,255,.07); border:1px solid var(--ios-edge); color:var(--p-mut); font-size:11.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ios-settings-overview { margin-top:14px; padding:12px 14px; border-radius:18px; background:rgba(255,255,255,.05); border:1px solid var(--ios-edge); display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; }
+.ios-settings-overview-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-width:0; }
+.ios-settings-overview-chip { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:999px; background:rgba(124,92,255,.14); border:1px solid rgba(124,92,255,.28); color:#D8CCFF; font-size:12px; font-weight:600; max-width:180px; }
+.ios-settings-overview-chip>span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ios-settings-quick-jumps { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.ios-button.ios-settings-jump-btn { min-height:30px; height:30px; padding:0 11px; border-radius:999px; background:rgba(255,255,255,.08); border:1px solid var(--ios-edge); color:var(--p-on); font-size:12px; font-weight:600; }
 .ios-settings-chevron { flex:none; transition:transform .24s var(--motion-spring-soft); }
 .ios-settings-trigger[aria-expanded=true] .ios-settings-chevron { transform:rotate(90deg); }
 .ios-settings-panel[hidden] { display:none; }

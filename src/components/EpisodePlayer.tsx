@@ -2,7 +2,7 @@ import { Button, Image, SegmentedControl } from "./ios/controls";
 import { Loader } from "./ios/effects";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { api, cover, fmt, fmtTime, hostOf, isMobile, logLine, platform } from "../api";
+import { api, cover, fmt, fmtTime, hostOf, isMobile, logLine, platform, playlist } from "../api";
 import type { Detail, Episode, PlayInfo, Post, VideoCard } from "../types";
 import { useStore } from "../store";
 import { Img, Sheet } from "./ui";
@@ -663,7 +663,10 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
         if (!alive || !playGuard.current.allowed || playGuard.current.permissionKey !== permissionKey) return;
         const u = info?.streams?.main || info?.video_url;
         const h = info?.streams?.hevc || info?.video_url_hevc || "";
-        if (u) setPlayUrls((m) => ({ ...m, [key]: u }));
+        if (u) {
+          setPlayUrls((m) => ({ ...m, [key]: u }));
+          if ("__TAURI_INTERNALS__" in window) void fetch(playlist(u)).catch(() => {});
+        }
         if (h) setHevcUrls((m) => ({ ...m, [key]: h }));
       })
       .catch(() => { /* 预热失败不影响当前播放 */ });
@@ -698,7 +701,10 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
         if (!stillRelevant()) return;
         const url = info?.streams?.main || info?.video_url;
         const hevc = info?.streams?.hevc || info?.video_url_hevc || "";
-        if (url) setPlayUrls(previous => ({ ...previous, [nextKey]: url }));
+        if (url) {
+          setPlayUrls(previous => ({ ...previous, [nextKey]: url }));
+          if ("__TAURI_INTERNALS__" in window) void fetch(playlist(url)).catch(() => {});
+        }
         if (hevc) setHevcUrls(previous => ({ ...previous, [nextKey]: hevc }));
       } catch {
         // The next item resolves normally when selected.

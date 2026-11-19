@@ -75,16 +75,61 @@ const failMessage = (msg: string, status?: string) =>
     ? `服务器请求失败（HTTP ${status}），请稍后重试或在设置中切换线路`
     : msg.length > 140 ? `${msg.slice(0, 140)}…` : msg;
 
+const CACHE_TTL: Record<string, number> = {
+  api_video: 180_000,
+  api_play: 90_000,
+  api_post: 180_000,
+  api_post_playback: 90_000,
+  api_tags: 300_000,
+  api_post_categories: 300_000,
+  api_rank: 120_000,
+  api_related: 180_000,
+  api_search_hot: 180_000,
+};
+const READ_CACHE = new Map<string, { value: unknown; expires: number }>();
+const INFLIGHT = new Map<string, Promise<unknown>>();
+export const clearApiReadCache = () => {
+  READ_CACHE.clear();
+  INFLIGHT.clear();
+};
+if (typeof window !== "undefined") {
+  window.addEventListener("hg:line-changed", clearApiReadCache);
+  window.addEventListener("hg:account-changed", clearApiReadCache);
+}
+const cacheKey = (cmd: string, args?: Record<string, unknown>) =>
+  `${cmd}:${args ? JSON.stringify(args) : ""}`;
+
 async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  const once = () => invoke(cmd, args) as Promise<T>;
-  try {
-    const r = await once();
-    notifyNet({ ok: true, cmd });
-    return r;
-  } catch (e) {
-    const msg = typeof e === "string" ? e : "请求失败，请检查网络";
-    const status = /^HTTP (\d{3})\b/.exec(msg)?.[1];
-    const networkish = !status && NET_FAIL.test(msg);
+  if (cmd === "line_set" || cmd === "line_custom_set" || cmd === "line_reset" || cmd === "cache_clear") {
+    clearApiReadCache();
+  }
+  const ttl = CACHE_TTL[cmd];
+  const key = ttl ? cacheKey(cmd, args) : "";
+  if (ttl && key) {
+    const hit = READ_CACHE.get(key);
+    if (hit && hit.expires > Date.now()) {
+      return hit.value as T;
+    }
+    const pending = INFLIGHT.get(key);
+    if (pending) return pending as Promise<T>;
+  }
+  const run = async (): Promise<T> => {
+    const once = () => invoke(cmd, args) as Promise<T>;
+    try {
+      const r = await once();
+      notifyNet({ ok: true, cmd });
+      if (ttl && key) {
+        if (READ_CACHE.size > 120) {
+          const oldest = READ_CACHE.keys().next().value;
+          if (oldest !== undefined) READ_CACHE.delete(oldest);
+        }
+        READ_CACHE.set(key, { value: r, expires: Date.now() + ttl });
+      }
+      return r;
+    } catch (e) {
+      const msg = typeof e === "string" ? e : "请求失败，请检查网络";
+      const status = /^HTTP (\d{3})\b/.exec(msg)?.[1];
+      const networkish = !status && NET_FAIL.test(msg);
     // 落盘完整错误链（dns error / connection refused / 证书错误…），toast 只显示截断版
     logLine(`[api] ${cmd} → ${msg}`);
     tracePlayback("api.fail", { cmd, err: msg, status: status ?? null, networkish });
@@ -99,6 +144,7 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> 
         logLine(`[api] ${cmd} 重试成功`);
         tracePlayback("api.retry_ok", { cmd });
         notifyNet({ ok: true, cmd });
+        if (ttl && key) READ_CACHE.set(key, { value: r, expires: Date.now() + ttl });
         return r;
       } catch (e2) {
         const again = typeof e2 === "string" ? e2 : msg;
@@ -109,7 +155,18 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> 
       }
     }
     throw new Error(failMessage(msg, status));
+    }
+  };
+  const promise = run();
+  if (ttl && key) {
+    INFLIGHT.set(key, promise);
+    try {
+      return await promise;
+    } finally {
+      if (INFLIGHT.get(key) === promise) INFLIGHT.delete(key);
+    }
   }
+  return promise;
 }
 
 /* ── 接口 ───────────────────────────────────────────────── */

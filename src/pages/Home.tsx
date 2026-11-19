@@ -81,6 +81,7 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
   const [heroIndex, setHeroIndex] = useState(0);
+  const [heroDragX, setHeroDragX] = useState(0);
   const heroTouch = useRef<{ x: number; y: number } | null>(null);
   const [continueCard, setContinueCard] = useState<{ detail: Detail; ep: number; t: number; dur: number; at: number } | null>(null);
   const [dismissedContinue, setDismissedContinue] = useState(0);
@@ -495,47 +496,78 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
               <Empty icon={<ISearch size={26} />} title="暂无视频" sub="稍后刷新试试" action="刷新" onAction={() => void load(1, "all")} />
             )}
 
-            {/* 1. 影院级单主推展台（接入官方口碑推荐榜 + 错峰避重 + 一键沉浸连刷） */}
+            {/* 1. 影院级单主推展台（平滑横滑轮播 + 错峰避重 + 一键直达播放） */}
             {hero && (
               <div
                 className="hg-spotlight-shell a-rise"
-                onTouchStart={e => { const t = e.touches[0]; if (t) heroTouch.current = { x: t.clientX, y: t.clientY }; }}
+                onTouchStart={e => {
+                  const t = e.touches[0];
+                  if (t) {
+                    heroTouch.current = { x: t.clientX, y: t.clientY };
+                    setHeroDragX(0);
+                  }
+                }}
+                onTouchMove={e => {
+                  const start = heroTouch.current;
+                  const t = e.touches[0];
+                  if (!start || !t || heroes.length < 2) return;
+                  const dx = t.clientX - start.x;
+                  const dy = t.clientY - start.y;
+                  if (Math.abs(dx) > Math.abs(dy) * 1.15 && Math.abs(dx) > 8) {
+                    setHeroDragX(Math.max(-120, Math.min(120, dx * 0.48)));
+                  }
+                }}
                 onTouchEnd={e => {
                   const start = heroTouch.current;
                   const t = e.changedTouches[0];
                   heroTouch.current = null;
+                  setHeroDragX(0);
                   if (!start || !t || heroes.length < 2) return;
                   const dx = t.clientX - start.x;
                   const dy = t.clientY - start.y;
                   if (Math.abs(dx) < 44 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
                   setHeroIndex(() => (safeHeroIdx + (dx < 0 ? 1 : heroes.length - 1)) % heroes.length);
                 }}
+                onTouchCancel={() => { heroTouch.current = null; setHeroDragX(0); }}
               >
-                <Button card className="hg-spotlight" aria-label={`${hero.title} 详情`} onClick={() => openSeries(hero.id)}>
-                  <Img src={hero.cover} eager alt="" />
-                  <span className="hg-spotlight-veil" aria-hidden="true" />
-                  <span className="hg-spotlight-top">
-                    <span className="hg-spotlight-kicker">
-                      <IFireF size={12} />
-                      <span>{hero.kicker}</span>
-                    </span>
-                  </span>
-                  <span className="hg-spotlight-body">
-                    <span className="hg-spotlight-info">
-                      <span className="hg-spotlight-title">{hero.title}</span>
-                      <span className="hg-spotlight-sub">
-                        {hero.tags?.length ? hero.tags.slice(0, 3).join(" · ") : "精选剧集"}
-                        {" · "}
-                        {hero.is_finished ? `全 ${hero.episode_count || hero.total_episodes || "?"} 集` : `更新至 ${hero.episode_count ?? "?"} 集`}
-                      </span>
-                    </span>
-                    <span className="hg-spotlight-cta" role="button" tabIndex={0}
-                      onClick={e => { e.stopPropagation(); play(hero.id); }}
-                      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); play(hero.id); } }}>
-                      <IPlayF size={12} />播放
-                    </span>
-                  </span>
-                </Button>
+                <div className="hg-spotlight-viewport">
+                  <div
+                    className={`hg-spotlight-track${heroDragX !== 0 ? " is-dragging" : ""}`}
+                    style={{ transform: `translate3d(calc(${-safeHeroIdx * 100}% + ${heroDragX}px), 0, 0)` }}
+                  >
+                    {heroes.map((h, i) => (
+                      <div key={h.id} className="hg-spotlight-slide" data-active={String(i === safeHeroIdx)}>
+                        <Button card className="hg-spotlight" aria-label={`${h.title} 详情`}
+                          tabIndex={i === safeHeroIdx ? 0 : -1}
+                          onClick={() => openSeries(h.id)}>
+                          <Img src={h.cover} eager alt="" />
+                          <span className="hg-spotlight-veil" aria-hidden="true" />
+                          <span className="hg-spotlight-top">
+                            <span className="hg-spotlight-kicker">
+                              <IFireF size={12} />
+                              <span>{h.kicker}</span>
+                            </span>
+                          </span>
+                          <span className="hg-spotlight-body">
+                            <span className="hg-spotlight-info">
+                              <span className="hg-spotlight-title">{h.title}</span>
+                              <span className="hg-spotlight-sub">
+                                {h.tags?.length ? h.tags.slice(0, 3).join(" · ") : "精选剧集"}
+                                {" · "}
+                                {h.is_finished ? `全 ${h.episode_count || h.total_episodes || "?"} 集` : `更新至 ${h.episode_count ?? "?"} 集`}
+                              </span>
+                            </span>
+                            <span className="hg-spotlight-cta" role="button" tabIndex={i === safeHeroIdx ? 0 : -1}
+                              onClick={e => { e.stopPropagation(); play(h.id); }}
+                              onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); play(h.id); } }}>
+                              <IPlayF size={12} />播放
+                            </span>
+                          </span>
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
                 {heroes.length > 1 && (
                   <div className="hg-spotlight-bars" role="tablist" aria-label="精选焦点切换">
                     {heroes.map((h, i) => (
