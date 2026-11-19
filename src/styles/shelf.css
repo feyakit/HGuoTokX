@@ -1083,6 +1083,7 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 }
 .hg-spotlight-bars {
   display: flex; align-items: center; gap: 6px; margin-top: 9px; justify-content: center;
+  position: relative; z-index: 2;
 }
 .hg-spotlight-bar {
   position: relative;
@@ -1092,7 +1093,8 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 /* 报告 7：圆点只有 3px 高，手指点不中就等于「点圆点没反应」——视觉不变，热区上下各扩 12px。
    ::after 属于按钮自身，落在它上面的点按仍然算点击这个按钮。 */
 .hg-spotlight-bar::after {
-  content: ""; position: absolute; left: -3px; right: -3px; top: -12px; bottom: -12px;
+  content: ""; position: absolute; left: -6px; right: -6px; top: -12px; bottom: -30px;
+  z-index: 2;
 }
 .hg-spotlight-bar[data-on="true"] {
   width: 34px;
@@ -1578,3 +1580,8 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 @keyframes hg-spin {
   to { transform: rotate(360deg); }
 }
+
+/* 选集面板集数网格：4 列，列宽严格受面板宽度约束；万一被父级撑开，兜底横向滚动而不是飞出视口 */
+.hg-eps-scroll { min-width: 0; overflow-x: auto; }
+.hg-eps-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; width: 100%; min-width: 0; }
+.hg-eps-grid > .ios-button { min-inline-size: 0; }

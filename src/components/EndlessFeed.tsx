@@ -27,6 +27,8 @@ const SEEN_MEMORY = 300;
 /** 失败退避：2s → 4s → 8s → 16s → 30s（封顶） */
 const BACKOFF_BASE = 2000;
 const BACKOFF_MAX = 30000;
+/** 池子最多领先当前条这么多条，防止判定失灵时无限追加 */
+const GROW_AHEAD_MAX = 60;
 
 type Card = { id: number };
 
@@ -61,8 +63,12 @@ export default function EndlessFeed({ title = "", bottomInset = 0, active, onBac
   const backoffStep = useRef(0);
   const alive = useRef(true);
   const [ids, setIds] = useState<number[]>([]);
+  const idsRef = useRef<number[]>([]);
+  const indexRef = useRef(0);
   const [booting, setBooting] = useState(true);
   const [index, setIndex] = useState(0);
+  idsRef.current = ids;
+  indexRef.current = index;
 
   useEffect(() => () => {
     alive.current = false;
@@ -119,6 +125,9 @@ export default function EndlessFeed({ title = "", bottomInset = 0, active, onBac
   /* 一轮取数：随机 2–3 页 → 合并 → 洗牌 → 去重 → append。返回是否拿到新内容 */
   const pull = useCallback(async (): Promise<boolean> => {
     if (loading.current) return false;
+    /* 生长上限：正常情况下剩余不足 3 条才补；这里再兜一道，
+       防止某些设备上滚动判定失灵时无限追加 section（真机出现过 77→100）。 */
+    if (idsRef.current.length - indexRef.current > GROW_AHEAD_MAX) return false;
     loading.current = true;
     try {
       let fresh: number[] = [];

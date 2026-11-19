@@ -44,8 +44,10 @@ export function EpisodesPanel({ videoId, episodes, current, onPick, onClose, bar
           </Button>
         </div>
       )}
-      <div ref={listRef} className="flex-1 scroll-y px-4 pb-4">
-        <div className="grid grid-cols-4 gap-2">
+      <div ref={listRef} className="flex-1 scroll-y px-4 pb-4 hg-eps-scroll">
+        {/* 4 列固定受容器约束（minmax(0,1fr) + width:100% + min-width:0）：
+            真机上出现过「集数横排铺到 1354」的情况，根因是不受限的隐式列宽 + 父级 min-width:auto。 */}
+        <div className="hg-eps-grid">
           {list.map((e) => (
             <Button key={e.ep_num} aria-current={e.ep_num === current ? "true" : undefined} onClick={() => onPick(e.ep_num)}
               className={`h-10 rounded-(--r-sm) text-[13px] font-semibold pressable ${e.ep_num === current ? "bg-primary text-on-primary" : "bg-s3 text-on/80"}`}>

@@ -438,7 +438,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     // The scroll container is recreated after the tag gate/one-time prompt.
     // Anchor by content ID before paint, including a nonzero starting position.
     if (boxRef.current) {
-      const top = index * (boxRef.current.clientHeight || 1);
+      const top = index * pageStep(boxRef.current);
       if (Math.abs(boxRef.current.scrollTop - top) > 1) {
         anchoredScroll.current = top;
         boxRef.current.scrollTop = top;
@@ -454,6 +454,17 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     setIndex(target);
   }, []);
 
+  /* 一页多高：优先量 section 的真实高度（CSS 百分比如若塌成 0，clientHeight 会是 0/1，
+     用它会算出错误的「当前第几条」，表现为「上滑不动、内容不换」）。 */
+  const pageStep = useCallback((el: HTMLElement): number => {
+    const first = el.querySelector("section");
+    const measured = first ? first.getBoundingClientRect().height : 0;
+    if (measured >= 10) return measured;
+    const box = el.clientHeight;
+    if (box >= 10) return box;
+    return window.innerHeight || 1;
+  }, []);
+
   /* 滚动定位 */
   const onScroll = useCallback(() => {
     if (fs || pinchRef.current) return;
@@ -464,13 +475,13 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       anchoredScroll.current = null;
       if (Math.abs(el.scrollTop - top) <= 1) return;
     }
-    const h = el.clientHeight || 1;
+    const h = pageStep(el);
     const i = Math.max(0, Math.min(effectiveVideoIds.length - 1, Math.round(el.scrollTop / h)));
     if (renderIndex !== i) setRenderIndex(i);
     if (onNearEnd && (mode === "home" || endless) && i >= effectiveVideoIds.length - 3) onNearEnd();
     window.clearTimeout(swipeTimer.current);
     swipeTimer.current = window.setTimeout(() => resolveSwipe(i), 150);
-  }, [effectiveVideoIds.length, onNearEnd, resolveSwipe, fs, mode, endless, renderIndex]);
+  }, [effectiveVideoIds.length, onNearEnd, resolveSwipe, fs, mode, endless, renderIndex, pageStep]);
 
   /* 无限流外壳要知道当前在哪一条：换条时回报一次（换剧/滑到尾部都在这里同步） */
   useEffect(() => { onActiveIndex?.(index); }, [index, onActiveIndex]);
@@ -478,9 +489,18 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const go = useCallback((delta: number) => {
     const el = boxRef.current;
     if (!el) return;
+    const step = pageStep(el);
     const next = Math.max(0, Math.min(effectiveVideoIds.length - 1, index + delta));
-    el.scrollTo({ top: next * el.clientHeight, behavior: "smooth" });
-  }, [index, effectiveVideoIds.length]);
+    const target = next * step;
+    el.scrollTo({ top: target, behavior: "smooth" });
+    /* scroll-snap:mandatory 会打断程序化的 smooth 滚动（真机表现就是「上滑不动」）：
+       400ms 后还没过半页就直接赋值兜底。 */
+    window.setTimeout(() => {
+      const box = boxRef.current;
+      if (!box) return;
+      if (Math.abs(box.scrollTop - target) > step * 0.5) box.scrollTop = target;
+    }, 420);
+  }, [index, effectiveVideoIds.length, pageStep]);
 
   /* 统一的上下切换：swipeEp 开启且为多集视频时优先切集，否则切剧。
      桌面端键盘 ↑↓ 与右侧按钮都走这里，和移动端上下划手势保持一致。 */
@@ -985,7 +1005,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     const el = boxRef.current;
     if (el && !isDesktop) {
       window.clearTimeout(swipeTimer.current);
-      const h = el.clientHeight || 1;
+      const h = pageStep(el);
       const i = Math.max(0, Math.min(effectiveVideoIds.length - 1, Math.round(el.scrollTop / h)));
       if (i !== idxRef.current) resolveSwipe(i);
     }
@@ -1065,7 +1085,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     const syncScroll = () => {
       const box = boxRef.current;
       if (!box || fs) return;
-      box.scrollTop = index * (box.clientHeight || 1);
+      box.scrollTop = index * pageStep(box);
     };
     syncScroll();
     const raf = requestAnimationFrame(syncScroll);
@@ -1251,6 +1271,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       data-ambient={accentScheme.source}
       style={ambientStyle(accentScheme)}
       data-clean={clean}
+      /* W20 对账用：当前第几条 / 当前剧 id / 已装载条数（滚动与追加是否错位一眼可见） */
+      data-binge={endless ? "true" : undefined}
+      data-index={index}
+      data-visible-id={curId}
+      data-ids={effectiveVideoIds.length}
       inert={!active || undefined}
       aria-hidden={!active || undefined}
       onFocusCapture={() => { if (active && isDesktop) wake(); }}
