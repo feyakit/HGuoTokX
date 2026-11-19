@@ -244,7 +244,12 @@ export function TopicPage({ slug, name, onBack, wide }: { slug: string; name: st
         <Button card onClick={() => setSearching(true)} aria-label="搜索短剧" className="hg-sub-btn"><ISearch size={17} /></Button>
       </header>
 
-      <div className="flex-1 scroll-y hg-page-x pt-3 pb-8 relative" aria-busy={loading}>
+      <div className="flex-1 scroll-y hg-page-x pt-3 pb-8 relative" aria-busy={loading}
+        onScroll={(e) => {
+          if (loading || loadingMore || !hasMore || error) return;
+          const el = e.currentTarget;
+          if (el.scrollHeight - el.scrollTop - el.clientHeight < 360) loadMore();
+        }}>
         {(topic?.intro || topic?.cover) && (
           <section className="hg-topic-hero" aria-label="专题简介">
             {heroCover && <span className="hg-topic-hero-bg" aria-hidden="true"><Img src={heroCover} alt="" /></span>}

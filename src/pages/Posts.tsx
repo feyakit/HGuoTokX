@@ -23,19 +23,52 @@ const postExtra = new Map<number, PostExtra>();
 const extraOf = (p: Post): PostExtra | undefined => postExtra.get(p.id);
 
 const SORTS = [
-  { key: "latest", label: "最新" },
-  { key: "trending", label: "热门" },
+  { key: "latest", label: "时间线" },
+  { key: "trending", label: "热议榜" },
 ] as const;
 type SortKey = (typeof SORTS)[number]["key"];
 
-const postTime = (p: Post) => {
+const parsePostDate = (p: Post): Date | null => {
   const raw = (p.publish_time || p.created_at || "").trim();
-  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(raw);
-  return m ? `${+m[2]}月${+m[3]}日 ${m[4]}:${m[5]}` : raw;
+  if (!raw) return null;
+  const iso = raw.includes("T") ? raw : raw.replace(" ", "T");
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
 };
 
+const postClock = (p: Post): string => {
+  const raw = (p.publish_time || p.created_at || "").trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(raw);
+  if (m) return `${m[4]}:${m[5]}`;
+  const d = parsePostDate(p);
+  return d ? `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}` : "";
+};
+
+const postDateKey = (p: Post): string => {
+  const raw = (p.publish_time || p.created_at || "").trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  const d = parsePostDate(p);
+  if (!d) return "近期";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+const formatDateGroup = (key: string): string => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return key;
+  const now = new Date();
+  const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const y = new Date(now.getTime() - 86400000);
+  const yesterdayKey = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, "0")}-${String(y.getDate()).padStart(2, "0")}`;
+  if (key === todayKey) return "今天";
+  if (key === yesterdayKey) return "昨天";
+  const [, , mm, dd] = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key) || [];
+  return mm && dd ? `${+mm}月${+dd}日` : key;
+};
+
+const GENERIC_CATE = new Set(["全部", "全部话题", "最新", "最新吃瓜", "热门", "热门热议"]);
+
 export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; wide?: boolean; embedded?: boolean }) {
-  const { push, toast, follows, setFollowing, isLiked, setLiked, actionPending, user, setLoginOpen, lineEpoch } = useStore();
+  const { push, toast, isLiked, setLiked, actionPending, user, setLoginOpen, lineEpoch } = useStore();
   const { preferences } = useContentPreferences();
   const filtering = !preferences.paused && (preferences.blockedTags.length > 0 || preferences.hideUntagged);
   const [sort, setSort] = useState<SortKey>("latest");
@@ -62,6 +95,19 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
     return () => { alive = false; };
   }, [lineEpoch]);
 
+  /* 对齐官网博客结构：只保留「黑料吃瓜 / 短剧剧评」两种核心分类（接口未返回时取前 2 个有效分类） */
+  const topicFilters = useMemo(() => {
+    const seenName = new Set<string>();
+    const valid = categories.filter((c) => {
+      const name = (c.name || "").trim();
+      if (!name || GENERIC_CATE.has(name) || seenName.has(name)) return false;
+      seenName.add(name);
+      return true;
+    });
+    const official = valid.filter((c) => /吃瓜|剧评/.test(c.name || ""));
+    return (official.length >= 2 ? official : valid).slice(0, 2);
+  }, [categories]);
+
   const loadMore = async (reset = false) => {
     if (busy.current) return;
     const next = reset ? 1 : page + 1;
@@ -75,8 +121,16 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
         : await api.posts(next, 20, sort);
       setItems((prev) => {
         const base = reset ? [] : prev;
-        const seen = new Set(base.map((x) => x.id));
-        return [...base, ...(res?.items || []).filter((x) => !seen.has(x.id))];
+        const seenId = new Set(base.map((x) => x.id));
+        const seenTitle = new Set(base.map((x) => (x.title || "").trim()));
+        const added = (res?.items || []).filter((x) => {
+          const t = (x.title || "").trim();
+          if (seenId.has(x.id) || (t && seenTitle.has(t))) return false;
+          seenId.add(x.id);
+          if (t) seenTitle.add(t);
+          return true;
+        });
+        return [...base, ...added];
       });
       setPage(next);
       setPages(res?.pagination?.pages || next);
@@ -133,93 +187,188 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
     return () => { alive = false; };
   }, [items]);
 
+  const checkScrollBottom = () => {
+    const el = scrollRef.current;
+    if (!el || loading || err || filtering || page >= pages) return;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight <= 360) void loadMore();
+  };
+
   useEffect(() => {
     const el = sentinel.current;
-    if (!el || err || filtering) return;
-    const io = new IntersectionObserver((es) => { if (es[0].isIntersecting) loadMore(); }, { root: scrollRef.current, rootMargin: "240px" });
+    if (!el || loading || err || filtering || page >= pages) return;
+    const io = new IntersectionObserver((es) => { if (es[0].isIntersecting) void loadMore(); }, { root: scrollRef.current, rootMargin: "320px" });
     io.observe(el);
+    checkScrollBottom();
     return () => io.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pages, err, filtering]);
+  }, [page, pages, loading, err, filtering]);
 
-  const card = (p: Post) => {
+  const renderFooter = (p: Post) => {
     const info = extra[p.id] ?? extraOf(p);
     const pic = info?.author?.avatar;
     const initial = (info?.author?.name || "").trim().charAt(0);
     const authorId = info?.author?.id;
-    const isFollowed = authorId ? follows.includes(authorId) : false;
-    const followBusy = authorId ? actionPending(`follow:${authorId}`) : false;
+    const liked = isLiked(p.id, undefined, "post");
+    const likeBusy = actionPending(`like:post:${p.id}:0`);
+    const likeCount = Math.max(0, (info?.like ?? 0) + (likeDelta[p.id] ?? 0));
     return (
-      <div key={p.id} className="hg-post-card" onClick={() => push({ kind: "post", id: p.id })}>
-        <div className="hg-post-head">
-          <span className="hg-post-avatar" aria-hidden="true"
-            style={authorId ? { cursor: "pointer" } : undefined}
-            onClick={authorId ? (e) => { e.stopPropagation(); push({ kind: "user", id: authorId, name: info?.author?.name }); } : undefined}>
-            {pic ? <Img src={pic} /> : (initial || "U")}
+      <div className="hg-tl-foot">
+        <button type="button" className="hg-tl-author"
+          onClick={authorId ? (e) => { e.stopPropagation(); push({ kind: "user", id: authorId, name: info?.author?.name }); } : undefined}>
+          <span className="hg-tl-avatar" aria-hidden="true">
+            {pic ? <Img src={pic} /> : (initial || "吃")}
           </span>
-          <span className="hg-post-who"
-            style={authorId ? { cursor: "pointer" } : undefined}
-            onClick={authorId ? (e) => { e.stopPropagation(); push({ kind: "user", id: authorId, name: info?.author?.name }); } : undefined}>
-            <span className="hg-post-name">{info?.author?.name || "匿名用户"}</span>
-            <span className="hg-post-time">{postTime(p)}</span>
-          </span>
-          <button type="button" disabled={followBusy} className={`hg-follow-btn${isFollowed ? " is-on" : ""}`}
+          <span className="hg-tl-author-name">{info?.author?.name || "吃瓜快讯"}</span>
+        </button>
+        <div className="hg-tl-actions">
+          <button type="button" className={`hg-post-stat${liked ? " is-liked" : ""}`} disabled={likeBusy}
+            aria-label={liked ? "取消点赞" : "点赞"}
             onClick={(e) => {
               e.stopPropagation();
               if (!user) { setLoginOpen(true); return; }
-              if (!authorId) { toast("作者信息加载中，请稍候", "info"); return; }
-              void setFollowing(authorId, !isFollowed).catch((err) => {
-                toast((err as Error)?.message || "关注操作失败", "info");
+              if (likeBusy) return;
+              const next = !liked;
+              setLikeDelta((prev) => ({ ...prev, [p.id]: (prev[p.id] ?? 0) + (next ? 1 : -1) }));
+              void setLiked("post", p.id, 0, next).catch((err) => {
+                setLikeDelta((prev) => ({ ...prev, [p.id]: (prev[p.id] ?? 0) + (next ? -1 : 1) }));
+                toast((err as Error)?.message || "点赞失败", "info");
               });
             }}>
-            {followBusy ? "…" : isFollowed ? "已关注" : "+ 关注"}
+            <span className="hg-post-heart">{liked ? "♥" : "♡"}</span>{fmt(likeCount)}
+          </button>
+          <button type="button" className="hg-post-stat" aria-label="查看评论"
+            onClick={(e) => { e.stopPropagation(); setCommentTarget({ id: p.id, total: info?.comment ?? 0 }); }}>
+            <IComment size={15} />{fmt(info?.comment ?? 0)}
+          </button>
+          <button type="button" className="hg-post-stat" aria-label="分享帖子"
+            onClick={(e) => {
+              e.stopPropagation();
+              copyText(`https://huangguoai.com/post/${p.id}`)
+                .then(() => toast("链接已复制", "ok"))
+                .catch(() => toast("复制失败", "info"));
+            }}>
+            <span aria-hidden="true">↗</span>{fmt(info?.hot ?? p.hot)}
           </button>
         </div>
-        <div className="hg-post-title">{p.title}</div>
-        {p.cover && (
-          <div className="hg-post-art">
+      </div>
+    );
+  };
+
+  const renderCardBody = (p: Post, featured: boolean, rank?: number) => {
+    const tag = (p.tags || []).find((t) => t && t !== HIDDEN_POST_TAG);
+    const hasVideo = Boolean(p.video_url || p.video_id);
+    const desc = (p.desc || "").trim();
+    if (featured && p.cover) {
+      return (
+        <div className="hg-tl-card is-featured" onClick={() => push({ kind: "post", id: p.id })}>
+          {(rank != null || (sort === "trending" && tag)) && (
+            <div className="flex items-center gap-2 mb-1.5">
+              {rank != null && (
+                <span className={`hg-rank-badge ${rank <= 3 ? `top-${rank}` : ""}`}>TOP {rank}</span>
+              )}
+              {tag && <span className="hg-tl-tag">#{tag}</span>}
+              {sort === "trending" && <span className="text-[11px] text-white/45 ml-auto tabular-nums">{postClock(p)}</span>}
+            </div>
+          )}
+          <div className="hg-tl-title">{p.title}</div>
+          {desc && <p className="hg-tl-desc">{desc}</p>}
+          <div className="hg-tl-hero">
             <Img src={p.cover} alt="" />
+            {hasVideo && (
+              <span className="hg-tl-media-badge"><IPlayF size={9} />视频</span>
+            )}
+          </div>
+          {renderFooter(p)}
+        </div>
+      );
+    }
+    return (
+      <div className="hg-tl-card" onClick={() => push({ kind: "post", id: p.id })}>
+        {(rank != null || (sort === "trending" && tag)) && (
+          <div className="flex items-center gap-2 mb-1.5">
+            {rank != null && (
+              <span className={`hg-rank-badge ${rank <= 3 ? `top-${rank}` : ""}`}>#{rank}</span>
+            )}
+            {tag && <span className="hg-tl-tag">#{tag}</span>}
+            {sort === "trending" && <span className="text-[11px] text-white/45 ml-auto tabular-nums">{postClock(p)}</span>}
           </div>
         )}
-        <div className="hg-post-stats">
-          {(() => {
-            const liked = isLiked(p.id, undefined, "post");
-            const likeBusy = actionPending(`like:post:${p.id}:0`);
-            const likeCount = Math.max(0, (info?.like ?? 0) + (likeDelta[p.id] ?? 0));
-            return (
-              <>
-                <button type="button" className={`hg-post-stat${liked ? " is-liked" : ""}`} disabled={likeBusy}
-                  aria-label={liked ? "取消点赞" : "点赞"}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!user) { setLoginOpen(true); return; }
-                    if (likeBusy) return;
-                    const next = !liked;
-                    setLikeDelta((prev) => ({ ...prev, [p.id]: (prev[p.id] ?? 0) + (next ? 1 : -1) }));
-                    void setLiked("post", p.id, 0, next).catch((err) => {
-                      setLikeDelta((prev) => ({ ...prev, [p.id]: (prev[p.id] ?? 0) + (next ? -1 : 1) }));
-                      toast((err as Error)?.message || "点赞失败", "info");
-                    });
-                  }}>
-                  <span className="hg-post-heart">{liked ? "♥" : "♡"}</span>{fmt(likeCount)}
-                </button>
-                <button type="button" className="hg-post-stat" aria-label="查看评论"
-                  onClick={(e) => { e.stopPropagation(); setCommentTarget({ id: p.id, total: info?.comment ?? 0 }); }}>
-                  <IComment size={16} />{fmt(info?.comment ?? 0)}
-                </button>
-                <button type="button" className="hg-post-stat" aria-label="分享帖子"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    copyText(`https://huangguoai.com/post/${p.id}`)
-                      .then(() => toast("链接已复制", "ok"))
-                      .catch(() => toast("复制失败", "info"));
-                  }}>
-                  <span aria-hidden="true">↗</span>{fmt(info?.hot ?? p.hot)}
-                </button>
-              </>
-            );
-          })()}
+        <div className="hg-tl-compact-row">
+          <div className="hg-tl-compact-copy">
+            <div className="hg-tl-title">{p.title}</div>
+            {desc && <p className="hg-tl-desc">{desc}</p>}
+          </div>
+          {p.cover && (
+            <div className="hg-tl-thumb">
+              <Img src={p.cover} alt="" />
+              {hasVideo && (
+                <span className="hg-tl-media-badge"><IPlayF size={8} /></span>
+              )}
+            </div>
+          )}
         </div>
+        {renderFooter(p)}
+      </div>
+    );
+  };
+
+  const renderTimeline = (visible: Post[]) => {
+    if (sort === "trending") {
+      return (
+        <div className="hg-tl-wrap flex flex-col gap-2.5">
+          {visible.map((p, idx) => (
+            <div key={p.id}>
+              {renderCardBody(p, idx === 0 || Boolean(p.video_url || p.video_id), idx + 1)}
+            </div>
+          ))}
+        </div>
+      );
+    }
+    /* 时间线模式：严格按时间戳倒序并按日期分组 */
+    const sorted = visible.slice().sort((a, b) => {
+      const ta = parsePostDate(a)?.getTime() ?? 0;
+      const tb = parsePostDate(b)?.getTime() ?? 0;
+      return tb - ta || b.id - a.id;
+    });
+    const groups: { key: string; label: string; posts: Post[] }[] = [];
+    const byKey = new Map<string, { key: string; label: string; posts: Post[] }>();
+    for (const p of sorted) {
+      const k = postDateKey(p);
+      let g = byKey.get(k);
+      if (!g) {
+        g = { key: k, label: formatDateGroup(k), posts: [] };
+        byKey.set(k, g);
+        groups.push(g);
+      }
+      g.posts.push(p);
+    }
+    return (
+      <div className="hg-tl-wrap">
+        {groups.map((g) => (
+          <section key={g.key} className="hg-tl-group" aria-label={g.label}>
+            <div className="hg-tl-date-row">
+              <span className="hg-tl-date-dot" aria-hidden="true" />
+              <span className="hg-tl-date-label">{g.label}</span>
+              <span className="hg-tl-date-count">{g.posts.length} 条动态</span>
+            </div>
+            <div className="hg-tl-list">
+              {g.posts.map((p, idx) => {
+                const tag = (p.tags || []).find((t) => t && t !== HIDDEN_POST_TAG);
+                const featured = idx === 0 || Boolean(p.video_url || p.video_id);
+                return (
+                  <div key={p.id} className="hg-tl-item">
+                    <span className="hg-tl-node" aria-hidden="true" />
+                    <div className="hg-tl-time-row">
+                      <span className="hg-tl-clock">{postClock(p) || "刚刚"}</span>
+                      {tag && <span className="hg-tl-tag">#{tag}</span>}
+                    </div>
+                    {renderCardBody(p, featured)}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ))}
       </div>
     );
   };
@@ -227,18 +376,17 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
   return (
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
-      {/* 一级大字重流光顶栏：最新吃瓜 / 热门热议 直接融入顶栏，省去单独排序行 */}
       <header className="shrink-0 hg-page-x hg-editorial-bar relative z-10">
         {!embedded && onBack && (
           <Button card aria-label="返回" onClick={onBack} className="hg-sub-btn"><IBack size={19} /></Button>
         )}
         <h1 className="sr-only">吃瓜</h1>
-        <div className="hg-ed-tabs" role="tablist" aria-label="社区排序">
+        <div className="hg-ed-tabs" role="tablist" aria-label="吃瓜视图">
           {SORTS.map((s) => (
             <Button key={s.key} card role="tab" aria-selected={sort === s.key}
               className="hg-ed-tab"
               onClick={() => setSort(s.key)}>
-              {s.key === "latest" ? "最新吃瓜" : "热门热议"}
+              {s.label}
             </Button>
           ))}
         </div>
@@ -247,20 +395,20 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
         </Button>
       </header>
 
-      {/* 社区子话题标签条：仅真正的话题标签使用紧凑 #tag 小签 */}
-      {categories.length > 0 && (
+      {/* 对齐官网博客双分类：全部 / 黑料吃瓜 / 短剧剧评 */}
+      {topicFilters.length > 0 && (
         <div className="shrink-0 hg-page-x pb-1.5 relative z-10">
-          <div className="hg-topic-strip" role="tablist" aria-label="社区分类">
+          <div className="hg-topic-strip" role="tablist" aria-label="博客分类">
             <Button card role="tab" aria-selected={cate === ""}
               className="hg-tag-pill"
               onClick={() => setCate("")}>
-              <span className="hg-tag-hash">#</span><span>全部话题</span>
+              <span>全部</span>
             </Button>
-            {categories.map((c) => (
+            {topicFilters.map((c) => (
               <Button key={c.route || c.id} card role="tab" aria-selected={cate === c.route}
                 className="hg-tag-pill"
                 onClick={() => setCate(c.route)}>
-                <span className="hg-tag-hash">#</span><span>{c.name}</span>
+                <span>{c.name}</span>
               </Button>
             ))}
           </div>
@@ -268,13 +416,12 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
       )}
 
       <div ref={scrollRef} aria-busy={loading} className="flex-1 scroll-y hg-page-x relative z-10"
-        style={{ paddingBottom: "calc(110px + var(--sab, 0px))" }}>
+        style={{ paddingBottom: "calc(110px + var(--sab, 0px))" }}
+        onScroll={checkScrollBottom}>
         {items.length ? (
-          <FilteredContent items={items} scopeKey={`posts-${sort}-${cate}`}>{visible => (
-            <div className="hg-post-feed">
-              {visible.map(card)}
-            </div>
-          )}</FilteredContent>
+          <FilteredContent items={items} scopeKey={`posts-${sort}-${cate}`}>
+            {renderTimeline}
+          </FilteredContent>
         ) : loading ? (
           <div className="flex justify-center py-12"><Loader className="w-8 h-8 spinner" /></div>
         ) : err ? (
@@ -309,7 +456,7 @@ const HIDDEN_POST_TAG = "\u9ec4\u679c";
 
 /* ================= 吃瓜详情（网页式浏览） ================= */
 export function PostDetail({ id, onBack, active = true }: { id: number; onBack: () => void; active?: boolean }) {
-  const { toast, strictSecurity, muted, setMuted, push, user, setLoginOpen, isLiked, isFav, setLiked, setCollected, actionPending } = useStore();
+  const { toast, strictSecurity, muted, setMuted, push, user, setLoginOpen, isLiked, isFav, setLiked, setCollected, actionPending, addPostHistory } = useStore();
   const { preferences, blockReason } = useContentPreferences();
   const filtering = !preferences.paused && (preferences.blockedTags.length > 0 || preferences.hideUntagged);
   const [post, setPost] = useState<(Post & { content?: string; video_url?: string }) | null>(null);
@@ -322,6 +469,9 @@ export function PostDetail({ id, onBack, active = true }: { id: number; onBack: 
   const currentPost = loadedId === id ? post : null;
   const blocked = filtering && currentPost ? blockReason(currentPost.tags) : null;
   const allowed = !filtering || (!!currentPost && !blocked);
+  useEffect(() => {
+    if (active && currentPost && allowed) addPostHistory(id);
+  }, [active, currentPost, allowed, id, addPostHistory]);
   useEffect(() => {
     if (!active || !filtering || !currentPost || !blocked) {
       if (!blocked) autoBackKey.current = "";

@@ -384,11 +384,18 @@ export function ChannelPage({ cate, name, onBack, wide }: { cate: string; name: 
   const filterPending = displayedFilter !== filterKey(serverSort, originalCate);
   const replacing = refreshing || filterPending;
 
+  const checkScrollBottom = () => {
+    const el = scrollContainer.current;
+    if (!el || filtering || loading || err || replacing || page >= pages) return;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight <= 360) void loadMore();
+  };
+
   useEffect(() => {
     const el = sentinel.current;
     if (!el || filtering || loading || err || replacing || page >= pages) return;
-    const io = new IntersectionObserver((es) => { if (es[0].isIntersecting) void loadMore(); }, { root: scrollContainer.current, rootMargin: "300px" });
+    const io = new IntersectionObserver((es) => { if (es[0].isIntersecting) void loadMore(); }, { root: scrollContainer.current, rootMargin: "320px" });
     io.observe(el);
+    checkScrollBottom();
     return () => io.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pages, loading, err, replacing, filtering]);
@@ -446,7 +453,7 @@ export function ChannelPage({ cate, name, onBack, wide }: { cate: string; name: 
         )}
       </div>
 
-      <div ref={scrollContainer} className="flex-1 scroll-y hg-page-x pt-2 pb-8 relative" aria-busy={loading}>
+      <div ref={scrollContainer} className="flex-1 scroll-y hg-page-x pt-2 pb-8 relative" aria-busy={loading} onScroll={checkScrollBottom}>
         {items.length > 0 && replacing && <p role="status" className="mb-3 text-[12px] text-mut">{loading ? "正在更新，暂时保留上次结果…" : "当前显示上次结果，请重试以更新筛选。"}</p>}
         {items.length > 0 && err && <div role="status" className="mb-3 flex flex-wrap items-center gap-2 text-[12px] text-mut"><span>{err}</span><Button className="px-3 text-primary" onClick={() => void loadMore(replacing)}>重试</Button></div>}
         {items.length ? (

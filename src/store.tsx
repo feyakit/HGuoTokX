@@ -185,12 +185,13 @@ type Store = {
   actionPending: (key: string) => boolean;
   loginOpen: boolean; setLoginOpen: (b: boolean) => void;
   logout: () => Promise<void>;
-  likes: number[]; favs: number[]; postFavs: number[]; history: WatchProgress[]; follows: number[];
+  likes: number[]; favs: number[]; postFavs: number[]; history: WatchProgress[]; postHistory: number[]; follows: number[];
   isLiked: (id: number, ep?: number, kind?: "video" | "post") => boolean; isFav: (id: number, kind?: "video" | "post") => boolean;
   toggleLikeLocal: (id: number) => boolean;
   toggleFavLocal: (id: number) => boolean;
   /** 记一条观看记录；`ep/t/dur` 省略时保留原进度，`ep` 变了就把进度归零 */
   addHistory: (id: number, ep?: number, t?: number, dur?: number) => void;
+  addPostHistory: (id: number) => void;
   clearHistory: () => Promise<void>;
   toggleFollowLocal: (uid: number) => boolean;
   theater: boolean; setTheater: (v: boolean | ((p: boolean) => boolean)) => void;
@@ -446,11 +447,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     tab, setTab, stack, push, pop,
     user, setUser, loginOpen, setLoginOpen, logout,
     accountScope: account.accountScope, accountSync: account.accountSync, syncAccount: account.syncAccount,
-    likes: account.likes, favs: account.favs, postFavs: account.postFavs, history: account.history, follows: account.follows,
+    likes: account.likes, favs: account.favs, postFavs: account.postFavs, history: account.history, postHistory: account.postHistory, follows: account.follows,
     isLiked: account.isLiked, isFav: account.isFav,
     setCollected: account.setCollected, setLiked: account.setLiked, setFollowing: account.setFollowing, actionPending: account.actionPending,
     toggleLikeLocal: account.toggleLikeLocal, toggleFavLocal: account.toggleFavLocal, toggleFollowLocal: account.toggleFollowLocal,
-    addHistory: account.addHistory, clearHistory: account.clearHistory,
+    addHistory: account.addHistory, addPostHistory: account.addPostHistory, clearHistory: account.clearHistory,
     muted: p.muted, setMuted, volume: p.volume, setVolume, theater, setTheater, fs, setFs, clean, setClean,
     muteOnStartup: p.muteOnStartup, setMuteOnStartup,
     swipeEp: p.swipeEp, setSwipeEp,

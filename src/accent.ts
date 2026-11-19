@@ -165,7 +165,7 @@ export function schemeFromPixels(data: Uint8ClampedArray): AccentScheme {
     ? { h: secondBucket.h / secondBucket.weight, s: secondBucket.s / secondBucket.weight, l: secondBucket.l / secondBucket.weight }
     : { h: main.h + 35, s: main.s, l: main.l };
   const second = clampAccent(secondHsl, 3);
-  const deep = hslToRgb(main.h, clamp(main.s, 0.35, 0.7), 0.12);
+  const deep = hslToRgb(main.h, clamp(main.s, 0.42, 0.78), 0.18);
   const tag = mix(parseHex(ACCENT_BG), accent, 0.22);
   return { accent: toHex(accent), second: toHex(second), deep: toHex(deep), tag: toHex(tag), source: "image", luma };
 }

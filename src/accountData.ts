@@ -7,7 +7,7 @@ import { migrateLegacyKey } from "./legacyKeys";
 type Kind = "video" | "post";
 export type GuestData = {
   likes: number[]; favs: number[]; follows: number[]; history: WatchProgress[];
-  postLikes?: number[]; postFavs?: number[];
+  postLikes?: number[]; postFavs?: number[]; postHistory?: number[];
   likeEpisodes?: { video_id: number; ep: number }[];
   localHistory?: number[];
 };
@@ -15,17 +15,18 @@ export type GuestData = {
 /** Share one library-only boundary without losing guest post or episode interactions. */
 export function pickGuestData(data: GuestData): GuestData {
   return { likes: data.likes, favs: data.favs, follows: data.follows, history: data.history,
-    postLikes: data.postLikes, postFavs: data.postFavs, likeEpisodes: data.likeEpisodes, localHistory: data.localHistory };
+    postLikes: data.postLikes, postFavs: data.postFavs, postHistory: data.postHistory,
+    likeEpisodes: data.likeEpisodes, localHistory: data.localHistory };
 }
 type AccountData = GuestData & {
-  postLikes: number[]; postFavs: number[];
+  postLikes: number[]; postFavs: number[]; postHistory: number[];
   likeEpisodes?: { video_id: number; ep: number }[];
   dirtyHistory: Record<number, { ep: number; at: number }>;
   localHistory: number[];
 };
 type SyncState = { busy: boolean; error: string; lastSynced: number; favoritesKnown: boolean };
 const ACCOUNT_KEY = "hguox_accounts_v1";
-const empty = (): AccountData => ({ likes: [], favs: [], follows: [], history: [], postLikes: [], postFavs: [], dirtyHistory: {}, localHistory: [] });
+const empty = (): AccountData => ({ likes: [], favs: [], follows: [], history: [], postLikes: [], postFavs: [], postHistory: [], dirtyHistory: {}, localHistory: [] });
 const ids = (value: unknown): number[] => Array.isArray(value)
   ? [...new Set(value.filter((id): id is number => Number.isSafeInteger(id) && id > 0))] : [];
 const validProgress = (value: unknown): value is WatchProgress => {
@@ -37,6 +38,7 @@ function sanitize(value: Partial<AccountData> | null | undefined): AccountData {
   const data = { ...empty(), ...value };
   // Account snapshots must never retain unrelated application preferences.
   return { likes: ids(data.likes), favs: ids(data.favs), follows: ids(data.follows), postLikes: ids(data.postLikes), postFavs: ids(data.postFavs),
+    postHistory: ids(data.postHistory).slice(0, 50),
     history: Array.isArray(data.history) ? data.history.filter(validProgress) : [], localHistory: ids(data.localHistory),
     likeEpisodes: Array.isArray(data.likeEpisodes) ? data.likeEpisodes.filter(row => Number.isSafeInteger(row?.video_id) && row.video_id > 0 && Number.isSafeInteger(row.ep) && row.ep > 0) : undefined,
     dirtyHistory: Object.fromEntries(Object.entries(data.dirtyHistory || {}).filter(([id, row]) => Number.isSafeInteger(Number(id)) && Number(id) > 0 && Number.isSafeInteger(row?.ep) && row.ep > 0 && Number.isFinite(row.at))),
@@ -324,6 +326,12 @@ export function useAccountData(initialGuest: GuestData, saveGuest: (data: GuestD
     persist({ ...s.data, history: [row, ...s.data.history.filter(item => item.id !== id)].slice(0, 50), dirtyHistory, localHistory: selected(s.data.localHistory, id, true) });
     if (s.user && Object.keys(dirtyHistory).length) scheduleUpload(currentGeneration);
   }, [currentGeneration, currentClearVersion]);
+  const addPostHistory = useCallback((id: number) => {
+    if (!isCurrent(currentGeneration) || clearVersion.current !== currentClearVersion || !Number.isSafeInteger(id) || id <= 0) return;
+    const s = state.current!;
+    if (clearing.current === currentGeneration) return;
+    persist({ ...s.data, postHistory: [id, ...s.data.postHistory.filter(x => x !== id)].slice(0, 50) });
+  }, [currentGeneration, currentClearVersion]);
   const clearHistory = async () => {
     const version = state.current!.generation;
     if (clearing.current === version) return;
@@ -345,7 +353,7 @@ export function useAccountData(initialGuest: GuestData, saveGuest: (data: GuestD
           if (!isCurrent(version)) throw new Error("账号已切换");
         }
       }
-      if (isCurrent(version)) { historyMutation.current++; clearVersion.current++; sentHistory.current.clear(); persist({ ...state.current!.data, history: [], dirtyHistory: {}, localHistory: [] }); }
+      if (isCurrent(version)) { historyMutation.current++; clearVersion.current++; sentHistory.current.clear(); persist({ ...state.current!.data, history: [], postHistory: [], dirtyHistory: {}, localHistory: [] }); }
     } finally { if (clearing.current === version) clearing.current = null; }
   };
   const localToggle = (field: "likes" | "favs" | "follows", id: number) => {
@@ -361,11 +369,11 @@ export function useAccountData(initialGuest: GuestData, saveGuest: (data: GuestD
   }, []);
   const s = state.current;
   return { user: s.user, setUser, restoreSession, generation, logout, accountScope: `${s.key}:${s.generation}`, accountSync: s.sync,
-    syncAccount, likes: s.data.likes, favs: s.data.favs, postFavs: s.data.postFavs, follows: s.data.follows, history: s.data.history,
+    syncAccount, likes: s.data.likes, favs: s.data.favs, postFavs: s.data.postFavs, follows: s.data.follows, history: s.data.history, postHistory: s.data.postHistory,
     isFav: (id: number, kind: Kind = "video") => (kind === "video" ? s.data.favs : s.data.postFavs).includes(id),
     isLiked: (id: number, ep?: number, kind: Kind = "video") => kind === "post" ? s.data.postLikes.includes(id)
       : ep !== undefined && s.data.likeEpisodes ? s.data.likeEpisodes.some(row => row.video_id === id && row.ep === ep) : s.data.likes.includes(id),
-    setCollected, setLiked, setFollowing, addHistory, clearHistory,
+    setCollected, setLiked, setFollowing, addHistory, addPostHistory, clearHistory,
     actionPending: (key: string) => pending.current.has(key),
     toggleLikeLocal: (id: number) => localToggle("likes", id), toggleFavLocal: (id: number) => localToggle("favs", id), toggleFollowLocal: (id: number) => localToggle("follows", id),
   };

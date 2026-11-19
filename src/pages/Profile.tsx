@@ -37,7 +37,7 @@ export default function Profile({ wide }: { wide: boolean }) {
 }
 
 function ProfileContent({ wide: _wide }: { wide: boolean }) {
-  const { user, setLoginOpen, logout, history, favs, postFavs, follows, push, accountSync, syncAccount } = useStore();
+  const { user, setLoginOpen, logout, history, postHistory, favs, postFavs, follows, push, accountSync, syncAccount } = useStore();
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [logoutBusy, setLogoutBusy] = useState(false);
   const [logoutError, setLogoutError] = useState("");
@@ -141,7 +141,7 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
           <Button className="hg-menu-row" aria-label="观看历史" onClick={() => push({ kind: "history" })}>
             <span className="hg-menu-icon"><IMenuHistory size={19} strokeWidth={1.75} /></span>
             <span className="hg-menu-label">观看历史</span>
-            <span className="hg-menu-meta" aria-hidden="true">{history.length}</span>
+            <span className="hg-menu-meta" aria-hidden="true">{history.length + postHistory.length}</span>
             <IChevR size={14} className="hg-menu-chevron" />
           </Button>
           <Button className="hg-menu-row" aria-label="我的收藏" onClick={() => push({ kind: "favorites" })}>
@@ -199,16 +199,22 @@ export function HistoryPage({ onBack, wide }: { onBack: () => void; wide: boolea
   return <HistoryContent key={`${accountScope}:${lineEpoch}`} onBack={onBack} wide={wide} />;
 }
 
-function HistoryContent({ onBack, wide }: { onBack: () => void; wide: boolean }) {
+function HistoryContent({ onBack, wide: _wide }: { onBack: () => void; wide: boolean }) {
   const { blockReason } = useContentPreferences();
-  const { user, history, clearHistory, push, setTab } = useStore();
+  const { user, history, postHistory, clearHistory, push, setTab } = useStore();
+  const [histTab, setHistTab] = useState<"video" | "post">(() => (history.length === 0 && postHistory.length > 0 ? "post" : "video"));
   const [cache, setCache] = useState<Record<number, Detail>>({});
   const cacheRef = useRef(cache);
   cacheRef.current = cache;
-  const [limit, setLimit] = useState(12);
+  const [postCache, setPostCache] = useState<Record<number, Post>>({});
+  const postCacheRef = useRef(postCache);
+  postCacheRef.current = postCache;
+  const [limits, setLimits] = useState({ video: 12, post: 12 });
   const [failedIds, setFailedIds] = useState<number[]>([]);
+  const [postFailedIds, setPostFailedIds] = useState<number[]>([]);
   const [reload, setReload] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [postLoading, setPostLoading] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
   const [clearBusy, setClearBusy] = useState(false);
   const [clearError, setClearError] = useState("");
@@ -217,13 +223,19 @@ function HistoryContent({ onBack, wide }: { onBack: () => void; wide: boolean })
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const ids = history.map((h) => h.id);
-  const visibleIds = ids.slice(0, limit);
+  const visibleIds = ids.slice(0, limits.video);
   const cards = visibleIds.map(id => cache[id]).filter((card): card is Detail => !!card);
   const failed = failedIds.filter(id => visibleIds.includes(id));
   const idsKey = visibleIds.join(",");
   const progressOf = (id: number) => history.find((h) => h.id === id);
 
+  const visiblePostIds = postHistory.slice(0, limits.post);
+  const postCards = visiblePostIds.map(id => postCache[id]).filter((p): p is Post => !!p);
+  const postFailed = postFailedIds.filter(id => visiblePostIds.includes(id));
+  const postIdsKey = visiblePostIds.join(",");
+
   useEffect(() => {
+    if (histTab !== "video") return;
     let alive = true;
     const missing = visibleIds.filter(id => !cacheRef.current[id]);
     setFailedIds([]);
@@ -243,7 +255,30 @@ function HistoryContent({ onBack, wide }: { onBack: () => void; wide: boolean })
         setLoading(false);
       });
     return () => { alive = false; };
-  }, [idsKey, reload]);
+  }, [idsKey, histTab, reload]);
+
+  useEffect(() => {
+    if (histTab !== "post") return;
+    let alive = true;
+    const missing = visiblePostIds.filter(id => !postCacheRef.current[id]);
+    setPostFailedIds([]);
+    if (!missing.length) { setPostLoading(false); return; }
+    setPostLoading(true);
+    Promise.allSettled(missing.map(id => api.post(id)))
+      .then(results => {
+        if (!alive) return;
+        const loaded: Record<number, Post> = {};
+        const nextFailed: number[] = [];
+        results.forEach((result, index) => {
+          if (result.status === "fulfilled") loaded[missing[index]] = result.value;
+          else nextFailed.push(missing[index]);
+        });
+        setPostCache(previous => ({ ...previous, ...loaded }));
+        setPostFailedIds(nextFailed);
+        setPostLoading(false);
+      });
+    return () => { alive = false; };
+  }, [postIdsKey, histTab, reload]);
 
   const clearWatchHistory = async () => {
     if (clearing.current) return;
@@ -260,6 +295,8 @@ function HistoryContent({ onBack, wide }: { onBack: () => void; wide: boolean })
     }
   };
 
+  const totalCount = history.length + postHistory.length;
+
   return (
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
@@ -270,10 +307,10 @@ function HistoryContent({ onBack, wide }: { onBack: () => void; wide: boolean })
         <div className="hg-sub-titles">
           <h1 className="hg-sub-title">观看历史</h1>
           <div className="hg-sub-meta">
-            {history.length > 0 ? `已记录 ${history.length} 部追剧进度` : "自动记忆上次观看集数与秒数"}
+            {totalCount > 0 ? `短剧 ${history.length} 部 · 吃瓜 ${postHistory.length} 篇` : "自动记忆上次观看集数与吃瓜足迹"}
           </div>
         </div>
-        {history.length > 0 && (
+        {totalCount > 0 && (
           <Button card aria-label="清空观看历史" disabled={clearBusy} onClick={() => { setClearError(""); setClearOpen(true); }}
             className="hg-tag-pill" style={{ minHeight: 32, padding: "0 12px" }}>
             {clearBusy ? "正在清空…" : "清空"}
@@ -281,85 +318,153 @@ function HistoryContent({ onBack, wide }: { onBack: () => void; wide: boolean })
         )}
       </header>
 
-      <div className="flex-1 scroll-y hg-page-x pt-3 relative z-10" style={{ paddingBottom: "calc(32px + var(--sab, 0px))" }}
-        aria-busy={loading}>
-        {loading && !cards.length ? (
-          <div className="flex justify-center py-8"><Loader className="w-7 h-7 spinner" /></div>
-        ) : cards.length ? (
-          <div className="hg-hist-list a-rise">
-            {cards.map((c) => {
-              const progress = progressOf(c.id);
-              const blocked = blockReason(c.tags);
-              const pct = progress && progress.dur > 0
-                ? Math.max(4, Math.min(100, Math.round((progress.t / progress.dur) * 100)))
-                : 0;
-              const unblockedIds = cards.filter(x => !blockReason(x.tags)).map(x => x.id);
-              const unblockedIdx = Math.max(0, unblockedIds.indexOf(c.id));
-              const openResume = () => push({
-                kind: "feed", videoIds: unblockedIds.length ? unblockedIds : [c.id], index: unblockedIds.length ? unblockedIdx : 0,
-                title: "观看历史", startEp: progress?.ep, startTime: progress?.t,
-              });
+      <div className="shrink-0 hg-page-x pt-2.5 pb-3 relative z-10">
+        <SegmentedControl className="hg-seg-track" role="tablist" aria-label="历史分类" activeIndex={histTab === "video" ? 0 : 1}>
+          <Button role="tab" aria-selected={histTab === "video"} className="ios-segmented-item"
+            onClick={() => setHistTab("video")}>短剧 ({history.length})</Button>
+          <Button role="tab" aria-selected={histTab === "post"} className="ios-segmented-item"
+            onClick={() => setHistTab("post")}>吃瓜 ({postHistory.length})</Button>
+        </SegmentedControl>
+      </div>
 
-              if (blocked) {
-                return (
-                  <Button key={c.id} card className="hg-hist-card" onClick={() => push({ kind: "series", id: c.id })}
-                    aria-label="该内容命中屏蔽标签，查看提示">
-                    <span className="flex-1 min-w-0 py-1">
-                      <span className="block text-[14px] font-semibold text-mut">已屏蔽内容</span>
-                      <span className="block mt-1 text-[12px] text-dim truncate">{blocked}</span>
-                    </span>
-                    <span className="text-[12px] text-primary shrink-0">查看</span>
-                  </Button>
-                );
-              }
-
-              return (
-                <Button key={c.id} card className="hg-hist-card" onClick={openResume}>
-                  <span className="hg-hist-thumb">
-                    <Img src={c.cover} alt="" />
-                    {pct > 0 && (
-                      <span className="hg-hist-prog" aria-hidden="true">
-                        <span style={{ width: `${pct}%` }} />
-                      </span>
-                    )}
-                  </span>
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-[14px] font-bold text-on truncate">{c.title}</span>
-                    <span className="block mt-1 text-[12px] font-semibold" style={{ color: "#FFB347" }}>
-                      {progress
-                        ? `看到第 ${progress.ep} 集${progress.t > 0 ? ` · ${fmtTime(progress.t)}` : ""}`
-                        : "点击继续播放"}
-                    </span>
-                    <span className="block mt-1 text-[11px] text-mut truncate">
-                      {c.is_finished ? `全 ${c.episode_count || c.total_episodes || "?"} 集` : `更新至 ${c.episode_count || "?"} 集`}
-                      {c.tags?.length ? ` · ${c.tags.slice(0, 2).join(" / ")}` : ""}
-                    </span>
-                  </span>
-                  <span className="hg-hist-play-pill" aria-hidden="true">
-                    <IPlayF size={14} />
-                  </span>
-                </Button>
-              );
-            })}
-          </div>
-        ) : failed.length ? (
-          <Empty icon={<IClock size={24} />} title="观看记录加载失败"
-            sub="记录仍在，重试后继续浏览。" action="重试" onAction={() => setReload(n => n + 1)} />
+      <div className="flex-1 scroll-y hg-page-x relative z-10" style={{ paddingBottom: "calc(32px + var(--sab, 0px))" }}
+        aria-busy={histTab === "post" ? postLoading : loading}>
+        {histTab === "post" ? (
+          <>
+            {postLoading && !postCards.length ? (
+              <div className="flex justify-center py-8"><Loader className="w-7 h-7 spinner" /></div>
+            ) : postCards.length ? (
+              <div className="hg-post-feed a-rise">
+                {postCards.map((p) => {
+                  const blocked = blockReason(p.tags);
+                  if (blocked) {
+                    return (
+                      <Button key={p.id} card className="hg-post-card text-left" onClick={() => push({ kind: "post", id: p.id })}
+                        aria-label="该内容命中屏蔽标签，查看提示">
+                        <div className="text-[14px] font-semibold text-mut">已屏蔽内容</div>
+                        <div className="mt-1 text-[12px] text-dim truncate">{blocked}</div>
+                      </Button>
+                    );
+                  }
+                  return (
+                    <div key={p.id} className="hg-post-card" onClick={() => push({ kind: "post", id: p.id })}>
+                      <div className="hg-post-head">
+                        <span className="hg-post-who">
+                          <span className="hg-post-name">{p.author?.name || "吃瓜帖"}</span>
+                          <span className="hg-post-time">{p.publish_time || p.created_at}</span>
+                        </span>
+                      </div>
+                      <div className="hg-post-title">{p.title}</div>
+                      {p.cover && (
+                        <div className="hg-post-art">
+                          <Img src={p.cover} alt="" />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : postFailed.length ? (
+              <Empty icon={<IClock size={24} />} title="吃瓜浏览记录加载失败"
+                sub="记录仍在，重试后继续浏览。" action="重试" onAction={() => setReload(n => n + 1)} />
+            ) : (
+              <Empty icon={<IClock size={24} />} title="还没有吃瓜浏览记录"
+                sub="看过的吃瓜帖会出现在这里"
+                action="去吃瓜看看" onAction={() => { onBack(); setTab("posts"); }} />
+            )}
+            {postCards.length > 0 && postFailed.length > 0 && (
+              <div role="status" className="mt-3 flex flex-wrap items-center gap-2 text-[13px] text-mut">
+                <span>{postFailed.length} 篇帖子加载失败，已加载内容仍可浏览。</span>
+                <Button disabled={postLoading} onClick={() => setReload(n => n + 1)} className="px-3 text-primary">重试失败内容</Button>
+              </div>
+            )}
+            {postCards.length > 0 && postLoading && <div className="flex justify-center py-3"><Loader label="加载更多内容" /></div>}
+            {visiblePostIds.length < postHistory.length && (
+              <Button card disabled={postLoading} onClick={() => setLimits(prev => ({ ...prev, post: prev.post + 12 }))}
+                className="hg-loadmore">加载更多</Button>
+            )}
+          </>
         ) : (
-          <Empty icon={<IClock size={24} />} title="还没有观看记录"
-            sub="看过的剧集会出现在这里"
-            action="去逛逛" onAction={() => { onBack(); setTab("home"); }} />
-        )}
-        {cards.length > 0 && failed.length > 0 && (
-          <div role="status" className="mt-3 flex flex-wrap items-center gap-2 text-[13px] text-mut">
-            <span>{failed.length} 项内容加载失败，已加载内容仍可浏览。</span>
-            <Button disabled={loading} onClick={() => setReload(n => n + 1)} className="px-3 text-primary">重试失败内容</Button>
-          </div>
-        )}
-        {cards.length > 0 && loading && <div className="flex justify-center py-3"><Loader label="加载更多内容" /></div>}
-        {visibleIds.length < ids.length && (
-          <Button disabled={loading} onClick={() => setLimit(prev => prev + 12)}
-            className="hg-loadmore">加载更多</Button>
+          <>
+            {loading && !cards.length ? (
+              <div className="flex justify-center py-8"><Loader className="w-7 h-7 spinner" /></div>
+            ) : cards.length ? (
+              <div className="hg-hist-list a-rise">
+                {cards.map((c) => {
+                  const progress = progressOf(c.id);
+                  const blocked = blockReason(c.tags);
+                  const pct = progress && progress.dur > 0
+                    ? Math.max(4, Math.min(100, Math.round((progress.t / progress.dur) * 100)))
+                    : 0;
+                  const unblockedIds = cards.filter(x => !blockReason(x.tags)).map(x => x.id);
+                  const unblockedIdx = Math.max(0, unblockedIds.indexOf(c.id));
+                  const openResume = () => push({
+                    kind: "feed", videoIds: unblockedIds.length ? unblockedIds : [c.id], index: unblockedIds.length ? unblockedIdx : 0,
+                    title: "观看历史", startEp: progress?.ep, startTime: progress?.t,
+                  });
+
+                  if (blocked) {
+                    return (
+                      <Button key={c.id} card className="hg-hist-card" onClick={() => push({ kind: "series", id: c.id })}
+                        aria-label="该内容命中屏蔽标签，查看提示">
+                        <span className="flex-1 min-w-0 py-1">
+                          <span className="block text-[14px] font-semibold text-mut">已屏蔽内容</span>
+                          <span className="block mt-1 text-[12px] text-dim truncate">{blocked}</span>
+                        </span>
+                        <span className="text-[12px] text-primary shrink-0">查看</span>
+                      </Button>
+                    );
+                  }
+
+                  return (
+                    <Button key={c.id} card className="hg-hist-card" onClick={openResume}>
+                      <span className="hg-hist-thumb">
+                        <Img src={c.cover} alt="" />
+                        {pct > 0 && (
+                          <span className="hg-hist-prog" aria-hidden="true">
+                            <span style={{ width: `${pct}%` }} />
+                          </span>
+                        )}
+                      </span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-[14px] font-bold text-on truncate">{c.title}</span>
+                        <span className="block mt-1 text-[12px] font-semibold" style={{ color: "#FFB347" }}>
+                          {progress
+                            ? `看到第 ${progress.ep} 集${progress.t > 0 ? ` · ${fmtTime(progress.t)}` : ""}`
+                            : "点击继续播放"}
+                        </span>
+                        <span className="block mt-1 text-[11px] text-mut truncate">
+                          {c.is_finished ? `全 ${c.episode_count || c.total_episodes || "?"} 集` : `更新至 ${c.episode_count || "?"} 集`}
+                          {c.tags?.length ? ` · ${c.tags.slice(0, 2).join(" / ")}` : ""}
+                        </span>
+                      </span>
+                      <span className="hg-hist-play-pill" aria-hidden="true">
+                        <IPlayF size={14} />
+                      </span>
+                    </Button>
+                  );
+                })}
+              </div>
+            ) : failed.length ? (
+              <Empty icon={<IClock size={24} />} title="观看记录加载失败"
+                sub="记录仍在，重试后继续浏览。" action="重试" onAction={() => setReload(n => n + 1)} />
+            ) : (
+              <Empty icon={<IClock size={24} />} title="还没有观看记录"
+                sub="看过的剧集会出现在这里"
+                action="去逛逛" onAction={() => { onBack(); setTab("home"); }} />
+            )}
+            {cards.length > 0 && failed.length > 0 && (
+              <div role="status" className="mt-3 flex flex-wrap items-center gap-2 text-[13px] text-mut">
+                <span>{failed.length} 项内容加载失败，已加载内容仍可浏览。</span>
+                <Button disabled={loading} onClick={() => setReload(n => n + 1)} className="px-3 text-primary">重试失败内容</Button>
+              </div>
+            )}
+            {cards.length > 0 && loading && <div className="flex justify-center py-3"><Loader label="加载更多内容" /></div>}
+            {visibleIds.length < ids.length && (
+              <Button disabled={loading} onClick={() => setLimits(prev => ({ ...prev, video: prev.video + 12 }))}
+                className="hg-loadmore">加载更多</Button>
+            )}
+          </>
         )}
         {clearError && !clearOpen && <p role="alert" className="mt-2 text-[13px] text-danger">{clearError}</p>}
       </div>

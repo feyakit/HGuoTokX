@@ -354,7 +354,12 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
       </header>
 
       <div ref={scrollRef} className="flex-1 scroll-y hg-page-x relative z-10"
-        style={{ paddingBottom: `calc(${continueShown ? 190 : 110}px + var(--sab, 0px))` }}>
+        style={{ paddingBottom: `calc(${continueShown ? 190 : 110}px + var(--sab, 0px))` }}
+        onScroll={(e) => {
+          if (tab === "rank" || loading || done || error) return;
+          const el = e.currentTarget;
+          if (el.scrollHeight - el.scrollTop - el.clientHeight < 360) void load(page + 1, tab);
+        }}>
         {storageError && <PreferenceStorageNotice />}
 
         {/* ==================== 分栏 ③：热榜（三联领奖台 + 热度条榜单） ==================== */}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, fmt } from "../api";
+import { api, cover, fmt } from "../api";
 import { useStore } from "../store";
 import { ambientStyle, useAccent } from "../useAccent";
 import { Button } from "../components/ios/controls";
@@ -18,7 +18,7 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
   const [err, setErr] = useState("");
   const [favDelta, setFavDelta] = useState(0);
   const seq = useRef(0);
-  const accentScheme = useAccent(id, detail?.cover);
+  const accentScheme = useAccent(id, detail?.cover ? cover(detail.cover, 900) : undefined);
 
   useEffect(() => {
     const my = ++seq.current;
@@ -74,7 +74,10 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
       data-ambient={accentScheme.source}
       style={ambientStyle(accentScheme)}>
       <span className="hg-aura" aria-hidden="true"
-        style={accentScheme.source === "image" ? { background: `radial-gradient(circle at 50% 18%, ${accentScheme.accent}38 0%, ${accentScheme.second}20 45%, transparent 72%)` } : undefined} />
+        style={accentScheme.source === "image" ? {
+          height: 460,
+          background: `radial-gradient(80% 60% at 50% 16%, ${accentScheme.accent}48 0%, ${accentScheme.second}2c 48%, transparent 78%)`,
+        } : undefined} />
 
       <div className="flex-1 scroll-y pb-6 relative z-10">
         {err && <p role="alert" className="py-6 text-center text-[12px] text-danger">{err}</p>}
