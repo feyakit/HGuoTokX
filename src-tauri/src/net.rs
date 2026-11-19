@@ -79,13 +79,15 @@ pub fn normalize_base(raw: &str) -> Option<String> {
     Some(parsed.origin().ascii_serialization())
 }
 
-/// 哪些 origin 允许携带凭据：两个固定入口，加上发布页推荐过、且当前可能作为线路的镜像。
+/// 哪些 origin 允许携带凭据：固定主站，加上发布页推荐过、且当前可能作为线路的镜像。
 ///
 /// 国内网络连不上 `.com`，只能用镜像；镜像和主站是同一后端、同一个账号体系。
 /// 自定义线路必须由用户显式保存；旧格式文件只恢复地址，不自动授予登录权限。
-/// 会话仍绑定 origin，切换地址不会把已有 token 发送给另一个站点。
+/// 会话仍绑定 origin；只有可信↔可信的切换会经 `SessionStore::rebase_if_trusted`
+/// 改写 origin（见 `api::trusted_line_origin`）。
+/// `huangguoai.ai` 只是导航站（`/api/*` 全 404），既不是线路也不授予凭据信任。
 pub fn trusted_auth_origin(origin: &str) -> bool {
-    matches!(origin, "https://huangguoai.com" | "https://huangguoai.ai")
+    origin == "https://huangguoai.com"
         || crate::lines::is_trusted_mirror(origin)
         || BASE.read().is_ok_and(|line| line.custom && line.base == origin)
 }
@@ -1990,7 +1992,7 @@ mod tests {
             assert_eq!(normalize_base(raw), None, "{raw}");
         }
         assert!(trusted_auth_origin(DEFAULT_BASE));
-        assert!(trusted_auth_origin("https://huangguoai.ai"));
+        assert!(!trusted_auth_origin("https://huangguoai.ai"));
         assert!(!trusted_auth_origin("https://mirror.example"));
         assert!(!trusted_auth_origin("https://huangguoai.com.evil.example"));
     }

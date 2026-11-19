@@ -232,6 +232,16 @@ export function useAccountData(initialGuest: GuestData, saveGuest: (data: GuestD
     const nextOrigin = origin ?? s.origin;
     const next = user && Number.isSafeInteger(user.id) && user.id > 0 ? user : null;
     const key = next ? JSON.stringify([nextOrigin, next.id]) : "guest";
+    /* 同一账号跨可信线路：后端 rebase 保留会话，本地桶跟着迁移，
+       未上传的 dirtyHistory/localHistory 不丢；换账号或登出仍开新桶。
+       目标桶已存在（旧线路残留）时保留它，服务端同步会补齐一致状态。 */
+    if (next && s.user && s.user.id === next.id && s.key !== key && s.key !== "guest") {
+      const previous = accounts.current[s.key];
+      if (previous && !accounts.current[key]) accounts.current[key] = previous;
+      delete accounts.current[s.key];
+      // 迁移后的桶要立刻落盘：同步完成前刷新/退出也不丢 dirtyHistory。
+      try { localStorage.setItem(ACCOUNT_KEY, JSON.stringify({ version: 1, accounts: accounts.current })); } catch { /* 后续 persist 会再报存储错误 */ }
+    }
     window.clearTimeout(flushTimer.current); flushTimer.current = undefined;
     window.clearTimeout(syncTimer.current);
     s.generation++; mutation.current++; historyMutation.current++;
@@ -246,6 +256,9 @@ export function useAccountData(initialGuest: GuestData, saveGuest: (data: GuestD
   const restoreSession = useCallback((user: User | null, origin: string, expectedGeneration: number) => {
     if (!isCurrent(expectedGeneration)) return;
     if (!user && !state.current!.user) { state.current!.origin = origin; return; }
+    /* 同一账号、同一线路的重复 boot（切线后 rebase 成功）不重置 generation 与同步状态 */
+    const s = state.current!;
+    if (user && s.user && s.user.id === user.id && s.origin === origin) return;
     setUser(user, origin);
   }, [setUser]);
   const logout = useCallback(async () => {

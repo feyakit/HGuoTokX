@@ -7,9 +7,8 @@ use std::collections::HashSet;
 use std::sync::RwLock;
 use std::time::{Duration, Instant};
 
-pub const FIXED: [(&str, &str); 2] = [
+pub const FIXED: [(&str, &str); 1] = [
     ("固定线路 1", "https://huangguoai.com"),
-    ("固定线路 2", "https://huangguoai.ai"),
 ];
 const PUBLISH_PAGES: [&str; 2] = [
     "https://huangguoai.pages.dev/",
@@ -930,7 +929,7 @@ mod tests {
     #[test]
     fn auto_candidates_require_publication_and_exclude_ai_landing_page() {
         let items = [
-            json!({"url": FIXED[1].1}),
+            json!({"url": "https://huangguoai.ai"}),
             json!({"url": "https://published.example"}),
             json!({"url": "https://untrusted.example"}),
             json!({"url": "https://published.example"}),

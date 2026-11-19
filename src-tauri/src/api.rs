@@ -140,7 +140,17 @@ pub async fn line_state() -> Result<Value, String> {
     }))
 }
 
+/// 凭据可信的线路：固定主站，或本进程内被发布页确认过的镜像。
+///
+/// 手动保存的自定义线路**不算**：它可能有自己的登录，但 token 绝不跟着切过去，
+/// 也绝不从它搬回来。
+fn trusted_line_origin(origin: &str) -> bool {
+    crate::lines::is_fixed(origin) || crate::lines::is_trusted_mirror(origin)
+}
+
 /// 手动切换线路：只允许固定线路或刚从可信发布页读取的镜像。
+///
+/// 可信↔可信之间保留登录（同一账号体系）；任一端不可信则清空会话。
 #[tauri::command]
 pub async fn line_set(state: State<'_, Api>, url: String) -> Result<String, String> {
     let mut generation = LINE_SELECTION.lock().map_err(|_| "线路选择锁失败")?;
@@ -148,7 +158,7 @@ pub async fn line_set(state: State<'_, Api>, url: String) -> Result<String, Stri
     let previous = base();
     let applied = crate::net::set_base(&url)?;
     crate::net::refresh_client();
-    if previous != applied {
+    if previous != applied && !state.session.rebase_if_trusted(&applied, trusted_line_origin) {
         state.session.clear();
     }
     Ok(applied)
@@ -213,9 +223,10 @@ pub async fn line_probe(urls: Vec<String>) -> Result<Value, String> {
 
 /// 自动选线：探测主站与可信发布页镜像，全部失败时保持当前线路。
 ///
-/// 保留按 origin 隔离的会话，不会把旧站点 token 发送给新站点。
+/// 新旧两端都可信（固定线路 / 本进程发布页确认的镜像）时保留会话并搬 origin；
+/// 旧 origin 不可信（如自定义线路）则清空，绝不把 token 带给新站点。
 #[tauri::command]
-pub async fn line_auto() -> Result<Value, String> {
+pub async fn line_auto(state: State<'_, Api>) -> Result<Value, String> {
     let selection = begin_line_selection()?;
     crate::net::refresh_client();
     let pick = crate::lines::auto_pick().await;
@@ -233,6 +244,9 @@ pub async fn line_auto() -> Result<Value, String> {
         let next = crate::net::set_base(&chosen)?;
         crate::net::refresh_client();
         switched = next != previous;
+        if switched && !state.session.rebase_if_trusted(&next, trusted_line_origin) {
+            state.session.clear();
+        }
     }
     Ok(json!({
         "previous": previous,
@@ -248,7 +262,7 @@ pub async fn line_auto() -> Result<Value, String> {
 /// 和 [`line_auto`] 的分工：[`line_auto`] 是「整体比一次」，要抓发布页；
 /// 这个只问一句「主站现在通不通」，代价一个请求，可以频繁调用。
 #[tauri::command]
-pub async fn line_try_main() -> Result<Value, String> {
+pub async fn line_try_main(state: State<'_, Api>) -> Result<Value, String> {
     let selection = begin_line_selection()?;
     crate::net::refresh_client();
     let probe = crate::lines::try_main().await;
@@ -261,6 +275,9 @@ pub async fn line_try_main() -> Result<Value, String> {
             let next = crate::net::set_base(chosen)?;
             crate::net::refresh_client();
             switched = next != previous;
+            if switched && !state.session.rebase_if_trusted(&next, trusted_line_origin) {
+                state.session.clear();
+            }
         }
     }
     Ok(json!({
@@ -582,6 +599,20 @@ fn request_ios_orientation(landscape: bool) {
 
 #[tauri::command]
 pub async fn app_boot(state: State<'_, Api>) -> Result<Value, String> {
+    // 冷启动对账：会话可能还停在上一轮的线路（例如 App 没开时自动选线换了地址）。
+    // 两端都可信就把登录态搬到当前线路；不可信就清空——绝不把 token 留在不可信站点上。
+    // 已存 origin 若只是发布页「以前」推荐过的镜像，本进程还没有信任记录，先验一次发布页。
+    if let Some(stored) = state.session.stored_origin() {
+        let current = base();
+        if stored != current {
+            if !crate::lines::is_trusted_mirror(&stored) {
+                let _ = crate::lines::verify_published_origin(&stored).await;
+            }
+            if !state.session.rebase_if_trusted(&current, trusted_line_origin) {
+                state.session.clear();
+            }
+        }
+    }
     let origin = base();
     if crate::network_policy::strict_security()
         && state.session.token(&origin).is_some()

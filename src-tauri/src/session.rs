@@ -88,6 +88,104 @@ mod tests {
         assert!(!store.set_if_revision(revision, origin, "late".into(), json!({"id": 1})));
         assert_eq!(store.user(origin)["id"], 2);
     }
+
+    // 上游把可信判定注入进来（真实调用方传 `is_fixed || is_trusted_mirror`），
+    // 测试用固定的一组 origin，不依赖进程全局的镜像集合。
+    fn trusted_pair(origin: &str) -> bool {
+        matches!(origin, "https://huangguoai.com" | "https://mirror-a.example")
+    }
+
+    #[test]
+    fn trusted_rebase_moves_session_and_bumps_revision() {
+        let store = SessionStore::new();
+        let old_origin = "https://huangguoai.com";
+        let new_origin = "https://mirror-a.example";
+        store.set(old_origin, "secret-token".into(), json!({"id": 1}));
+        let before = store.snapshot(old_origin).unwrap();
+        assert!(store.rebase_if_trusted(new_origin, trusted_pair));
+        assert_eq!(store.token(new_origin).as_deref(), Some("secret-token"));
+        assert_eq!(store.user(new_origin)["id"], 1);
+        // 旧 origin 不再解析出凭据。
+        assert_eq!(store.token(old_origin), None);
+        assert!(store.user(old_origin).is_null());
+        // 与 set_if_revision 同样的语义：切换前的快照全部作废。
+        assert_eq!(store.revision(), before.revision.wrapping_add(1));
+        assert!(!store.is_current(&before));
+        assert!(!store.update_user_if_current(&before, json!({"id": 1, "nickname": "late"})));
+        assert!(!store.clear_if_current(&before));
+        assert_eq!(store.stored_origin().as_deref(), Some(new_origin));
+    }
+
+    #[test]
+    fn trusted_rebase_persists_the_new_origin() {
+        let dir = std::env::temp_dir().join(format!(
+            "hguox-session-rebase-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let store = SessionStore::new();
+        store.bind(dir.clone());
+        store.set("https://huangguoai.com", "secret-token".into(), json!({"id": 1}));
+        assert!(store.rebase_if_trusted("https://mirror-a.example", trusted_pair));
+        let on_disk: Session =
+            serde_json::from_str(&std::fs::read_to_string(dir.join("session.json")).unwrap())
+                .unwrap();
+        assert_eq!(on_disk.origin, "https://mirror-a.example");
+        assert_eq!(on_disk.token, "secret-token");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn rebase_refuses_untrusted_endpoints_in_both_directions() {
+        for (old_origin, new_origin) in [
+            // 可信 -> 自定义：不能把 token 交出去。
+            ("https://huangguoai.com", "https://custom.example"),
+            // 自定义 -> 可信：也不能把自己的登录塞进来。
+            ("https://custom.example", "https://huangguoai.com"),
+            // 未确认的镜像 -> 可信镜像。
+            ("https://unpublished.example", "https://mirror-a.example"),
+        ] {
+            let store = SessionStore::new();
+            store.set(old_origin, "secret-token".into(), json!({"id": 1}));
+            let before = store.snapshot(old_origin).unwrap();
+            assert!(
+                !store.rebase_if_trusted(new_origin, trusted_pair),
+                "{old_origin} -> {new_origin}"
+            );
+            // 会话原封不动：origin、token、revision 都不变。
+            assert_eq!(store.token(old_origin).as_deref(), Some("secret-token"));
+            assert_eq!(store.token(new_origin), None);
+            assert!(store.is_current(&before));
+            assert_eq!(store.revision(), before.revision);
+        }
+    }
+
+    #[test]
+    fn rebase_on_empty_session_is_a_noop() {
+        let store = SessionStore::new();
+        assert_eq!(store.stored_origin(), None);
+        let revision = store.revision();
+        assert!(!store.rebase_if_trusted("https://mirror-a.example", trusted_pair));
+        assert_eq!(store.revision(), revision);
+        // 旧版本会话没有 origin：保持「未归属」，不允许被搬家。
+        *store.current.lock().unwrap() =
+            serde_json::from_str(r#"{"token":"legacy","user":{"id":1}}"#).unwrap();
+        assert_eq!(store.stored_origin(), None);
+        assert!(!store.rebase_if_trusted("https://huangguoai.com", trusted_pair));
+        assert_eq!(store.token("https://huangguoai.com"), None);
+    }
+
+    #[test]
+    fn rebase_to_the_same_origin_keeps_the_revision() {
+        let store = SessionStore::new();
+        let origin = "https://huangguoai.com";
+        store.set(origin, "secret-token".into(), json!({"id": 1}));
+        let before = store.snapshot(origin).unwrap();
+        assert!(store.rebase_if_trusted(origin, trusted_pair));
+        assert!(store.is_current(&before));
+        assert_eq!(store.revision(), before.revision);
+    }
 }
 
 pub struct SessionStore {
@@ -131,6 +229,41 @@ impl SessionStore {
     pub fn snapshot(&self, origin: &str) -> Option<Session> {
         let cur = self.current.lock().unwrap();
         (cur.origin == origin && !cur.token.is_empty()).then(|| cur.clone())
+    }
+
+    /// 已存会话属于哪个 origin（不看当前线路），没有就 None。
+    ///
+    /// 冷启动用它判断「要不要尝试把登录态搬到当前线路」；它永远不暴露 token 本身。
+    pub fn stored_origin(&self) -> Option<String> {
+        let cur = self.current.lock().unwrap();
+        (!cur.token.is_empty() && !cur.origin.is_empty()).then(|| cur.origin.clone())
+    }
+
+    /// 可信线路之间切换：上游各线路共用一套账号体系，所以当**新旧两端都可信**
+    /// （固定主站，或本进程内被发布页确认过的镜像）时，会话跟着 origin 搬家，
+    /// 用户不用重新登录。判定函数由调用方注入，本模块不依赖 `crate::lines`。
+    ///
+    /// 返回 true 表示 `new_origin` 上已有可用会话（搬家成功或本来就绑在那里）；
+    /// 返回 false 表示没搬——手动切换的调用方要退回 `clear()`，绝不把 token 带给
+    /// 一个不可信的站点。搬家会像 `set_if_revision` 一样推进 revision，旧的在途
+    /// 请求因此无法回写，同时把新 origin 落盘。
+    pub fn rebase_if_trusted(&self, new_origin: &str, trusted: impl Fn(&str) -> bool) -> bool {
+        {
+            let mut cur = self.current.lock().unwrap();
+            if cur.token.is_empty() || cur.origin.is_empty() {
+                return false;
+            }
+            if cur.origin == new_origin {
+                return true;
+            }
+            if !trusted(&cur.origin) || !trusted(new_origin) {
+                return false;
+            }
+            cur.origin = new_origin.to_string();
+            cur.revision = cur.revision.wrapping_add(1);
+        }
+        self.persist();
+        true
     }
 
     pub fn revision(&self) -> u64 {

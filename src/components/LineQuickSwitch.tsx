@@ -13,7 +13,7 @@ import { ICheck, IClose } from "../icons";
  * 入口由调用方自己决定渲不渲染（只有一条线路时不渲染）。
  */
 export default function LineQuickSwitch({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { toast, setUser } = useStore();
+  const { toast } = useStore();
   const [base, setBase] = useState("");
   const [fixed, setFixed] = useState<LineItem[]>([]);
   const [mirrors, setMirrors] = useState<LineItem[]>([]);
@@ -40,7 +40,7 @@ export default function LineQuickSwitch({ open, onClose }: { open: boolean; onCl
       await pauseAutoPick();
       const next = await api.lineSet(url);
       setPreferredLine(next);
-      if (next !== base) setUser(null);
+      /* 登录态交给 boot 裁决：可信线路间后端 rebase 保留登录，自定义站点后端已清会话 */
       setBase(next);
       toast(`线路已切换到 ${hostOf(next)}，已设为优先线路；不可用时会自动切走`, "ok");
       window.dispatchEvent(new Event("hg:line-changed"));

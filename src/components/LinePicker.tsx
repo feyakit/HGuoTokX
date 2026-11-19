@@ -48,7 +48,7 @@ function GroupHead({ title, hint, actions }: { title: string; hint: string; acti
 }
 /* 线路选择：桌面居中弹窗，移动端底部抽屉 */
 export default function LinePicker({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { toast, setUser } = useStore();
+  const { toast } = useStore();
   const [state, setState] = useState<LineState | null>(null);
   const [mirrors, setMirrors] = useState<LineItem[] | null>(null);
   const [mirrorErr, setMirrorErr] = useState("");
@@ -142,7 +142,7 @@ export default function LinePicker({ open, onClose }: { open: boolean; onClose: 
       /* 恢复主站 = 放弃偏好、回到完全自动 */
       setPreferredLine(key === "reset" ? null : next.base);
       tracePlayback("line.manual", { line: hostOf(next.base), prev: hostOf(state?.base ?? ""), custom: next.custom, ok: true });
-      if (next.base !== state?.base) setUser(null);
+      /* 登录态交给 boot 裁决：可信线路间后端 rebase 保留登录，自定义站点后端已清会话 */
       setState((s) => (s ? { ...s, ...next } : s));
       if (key === "custom" || key === "reset") setCustom(next.custom ? next.base : "");
       toast(key === "reset"
