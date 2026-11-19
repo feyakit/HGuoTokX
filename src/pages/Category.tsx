@@ -36,7 +36,7 @@ const SCOPE_LABELS: Record<CategoryView, string> = {
 };
 
 const ALL_SORTS = [
-  { key: "all", label: "综合推荐" },
+  { key: "all", label: "全部" },
   { key: "new", label: "最新上线" },
 ] as const;
 
@@ -87,10 +87,7 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
   const [origCate, setOrigCate] = useState<(typeof ORIGINAL_CATES)[number]["value"]>("all");
   const [items, setItems] = useState<VideoCard[]>([]);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [seedPage, setSeedPage] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [shuffling, setShuffling] = useState(false);
   const [done, setDone] = useState(false);
   const [err, setErr] = useState("");
   const loadingRef = useRef(false);
@@ -100,14 +97,11 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
 
   const isCollectionView = view === "topics" || view === "tags";
   const subKey = view === "" ? allSort : view === "original" ? origCate : chanSort;
-  const canShuffle = (view === "" && allSort === "all")
-    || ((view === "ai-duanju" || view === "ai-manju") && chanSort === "random");
 
-  const load = useCallback(async (p: number, replaceBatch = false) => {
+  const load = useCallback(async (p: number) => {
     if (isCollectionView || loadingRef.current) return;
     loadingRef.current = true;
     setLoading(true);
-    if (replaceBatch) setShuffling(true);
     setErr("");
     const my = ++seq.current;
     try {
@@ -119,33 +113,18 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
       if (my !== seq.current) return;
       const rows = (res?.items ?? []).filter(v => v && v.cover);
       const pages = Math.max(1, res?.pagination?.pages || 1);
-      setTotalPages(pages);
-      setItems(prev => (p === 1 || replaceBatch) ? rows : [...prev, ...rows.filter(r => !prev.some(x => x.id === r.id))]);
+      setItems(prev => p === 1 ? rows : [...prev, ...rows.filter(r => !prev.some(x => x.id === r.id))]);
       setPage(p);
-      if (replaceBatch) setSeedPage(p);
       setDone(!rows.length || p >= pages);
     } catch (e) {
       if (my === seq.current) setErr((e as Error)?.message || "加载失败");
     } finally {
       if (my === seq.current) {
         setLoading(false);
-        setShuffling(false);
         loadingRef.current = false;
       }
     }
   }, [view, allSort, chanSort, origCate, isCollectionView]);
-
-  const shuffleBatch = useCallback(() => {
-    if (loadingRef.current || !canShuffle) return;
-    if (view === "ai-duanju" || view === "ai-manju") {
-      /* 源站 sort=random 每次拉第一页即是全新随机抽样 */
-      void load(1, true);
-    } else {
-      const cap = Math.max(1, Math.min(totalPages, 15));
-      const nextSeed = cap > 1 ? (seedPage % cap) + 1 : 1;
-      void load(nextSeed, true);
-    }
-  }, [canShuffle, view, load, totalPages, seedPage]);
 
   useEffect(() => {
     if (!active || isCollectionView) return;
@@ -154,10 +133,7 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
     loadedKey.current = key;
     seq.current++;
     loadingRef.current = false;
-    setShuffling(false);
     setItems([]);
-    setSeedPage(1);
-    setTotalPages(1);
     setDone(false);
     scrollRef.current?.scrollTo(0, 0);
     void load(1);
@@ -188,7 +164,12 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
       </header>
 
       <div ref={scrollRef} className="flex-1 scroll-y hg-page-x relative z-10"
-        style={{ paddingBottom: "calc(110px + var(--sab, 0px))" }}>
+        style={{ paddingBottom: "calc(110px + var(--sab, 0px))" }}
+        onScroll={(e) => {
+          if (isCollectionView || loading || done || err) return;
+          const el = e.currentTarget;
+          if (el.scrollHeight - el.scrollTop - el.clientHeight < 360) void load(page + 1);
+        }}>
 
         {/* 2×2 Bento 玻璃色彩磁贴阵：替代旧版 6 连胶囊墙，再次点击即可回到全部片库 */}
         <div className="hg-bento-grid" role="tablist" aria-label="频道板块">
@@ -208,7 +189,7 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
           })}
         </div>
 
-        {/* 单行标题与紧凑排序栏（随机/推荐档位附带显式「换一批」淘片微交互） */}
+        {/* 单行标题与紧凑排序栏 */}
         <div className="hg-cat-toolbar mt-1">
           <div className="hg-cat-scope">
             <span>{SCOPE_LABELS[view]}</span>
@@ -219,13 +200,6 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
                 <span>全部</span><IClose size={11} />
               </Button>
             )}
-            {!isCollectionView && canShuffle && items.length > 0 && (
-              <Button card className="hg-shuffle-btn" aria-label="换一批片单" aria-busy={shuffling}
-                style={{ minHeight: 44, padding: "0 10px", fontSize: 12 }}
-                disabled={loading} onClick={shuffleBatch}>
-                <IRefresh size={11} /><span>{shuffling ? "换片中" : "换一批"}</span>
-              </Button>
-            )}
           </div>
 
           {!isCollectionView && (
@@ -233,14 +207,14 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
               {view === "" && ALL_SORTS.map(s => (
                 <Button key={s.key} card role="tab" aria-selected={allSort === s.key}
                   className="hg-inline-sort"
-                  onClick={() => { if (allSort === s.key && s.key === "all") shuffleBatch(); else setAllSort(s.key); }}>
+                  onClick={() => setAllSort(s.key)}>
                   {s.label}
                 </Button>
               ))}
               {(view === "ai-duanju" || view === "ai-manju") && CHANNEL_SORTS.map(s => (
                 <Button key={s.value} card role="tab" aria-selected={chanSort === s.value}
                   className="hg-inline-sort"
-                  onClick={() => { if (chanSort === s.value && s.value === "random") shuffleBatch(); else setChanSort(s.value); }}>
+                  onClick={() => setChanSort(s.value)}>
                   {s.label}
                 </Button>
               ))}
