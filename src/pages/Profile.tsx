@@ -159,7 +159,27 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
             className="mt-1 min-h-11 px-3 text-on">{accountSync.busy ? "正在重试…" : "重试同步"}</Button>
         </div>}
 
-        {/* 最近观看：直接展示在个人中心，一键续播，不再深埋在二级菜单 */}
+        {/* 快捷功能双列玻璃卡片（置于最近观看上方，方便直达收藏与关注） */}
+        <div className="hg-profile-quick">
+          <Button card className="hg-quick-card" aria-label="我的收藏" onClick={() => push({ kind: "favorites" })}>
+            <span className="hg-quick-icon is-fav"><IMenuLikes size={19} strokeWidth={1.85} /></span>
+            <span className="hg-quick-copy">
+              <span className="hg-quick-title">我的收藏</span>
+              <span className="hg-quick-sub">{favs.length + postFavs.length} 项内容</span>
+            </span>
+            <IChevR size={14} className="hg-menu-chevron" />
+          </Button>
+          <Button card className="hg-quick-card" aria-label="我的关注" onClick={() => user ? push({ kind: "following" }) : setLoginOpen(true)}>
+            <span className="hg-quick-icon is-follow"><IMenuFollow size={19} strokeWidth={1.85} /></span>
+            <span className="hg-quick-copy">
+              <span className="hg-quick-title">我的关注</span>
+              <span className="hg-quick-sub">{user ? `${follows.length} 位创作者` : "登录后同步"}</span>
+            </span>
+            <IChevR size={14} className="hg-menu-chevron" />
+          </Button>
+        </div>
+
+        {/* 最近观看：直接展示在个人中心，一键续播 */}
         <section className="hg-profile-recent" aria-label="最近观看">
           <div className="hg-profile-sec-head">
             <span className="hg-profile-sec-title">
@@ -218,26 +238,6 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
             <div className="hg-recent-empty">暂无观看记录 · 去首页刷剧会自动记录进度</div>
           )}
         </section>
-
-        {/* 快捷功能双列玻璃卡片（去除与设置页重复的「内容偏好」） */}
-        <div className="hg-profile-quick">
-          <Button card className="hg-quick-card" aria-label="我的收藏" onClick={() => push({ kind: "favorites" })}>
-            <span className="hg-quick-icon is-fav"><IMenuLikes size={19} strokeWidth={1.85} /></span>
-            <span className="hg-quick-copy">
-              <span className="hg-quick-title">我的收藏</span>
-              <span className="hg-quick-sub">{favs.length + postFavs.length} 项内容</span>
-            </span>
-            <IChevR size={14} className="hg-menu-chevron" />
-          </Button>
-          <Button card className="hg-quick-card" aria-label="我的关注" onClick={() => user ? push({ kind: "following" }) : setLoginOpen(true)}>
-            <span className="hg-quick-icon is-follow"><IMenuFollow size={19} strokeWidth={1.85} /></span>
-            <span className="hg-quick-copy">
-              <span className="hg-quick-title">我的关注</span>
-              <span className="hg-quick-sub">{user ? `${follows.length} 位创作者` : "登录后同步"}</span>
-            </span>
-            <IChevR size={14} className="hg-menu-chevron" />
-          </Button>
-        </div>
 
         {user && (
           <div className="hg-menu hg-menu-danger">

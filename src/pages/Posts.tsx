@@ -2,7 +2,7 @@ import { Button, Surface } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, cover, fmt, isMobile } from "../api";
-import type { Post, PostCategory } from "../types";
+import type { Post } from "../types";
 import { useStore } from "../store";
 import { copyText } from "../clipboard";
 import { Empty, Img, Sheet } from "../components/ui";
@@ -18,15 +18,21 @@ import { postHot } from "../postData";
 /* ================= 吃瓜列表 ================= */
 /** 列表接口（/api/posts）只给标题/封面/热度；作者与点赞/评论数只在详情接口里。
  *  卡片要画头像/昵称/互动数，就按 id 补一次详情；结果进模块级缓存，切 tab 回来不再重复请求。 */
-type PostExtra = { author?: Post["author"]; like?: number; comment?: number; collect?: number; hot?: number };
+type PostExtra = { author?: Post["author"]; like?: number; comment?: number; collect?: number; hot?: number; created_at?: string; publish_time?: string };
 const postExtra = new Map<number, PostExtra>();
 const extraOf = (p: Post): PostExtra | undefined => postExtra.get(p.id);
 
 const SORTS = [
-  { key: "latest", label: "时间线" },
-  { key: "trending", label: "热议榜" },
+  { key: "latest", label: "最新" },
+  { key: "trending", label: "最热" },
 ] as const;
 type SortKey = (typeof SORTS)[number]["key"];
+
+const BLOG_CATEGORIES = [
+  { route: "gossip", name: "黑料吃瓜", fallbackRoute: "remen-chigua" },
+  { route: "reviews", name: "短剧剧评", fallbackRoute: "ai-yuanchuang" },
+] as const;
+type BlogCateKey = "" | (typeof BLOG_CATEGORIES)[number]["route"];
 
 const parsePostDate = (p: Post): Date | null => {
   const raw = (p.publish_time || p.created_at || "").trim();
@@ -36,20 +42,12 @@ const parsePostDate = (p: Post): Date | null => {
   return Number.isNaN(d.getTime()) ? null : d;
 };
 
-const postClock = (p: Post): string => {
-  const raw = (p.publish_time || p.created_at || "").trim();
-  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(raw);
-  if (m) return `${m[4]}:${m[5]}`;
-  const d = parsePostDate(p);
-  return d ? `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}` : "";
-};
-
 const postDateKey = (p: Post): string => {
   const raw = (p.publish_time || p.created_at || "").trim();
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
   if (m) return `${m[1]}-${m[2]}-${m[3]}`;
   const d = parsePostDate(p);
-  if (!d) return "近期";
+  if (!d) return "";
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
@@ -65,15 +63,12 @@ const formatDateGroup = (key: string): string => {
   return mm && dd ? `${+mm}月${+dd}日` : key;
 };
 
-const GENERIC_CATE = new Set(["全部", "全部话题", "最新", "最新吃瓜", "热门", "热门热议"]);
-
 export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; wide?: boolean; embedded?: boolean }) {
   const { push, toast, isLiked, setLiked, actionPending, user, setLoginOpen, lineEpoch } = useStore();
   const { preferences } = useContentPreferences();
   const filtering = !preferences.paused && (preferences.blockedTags.length > 0 || preferences.hideUntagged);
   const [sort, setSort] = useState<SortKey>("latest");
-  const [categories, setCategories] = useState<PostCategory[]>([]);
-  const [cate, setCate] = useState("");
+  const [cate, setCate] = useState<BlogCateKey>("");
   const [commentTarget, setCommentTarget] = useState<{ id: number; total: number } | null>(null);
   const [likeDelta, setLikeDelta] = useState<Record<number, number>>({});
   const [items, setItems] = useState<Post[]>([]);
@@ -87,27 +82,6 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
   const sentinel = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    let alive = true;
-    api.postCategories().then((res) => {
-      if (alive && res?.items?.length) setCategories(res.items);
-    }).catch(() => {});
-    return () => { alive = false; };
-  }, [lineEpoch]);
-
-  /* 对齐官网博客结构：只保留「黑料吃瓜 / 短剧剧评」两种核心分类（接口未返回时取前 2 个有效分类） */
-  const topicFilters = useMemo(() => {
-    const seenName = new Set<string>();
-    const valid = categories.filter((c) => {
-      const name = (c.name || "").trim();
-      if (!name || GENERIC_CATE.has(name) || seenName.has(name)) return false;
-      seenName.add(name);
-      return true;
-    });
-    const official = valid.filter((c) => /吃瓜|剧评/.test(c.name || ""));
-    return (official.length >= 2 ? official : valid).slice(0, 2);
-  }, [categories]);
-
   const loadMore = async (reset = false) => {
     if (busy.current) return;
     const next = reset ? 1 : page + 1;
@@ -116,9 +90,21 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
     setLoading(true);
     setErr("");
     try {
-      const res = cate
-        ? await api.postCategory(cate, next, 20, sort)
-        : await api.posts(next, 20, sort);
+      const fallbackRoute = BLOG_CATEGORIES.find((c) => c.route === cate)?.fallbackRoute;
+      let res;
+      if (sort === "latest") {
+        try {
+          res = await api.blogPosts(cate, next);
+        } catch {
+          res = fallbackRoute
+            ? await api.postCategory(fallbackRoute, next, 20, sort)
+            : await api.posts(next, 20, sort);
+        }
+      } else {
+        res = fallbackRoute
+          ? await api.postCategory(fallbackRoute, next, 20, sort)
+          : await api.posts(next, 20, sort);
+      }
       setItems((prev) => {
         const base = reset ? [] : prev;
         const seenId = new Set(base.map((x) => x.id));
@@ -177,6 +163,8 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
             comment: detail.counts?.comment,
             collect: detail.counts?.collect,
             hot: postHot(detail),
+            created_at: detail.created_at,
+            publish_time: detail.publish_time,
           };
           postExtra.set(id, got);
           setExtra((prev) => ({ ...prev, [id]: got }));
@@ -205,20 +193,25 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
 
   const renderFooter = (p: Post) => {
     const info = extra[p.id] ?? extraOf(p);
-    const pic = info?.author?.avatar;
-    const initial = (info?.author?.name || "").trim().charAt(0);
-    const authorId = info?.author?.id;
+    const author = info?.author ?? p.author;
+    const pic = author?.avatar;
+    const initial = (author?.name || "").trim().charAt(0);
+    const authorId = author?.id;
+    const dateKey = postDateKey(p);
+    const dateLabel = dateKey ? formatDateGroup(dateKey) : "";
     const liked = isLiked(p.id, undefined, "post");
     const likeBusy = actionPending(`like:post:${p.id}:0`);
     const likeCount = Math.max(0, (info?.like ?? 0) + (likeDelta[p.id] ?? 0));
     return (
       <div className="hg-tl-foot">
         <button type="button" className="hg-tl-author"
-          onClick={authorId ? (e) => { e.stopPropagation(); push({ kind: "user", id: authorId, name: info?.author?.name }); } : undefined}>
+          onClick={authorId ? (e) => { e.stopPropagation(); push({ kind: "user", id: authorId, name: author?.name }); } : undefined}>
           <span className="hg-tl-avatar" aria-hidden="true">
             {pic ? <Img src={pic} /> : (initial || "吃")}
           </span>
-          <span className="hg-tl-author-name">{info?.author?.name || "吃瓜快讯"}</span>
+          <span className="hg-tl-author-name">
+            {author?.name || "吃瓜快讯"}{dateLabel ? ` · ${dateLabel}` : ""}
+          </span>
         </button>
         <div className="hg-tl-actions">
           <button type="button" className={`hg-post-stat${liked ? " is-liked" : ""}`} disabled={likeBusy}
@@ -238,7 +231,7 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
           </button>
           <button type="button" className="hg-post-stat" aria-label="查看评论"
             onClick={(e) => { e.stopPropagation(); setCommentTarget({ id: p.id, total: info?.comment ?? 0 }); }}>
-            <IComment size={15} />{fmt(info?.comment ?? 0)}
+            <IComment size={14} />{fmt(info?.comment ?? 0)}
           </button>
           <button type="button" className="hg-post-stat" aria-label="分享帖子"
             onClick={(e) => {
@@ -247,7 +240,7 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
                 .then(() => toast("链接已复制", "ok"))
                 .catch(() => toast("复制失败", "info"));
             }}>
-            <span aria-hidden="true">↗</span>{fmt(info?.hot ?? p.hot)}
+            <IFireF size={13} />{fmt(info?.hot ?? p.hot)}
           </button>
         </div>
       </div>
@@ -255,46 +248,49 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
   };
 
   const renderCardBody = (p: Post, featured: boolean, rank?: number) => {
-    const tag = (p.tags || []).find((t) => t && t !== HIDDEN_POST_TAG);
+    const rawTag = (p.tags || []).find((t) => t && t !== HIDDEN_POST_TAG);
+    const cateLabel = rawTag === "黑料吃瓜" || rawTag === "短剧剧评" ? rawTag : (rawTag || "");
+    const showCate = cate === "" && Boolean(cateLabel);
     const hasVideo = Boolean(p.video_url || p.video_id);
     const desc = (p.desc || "").trim();
     if (featured && p.cover) {
       return (
-        <div className="hg-tl-card is-featured" onClick={() => push({ kind: "post", id: p.id })}>
-          {(rank != null || (sort === "trending" && tag)) && (
-            <div className="flex items-center gap-2 mb-1.5">
-              {rank != null && (
-                <span className={`hg-rank-badge ${rank <= 3 ? `top-${rank}` : ""}`}>TOP {rank}</span>
-              )}
-              {tag && <span className="hg-tl-tag">#{tag}</span>}
-              {sort === "trending" && <span className="text-[11px] text-white/45 ml-auto tabular-nums">{postClock(p)}</span>}
-            </div>
-          )}
-          <div className="hg-tl-title">{p.title}</div>
-          {desc && <p className="hg-tl-desc">{desc}</p>}
+        <div className="hg-tl-card is-hero" onClick={() => push({ kind: "post", id: p.id })}>
           <div className="hg-tl-hero">
             <Img src={p.cover} alt="" />
+            {rank != null ? (
+              <span className={`hg-tl-cate-badge hg-rank-badge ${rank <= 3 ? `top-${rank}` : ""}`}>TOP {rank}</span>
+            ) : showCate ? (
+              <span className="hg-tl-cate-badge">{cateLabel}</span>
+            ) : null}
             {hasVideo && (
               <span className="hg-tl-media-badge"><IPlayF size={9} />视频</span>
             )}
           </div>
-          {renderFooter(p)}
+          <div className="hg-tl-hero-body">
+            <div className="hg-tl-title">{p.title}</div>
+            {desc && <p className="hg-tl-desc">{desc}</p>}
+            {renderFooter(p)}
+          </div>
         </div>
       );
     }
     return (
       <div className="hg-tl-card" onClick={() => push({ kind: "post", id: p.id })}>
-        {(rank != null || (sort === "trending" && tag)) && (
-          <div className="flex items-center gap-2 mb-1.5">
-            {rank != null && (
-              <span className={`hg-rank-badge ${rank <= 3 ? `top-${rank}` : ""}`}>#{rank}</span>
-            )}
-            {tag && <span className="hg-tl-tag">#{tag}</span>}
-            {sort === "trending" && <span className="text-[11px] text-white/45 ml-auto tabular-nums">{postClock(p)}</span>}
-          </div>
-        )}
         <div className="hg-tl-compact-row">
           <div className="hg-tl-compact-copy">
+            {(rank != null || showCate) && (
+              <div className="flex items-center gap-1.5 mb-1">
+                {rank != null && (
+                  <span className={`hg-rank-badge ${rank <= 3 ? `top-${rank}` : ""}`}>#{rank}</span>
+                )}
+                {showCate && (
+                  <span className={`hg-tl-cate-chip${cateLabel === "黑料吃瓜" ? " is-gossip" : ""}`} style={{ marginBottom: 0 }}>
+                    {cateLabel}
+                  </span>
+                )}
+              </div>
+            )}
             <div className="hg-tl-title">{p.title}</div>
             {desc && <p className="hg-tl-desc">{desc}</p>}
           </div>
@@ -312,62 +308,20 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
     );
   };
 
-  const renderTimeline = (visible: Post[]) => {
-    if (sort === "trending") {
-      return (
-        <div className="hg-tl-wrap flex flex-col gap-2.5">
-          {visible.map((p, idx) => (
-            <div key={p.id}>
-              {renderCardBody(p, idx === 0 || Boolean(p.video_url || p.video_id), idx + 1)}
-            </div>
-          ))}
-        </div>
-      );
-    }
-    /* 时间线模式：严格按时间戳倒序并按日期分组 */
-    const sorted = visible.slice().sort((a, b) => {
-      const ta = parsePostDate(a)?.getTime() ?? 0;
-      const tb = parsePostDate(b)?.getTime() ?? 0;
-      return tb - ta || b.id - a.id;
-    });
-    const groups: { key: string; label: string; posts: Post[] }[] = [];
-    const byKey = new Map<string, { key: string; label: string; posts: Post[] }>();
-    for (const p of sorted) {
-      const k = postDateKey(p);
-      let g = byKey.get(k);
-      if (!g) {
-        g = { key: k, label: formatDateGroup(k), posts: [] };
-        byKey.set(k, g);
-        groups.push(g);
-      }
-      g.posts.push(p);
-    }
+  const renderFeed = (visible: Post[]) => {
+    const ordered = sort === "trending"
+      ? visible
+      : visible.slice().sort((a, b) => {
+          const ta = parsePostDate(a)?.getTime() ?? 0;
+          const tb = parsePostDate(b)?.getTime() ?? 0;
+          return tb - ta || b.id - a.id;
+        });
     return (
       <div className="hg-tl-wrap">
-        {groups.map((g) => (
-          <section key={g.key} className="hg-tl-group" aria-label={g.label}>
-            <div className="hg-tl-date-row">
-              <span className="hg-tl-date-dot" aria-hidden="true" />
-              <span className="hg-tl-date-label">{g.label}</span>
-              <span className="hg-tl-date-count">{g.posts.length} 条动态</span>
-            </div>
-            <div className="hg-tl-list">
-              {g.posts.map((p, idx) => {
-                const tag = (p.tags || []).find((t) => t && t !== HIDDEN_POST_TAG);
-                const featured = idx === 0 || Boolean(p.video_url || p.video_id);
-                return (
-                  <div key={p.id} className="hg-tl-item">
-                    <span className="hg-tl-node" aria-hidden="true" />
-                    <div className="hg-tl-time-row">
-                      <span className="hg-tl-clock">{postClock(p) || "刚刚"}</span>
-                      {tag && <span className="hg-tl-tag">#{tag}</span>}
-                    </div>
-                    {renderCardBody(p, featured)}
-                  </div>
-                );
-              })}
-            </div>
-          </section>
+        {ordered.map((p, idx) => (
+          <div key={p.id}>
+            {renderCardBody(p, idx === 0 && Boolean(p.cover), sort === "trending" ? idx + 1 : undefined)}
+          </div>
         ))}
       </div>
     );
@@ -381,12 +335,17 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
           <Button card aria-label="返回" onClick={onBack} className="hg-sub-btn"><IBack size={19} /></Button>
         )}
         <h1 className="sr-only">吃瓜</h1>
-        <div className="hg-ed-tabs" role="tablist" aria-label="吃瓜视图">
-          {SORTS.map((s) => (
-            <Button key={s.key} card role="tab" aria-selected={sort === s.key}
+        <div className="hg-ed-tabs" role="tablist" aria-label="博客分类">
+          <Button card role="tab" aria-selected={cate === ""}
+            className="hg-ed-tab"
+            onClick={() => setCate("")}>
+            全部
+          </Button>
+          {BLOG_CATEGORIES.map((c) => (
+            <Button key={c.route} card role="tab" aria-selected={cate === c.route}
               className="hg-ed-tab"
-              onClick={() => setSort(s.key)}>
-              {s.label}
+              onClick={() => setCate(c.route)}>
+              {c.name}
             </Button>
           ))}
         </div>
@@ -395,32 +354,29 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
         </Button>
       </header>
 
-      {/* 对齐官网博客双分类：全部 / 黑料吃瓜 / 短剧剧评 */}
-      {topicFilters.length > 0 && (
-        <div className="shrink-0 hg-page-x pb-1.5 relative z-10">
-          <div className="hg-topic-strip" role="tablist" aria-label="博客分类">
-            <Button card role="tab" aria-selected={cate === ""}
-              className="hg-tag-pill"
-              onClick={() => setCate("")}>
-              <span>全部</span>
-            </Button>
-            {topicFilters.map((c) => (
-              <Button key={c.route || c.id} card role="tab" aria-selected={cate === c.route}
-                className="hg-tag-pill"
-                onClick={() => setCate(c.route)}>
-                <span>{c.name}</span>
+      <div className="shrink-0 hg-page-x relative z-10">
+        <div className="hg-posts-subbar">
+          <span className="hg-posts-hint">
+            {sort === "latest" ? "与官网博客实时同步" : "全站累计热度排行"}
+          </span>
+          <div className="hg-sort-seg" role="tablist" aria-label="排序方式">
+            {SORTS.map((s) => (
+              <Button key={s.key} card role="tab" aria-selected={sort === s.key}
+                className="hg-sort-pill"
+                onClick={() => setSort(s.key)}>
+                {s.label}
               </Button>
             ))}
           </div>
         </div>
-      )}
+      </div>
 
       <div ref={scrollRef} aria-busy={loading} className="flex-1 scroll-y hg-page-x relative z-10"
         style={{ paddingBottom: "calc(110px + var(--sab, 0px))" }}
         onScroll={checkScrollBottom}>
         {items.length ? (
           <FilteredContent items={items} scopeKey={`posts-${sort}-${cate}`}>
-            {renderTimeline}
+            {renderFeed}
           </FilteredContent>
         ) : loading ? (
           <div className="flex justify-center py-12"><Loader className="w-8 h-8 spinner" /></div>

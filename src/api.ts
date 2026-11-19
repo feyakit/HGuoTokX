@@ -59,7 +59,7 @@ const NET_FAIL = /dns|timed? ?out|timeout|connection|refused|reset|unreachable|b
 /** 只读命令：链路抖动时可以安全重试一次；写操作绝不重试（避免重复提交） */
 const READ_ONLY = new Set([
   "api_me", "api_feed", "api_original_videos", "api_category", "api_rank", "api_search",
-  "api_posts", "api_post", "api_post_comments", "api_video", "api_play", "api_comments",
+  "api_posts", "api_blog_posts", "api_post", "api_post_comments", "api_video", "api_play", "api_comments",
   "api_topics", "api_topic", "api_tags", "api_tag_videos", "api_search_hot",
   "api_post_playback", "api_post_categories", "api_post_category", "api_post_tag", "api_related", "api_following", "api_user", "api_user_stats", "api_user_videos",
 ]);
@@ -79,6 +79,7 @@ const CACHE_TTL: Record<string, number> = {
   api_video: 180_000,
   api_play: 90_000,
   api_post: 180_000,
+  api_blog_posts: 60_000,
   api_post_playback: 90_000,
   api_tags: 300_000,
   api_post_categories: 300_000,
@@ -219,6 +220,8 @@ export const api = {
   searchHot: () => call<{ items: HotSearchVideo[] }>("api_search_hot"),
   posts: (page = 1, size = 20, sort?: string) =>
     call<Paged<Post>>("api_posts", { page, size, sort: sort ?? null }),
+  blogPosts: (cate: "" | "gossip" | "reviews" = "", page = 1) =>
+    call<Paged<Post>>("api_blog_posts", { cate: cate || null, page }),
   post: (id: number) => call<Post & { content?: string; video_url?: string }>("api_post", { id }),
   /** 吃瓜帖视频：详情里 video_url 恒为空，地址由 playback 接口下发（可能多段）。 */
   postPlayback: (id: number) => call<{ mode?: number; videos?: { index: number; url: string }[] }>("api_post_playback", { id }),

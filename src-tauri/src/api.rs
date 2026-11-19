@@ -940,6 +940,12 @@ pub async fn api_posts(
         .await
 }
 
+/// 官网博客 SSR 列表（/blog/、/blog/gossip/、/blog/reviews/），包含「短剧剧评」与最新时间线。
+#[tauri::command]
+pub async fn api_blog_posts(cate: Option<String>, page: u32) -> Result<Value, String> {
+    crate::blog::fetch(cate, page).await
+}
+
 #[tauri::command]
 pub async fn api_post(state: State<'_, Api>, id: i64) -> Result<Value, String> {
     state.get(&format!("/api/posts/{id}")).await

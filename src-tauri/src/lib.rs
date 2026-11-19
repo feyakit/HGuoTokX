@@ -1,6 +1,7 @@
 mod api;
 #[cfg(any(target_os = "macos", target_os = "ios", test))]
 mod apple_proxy;
+mod blog;
 mod cache;
 mod env;
 #[cfg(target_os = "ios")]
@@ -256,6 +257,7 @@ pub fn run() {
             api::api_search_hot,
             api::cache_clear,
             api::api_posts,
+            api::api_blog_posts,
             api::api_post,
             api::api_post_playback,
             api::api_post_like,
