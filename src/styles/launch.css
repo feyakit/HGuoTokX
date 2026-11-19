@@ -16,10 +16,15 @@
   font-family: var(--font-sans, system-ui, sans-serif);
   animation: launch-exit 180ms 2020ms ease-in both;
 }
-.hg-launch-stage { position: relative; display: grid; justify-items: center; padding: 32px; transform: translateY(-8px); }
+/* 原位停留：logo + 字标作为一块整体居中。原来 .hg-launch-stage 有 translateY(-8px)，
+   加上下面 .hg-launch-mark 多出的一倍空高（见注释），视觉上整块是「偏上且松散」的。 */
+.hg-launch-stage { position: relative; display: grid; justify-items: center; padding: 32px; }
+/* 正方形标志位：高度由 ::before 的 padding-top:100% 撑出来，SVG 必须绝对定位覆盖，
+   否则它自带 height:100% 会和 ::before 叠成 2 倍高（108 → 216），把 logo 顶到屏幕中心上方
+   约 93px、并在字标前留出 136px 的空白——这就是「启动动画不居中」的真身。 */
 .hg-launch-mark { position: relative; width: clamp(108px, 28vw, 152px); }
 .hg-launch-mark::before { content:""; display:block; padding-top:100%; }
-.hg-launch-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.hg-launch-svg { display: block; position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .hg-launch-tile, .hg-launch-stroke, .hg-launch-play, .hg-launch-x { transform-box: fill-box; transform-origin: center; }
 .hg-launch-tile { animation: launch-tile 780ms 500ms both; }
 .hg-launch-left { animation: launch-left 1000ms 60ms both; }

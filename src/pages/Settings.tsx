@@ -7,8 +7,6 @@ import LinePicker from "../components/LinePicker";
 import ProxySettings from "../components/ProxySettings";
 import ContentPreferencesSettings from "../components/ContentPreferencesSettings";
 import SettingsSection from "../components/SettingsSection";
-import { UsageAgreementText } from "../components/UsageAgreement";
-import { USAGE_AGREEMENT_VERSION } from "../usageAgreement";
 import { autoLineEnabled, setAutoLine } from "../autoLine";
 import { copyPlaybackLog, initPlaybackLog, setPlaybackLog, tracePlayback, usePlaybackLog } from "../playbackDiagnostics";
 import { formatNetDiag, shortVerdict } from "../netDiagReport";
@@ -33,7 +31,6 @@ const GROUP_SUMMARIES: Record<SettingGroup, string> = {
 export default function Settings({ onBack, initialSection }: { onBack: () => void; wide: boolean; initialSection?: "内容偏好" }) {
   const { theme, themePreference, setTheme, favs, history, muteOnStartup, setMuteOnStartup, preferHevc, setPreferHevc, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity, toast } = useStore();
   const [about, setAbout] = useState(false);
-  const [agreementOpen, setAgreementOpen] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
   const [lineOpen, setLineOpen] = useState(false);
   const [lineBase, setLineBase] = useState("");
@@ -305,14 +302,6 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
               </div>
               <IChevR size={15} className="text-mut" />
             </Button>
-            <Button onClick={() => setAgreementOpen(true)} className="w-full flex items-center gap-3 px-3.5 py-3 text-left pressable">
-              <span className="ios-setting-icon"><ILockF size={16} /></span>
-              <div className="flex-1 min-w-0">
-                <div className="text-[14px] text-on">使用条款与免责声明</div>
-                <div className="text-[12px] text-mut">查看完整协议与中国大陆下载传播限制</div>
-              </div>
-              <IChevR size={15} className="text-mut" />
-            </Button>
             <Button onClick={() => setAbout(true)} className="w-full flex items-center gap-3 px-3.5 py-3 text-left pressable">
               <span className="ios-setting-icon"><IInfo size={16} /></span>
               <div className="flex-1">
@@ -328,19 +317,6 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
       </div>
 
       <LinePicker open={lineOpen} onClose={() => { setLineOpen(false); readLine(); }} />
-
-      <Modal label="使用条款与免责声明" open={agreementOpen} onClose={() => setAgreementOpen(false)} width={680}>
-        <div className="flex flex-col min-h-0 max-h-[78dvh]">
-          <div className="shrink-0 flex items-center justify-between gap-3 p-4 border-b border-s3">
-            <h2 className="text-[17px] font-bold text-on">使用条款与免责声明</h2>
-            <Button className="min-h-11 px-3 shrink-0" onClick={() => setAgreementOpen(false)}>关闭</Button>
-          </div>
-          <div className="flex-1 min-h-0 scroll-y p-4 select-text" tabIndex={0} aria-label="协议正文">
-            <p className="text-[12px] text-mut mb-4">协议版本 {USAGE_AGREEMENT_VERSION} · 查看协议不会更改本机确认记录</p>
-            <UsageAgreementText />
-          </div>
-        </div>
-      </Modal>
 
       <Modal label="网络诊断报告" open={diagReport !== null} onClose={() => setDiagReport(null)} width={520}>
         <div className="p-5">
