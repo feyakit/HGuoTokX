@@ -224,6 +224,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const [zoom, setZoom] = useState({ s: 1, x: 0, y: 0, g: false });
   /* 竖屏下看横屏视频：contain = 完整显示，cover = 放大铺满 */
   const [portraitFit, setPortraitFit] = useState<"contain" | "cover">("contain");
+  /* 全屏下看横屏视频/伪横屏：独立于竖屏模式，避免状态串扰 */
+  const [fsFit, setFsFit] = useState<"contain" | "cover">("contain");
   const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
   const pinchRef = useRef<{ d0: number; mx0: number; my0: number; s0: number; x0: number; y0: number } | null>(null);
 
@@ -1129,6 +1131,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       setVpLandscape((prev) => {
         if (prev !== isLand && active) {
           setFs(isLand);
+          setFsLandscape(isLand);
           keepAlive();
         }
         return isLand;
@@ -1398,10 +1401,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   diagnosticContext={{ active: active && !tagMenu && !showHoldGuide, view: mode, kind, video_id: curId, episode: curEp }}
                   volume={volume} rate={effRate}
                   measurementKey={measurementKey}
-                  /* 竖屏源视频原来在竖屏下走 object-cover，会把画面裁掉（上游 #142）。
-                     现在默认一律 contain；只有「横屏源 + 竖屏非全屏」保留 适应/铺满 开关。
-                     伪横屏（rotated）继续用用户选的 portraitFit。 */
-                  fit={isDesktop ? "contain" : rotated ? portraitFit : landscapeVideo && !fs && !vpLandscape ? portraitFit : "contain"}
+                  /* 非全屏：仅横屏源在竖屏下保留 适应/铺满（portraitFit）。
+                     全屏：无论是 CSS 伪横屏（rotated）还是系统真横屏（vpLandscape），横屏源都响应 fsFit。 */
+                  fit={isDesktop ? "contain" : fs ? ((rotated || landscapeVideo) ? fsFit : "contain") : (landscapeVideo ? portraitFit : "contain")}
                   onClick={() => { if (isDesktop) videoRef.current?.toggle(); }}
                   onTime={onTimeTick}
                   onDuration={onDurationTick}
@@ -1915,10 +1917,13 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
             <PlaybackTime clock={playbackClock} className="shrink-0 text-[12px] font-semibold hg-ink-2 tabular-nums" />
             {/* 伪横屏/横屏源：铺满会把画面放大到填满（会裁边），适应则留黑边保完整 */}
             {(rotated || landscapeVideo) && (
-              <Button onClick={() => setPortraitFit(f => (f === "contain" ? "cover" : "contain"))}
+              <Button onClick={() => {
+                if (zoom.s > 1.05) { setZoom({ s: 1, x: 0, y: 0, g: false }); setFsFit("contain"); }
+                else setFsFit(f => (f === "contain" ? "cover" : "contain"));
+              }}
                 className="shrink-0 flex items-center gap-1 px-2.5 h-8 rounded-full text-[12px] font-semibold hg-chip hg-ink-2 pressable"
-                aria-label={portraitFit === "contain" ? "画面铺满" : "画面适应"}>
-                {portraitFit === "contain" ? "铺满" : "适应"}
+                aria-label={zoom.s > 1.05 ? "还原画面" : fsFit === "contain" ? "画面铺满" : "画面适应"}>
+                {zoom.s > 1.05 ? `还原 ${zoom.s.toFixed(1)}x` : fsFit === "contain" ? "铺满" : "适应"}
               </Button>
             )}
             <Button

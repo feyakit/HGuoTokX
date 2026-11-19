@@ -1,17 +1,11 @@
 import { fmt } from "../api";
 import type { VideoCard } from "../types";
-import { IHeartF, IPlayF, IStarF } from "../icons";
+import { IHeartF, IPlayF } from "../icons";
 import { Img } from "./ui";
 import { Button } from "./ios/controls";
 import { FilteredContent } from "./FilteredContent";
 
-function ScoreBadge({ score }: { score: number }) {
-  return Number.isFinite(score) && score > 0 ? <span className="ios-score-badge" aria-label={`评分 ${score.toFixed(1)}`}>
-    <IStarF size={12} />{score.toFixed(1)}
-  </span> : null;
-}
-
-export function MediaCard({ title, cover, subtitle, badge, progress, score, priority = false, onOpen, blockedReason }: {
+export function MediaCard({ title, cover, subtitle, badge, progress, priority = false, onOpen, blockedReason }: {
   title: string; cover: string; subtitle?: string; badge?: string; progress?: string; score?: number; priority?: boolean; onOpen: () => void; blockedReason?: string | null;
 }) {
   if (blockedReason) return <Button onClick={onOpen} className="ios-poster" aria-label="该内容命中屏蔽标签，查看提示">
@@ -27,7 +21,6 @@ export function MediaCard({ title, cover, subtitle, badge, progress, score, prio
     <span className={`ios-poster-art ${badge ? "has-poster-badge" : ""}`}>
       <Img src={cover} alt="" eager={priority} />
       {badge && <span className="ios-poster-badge">{badge}</span>}
-      {typeof score === "number" && <ScoreBadge score={score} />}
       {progress && <span className="ios-poster-progress"><IPlayF size={12} />{progress}</span>}
       <span className="ios-poster-play" aria-hidden="true"><IPlayF size={23} /></span>
     </span>

@@ -276,7 +276,6 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
                   <span className="hg-poster-art">
                     <Img src={v.cover} alt="" />
                     <span className="hg-poster-veil" aria-hidden="true" />
-                    {v.score > 0 && <span className="hg-poster-score">★ {v.score.toFixed(1)}</span>}
                     {v.is_hot === 1
                       ? <span className="hg-poster-badge is-hot">热门</span>
                       : isNew(v) ? <span className="hg-poster-badge">上新</span>

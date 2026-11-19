@@ -87,7 +87,7 @@
    货架：横滑容器，右边缘故意留白露出半张卡（提示还能滑）
    ------------------------------------------------------------------ */
 .hg-shelf {
-  display: flex; gap: var(--space-col);
+  display: flex; align-items: flex-start; gap: var(--space-col);
   overflow-x: auto; overflow-y: hidden;
   padding-right: var(--space-page); scroll-padding-right: var(--space-page);
   scrollbar-width: none; -ms-overflow-style: none;
@@ -99,7 +99,10 @@
    海报卡：3:4（百分比 padding，老内核可用）+ 卡名在图外单行
    宽 110 是货架卡；网格里用 .hg-poster 由容器决定宽度
    ------------------------------------------------------------------ */
-.hg-poster { flex: none; width: 98px; text-align: left; background: none; border: 0; padding: 0; box-shadow: none; }
+.hg-poster {
+  flex: none; width: 98px; text-align: left; background: none; border: 0; padding: 0; box-shadow: none;
+  display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start;
+}
 .hg-poster-art {
   position: relative; display: block; width: 100%;
   border-radius: var(--radius-poster); overflow: hidden;
@@ -419,7 +422,7 @@
 }
 .hg-sort-chip[data-on="true"] { background: #7C5CFF; color: #fff; }
 
-.hg-grid-c3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 13px; row-gap: 16px; }
+.hg-grid-c3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; column-gap: 13px; row-gap: 16px; }
 .hg-poster.is-c3 { width: auto; }
 .hg-poster-art { border-radius: 12px; }
 .hg-poster-veil {

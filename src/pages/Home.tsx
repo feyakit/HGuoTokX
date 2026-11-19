@@ -101,6 +101,7 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
   const loadingRef = useRef(false);
   const seq = useRef(0);
   const shelvesKey = useRef("");
+  const loadedKey = useRef("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async (p: number, key: FeedTab, replaceBatch = false) => {
@@ -157,6 +158,9 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
 
   useEffect(() => {
     if (!active || tab === "rank") return;
+    const key = `${tab}|${lineEpoch}`;
+    if (loadedKey.current === key) return;
+    loadedKey.current = key;
     seq.current++;
     loadingRef.current = false;
     setShuffling(false);
@@ -488,7 +492,6 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
                           <span className="hg-poster-art">
                             <Img src={v.cover} alt="" />
                             <span className="hg-poster-veil" aria-hidden="true" />
-                            {v.score > 0 && <span className="hg-poster-score">★ {v.score.toFixed(1)}</span>}
                             <span className="hg-poster-badge">上新</span>
                             <span className="hg-poster-views">{releaseLabel(v).replace(" 上新", "")}</span>
                           </span>
@@ -715,7 +718,6 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
                     <span className="hg-poster-art">
                       <Img src={v.cover} alt="" />
                       <span className="hg-poster-veil" aria-hidden="true" />
-                      {v.score > 0 && <span className="hg-poster-score">★ {v.score.toFixed(1)}</span>}
                       {v.is_hot === 1
                         ? <span className="hg-poster-badge is-hot">热门</span>
                         : isNew(v) ? <span className="hg-poster-badge">上新</span>
