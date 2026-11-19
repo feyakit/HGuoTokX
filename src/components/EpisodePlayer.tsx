@@ -1269,7 +1269,10 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   diagnosticContext={{ active: active && !tagMenu && !showHoldGuide, view: mode, kind, video_id: curId, episode: curEp }}
                   volume={volume} rate={effRate}
                   measurementKey={measurementKey}
-                  fit={isDesktop ? "contain" : rotated ? portraitFit : landscapeVideo ? (fs || vpLandscape ? "contain" : portraitFit) : (!videoSize.w || !videoSize.h || vpLandscape ? "contain" : "cover")}
+                  /* 竖屏源视频原来在竖屏下走 object-cover，会把画面裁掉（上游 #142）。
+                     现在默认一律 contain；只有「横屏源 + 竖屏非全屏」保留 适应/铺满 开关。
+                     伪横屏（rotated）继续用用户选的 portraitFit。 */
+                  fit={isDesktop ? "contain" : rotated ? portraitFit : landscapeVideo && !fs && !vpLandscape ? portraitFit : "contain"}
                   onClick={() => { if (isDesktop) videoRef.current?.toggle(); }}
                   onTime={onTimeTick}
                   onDuration={onDurationTick}

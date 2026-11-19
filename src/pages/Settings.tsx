@@ -198,7 +198,7 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
               <span className="ios-setting-icon"><IRefresh size={15} /></span>
               <div className="flex-1 min-w-0">
                 <div className="text-[14px] text-on">自动选择线路</div>
-                <div className="text-[12px] text-mut">主站不可用时检测已发布镜像；关闭后保留手动选择</div>
+                <div className="text-[12px] text-mut">手动选的线只作优先，不会关掉这里；关掉才是完全不自动</div>
               </div>
               <Toggle desktop label="自动选择线路" on={autoLineOn} onChange={(on) => {
                 void setAutoLine(on).catch(() => toast("自动选线暂停失败，请重试", "info"));

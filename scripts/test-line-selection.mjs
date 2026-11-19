@@ -12,6 +12,10 @@ const report = { environment: "Real Settings, LinePicker, store and autoLine in 
 const MAIN = "https://main.fixture.invalid";
 const MIRROR = "https://mirror-one.fixture.invalid";
 const NEW_KEY = "hguox_auto_line";
+const PREF_KEY = "hguox_line_preferred";
+const MIGRATED_KEY = "hguox_auto_line_v2";
+/** 「用户自己在设置里关掉自动选线」：key=off + 迁移标记已存在 */
+const USER_OFF = { [NEW_KEY]: "off", [MIGRATED_KEY]: "1" };
 let vite, browser, page;
 const errors = [];
 
@@ -45,7 +49,7 @@ try {
         for (const [key, value] of Object.entries(seed)) localStorage.setItem(key, value);
         sessionStorage.setItem("line-fixture-seeded", "1");
       }
-      const fixture = { base: MAIN, calls: [], lineChanged: 0, failSet: false, failMirrors: false, autoMode: "success", loggedIn: true, generation: 0, holdAuto: false, autoFinished: 0, autoCancelled: 0, autoWaiters: [] };
+      const fixture = { base: MAIN, calls: [], lineChanged: 0, failSet: false, failMirrors: false, autoMode: "success", loggedIn: true, generation: 0, holdAuto: false, autoFinished: 0, autoCancelled: 0, autoWaiters: [], autoPick: MIRROR, autoCandidates: null };
       window.addEventListener("hg:line-changed", () => fixture.lineChanged++);
       Object.assign(window, {
         isTauri: true,
@@ -86,9 +90,11 @@ try {
               return { previous, base: previous, switched: false, cancelled: true, pick: { base: MIRROR, tier: "mirror", ms: 34, reason: "mirror-fallback", candidates: [] } };
             }
             if (mode === "all-down") return { previous, base: previous, switched: false, cancelled: false, pick: { base: previous, tier: "none", ms: 0, reason: "all-down", candidates: [] } };
-            fixture.base = MIRROR;
-            fixture.loggedIn = false;
-            return { previous, base: MIRROR, switched: previous !== MIRROR, cancelled: false, pick: { base: MIRROR, tier: "mirror", ms: 34, reason: "mirror-fallback", candidates: [{ tier: "mirror", url: MIRROR, ok: true, reachable: true, ms: 34, status: 200 }] } };
+            const pick = fixture.autoPick;
+            const candidates = fixture.autoCandidates || [{ tier: "mirror", url: pick, ok: true, reachable: true, ms: 34, status: 200 }];
+            fixture.base = pick;
+            if (pick !== previous) fixture.loggedIn = false;
+            return { previous, base: pick, switched: previous !== pick, cancelled: false, pick: { base: pick, tier: "mirror", ms: 34, reason: "mirror-fallback", candidates } };
           }
           throw new Error(`Unexpected IPC: ${command}`);
         } },
@@ -113,35 +119,42 @@ try {
   const sourceButton = page => page.getByRole("button").filter({ has: page.getByText("播放源", { exact: true }) });
 
   {
+    /* 旧版本：手动选线 → auto_line=off。升级后这个 off 不算用户意图，要被迁移成 on。 */
     const { context, page } = await open({ "hg.autoLine": "off" });
-    assert.equal(await page.evaluate(() => window.lineSelectionControls.autoLineEnabled()), false);
-    assert.equal(await page.evaluate(key => localStorage.getItem(key), NEW_KEY), "off");
+    assert.equal(await page.evaluate(() => window.lineSelectionControls.autoLineEnabled()), true);
+    assert.equal(await page.evaluate(key => localStorage.getItem(key), NEW_KEY), "on");
+    assert.equal(await page.evaluate(key => localStorage.getItem(key), MIGRATED_KEY), "1");
     assert.equal(await page.evaluate(() => localStorage.getItem("hg.autoLine")), null);
-    assert.equal((await calls(page, "line_auto")).length, 0);
-    await page.evaluate(async () => {
-      await window.lineSelectionControls.pickLine("fixture-disabled", true);
-      window.dispatchEvent(new Event("online"));
-    });
-    assert.equal((await calls(page, "line_auto")).length, 0);
+    assert((await calls(page, "line_auto")).length >= 1);
+    await page.reload();
+    await page.waitForFunction(() => window.lineSelectionSnapshot?.ready);
+    assert.equal(await page.evaluate(() => window.lineSelectionControls.autoLineEnabled()), true);
+    assert.equal(await page.evaluate(key => localStorage.getItem(key), NEW_KEY), "on");
+    /* 迁移之后用户在设置里主动关掉，才是真的关，并且重启也不复活 */
+    await openNetworkSection(page);
+    const toggle = page.getByRole("switch", { name: "自动选择线路", exact: true });
+    assert.equal(await toggle.getAttribute("aria-checked"), "true");
+    await toggle.click();
+    assert.equal(await page.evaluate(key => localStorage.getItem(key), NEW_KEY), "off");
     await page.reload();
     await page.waitForFunction(() => window.lineSelectionSnapshot?.ready);
     assert.equal(await page.evaluate(() => window.lineSelectionControls.autoLineEnabled()), false);
-    assert.equal((await calls(page, "line_auto")).length, 0);
-    report.passed.push("Legacy automatic-line opt-out migrates to HGuoX storage, survives reload and suppresses boot/manual/online auto selection");
+    assert.equal(await page.evaluate(key => localStorage.getItem(key), NEW_KEY), "off");
+    report.passed.push("Legacy auto_line=off (written by the old manual-pick behaviour) migrates to on once; a later explicit opt-out in Settings sticks across reloads");
     await context.close();
   }
 
   {
-    const { context, page } = await open({ "hg.autoLine": "on", [NEW_KEY]: "off" });
+    const { context, page } = await open({ "hg.autoLine": "on", [NEW_KEY]: "off", [MIGRATED_KEY]: "1" });
     assert.equal(await page.evaluate(() => window.lineSelectionControls.autoLineEnabled()), false);
     assert.equal((await calls(page, "line_auto")).length, 0);
     assert.equal(await page.evaluate(() => localStorage.getItem("hg.autoLine")), null);
-    report.passed.push("The HGuoX preference takes precedence over conflicting legacy storage");
+    report.passed.push("An explicit opt-out (marker present) survives the migration and still beats legacy storage");
     await context.close();
   }
 
   for (const mobile of [false, true]) {
-    const { context, page } = await open({ [NEW_KEY]: "off" }, mobile);
+    const { context, page } = await open(USER_OFF, mobile);
     await sourceButton(page).click();
     const dialog = page.getByRole("dialog");
     await dialog.waitFor();
@@ -159,6 +172,9 @@ try {
     assert.equal(await page.evaluate(() => window.lineSelectionFixture.lineChanged), 1);
     assert.equal(await page.evaluate(() => window.lineSelectionSnapshot.user), null);
     assert.deepEqual((await calls(page, "line_set")).map(call => call.args), [{ url: MIRROR }]);
+    /* 手动选线 = 偏好，不写 auto_line=off */
+    assert.equal(await page.evaluate(key => localStorage.getItem(key), PREF_KEY), MIRROR);
+    assert.equal(await page.evaluate(key => localStorage.getItem(key), NEW_KEY), "off");
     await dialog.getByRole("button", { name: "关闭", exact: true }).click();
     await sourceButton(page).getByText("mirror-one.fixture.invalid", { exact: true }).waitFor();
     await sourceButton(page).click();
@@ -170,7 +186,7 @@ try {
   }
 
   {
-    const { context, page } = await open({ [NEW_KEY]: "off" });
+    const { context, page } = await open(USER_OFF);
     await sourceButton(page).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByText("mirror-one.fixture.invalid", { exact: true }).waitFor();
@@ -186,7 +202,7 @@ try {
   }
 
   {
-    const { context, page } = await open({ [NEW_KEY]: "off" });
+    const { context, page } = await open(USER_OFF);
     const toggle = page.getByRole("switch", { name: "自动选择线路", exact: true });
     assert.equal(await toggle.getAttribute("aria-checked"), "false");
     await toggle.click();
@@ -218,7 +234,7 @@ try {
   }
 
   {
-    const { context, page } = await open({ [NEW_KEY]: "off" });
+    const { context, page } = await open(USER_OFF);
     const toggle = page.getByRole("switch", { name: "自动选择线路", exact: true });
     await page.evaluate(() => { window.lineSelectionFixture.holdAuto = true; });
     await toggle.click();
@@ -240,7 +256,7 @@ try {
   }
 
   {
-    const { context, page } = await open({ [NEW_KEY]: "off" });
+    const { context, page } = await open(USER_OFF);
     const toggle = page.getByRole("switch", { name: "自动选择线路", exact: true });
     await page.evaluate(() => { window.lineSelectionFixture.holdAuto = true; });
     await toggle.click();
@@ -257,14 +273,72 @@ try {
     assert.equal(await page.evaluate(() => window.lineSelectionFixture.autoCancelled), 1);
     assert.equal(await page.evaluate(() => window.lineSelectionFixture.lineChanged), 1);
     assert.equal(await page.evaluate(() => window.lineSelectionSnapshot.lineEpoch), 1);
-    assert.equal(await page.evaluate(key => localStorage.getItem(key), NEW_KEY), "off");
+    /* 手动选线不再关掉自动：开关仍是开，偏好记下用户点的那条 */
+    assert.equal(await page.evaluate(key => localStorage.getItem(key), NEW_KEY), "on");
+    assert.equal(await page.evaluate(key => localStorage.getItem(key), PREF_KEY), "https://secondary.fixture.invalid");
     const sequence = (await page.evaluate(() => window.lineSelectionFixture.calls)).map(call => call.command);
     assert(sequence.indexOf("line_cancel") > sequence.indexOf("line_auto"));
     assert(sequence.indexOf("line_set") > sequence.indexOf("line_cancel"));
     await dialog.getByRole("button", { name: "关闭", exact: true }).click();
     await sourceButton(page).getByText("secondary.fixture.invalid", { exact: true }).waitFor();
-    assert.equal(await toggle.getAttribute("aria-checked"), "false");
-    report.passed.push("Manual selection cancels the pending automatic request before line_set, pauses auto mode and remains selected when stale auto results arrive (generation-aware IPC fixture)");
+    assert.equal(await toggle.getAttribute("aria-checked"), "true");
+    report.passed.push("Manual selection cancels the pending automatic request before line_set and records a preference while automatic selection stays on (generation-aware IPC fixture)");
+    await context.close();
+  }
+
+  {
+    /* 偏好线路可用：后端想换也换不走，而且不提示 */
+    const { context, page } = await open({ [NEW_KEY]: "on", [PREF_KEY]: MAIN });
+    await page.waitForFunction(() => window.lineSelectionSnapshot?.ready);
+    await page.evaluate(({ MAIN, MIRROR }) => {
+      window.lineSelectionFixture.autoPick = MIRROR;
+      window.lineSelectionFixture.autoCandidates = [
+        { tier: "main", url: MAIN, ok: true, reachable: true, ms: 30, status: 200 },
+        { tier: "mirror", url: MIRROR, ok: true, reachable: true, ms: 34, status: 200 },
+      ];
+    }, { MAIN, MIRROR });
+    await page.evaluate(() => window.lineSelectionControls.pickLine("fixture-prefer", true));
+    assert.equal(await page.evaluate(() => window.lineSelectionFixture.base), MAIN);
+    assert.equal(await page.getByText("当前线路不可用，已自动切换").count(), 0);
+    report.passed.push("A usable preferred line survives automatic selection (the backend's pick is overruled) and no switch notice is shown");
+    await context.close();
+  }
+
+  {
+    /* 偏好线路连续失败：让位 + 提示一次 */
+    const { context, page } = await open({ [NEW_KEY]: "on", [PREF_KEY]: MAIN });
+    await page.waitForFunction(() => window.lineSelectionSnapshot?.ready);
+    await page.evaluate(({ MAIN, MIRROR }) => {
+      window.lineSelectionFixture.base = MAIN;
+      window.lineSelectionFixture.autoPick = MIRROR;
+      window.lineSelectionFixture.autoCandidates = [
+        { tier: "main", url: MAIN, ok: false, reachable: false, ms: 0, status: null },
+        { tier: "mirror", url: MIRROR, ok: true, reachable: true, ms: 34, status: 200 },
+      ];
+    }, { MAIN, MIRROR });
+    await page.evaluate(() => window.lineSelectionControls.pickLine("fixture-prefer-down", true, true));
+    assert.equal(await page.evaluate(() => window.lineSelectionFixture.base), MIRROR);
+    await page.getByText("当前线路不可用，已自动切换", { exact: true }).waitFor();
+    report.passed.push("A preferred line that fails twice yields to the usable candidate and shows the switch notice once");
+    await context.close();
+  }
+
+  {
+    /* 重启/回切：偏好恢复后静默切回，不再提示 */
+    const { context, page } = await open({ [NEW_KEY]: "on", [PREF_KEY]: MAIN });
+    await page.waitForFunction(() => window.lineSelectionSnapshot?.ready);
+    await page.evaluate(({ MAIN, MIRROR }) => {
+      window.lineSelectionFixture.base = MIRROR;
+      window.lineSelectionFixture.autoPick = MIRROR;
+      window.lineSelectionFixture.autoCandidates = [
+        { tier: "main", url: MAIN, ok: true, reachable: true, ms: 28, status: 200 },
+        { tier: "mirror", url: MIRROR, ok: true, reachable: true, ms: 34, status: 200 },
+      ];
+    }, { MAIN, MIRROR });
+    await page.evaluate(() => window.lineSelectionControls.pickLine("fixture-prefer-recover", true));
+    assert.equal(await page.evaluate(() => window.lineSelectionFixture.base), MAIN);
+    assert.equal(await page.getByText("当前线路不可用，已自动切换").count(), 0);
+    report.passed.push("Once the preferred line is healthy again the app returns to it silently, without the switch notice");
     await context.close();
   }
 

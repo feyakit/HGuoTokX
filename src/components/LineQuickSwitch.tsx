@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { api, hostOf, type LineItem } from "../api";
 import { useStore } from "../store";
-import { autoLineEnabled, setAutoLine } from "../autoLine";
+import { pauseAutoPick } from "../autoLine";
+import { setPreferredLine } from "../linePreference";
 import { Button } from "./ios/controls";
 import { Sheet } from "./ui";
 import { ICheck, IClose } from "../icons";
@@ -33,19 +34,18 @@ export default function LineQuickSwitch({ open, onClose }: { open: boolean; onCl
   const pick = async (url: string) => {
     if (busy) return;
     if (!url || url === base) { onClose(); return; }
-    const wasAuto = autoLineEnabled();
     setBusy(url);
     try {
-      /* 手动选了线就不再让自动选线覆盖它，和设置页里的行为保持一致 */
-      await setAutoLine(false);
+      /* 手动选线 = 本次优先：取消在途的自动选线，但保持自动选线开着（见 docs/线路策略.md） */
+      await pauseAutoPick();
       const next = await api.lineSet(url);
+      setPreferredLine(next);
       if (next !== base) setUser(null);
       setBase(next);
-      toast(`线路已切换到 ${hostOf(next)}，跨站点需重新登录`, "ok");
+      toast(`线路已切换到 ${hostOf(next)}，已设为优先线路；不可用时会自动切走`, "ok");
       window.dispatchEvent(new Event("hg:line-changed"));
       onClose();
     } catch (e) {
-      if (wasAuto) void setAutoLine(true);
       toast((e as Error).message || "切换失败", "info");
     } finally {
       setBusy("");

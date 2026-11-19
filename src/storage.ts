@@ -5,6 +5,8 @@ export const STORAGE_KEYS = {
   swipeEp: "hguox_swipe_ep_v2",
   theme: "hguox_theme",
   autoLine: "hguox_auto_line",
+  /* 手动选过的线路 = 「本次优先」，不关自动选线（见 docs/线路策略.md） */
+  linePreferred: "hguox_line_preferred",
 } as const;
 
 /** 封面色链路用的额外键（不属于上游 STORAGE_KEYS 的命名空间） */
@@ -22,6 +24,7 @@ const LEGACY_KEYS: Record<StorageKey, string[]> = {
   hguox_swipe_ep_v2: [legacyKey("swipe_ep_v2"), "hghub_swipe_ep_v2"],
   hguox_theme: [legacyKey("theme"), "hghub_theme"],
   hguox_auto_line: [legacyKey("auto_line"), "hg.autoLine"],
+  hguox_line_preferred: [],
 };
 
 /** 新键优先；确认旧数据已写入新键后才删除旧键。存储写入失败仍可读取旧数据。 */

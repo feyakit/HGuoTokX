@@ -3,7 +3,8 @@ import { Loader } from "./ios/effects";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, hostOf, isMobile, type LineApply, type LineItem, type LineProbe, type LineState } from "../api";
 import { tracePlayback } from "../playbackDiagnostics";
-import { autoLineEnabled, setAutoLine } from "../autoLine";
+import { pauseAutoPick } from "../autoLine";
+import { setPreferredLine } from "../linePreference";
 import { useStore } from "../store";
 import { Modal, Sheet } from "./ui";
 import { ICheck, IClose, IRefresh, ISettings } from "../icons";
@@ -130,23 +131,26 @@ export default function LinePicker({ open, onClose }: { open: boolean; onClose: 
 
   const applyLine = async (key: string, apply: () => Promise<LineApply>) => {
     if (applying.current || !ready) return;
-    const wasAuto = autoLineEnabled();
     applying.current = true;
     stateRequest.current++;
     setSwitching(key);
     setCustomError("");
     try {
-      await setAutoLine(false);
+      /* 手动选线 = 本次优先：取消在途的自动选线，但不关闭自动选线本身 */
+      await pauseAutoPick();
       const next = await apply();
+      /* 恢复主站 = 放弃偏好、回到完全自动 */
+      setPreferredLine(key === "reset" ? null : next.base);
       tracePlayback("line.manual", { line: hostOf(next.base), prev: hostOf(state?.base ?? ""), custom: next.custom, ok: true });
       if (next.base !== state?.base) setUser(null);
       setState((s) => (s ? { ...s, ...next } : s));
       if (key === "custom" || key === "reset") setCustom(next.custom ? next.base : "");
-      toast(`线路已切换到 ${hostOf(next.base)}，已使用手动选线，跨站点需重新登录`, "ok");
+      toast(key === "reset"
+        ? `已恢复主站 ${hostOf(next.base)}，自动选线恢复常态`
+        : `线路已切换到 ${hostOf(next.base)}，已设为优先线路；不可用时会自动切走`, "ok");
       // 走的是新域名了，列表页得重新拉一遍，否则还是旧线路的内容
       window.dispatchEvent(new Event("hg:line-changed"));
     } catch (e) {
-      if (wasAuto) void setAutoLine(true);
       const error = (e as Error).message || "切换失败";
       tracePlayback("line.manual", { ok: false, err: error });
       if (key === "custom" || key === "reset") setCustomError(error);

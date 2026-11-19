@@ -348,6 +348,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener("hg:line-down", onDown);
     return () => window.removeEventListener("hg:line-down", onDown);
   }, []);
+  /** 偏好线路连续失败、被迫换到别的线路：轻提示一次（回切偏好的时候不提示）。 */
+  useEffect(() => {
+    let last = 0;
+    const onSwitched = () => {
+      const now = Date.now();
+      if (now - last < 30_000) return;
+      last = now;
+      const id = ++toastSeq.current;
+      setToasts((t) => [...t.slice(-2), { id, msg: "当前线路不可用，已自动切换", icon: "info" }]);
+      window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3000);
+    };
+    window.addEventListener("hg:line-auto-switched", onSwitched);
+    return () => window.removeEventListener("hg:line-auto-switched", onSwitched);
+  }, []);
   /** 线路真的换了（自动、手切都算）：
    *
    * 旧数据全是在上一个域名上拉的，留着等于对着一条死链路。但各列表页只在

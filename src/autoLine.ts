@@ -1,13 +1,21 @@
 /* Automatic line selection uses the real content API and keeps the current line
- * when every candidate is unavailable. */
+ * when every candidate is unavailable.
+ *
+ * 手动选线 = 「本次优先」，不再永久关闭自动选线：偏好存在 hguox_line_preferred，
+ * 自动选线只在偏好线路连续失败后才让位，恢复后自己回切且不提示。
+ * 判定逻辑在 linePolicy.ts（纯函数），这里只负责取数、落库和派事件。 */
 import { api, hostOf, logLine, setNetObserver } from "./api";
 import { tracePlayback } from "./playbackDiagnostics";
 import { readStorage, STORAGE_KEYS } from "./storage";
+import { decideLine } from "./linePolicy";
+import { migrateLegacyAutoLine, normalizeBase, readPreferredLine } from "./linePreference";
 
 const HEALTH_STEPS = [60_000, 120_000, 300_000];
 const RECHECK_MS = 4_000;
 const DOWN_RETRY_MS = 10_000;
 const PICK_COOLDOWN_MS = 15_000;
+/** 让位给别的线路后，这段时间内不再试图回切偏好（避免两条都抖的时候来回跳） */
+const PREFER_RETRY_MS = 5 * 60_000;
 let enabledOverride: boolean | null = null;
 
 export const autoLineEnabled = (): boolean => {
@@ -24,8 +32,14 @@ let downStreak = 0;
 let failStreak = 0;
 let lastPickAt: number | null = null;
 let cancellation: Promise<void> = Promise.resolve();
+/** 当前生效线路（用于判断「失败的这一条是不是用户的偏好」） */
+let currentBase = "";
+/** 让位窗口：>now 表示暂时不回切偏好线路 */
+let preferAvoidUntil = 0;
 
 export let lastPick: { base: string; tier: string; ms: number } | null = null;
+
+const sameBase = (a: string, b: string) => !!a && !!b && normalizeBase(a) === normalizeBase(b);
 
 function stopTimer() {
   window.clearTimeout(timer);
@@ -46,15 +60,23 @@ function schedule(delay: number) {
   }, delay);
 }
 
+/** 手动选线时用：取消在途的自动选线，但**不**改动「自动选择线路」开关与用户偏好。
+ *  3.0.0 之前这里会顺手写 auto_line=off，导致手动选过一次线就永久失去自动选线。 */
+export function pauseAutoPick(): Promise<void> {
+  stopTimer();
+  const pending = cancellation.then(() => api.lineCancel());
+  cancellation = pending.catch((error) => {
+    logLine(`[line] cancel failed: ${(error as Error).message}`);
+  });
+  if (started) schedule(HEALTH_STEPS[0]);
+  return pending;
+}
+
 export const setAutoLine = (on: boolean): Promise<void> => {
   enabledOverride = on;
   try { localStorage.setItem(STORAGE_KEYS.autoLine, on ? "on" : "off"); } catch { /* storage can be unavailable */ }
   if (!on) {
-    stopTimer();
-    const pending = cancellation.then(() => api.lineCancel());
-    cancellation = pending.catch((error) => {
-      logLine(`[line] cancel failed: ${(error as Error).message}`);
-    });
+    const pending = pauseAutoPick();
     window.dispatchEvent(new Event("hg:auto-line-changed"));
     return pending;
   }
@@ -64,7 +86,7 @@ export const setAutoLine = (on: boolean): Promise<void> => {
   return Promise.resolve();
 };
 
-export async function pickLine(reason: string, force = false): Promise<void> {
+export async function pickLine(reason: string, force = false, preferredDown = false): Promise<void> {
   if (!autoLineEnabled() || picking || (!force && document.visibilityState !== "visible")) return;
   if (!force && lastPickAt !== null && Date.now() - lastPickAt < PICK_COOLDOWN_MS) return;
   picking = true;
@@ -88,15 +110,42 @@ export async function pickLine(reason: string, force = false): Promise<void> {
       window.dispatchEvent(new Event("hg:line-down"));
       return;
     }
-    lastPick = { base: result.base, tier: result.pick.tier, ms: result.pick.ms };
-    logLine(`[line] auto(${reason}) ${hostOf(result.base)} tier=${result.pick.tier} ms=${result.pick.ms} switched=${result.switched} | ${candidates}`);
-    tracePlayback("line.pick", { reason, line: hostOf(result.base), tier: result.pick.tier, ms: result.pick.ms, switched: result.switched, candidates });
-    if (result.switched) {
+    /* 偏好优先：后端选出的未必是用户想要的（见 docs/线路策略.md） */
+    const preferred = readPreferredLine();
+    const plan = decideLine({
+      current: result.previous,
+      backendPick: result.base,
+      preferred,
+      candidates: result.pick.candidates,
+      preferredFailing: preferredDown || (!!preferred && Date.now() < preferAvoidUntil && !sameBase(result.base, preferred)),
+    });
+    let base = result.base;
+    if (plan.target && plan.target !== result.base) {
+      base = await api.lineSet(plan.target);
+      logLine(`[line] auto(${reason}) prefer ${hostOf(base)} over ${hostOf(result.base)}`);
+    }
+    const switched = plan.changed || base !== result.previous;
+    if (preferred && !sameBase(base, preferred)) {
+      /* 已经让位：进入避让窗口，别立刻又切回去抖 */
+      if (!preferAvoidUntil) preferAvoidUntil = Date.now() + PREFER_RETRY_MS;
+    } else if (preferred) {
+      preferAvoidUntil = 0;
+    }
+    currentBase = base;
+    lastPick = { base, tier: result.pick.tier, ms: result.pick.ms };
+    logLine(`[line] auto(${reason}) ${hostOf(base)} tier=${result.pick.tier} ms=${result.pick.ms} switched=${switched} pref=${preferred ? hostOf(preferred) : "-"} notify=${plan.notify || "-"} | ${candidates}`);
+    tracePlayback("line.pick", {
+      reason, line: hostOf(base), tier: result.pick.tier, ms: result.pick.ms, switched,
+      preferred: preferred ? hostOf(preferred) : null, notify: plan.notify, candidates,
+    });
+    if (switched || result.switched) {
       window.dispatchEvent(new CustomEvent("hg:line", {
-        detail: { region: result.pick.tier === "main" ? "intl" : "cn", host: hostOf(result.base), ms: result.pick.ms },
+        detail: { region: result.pick.tier === "main" ? "intl" : "cn", host: hostOf(base), ms: result.pick.ms },
       }));
       window.dispatchEvent(new Event("hg:line-changed"));
     }
+    /* 偏好线路挂了，被迫换到别的线路：面板只说一次，回切不提示 */
+    if (plan.notify === "preferred-down" && switched) window.dispatchEvent(new Event("hg:line-auto-switched"));
   } catch (error) {
     logLine(`[line] auto(${reason}) failed: ${(error as Error).message}`);
     tracePlayback("line.fail", { where: "auto", reason, err: (error as Error).message });
@@ -108,12 +157,15 @@ export async function pickLine(reason: string, force = false): Promise<void> {
 
 async function tryMain(reason: string): Promise<void> {
   if (!autoLineEnabled() || picking) return;
+  /* 有偏好线路时不允许自动回切主站：用户选的线只要通就不能被换走 */
+  if (readPreferredLine()) return;
   picking = true;
   try {
     await cancellation;
     if (!autoLineEnabled()) return;
     const result = await api.lineTryMain();
     if (result.cancelled || !autoLineEnabled()) return;
+    currentBase = result.base;
     logLine(`[line] main(${reason}) ok=${result.probe.ok} ms=${result.probe.ms} switched=${result.switched}`);
     if (result.switched) {
       window.dispatchEvent(new CustomEvent("hg:line", {
@@ -137,10 +189,17 @@ async function check(reason: string): Promise<void> {
   checking = true;
   try {
     const health = await api.lineHealth();
+    currentBase = health.base;
     if (health.ok) {
       downStreak = 0;
       step = Math.min(step + 1, HEALTH_STEPS.length - 1);
-      if (hostOf(health.base) !== "huangguoai.com") await tryMain(reason);
+      const preferred = readPreferredLine();
+      if (!preferred) {
+        if (hostOf(health.base) !== "huangguoai.com") await tryMain(reason);
+      } else if (!sameBase(health.base, preferred) && Date.now() >= preferAvoidUntil) {
+        /* 偏好线路可能回来了：复检一次，通了就静默切回（无提示） */
+        void pickLine("prefer-recover");
+      }
       schedule(HEALTH_STEPS[step]);
       return;
     }
@@ -153,7 +212,9 @@ async function check(reason: string): Promise<void> {
     }
     downStreak = 0;
     step = 0;
-    await pickLine(reason, true);
+    /* 连续 2 次失败：如果失败的就是偏好线路，这次让位并允许提示 */
+    const preferred = readPreferredLine();
+    await pickLine(reason, true, !!preferred && sameBase(health.base, preferred));
   } catch (error) {
     logLine(`[line] health(${reason}) failed: ${(error as Error).message}`);
     schedule(HEALTH_STEPS[step]);
@@ -190,10 +251,11 @@ function attach() {
   });
   schedule(HEALTH_STEPS[0]);
 }
-
 export function initAutoLine(): void {
   if (started) return;
   started = true;
+  /* 旧版本「手动选线 → auto_line=off」不是用户意图，升级后一次性恢复自动选线 */
+  migrateLegacyAutoLine();
   if (!autoLineEnabled()) return;
   attach();
   void pickLine("boot");
