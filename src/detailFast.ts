@@ -11,6 +11,11 @@ import { api, logLine } from "./api";
 import type { Detail } from "./types";
 
 const CACHE_TTL_MS = 5 * 60_000;
+/* 磁盘缓存（SWR）：最近 50 部详情，带时间戳，整包控制在 ~1MB 内 */
+const DISK_KEY = "hguox_detail_cache_v1";
+const DISK_MAX_ITEMS = 50;
+const DISK_MAX_BYTES = 1_000_000;
+const DISK_WRITE_DEBOUNCE_MS = 400;
 const SLOW_MS = 3_000;
 const PREFETCH_LIMIT = 4;
 const PREFETCH_CONCURRENCY = 2;
@@ -18,6 +23,62 @@ const PREFETCH_CONCURRENCY = 2;
 type Entry = { at: number; data: Detail };
 const cache = new Map<number, Entry>();
 const inflight = new Map<number, Promise<Detail>>();
+let diskTimer = 0;
+let diskDirty = false;
+
+/** 读磁盘缓存（坏数据/超限一律当没有，不抛） */
+function hydrateFromDisk() {
+  try {
+    const raw = localStorage.getItem(DISK_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as { v?: number; order?: number[]; items?: Record<string, Entry> };
+    if (parsed?.v !== 1 || !parsed.items) return;
+    for (const id of parsed.order || []) {
+      const entry = parsed.items[String(id)];
+      if (entry?.data && Number.isFinite(entry.at)) cache.set(Number(id), entry);
+    }
+  } catch {
+    /* 解析失败：忽略这份缓存（下次写入会覆盖） */
+  }
+}
+
+/** 落盘：按写入时间排序，超 50 条或超 1MB 从最旧的开始丢 */
+function flushDisk() {
+  diskTimer = 0;
+  if (!diskDirty) return;
+  diskDirty = false;
+  try {
+    const ids = [...cache.entries()].sort((a, b) => b[1].at - a[1].at).slice(0, DISK_MAX_ITEMS);
+    let order: number[] = [];
+    let items: Record<string, Entry> = {};
+    /* 从新到旧塞，塞到超预算就停（保证 JSON 不超过 ~1MB） */
+    for (const [id, entry] of ids) {
+      const next = { ...items, [String(id)]: entry };
+      const nextOrder = [...order, id];
+      const size = JSON.stringify({ v: 1, order: nextOrder, items: next }).length;
+      if (size > DISK_MAX_BYTES && order.length) break;
+      items = next;
+      order = nextOrder;
+    }
+    localStorage.setItem(DISK_KEY, JSON.stringify({ v: 1, order, items }));
+  } catch {
+    /* 配额满/隐私模式：静默放弃磁盘缓存，内存缓存照常工作 */
+  }
+}
+
+function scheduleDiskWrite() {
+  diskDirty = true;
+  if (diskTimer) return;
+  diskTimer = window.setTimeout(flushDisk, DISK_WRITE_DEBOUNCE_MS);
+}
+
+/** 清空详情磁盘缓存（设置里「清理缓存」会调用） */
+export function clearDetailCache(): void {
+  cache.clear();
+  try { localStorage.removeItem(DISK_KEY); } catch { /* 忽略 */ }
+}
+
+hydrateFromDisk();
 
 const fresh = (entry: Entry | undefined): entry is Entry =>
   !!entry && Date.now() - entry.at < CACHE_TTL_MS;
@@ -28,8 +89,18 @@ export function cachedDetail(id: number): Detail | null {
   return fresh(entry) ? entry.data : null;
 }
 
+/**
+ * SWR：同步读到任何一份缓存（含过期的与上次启动落盘的），先上屏再静默刷新。
+ * 过期不影响先上屏 —— 内容过期一两分钟不算错，用户先看到东西更重要。
+ */
+export function cachedDetailStale(id: number): { data: Detail; at: number } | null {
+  const entry = cache.get(id);
+  return entry ? { data: entry.data, at: entry.at } : null;
+}
+
 function remember(id: number, data: Detail): Detail {
   cache.set(id, { at: Date.now(), data });
+  scheduleDiskWrite();
   return data;
 }
 

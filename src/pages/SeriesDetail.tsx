@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, cover, fmt } from "../api";
-import { cachedDetail, loadDetail } from "../detailFast";
+import { cachedDetailStale, loadDetail } from "../detailFast";
 import { useStore } from "../store";
 import { ambientStyle, useAccent } from "../useAccent";
 import { Button } from "../components/ios/controls";
@@ -13,7 +13,8 @@ import type { Detail, VideoCard } from "../types";
    下面依次是 #标签小签、简介、选集（5 列 56×56）、相关推荐；顶部悬浮返回 + 收藏按钮，底部智能续播主 CTA。 */
 export default function SeriesDetail({ id, onBack }: { id: number; onBack: () => void }) {
   const { push, lineEpoch, history, isFav, setCollected, actionPending, toast } = useStore();
-  const [detail, setDetail] = useState<Detail | null>(() => cachedDetail(id));
+  /* SWR：先同步读缓存（含上次启动落盘的），有就立刻上屏，再静默刷新 */
+  const [detail, setDetail] = useState<Detail | null>(() => cachedDetailStale(id)?.data ?? null);
   const [related, setRelated] = useState<VideoCard[]>([]);
   const [err, setErr] = useState("");
   const [favDelta, setFavDelta] = useState(0);

@@ -1,6 +1,6 @@
 import { Button, SegmentedControl } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { api, fmtTime } from "../api";
 import type { Detail, Post } from "../types";
 import { useStore } from "../store";
@@ -37,12 +37,23 @@ export default function Profile({ wide }: { wide: boolean }) {
 }
 
 function ProfileContent({ wide: _wide }: { wide: boolean }) {
-  const { user, setLoginOpen, history, postHistory, favs, postFavs, follows, push, accountSync, syncAccount } = useStore();
+  const { user, setLoginOpen, history, postHistory, favs, postFavs, follows, push, accountSync, syncAccount, guestKept, guestSnapshot } = useStore();
   const [recentDetails, setRecentDetails] = useState<Record<number, Detail>>({});
   const [recentFailed, setRecentFailed] = useState<Record<number, boolean>>({});
   const recentDetailsRef = useRef(recentDetails);
   recentDetailsRef.current = recentDetails;
-  const recentIdsKey = history.slice(0, 8).map((h) => h.id).join(",");
+  /* 选过「暂不同步」：账号里没有的本机记录也照常显示，并标「本机」来源 */
+  const localRows = useMemo(() => {
+    if (!guestKept) return [];
+    const known = new Set(history.map((h) => h.id));
+    return guestSnapshot().history.filter((h) => Number.isSafeInteger(h.id) && h.id > 0 && !known.has(h.id));
+  }, [guestKept, guestSnapshot, history]);
+  const recentRows = useMemo(() => {
+    const rows = [...history];
+    for (const row of localRows) if (!rows.some((h) => h.id === row.id)) rows.push(row);
+    return rows.slice(0, 8);
+  }, [history, localRows]);
+  const recentIdsKey = recentRows.map((h) => h.id).join(",");
   useEffect(() => {
     const ids = recentIdsKey ? recentIdsKey.split(",").map(Number).filter(Boolean) : [];
     const missing = ids.filter((id) => !recentDetailsRef.current[id]);
@@ -163,6 +174,9 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
             <span className="hg-profile-sec-title">
               <IMenuHistory size={16} strokeWidth={1.85} />
               <span>最近观看</span>
+              {guestKept && recentRows.length > 0 && (
+                <span className="hg-profile-sec-src" title="用户选择暂不同步，这份记录只在本机">本机记录</span>
+              )}
               {(history.length + postHistory.length) > 0 && (
                 <span className="hg-profile-sec-count">{history.length + postHistory.length}</span>
               )}
@@ -172,9 +186,9 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
             </Button>
           </div>
 
-          {history.length > 0 ? (
+          {recentRows.length > 0 ? (
             <div className="hg-recent-rail">
-              {history.slice(0, 8).map((h) => {
+              {recentRows.map((h) => {
                 const detail = recentDetails[h.id];
                 const pct = h.dur && h.t ? Math.min(100, Math.max(4, Math.round((h.t / h.dur) * 100))) : 0;
                 return (
@@ -202,6 +216,9 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
                     <div className="hg-recent-title">{detail?.title || (recentFailed[h.id] ? `短剧 #${h.id}` : "加载中…")}</div>
                     <div className="hg-recent-sub">
                       {h.t > 3 ? `续播 ${fmtTime(h.t)}` : "刚看过"}
+                      {localRows.some((row) => row.id === h.id) && (
+                        <span className="hg-recent-src" title="只有本机有这条记录（未同步到账号）"> · 本机</span>
+                      )}
                     </div>
                   </Button>
                 );

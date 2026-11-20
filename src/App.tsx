@@ -9,6 +9,7 @@ import { addPluginListener, invoke } from "@tauri-apps/api/core";
 import { runBack } from "./back";
 import Home from "./pages/Home";
 import LoginModal from "./components/LoginModal";
+import GuestMergePrompt from "./components/GuestMergePrompt";
 import { ToastHost } from "./components/ui";
 import { DesktopRail, DesktopTitleBar } from "./components/DesktopChrome";
 import ResizeHandles from "./components/ResizeHandles";
@@ -394,6 +395,7 @@ export default function App() {
     <>
       {isMobile ? <MobileShell /> : <DesktopShell />}
       <LoginModal />
+      <GuestMergePrompt />
       <ToastHost />
     </>
   );

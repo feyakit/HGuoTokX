@@ -309,6 +309,50 @@ export function useAccountData(initialGuest: GuestData, saveGuest: (data: GuestD
   };
   const currentGeneration = state.current.generation;
   const currentClearVersion = clearVersion.current;
+  /** 把游客本机数据逐条合进当前账号：串行 + 150ms 间隔，失败继续，最后如实返回成败条数 */
+  const mergeGuest = useCallback(async (
+    snap: { favs: number[]; history: WatchProgress[] },
+    onProgress?: (done: number, total: number) => void,
+  ) => {
+    const generation = state.current!.generation;
+    const auth = identity();
+    const favs = snap.favs.filter(id => Number.isSafeInteger(id) && id > 0);
+    const history = snap.history.filter(row => Number.isSafeInteger(row.id) && row.id > 0);
+    const total = favs.length + history.length;
+    let done = 0, okFavs = 0, failFavs = 0, okHistory = 0, failHistory = 0;
+    const gap = () => new Promise<void>(resolve => { setTimeout(resolve, 150); });
+    for (const id of favs) {
+      if (!isCurrent(generation)) break;
+      try {
+        await api.collect(id, true, auth);
+        okFavs += 1;
+        const current = state.current!.data;
+        if (!current.favs.includes(id)) persist({ ...current, favs: [...current.favs, id] });
+      } catch {
+        failFavs += 1;
+      }
+      done += 1; onProgress?.(done, total);
+      await gap();
+    }
+    for (const row of history) {
+      if (!isCurrent(generation)) break;
+      try {
+        await api.accountHistoryRecord(auth, row.id, row.ep || 1);
+        okHistory += 1;
+        const current = state.current!.data;
+        if (!current.history.some(item => item.id === row.id)) {
+          persist({ ...current, history: [{ ...row }, ...current.history].slice(0, 200) });
+        }
+      } catch {
+        failHistory += 1;
+      }
+      done += 1; onProgress?.(done, total);
+      await gap();
+    }
+    if (isCurrent(generation)) render();
+    return { okFavs, failFavs, okHistory, failHistory };
+  }, []);
+
   const addHistory = useCallback((id: number, ep?: number, time?: number, duration?: number) => {
     if (!isCurrent(currentGeneration) || clearVersion.current !== currentClearVersion || !Number.isSafeInteger(id) || id <= 0) return;
     const s = state.current!;
@@ -369,6 +413,10 @@ export function useAccountData(initialGuest: GuestData, saveGuest: (data: GuestD
   }, []);
   const s = state.current;
   return { user: s.user, setUser, restoreSession, generation, logout, accountScope: `${s.key}:${s.generation}`, accountSync: s.sync,
+    /* 游客态本机数据快照（登录后用来问"要不要同步到账号"） */
+    guestSnapshot: (): GuestData => ({ ...guest.current, favs: [...guest.current.favs], history: [...guest.current.history] }),
+    /* 逐条把本机游客数据同步进当前账号：串行、间隔 150ms、失败继续并计数（不造假） */
+    mergeGuest, 
     syncAccount, likes: s.data.likes, favs: s.data.favs, postFavs: s.data.postFavs, follows: s.data.follows, history: s.data.history, postHistory: s.data.postHistory,
     isFav: (id: number, kind: Kind = "video") => (kind === "video" ? s.data.favs : s.data.postFavs).includes(id),
     isLiked: (id: number, ep?: number, kind: Kind = "video") => kind === "post" ? s.data.postLikes.includes(id)

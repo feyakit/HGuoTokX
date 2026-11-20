@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, APP_VERSION, hostOf, logLine, type UpdateInfo } from "../api";
 import { useStore } from "../store";
 import { Modal } from "../components/ui";
+import { clearDetailCache } from "../detailFast";
 import LinePicker from "../components/LinePicker";
 import ProxySettings from "../components/ProxySettings";
 import { ContentPreferenceToggles } from "../components/ContentPreferencesSettings";
@@ -346,6 +347,8 @@ export default function Settings({ onBack }: { onBack: () => void; wide: boolean
               setClearing(true); setClearError("");
               try {
                 const cleared = await api.clearCache();
+                /* 详情磁盘缓存（SWR）也一起清，否则"清理缓存"名不副实 */
+                clearDetailCache();
                 setClearOpen(false);
                 toast(cleared.webCache ? "缓存已清理（含 WebKit 媒体缓存）" : "应用内缓存已清理", "ok");
               } catch (error) {
