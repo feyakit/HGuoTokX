@@ -483,7 +483,6 @@
 .ios-mobile-nav[data-over-video="true"] .hg-glass > .ios-mobile-nav-items > .ios-mobile-nav-item[aria-current="page"] { color: #fff; }
 
 /* 画布硬定 #0A0B14 */
-html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 
 /* 角标配色：右上角 New #7C5CFF / Hot #FF3B30（对齐设计稿 Screen 2） */
 .hg-poster-badge {

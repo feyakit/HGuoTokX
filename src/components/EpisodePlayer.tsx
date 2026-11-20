@@ -346,6 +346,28 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const hevcUrl = hevcUrls[playKey] || "";
   const useHevc = preferHevc && !!hevcUrl && !hevcFallback[playKey];
   const playUrl = useHevc ? hevcUrl : mainUrl;
+  /* 画质胶囊只在「本集真有第二条流」时才可切：API 给的是 streams.hevc / streams.main 两条
+     真实地址（见下方 requestPlay 的解析），preferHevc 直接决定 <video src> 用哪条，
+     所以切了是真的换源，不是只换标签。HEVC 解不出来时 hevcFallback 会把它标掉，
+     这时候胶囊就只有「标准」一档并置灰，不假装还能切。 */
+  const qualitySwitchable = !!hevcUrl && !hevcFallback[playKey];
+  /* 切画质会换 <video> 的 src（VideoSurface 的 effect 依赖 src），等于重新挂载，
+     进度会归零 —— 所以切完把当前时间 seek 回去；源还没 ready 时下一次 timeout 重试。 */
+  const switchQuality = useCallback(() => {
+    const at = videoRef.current?.el()?.currentTime ?? 0;
+    setPreferHevc(!preferHevc);
+    toast(preferHevc ? "画质：标准（已换源）" : "画质：高清优先（已换源）", "info");
+    if (!(at > 1)) return;
+    const restore = (tries: number) => {
+      try {
+        videoRef.current?.seek(at, "quality-switch");
+      } catch {
+        if (tries < 4) window.setTimeout(() => restore(tries + 1), 400);
+      }
+    };
+    window.setTimeout(() => restore(0), 450);
+  }, [preferHevc, setPreferHevc, toast]);
+
   const openFullSeries = useCallback(() => {
     if (kind !== "video" || !curId) { setPanel("detail"); return; }
     const v = videoRef.current?.el();
@@ -1149,6 +1171,29 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     return registerOverlayBack(() => { exitFs(); return true; });
   }, [isDesktop, fs, exitFs]);
 
+  /* 安卓现在会真转屏（api.rs 的 set_orientation 走 JNI 调 setRequestedOrientation），
+     所以「退出播放器」和「切后台」这两条路径也必须还原竖屏，否则用户被锁在横屏里：
+       · 组件卸载（返回上一页 / 换片）→ 还原；
+       · 切后台（visibilitychange hidden）→ 还原，回来时若还在横屏全屏再转回去。
+     fs/fsLandscape 用 ref 取最新值，避免每次开关全屏都重挂监听（cleanup 里会误还原）。 */
+  const orientationRef = useRef({ fs: false, landscape: false });
+  orientationRef.current = { fs, landscape: fsLandscape };
+  useEffect(() => {
+    if (isDesktop) return undefined;
+    const setOrientation = (landscape: boolean) => {
+      try { void invoke("set_orientation", { landscape }); } catch { /* ignore */ }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") setOrientation(false);
+      else if (orientationRef.current.fs && orientationRef.current.landscape) setOrientation(true);
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      setOrientation(false);
+    };
+  }, [isDesktop]);
+
   /* 若用户在视频首帧宽高解析出来前已点进全屏，解析出横屏后自动补发横屏方向请求 */
   useEffect(() => {
     if (isDesktop || !fs || !landscapeVideo) return;
@@ -1759,10 +1804,15 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                             视觉尺寸天然一致；热区由 .hg-quality-chip::after 上下各撑 6px。 */}
                         <Button
                           type="button"
-                          aria-label={`画质：${preferHevc ? "高清优先" : "标准画质"}，点击切换`}
-                          onClick={() => { setPreferHevc(!preferHevc); toast(preferHevc ? "画质：标准" : "画质：高清优先", "info"); }}
+                          disabled={!qualitySwitchable}
+                          aria-disabled={qualitySwitchable ? undefined : true}
+                          aria-label={qualitySwitchable
+                            ? `画质：${preferHevc ? "高清优先" : "标准画质"}，点击切换`
+                            : "画质：标准（本集无独立高清流）"}
+                          title={qualitySwitchable ? "在高清流 / 标准流之间切换" : "本集没有独立的高清流，自动使用标准画质"}
+                          onClick={qualitySwitchable ? switchQuality : undefined}
                           className="hg-quality-chip h-8 px-2.5 rounded-full text-[12px] font-semibold flex items-center gap-1 hg-chip hg-ink-2 pressable">
-                          {preferHevc ? "高清" : "标准"}
+                          {qualitySwitchable && preferHevc ? "高清" : "标准"}
                         </Button>
                         <Button
                           type="button"

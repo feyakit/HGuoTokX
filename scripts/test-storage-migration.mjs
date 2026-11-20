@@ -5,10 +5,8 @@ import { createServer } from "vite";
 import { chromium } from "playwright-core";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const bootScript = (await readFile(new URL("../index.html", import.meta.url), "utf8"))
-  .match(/<script>([\s\S]*?)<\/script>/)[1];
-const fixtureHtml = (await readFile(new URL("../tests/storage-migration.html", import.meta.url), "utf8"))
-  .replace('<script type="module"', `<script>${bootScript}\nwindow.initialTheme = document.documentElement.classList.contains("theme-light");</script><script type="module"`);
+/* index.html 里已经没有首帧主题脚本（浅色主题已整体删除），这里直接用测试页本身。 */
+const fixtureHtml = await readFile(new URL("../tests/storage-migration.html", import.meta.url), "utf8");
 const state = {
   likes: [11], favs: [22], follows: [33],
   history: [{ id: 44, ep: 3, t: 12.5, dur: 80, at: 123456 }],
@@ -16,7 +14,7 @@ const state = {
   muteOnStartup: false, swipeEp: false, preferHevc: true,
 };
 const oldData = {
-  hghub_app_v1: JSON.stringify(state), hghub_swipe_ep_v2: "1", hghub_theme: "light",
+  hghub_app_v1: JSON.stringify(state), hghub_swipe_ep_v2: "1",
 };
 let vite, browser;
 const errors = [];
@@ -72,36 +70,22 @@ try {
 
   {
     const { context, page } = await open(oldData);
-    assert.deepEqual(await snapshot(page), { ...state, theme: "dark" });
-    assert.equal(await page.evaluate(() => window.storageMigrationFixture.getThemePreference()), "light");
-    assert.equal(await page.evaluate(() => window.initialTheme), true);
+    assert.deepEqual(await snapshot(page), { ...state });
     const saved = await storage(page);
-    assert.deepEqual(Object.keys(saved).sort(), ["hguox_app_v1", "hguox_swipe_ep_v2", "hguox_theme"]);
-    assert.equal(saved.hguox_theme, "light");
+    assert.deepEqual(Object.keys(saved).sort(), ["hguox_app_v1", "hguox_swipe_ep_v2"]);
     assert.deepEqual(JSON.parse(saved.hguox_app_v1), { ...state, postFavs: [] });
-    await page.evaluate(() => window.storageMigrationFixture.setTheme("system"));
-    await page.waitForFunction(() => localStorage.getItem("hguox_theme") === "system");
-    await page.emulateMedia({ colorScheme: "dark" });
-    await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
-    await page.emulateMedia({ colorScheme: "light" });
-    await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
-    assert.equal(await page.evaluate(() => localStorage.getItem("hguox_theme")), "system");
-    await page.evaluate(() => {
-      window.storageMigrationFixture.setTheme("dark");
-      window.storageMigrationFixture.clearHistory();
-    });
-    await page.waitForFunction(() => localStorage.getItem("hguox_theme") === "dark" && JSON.parse(localStorage.getItem("hguox_app_v1")).history.length === 0);
+    await page.evaluate(() => window.storageMigrationFixture.clearHistory());
+    await page.waitForFunction(() => JSON.parse(localStorage.getItem("hguox_app_v1")).history.length === 0);
     await page.reload();
     await page.waitForFunction(() => window.storageMigrationFixture?.strictSecurityReady);
-    assert.deepEqual(await snapshot(page), { ...state, history: [], theme: "dark" });
+    assert.deepEqual(await snapshot(page), { ...state, history: [] });
     await context.close();
-    console.log("PASS: legacy data, swipe opt-out, adaptive and explicit appearance survive migration and restart");
+    console.log("PASS: legacy data and swipe opt-out survive migration and restart");
   }
   {
     const newer = { ...state, favs: [99], history: [] };
-    const { context, page } = await open({ ...oldData, hguox_app_v1: JSON.stringify(newer), hguox_theme: "dark", hguox_swipe_ep_v2: "1" });
-    assert.deepEqual(await snapshot(page), { ...newer, theme: "dark" });
-    assert.equal(await page.evaluate(() => window.initialTheme), false);
+    const { context, page } = await open({ ...oldData, hguox_app_v1: JSON.stringify(newer), hguox_swipe_ep_v2: "1" });
+    assert.deepEqual(await snapshot(page), { ...newer });
     assert(Object.keys(await storage(page)).every(key => key.startsWith("hguox_")));
     await context.close();
     console.log("PASS: new values win over stale old data and old keys are cleaned");
@@ -110,13 +94,11 @@ try {
     const prev = ["hg", "hubx_"].join("");
     const { context, page } = await open({
       [`${prev}app_v1`]: JSON.stringify(state),
-      [`${prev}theme`]: "light",
       [`${prev}swipe_ep_v2`]: "1",
     });
-    assert.deepEqual(await snapshot(page), { ...state, theme: "dark" });
+    assert.deepEqual(await snapshot(page), { ...state });
     const saved = await storage(page);
-    assert.deepEqual(Object.keys(saved).sort(), ["hguox_app_v1", "hguox_swipe_ep_v2", "hguox_theme"]);
-    assert.equal(saved.hguox_theme, "light");
+    assert.deepEqual(Object.keys(saved).sort(), ["hguox_app_v1", "hguox_swipe_ep_v2"]);
     await context.close();
     console.log("PASS: previous-brand keys migrate to hguox_* and the old keys are removed");
   }
@@ -132,21 +114,18 @@ try {
   }
   for (const failure of ["write", "remove"]) {
     const { context, page } = await open(oldData, failure);
-    assert.deepEqual(await snapshot(page), { ...state, theme: "dark" });
-    assert.equal(await page.evaluate(() => window.storageMigrationFixture.getThemePreference()), "light");
+    assert.deepEqual(await snapshot(page), { ...state });
     const saved = await storage(page);
     for (const [key, value] of Object.entries(oldData)) assert.equal(saved[key], value);
     await page.reload();
     await page.waitForFunction(() => window.storageMigrationFixture?.strictSecurityReady);
-    assert.deepEqual(await snapshot(page), { ...state, theme: "dark" });
-    assert.equal(await page.evaluate(() => window.storageMigrationFixture.getThemePreference()), "light");
+    assert.deepEqual(await snapshot(page), { ...state });
     await context.close();
     console.log(`PASS: ${failure} failure retains legacy data and preferences across restarts`);
   }
   for (const seed of [{}, { hghub_app_v1: "invalid json" }]) {
     const { context, page } = await open(seed);
     assert.deepEqual((await snapshot(page)).history, []);
-    assert.equal(await page.evaluate(() => window.storageMigrationFixture.getThemePreference()), "system");
     await context.close();
   }
   {

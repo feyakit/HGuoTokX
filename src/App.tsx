@@ -264,7 +264,7 @@ function MobileShell() {
 
 /* ============ 入口 ============ */
 export default function App() {
-  const { platform, accent, theme, loginOpen, setLoginOpen, tab, setTab, stack, pop, push, fs, setFs } = useStore();
+  const { platform, accent, loginOpen, setLoginOpen, tab, setTab, stack, pop, push, fs, setFs } = useStore();
 
   /* 深链：?series=<id> 直接进剧集详情页（也方便截图脚本与外部跳转） */
   const __hguoxDeepLink = useRef(false);
@@ -277,13 +277,14 @@ export default function App() {
     } catch { /* ignore */ }
   }, [push]);
 
-  /* 全站强调色固定为设计紫 #7C5CFF（避免封面取色导致紫/鲑红来回跳变） */
+  /* 全站强调色固定为设计紫 #7C5CFF（避免封面取色导致紫/鲑红来回跳变）。
+     配色只有深色一套（浅色主题已整体删除），所以 accentTokens 的 light 恒为 false。 */
   useEffect(() => {
     const root = document.documentElement;
-    for (const [key, value] of Object.entries(accentTokens(FALLBACK_SCHEME, theme === "light"))) {
+    for (const [key, value] of Object.entries(accentTokens(FALLBACK_SCHEME, false))) {
       root.style.setProperty(key, value);
     }
-  }, [accent, theme]);
+  }, [accent]);
   useEffect(() => {
     tracePlayback("navigation.change", { tab, stack: stack.map(p => ({ page: p.kind, key: p.key })), login_open: loginOpen });
   }, [tab, stack, loginOpen]);

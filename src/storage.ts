@@ -3,7 +3,6 @@ import { legacyKey } from "./legacyKeys";
 export const STORAGE_KEYS = {
   app: "hguox_app_v1",
   swipeEp: "hguox_swipe_ep_v2",
-  theme: "hguox_theme",
   autoLine: "hguox_auto_line",
   /* 手动选过的线路 = 「本次优先」，不关自动选线（见 docs/线路策略.md） */
   linePreferred: "hguox_line_preferred",
@@ -22,7 +21,6 @@ type StorageKey = typeof STORAGE_KEYS[keyof typeof STORAGE_KEYS];
 const LEGACY_KEYS: Record<StorageKey, string[]> = {
   hguox_app_v1: [legacyKey("app_v1"), "hghub_app_v1"],
   hguox_swipe_ep_v2: [legacyKey("swipe_ep_v2"), "hghub_swipe_ep_v2"],
-  hguox_theme: [legacyKey("theme"), "hghub_theme"],
   hguox_auto_line: [legacyKey("auto_line"), "hg.autoLine"],
   hguox_line_preferred: [],
 };

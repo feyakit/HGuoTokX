@@ -5,14 +5,14 @@ import { useStore, type Tab } from "../store";
 import { APP_VERSION } from "../api";
 import { Avatar } from "./ui";
 import {
-  IClose, IMinus, IMoon, INavCategory, INavCommunity, INavHome, INavProfile,
-  IRestore, ISearch, ISettings, ISidebar, ISquare, ISun, ITrophy, IUser, Logo,
+  IClose, IMinus, INavCategory, INavCommunity, INavHome, INavProfile,
+  IRestore, ISearch, ISettings, ISidebar, ISquare, ITrophy, IUser, Logo,
 } from "../icons";
 
 const appWindow = () => getCurrentWindow();
 
 export function DesktopTitleBar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
-  const { theme, setTheme, push, platform } = useStore();
+  const { push, platform } = useStore();
   const [maxed, setMaxed] = useState(false);
   /* macOS 原生全屏：红绿灯被系统隐藏，标题栏左侧 84px 让位要收回（见 index.css） */
   const [nativeFs, setNativeFs] = useState(false);
@@ -40,9 +40,6 @@ export function DesktopTitleBar({ collapsed, onToggle }: { collapsed: boolean; o
         <ISidebar size={17} strokeWidth={1.7} />
       </Button>
       <div className="win-drag-region" data-tauri-drag-region />
-      <Button className="win-caption-tool" aria-label="切换外观" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-        {theme === "dark" ? <ISun size={17} strokeWidth={1.7} /> : <IMoon size={17} strokeWidth={1.7} />}
-      </Button>
       <Button className="win-caption-tool" aria-label="搜索" onClick={() => push({ kind: "search" })}>
         <ISearch size={17} strokeWidth={1.7} />
       </Button>

@@ -9,8 +9,6 @@ import { readAmbient } from "./useAccent";
 import { pickGuestData, useAccountData, type GuestData } from "./accountData";
 
 export type Platform = "android" | "ios" | "windows" | "macos" | "linux";
-export type Theme = "dark" | "light";
-export type ThemePreference = Theme | "system";
 export type Tab = "home" | "posts" | "category" | "profile";
 
 /** 播放页上下文：ids 是来源列表，index 是当前条目。 */
@@ -133,47 +131,8 @@ function loadPersist(): Persist {
   }
 }
 
-function readThemePreference(): ThemePreference {
-  try {
-    const saved = readStorage(STORAGE_KEYS.theme);
-    if (saved === "light" || saved === "dark" || saved === "system") return saved;
-    return "system";
-  } catch {
-    return "system";
-  }
-}
-
-/* 这套设计本身就是深色底（画布固定冷蓝、文字/玻璃都按深色取色）：
-   强制 dark，不跟系统。浅色分支的代码先留着，但入口禁用（用户 2026-11-17 定调）。 */
-const FORCE_DARK = true;
-function resolveTheme(preference: ThemePreference): Theme {
-  if (FORCE_DARK) return "dark";
-  if (preference !== "system") return preference;
-  return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
-function applyTheme(theme: Theme) {
-  const root = document.documentElement;
-  root.classList.toggle("theme-light", theme === "light");
-  document.documentElement.style.colorScheme = theme;
-  root.dataset.theme = theme;
-  const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-  if (meta) meta.content = theme === "light" ? "#eeece7" : "#121212";
-}
-
-let themeTransitionTimer = 0;
-function beginThemeTransition() {
-  const root = document.documentElement;
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  root.style.setProperty("--theme-transition-surface", getComputedStyle(root).getPropertyValue("--p-bg").trim());
-  root.classList.add("theme-transitioning");
-  window.clearTimeout(themeTransitionTimer);
-  themeTransitionTimer = window.setTimeout(() => root.classList.remove("theme-transitioning"), 420);
-}
-
 type Store = {
   platform: Platform;
-  theme: Theme; themePreference: ThemePreference; setTheme: (t: ThemePreference) => void;
   tab: Tab; setTab: (t: Tab) => void;
   stack: Page[]; push: (p: PageInput) => void; pop: () => void;
   user: User | null; setUser: (u: User | null, origin?: string) => void;
@@ -218,9 +177,6 @@ let seq = 0;
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [p, setP] = useState<Persist>(loadPersist);
-  const [themePreference, setThemePreferenceState] = useState<ThemePreference>(readThemePreference);
-  const [theme, setThemeState] = useState<Theme>(() => resolveTheme(readThemePreference()));
-  const themeRef = useRef(theme);
   const [tab, setTabRaw] = useState<Tab>("home");
   const [stack, setStack] = useState<Page[]>([]);
   // Guest library writes must not roll back sound, quality, gestures or search preferences.
@@ -242,34 +198,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [strictSecurityReady, setStrictSecurityReady] = useState(false);
   const [securityPending, setSecurityPending] = useState(false);
   const toastSeq = useRef(0);
-
-  useEffect(() => {
-    const media = matchMedia("(prefers-color-scheme: dark)");
-    const sync = () => {
-      const next = resolveTheme(themePreference);
-      if (themeRef.current !== next) beginThemeTransition();
-      themeRef.current = next;
-      setThemeState(next);
-    };
-    sync();
-    if (themePreference === "system") {
-      media.addEventListener?.("change", sync);
-      return () => media.removeEventListener?.("change", sync);
-    }
-  }, [themePreference]);
-
-  useLayoutEffect(() => {
-    applyTheme(theme);
-    try { localStorage.setItem(STORAGE_KEYS.theme, themePreference); } catch { /* ignore */ }
-  }, [theme, themePreference]);
-
-  const setTheme = useCallback((next: ThemePreference) => {
-    const resolved = resolveTheme(next);
-    if (resolved !== themeRef.current) beginThemeTransition();
-    themeRef.current = resolved;
-    setThemePreferenceState(next);
-    setThemeState(resolved);
-  }, []);
 
   useEffect(() => {
     try { localStorage.setItem(LS, JSON.stringify(p)); } catch { /* ignore */ }
@@ -451,7 +379,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<Store>(() => ({
     platform: envPlatform,
-    theme, themePreference, setTheme,
     tab, setTab, stack, push, pop,
     user, setUser, loginOpen, setLoginOpen, logout,
     accountScope: account.accountScope, accountSync: account.accountSync, syncAccount: account.syncAccount,
@@ -468,7 +395,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity,
     accent, setAccent: setAccentState,
     toasts, toast, lineEpoch,
-  }), [theme, themePreference, setTheme, tab, setTab, stack, push, pop, user, loginOpen, logout,
+  }), [tab, setTab, stack, push, pop, user, loginOpen, logout,
     p, account,
     setMuted, setMuteOnStartup, setSwipeEp, setPreferHevc, setVolume, addSearch, clearSearchHist, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity,
     accent, setAccentState,

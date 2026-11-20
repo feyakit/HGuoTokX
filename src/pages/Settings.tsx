@@ -1,4 +1,4 @@
-import { Button, SegmentedControl, Surface, TextArea } from "../components/ios/controls";
+import { Button, Surface, TextArea } from "../components/ios/controls";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, APP_VERSION, hostOf, logLine, platform, type UpdateInfo } from "../api";
 import { useStore } from "../store";
@@ -13,12 +13,11 @@ import { copyPlaybackLog, initPlaybackLog, setPlaybackLog, tracePlayback, usePla
 import { formatNetDiag, shortVerdict } from "../netDiagReport";
 import { copyText } from "../clipboard";
 import { Loader } from "../components/ios/effects";
-import { IBack, IBoltF, IBroom, IChevR, IHeart, IInfo, ILink, ILockF, IMoon, IRefresh, ISun, IVolMute } from "../icons";
+import { IBack, IBoltF, IBroom, IChevR, IHeart, IInfo, ILink, ILockF, IRefresh, IVolMute } from "../icons";
 
-const SETTING_GROUPS = ["外观", "播放", "内容偏好", "本地数据", "网络", "播放诊断", "其他"] as const;
+const SETTING_GROUPS = ["播放", "内容偏好", "本地数据", "网络", "播放诊断", "其他"] as const;
 type SettingGroup = typeof SETTING_GROUPS[number];
 const GROUP_SUMMARIES: Record<SettingGroup, string> = {
-  外观: "跟随系统、浅色与深色",
   播放: "启动静音与画质偏好",
   内容偏好: "标签屏蔽与内容显示",
   本地数据: "收藏、观看记录与缓存",
@@ -27,10 +26,10 @@ const GROUP_SUMMARIES: Record<SettingGroup, string> = {
   其他: "检查更新、版本信息与开源许可",
 };
 
-/* 独立设置页：线路 / 外观 / 播放 / 本地数据 / 清理缓存 / 网络诊断 / 关于
+/* 独立设置页：线路 / 播放 / 本地数据 / 清理缓存 / 网络诊断 / 关于
    入口：Windows 侧栏「设置」、Android「我的」右上角齿轮 */
 export default function Settings({ onBack, initialSection }: { onBack: () => void; wide: boolean; initialSection?: "内容偏好" }) {
-  const { theme, themePreference, setTheme, favs, postFavs, history, postHistory, muteOnStartup, setMuteOnStartup, preferHevc, setPreferHevc, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity, toast } = useStore();
+  const { favs, postFavs, history, postHistory, muteOnStartup, setMuteOnStartup, preferHevc, setPreferHevc, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity, toast } = useStore();
   const { preferences: contentPrefs } = useContentPreferences();
   const [about, setAbout] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
@@ -72,7 +71,6 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
   const totalSaved = favs.length + postFavs.length;
   const totalHistory = history.length + postHistory.length;
   const groupBadges: Partial<Record<SettingGroup, string>> = {
-    外观: "深色",
     播放: preferHevc ? "高清优先" : "标准画质",
     内容偏好: contentPrefs.paused
       ? "已暂停"
@@ -173,31 +171,6 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
               </div>
             </div>
           </div>
-          {section("外观", <>
-            <div className="ios-appearance-row items-center">
-              <span className="ios-setting-icon">{themePreference === "system" ? <IRefresh size={16} /> : theme === "dark" ? <IMoon size={16} /> : <ISun size={16} />}</span>
-              <div className="flex-1">
-                <div className="text-[14px] text-on">外观</div>
-                <div className="text-[12px] text-mut">固定深色（浅色外观暂未开放）</div>
-              </div>
-              <SegmentedControl className="ios-appearance-picker" aria-label="外观模式" activeIndex={2}>
-                {([['system', '跟随'], ['light', '浅色'], ['dark', '深色']] as const).map(([value, label]) => {
-                  /* 浅色 / 跟随只做了深色一套配色，是真没实现：这里必须「真置灰」——
-                     disabled + aria-disabled + 降低不透明度 + 不挂 onClick，
-                     不能只靠文案说「暂未开放」还留着可点的样子（报告 v3.0.5-08）。 */
-                  const locked = value !== "dark";
-                  return (
-                    <Button key={value} type="button" disabled={locked} aria-disabled={locked || undefined}
-                      aria-pressed={value === "dark"}
-                      title={value === "light" ? "浅色外观暂未开放（当前固定深色）" : value === "system" ? "跟随系统暂未开放（当前固定深色）" : "当前外观"}
-                      onClick={locked ? undefined : () => setTheme(value)}>
-                      {label}
-                    </Button>
-                  );
-                })}
-              </SegmentedControl>
-            </div>
-          </>)}
 
           {section("播放", <>
             <div className="flex items-center gap-3 px-3.5 py-3">
