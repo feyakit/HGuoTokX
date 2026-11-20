@@ -385,7 +385,19 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   }, [preferHevc, setPreferHevc, toast]);
 
   const openFullSeries = useCallback(() => {
-    if (kind !== "video" || !curId) { setPanel("detail"); return; }
+    if (kind !== "video" || !curId) {
+      logLine(`[full-series] 没有剧集 id（kind=${kind} curId=${String(curId)}），改为打开详情面板`);
+      setPanel("detail");
+      return;
+    }
+    /* 先收掉会盖住宿主页的状态：全屏层 z-index 比栈页高，不收的话新页被压在下面，
+      用户看到的就是「点了没反应」。 */
+    setPanel(null);
+    setFs(false);
+    setFsLandscape(false);
+    setClean(false);
+    showControls();
+    logLine(`[full-series] 打开剧集详情 id=${curId} 第${curEp}集`);
     const v = videoRef.current?.el();
     const curT = v && Number.isFinite(v.currentTime) ? v.currentTime : liveRef.current.t;
     addHistory(curId, curEp, Math.max(0, curT), duration || liveRef.current.dur || 0);
@@ -393,7 +405,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
        以前 push 的是 {kind:"feed"}，从刷剧流里再开一屏播放器，真机上表现成
        「点了直接回首页」（v3.0.6 #6）。改成剧集详情后，返回时刷剧流还在原位。 */
     store.push({ kind: "series", id: curId });
-  }, [kind, curId, curEp, duration, addHistory, store]);
+    /* 刷剧流那一页不会被卸载（App 保留整条栈），所以返回时 index / 播放位置都还在原位。 */
+  }, [kind, curId, curEp, duration, addHistory, store, setClean, setFs, setFsLandscape, setPanel, showControls]);
   useEffect(() => {
     setSeriesEnded(false);
   }, [playKey]);
@@ -881,6 +894,12 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   /* —— 长按 2x（上滑锁定） / 横拖定位 / 单击暂停 —— */
   const onDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (isDesktop || controlsLocked || !active || showHoldGuide) return;
+    /* 落在控制条/面板上的按下完全不参与舞台手势。
+       以前它会冒泡到舞台，松手被判定成「点了一下视频」→ 控件收起：
+       真机上点画质胶囊会看起来像「胶囊自己消失了」，点「看全集」也会被这一下干扰
+       （bar 在 pointerup 与 click 之间被卸载，click 直接丢失）。 */
+    const pressed = e.target instanceof Element ? e.target.closest("[data-hg-control]") : null;
+    if (pressed) return;
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointersRef.current.size === 2) {
       const pts = [...pointersRef.current.values()];
@@ -1725,7 +1744,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
 
               {/* 移动端：统一以剧场模式为基准的底部控台（抖音模式同步支持线路/全屏/倍速/进度条，且「看全集」直达剧场续播） */}
               {!fs && !clean && !isDesktop && (
-                <div className="hg-cinema-bottom absolute inset-x-0 z-20"
+                <div className="hg-cinema-bottom absolute inset-x-0 z-20" data-hg-control="bar"
                   style={{
                     bottom: `calc(var(--sab, 0px) + ${bottomInset + 14}px)`,
                     paddingRight: vpLandscape ? 64 : undefined,
@@ -1844,6 +1863,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                              事件，指头一落就冒泡到播放器舞台 → 控制条收起、胶囊看起来「消失了」。
                              这里用静态 span，自己吞掉按下/点击，点不动也不会连累控制条。 */
                           <span
+                            data-hg-control="quality"
                             aria-label="画质：标准（本集无独立高清流，不可切换）"
                             title="本集没有独立的高清流，自动使用标准画质"
                             onPointerDown={(e) => { e.stopPropagation(); }}
