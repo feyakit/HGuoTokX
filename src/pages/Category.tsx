@@ -171,9 +171,11 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
       <header className="shrink-0 hg-page-x pb-2 flex items-center gap-2 relative z-10"
         style={{ paddingTop: "calc(var(--sat, 0px) + 8px)" }}>
         <Button className="hg-searchbar flex-1 min-w-0" aria-label="搜索" onClick={() => push({ kind: "search", initialTab: "video" })}>
-          {/* 文案收敛到 10 个字：原来「搜索短剧、漫剧、演员、题材」在 393dp 上被
-              截成「搜索短剧、漫剧、演…」，省略号正好吃掉唯一的动作词（报告 v3.0.5-04）。 */}
-          <ISearch size={16} /><span className="truncate">搜索短剧、漫剧、演员</span>
+          {/* 真因是系统字体被放大（font_scale≈1.4 ⇒ 文本宽 ×1.4），不是屏幕窄：
+              13 字版在 393dp@1.4 要 260px、只有 205px；换成半角分隔符的 8 个有效字
+              （全角「、」每个占 1em，换成「/」能省 ~28px）后 393dp@1.4 还有 32px 余量
+              （报告 v3.0.5-04，实测见 v306-fix-report.md 第四节）。 */}
+          <ISearch size={16} /><span className="truncate">搜索短剧/漫剧/演员</span>
         </Button>
         <Button card aria-label="打开细分标签库"
           className="hg-tag-pill"
