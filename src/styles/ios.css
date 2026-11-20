@@ -139,6 +139,8 @@
 .ios-field small { font-size:12px; font-weight:400; color:var(--p-dim); }
 .ios-field .ios-input { width:100%; background:var(--p-s1); }
 .ios-field-error { color:var(--p-danger); font-size:14px; }
+/* 提交中 / 等线路的状态行：比错误弱，但必须看得见（v3.0.6 #4） */
+.ios-field-status { color:var(--p-mut); font-size:13px; line-height:1.45; }
 .ios-auth-submit { min-height:50px; width:100%; display:flex; align-items:center; justify-content:center; gap:10px; border-radius:999px; font-size:16px; font-weight:600; }
 .ios-auth-note { margin:20px 0 0; font-size:12px; }
 .ios-mobile-nav { position:absolute; inset-inline:0; bottom:0; z-index:50; padding:10px 14px; pointer-events:none; }

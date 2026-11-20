@@ -7,6 +7,31 @@ import { Button, Form, Input, SegmentedControl } from "./ios/controls";
 import { Loader } from "./ios/effects";
 import { IClose, IEye, IEyeOff, ILogin } from "../icons";
 
+/* 失败反馈（v3.0.6 #4）：真机上「账号密码错」和「线路挂了」都是一片安静 ——
+ * 底层请求本身有 20s 超时，用户等不到 20s 就以为点了没反应。这里做三件事：
+ *   1. 15s 先下结论，不让人干等；
+ *   2. 超时 / 连不上 / 业务错误（服务端 msg，如「账号或密码错误」）分别给不同文案；
+ *   3. 提交中在面板里显示「正在提交…」，超过 3s 补一句「线路较慢」，而不是只转个圈。
+ */
+const SUBMIT_TIMEOUT_MS = 15_000;
+const TIMEOUT_FLAG = "__login_timeout__";
+function withDeadline<T>(task: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(TIMEOUT_FLAG)), ms);
+    task.then(
+      value => { window.clearTimeout(timer); resolve(value); },
+      error => { window.clearTimeout(timer); reject(error); },
+    );
+  });
+}
+function loginErrorMessage(error: unknown): string {
+  const raw = error instanceof Error ? (error.message || "").trim() : "";
+  if (raw === TIMEOUT_FLAG) return "线路没有响应（超过 15 秒）。请检查网络，或在「设置 · 网络」里换一条线路后重试。";
+  if (!raw || raw === "请求失败，请检查网络") return "连不上站点：请检查网络，或在「设置 · 网络」里换一条线路后重试。";
+  /* 其余原样显示服务端 msg（例如「账号或密码错误」），不要再包一层废话。 */
+  return raw;
+}
+
 export default function LoginModal() {
   const { loginOpen, setLoginOpen, setUser, toast, accountScope, lineEpoch } = useStore();
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -16,6 +41,8 @@ export default function LoginModal() {
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  /* 提交超过 3s 才提示「线路较慢」：既说明还在动，也给出可操作的建议 */
+  const [slowSubmit, setSlowSubmit] = useState(false);
   const pending = useRef(false);
   const mounted = useRef(true);
   const context = useRef({ accountScope, lineEpoch });
@@ -37,6 +64,11 @@ export default function LoginModal() {
   useEffect(() => {
     if (!loginOpen) { setPassword(""); setShowPassword(false); setErr(""); }
   }, [loginOpen]);
+  useEffect(() => {
+    if (!busy) { setSlowSubmit(false); return undefined; }
+    const timer = window.setTimeout(() => setSlowSubmit(true), 3000);
+    return () => window.clearTimeout(timer);
+  }, [busy]);
   const title = mode === "login" ? "登录 HGuoX" : "注册 HGuoX";
   const close = () => {
     if (pending.current) return;
@@ -51,7 +83,10 @@ export default function LoginModal() {
     const started = context.current;
     const epoch = requestEpoch.current;
     try {
-      const result = mode === "login" ? await api.login(username.trim(), password) : await api.register(username.trim(), password, email.trim());
+      const result = await withDeadline(
+        mode === "login" ? api.login(username.trim(), password) : api.register(username.trim(), password, email.trim()),
+        SUBMIT_TIMEOUT_MS,
+      );
       if (!mounted.current) return;
       if (epoch !== requestEpoch.current || started.accountScope !== context.current.accountScope || started.lineEpoch !== context.current.lineEpoch) {
         setErr("账号或线路已变化，请重新登录");
@@ -59,7 +94,7 @@ export default function LoginModal() {
       }
       setUser(result.user as User, result.origin); setPassword(""); setLoginOpen(false);
       toast(mode === "login" ? `欢迎回来，${result.user?.nickname || username}` : "注册成功", "ok");
-    } catch (error) { if (mounted.current) setErr(error instanceof Error ? error.message : "操作失败，请重试"); }
+    } catch (error) { if (mounted.current) setErr(loginErrorMessage(error)); }
     finally { pending.current = false; if (mounted.current) setBusy(false); }
   };
   const content = <div className="ios-auth">
@@ -83,6 +118,7 @@ export default function LoginModal() {
       {mode === "register" && <label className="ios-field"><span>邮箱 <small>可选</small></span><Input aria-label="邮箱" type="email" autoComplete="email" readOnly={busy} name="email"
         placeholder="用于账号联系" value={email} onChange={event => setEmail(event.target.value)} /></label>}
       {err && <p id={errorId} role="alert" className="ios-field-error">{err}</p>}
+      {busy && !err && <p className="ios-field-status" role="status">{slowSubmit ? "还在等线路响应…网络慢时可以在「设置 · 网络」换一条线路" : "正在提交…"}</p>}
       <Button variant="primary" className="ios-auth-submit" type="submit" disabled={busy}>
         {busy && <Loader className="size-5" />}{busy ? "处理中…" : mode === "login" ? "登录" : "创建账号"}
       </Button>

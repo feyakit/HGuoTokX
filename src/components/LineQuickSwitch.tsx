@@ -52,11 +52,16 @@ export default function LineQuickSwitch({ open, onClose }: { open: boolean; onCl
     }
   };
 
+  /* 按 host 去重，不按原始 url：线上数据里同一台镜像会出现
+     「https://ruc.zuxszoix.cc」和带尾斜杠/大小写不同的写法，按 url 去重会把
+     8 个 host 渲染成 16 行（v3.0.6 #7 真机现象）。 */
   const seen = new Set<string>();
   const rows: { url: string; label: string }[] = [];
   for (const i of [...fixed, ...mirrors]) {
-    if (!i?.url || seen.has(i.url)) continue;
-    seen.add(i.url);
+    if (!i?.url) continue;
+    const key = (hostOf(i.url) || i.url).toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
     rows.push({ url: i.url, label: i.name?.trim() || hostOf(i.url) });
   }
 

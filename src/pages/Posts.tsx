@@ -1,6 +1,6 @@
 import { Button, Surface } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { api, cover, fmt, isMobile } from "../api";
 import type { Post } from "../types";
 import { useStore } from "../store";
@@ -247,6 +247,20 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
     );
   };
 
+  /* 整卡可点（v3.0.6 #8）：封面 / 标题 / 摘要都算命中区，卡内的点赞、评论、分享、作者
+     各自 stopPropagation（见 renderFooter），不会连带打开详情。
+     div 上没有 role/tabIndex 时读书器与键盘都视它为死块，这里补齐，顺带让
+     真机上「点标题」和「点封面」走完全相同的路径。 */
+  const cardHit = (p: Post) => ({
+    role: "link" as const,
+    tabIndex: 0,
+    "aria-label": `打开帖子：${p.title}`,
+    onClick: () => push({ kind: "post", id: p.id }),
+    onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); push({ kind: "post", id: p.id }); }
+    },
+  });
+
   const renderCardBody = (p: Post, featured: boolean, rank?: number) => {
     const rawTag = (p.tags || []).find((t) => t && t !== HIDDEN_POST_TAG);
     const cateLabel = rawTag === "黑料吃瓜" || rawTag === "短剧剧评" ? rawTag : (rawTag || "");
@@ -255,7 +269,7 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
     const desc = (p.desc || "").trim();
     if (featured && p.cover) {
       return (
-        <div className="hg-tl-card is-hero" onClick={() => push({ kind: "post", id: p.id })}>
+        <div className="hg-tl-card is-hero" {...cardHit(p)}>
           <div className="hg-tl-hero">
             <Img src={p.cover} alt="" />
             {rank != null ? (
@@ -276,7 +290,7 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
       );
     }
     return (
-      <div className="hg-tl-card" onClick={() => push({ kind: "post", id: p.id })}>
+      <div className="hg-tl-card" {...cardHit(p)}>
         <div className="hg-tl-compact-row">
           <div className="hg-tl-compact-copy">
             {(rank != null || showCate) && (

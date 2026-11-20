@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api";
+import { readDislikedIds } from "../feedPrefs";
 import { pickLine } from "../autoLine";
 import EpisodePlayer from "./EpisodePlayer";
 
@@ -97,9 +98,11 @@ export default function EndlessFeed({ title = "", bottomInset = 0, active, onBac
   /** 洗牌后的候选里取没播过的；超过 300 个就丢掉最旧的（允许很久以后重刷到） */
   const takeFresh = useCallback((items: Card[]): number[] => {
     const fresh: number[] = [];
+    /* 「不感兴趣」的剧不再进池子（本地记忆，30 天 / 200 条，见 feedPrefs.ts） */
+    const disliked = readDislikedIds();
     for (const item of items) {
       const id = Number(item?.id);
-      if (!Number.isFinite(id) || id <= 0 || seen.current.has(id)) continue;
+      if (!Number.isFinite(id) || id <= 0 || seen.current.has(id) || disliked.has(id)) continue;
       if (seenOrder.current.length >= SEEN_MEMORY) {
         const oldest = seenOrder.current.shift();
         if (oldest !== undefined) seen.current.delete(oldest);
@@ -199,7 +202,9 @@ export default function EndlessFeed({ title = "", bottomInset = 0, active, onBac
       <EpisodePlayer videoIds={ids} startIndex={0} title={title} kind="video"
         mode="context" endless active={active} bottomInset={bottomInset} onBack={onBack}
         onNearEnd={() => { if (index >= ids.length - NEAR_END) void pull().then(ok => { if (!ok) scheduleRetry(); }); }}
-        onActiveIndex={setIndex} />
+        onActiveIndex={setIndex}
+        /* 不感兴趣：播放器先跳到下一条，这里只负责把它记进本地黑名单（下次不再取） */
+        onDislike={() => { void pull(); }} />
     </div>
   );
 }

@@ -16,6 +16,7 @@ import { tracePlayback } from "../playbackDiagnostics";
 import { createPlaybackClock } from "../playbackClock";
 import { useContentPreferences } from "../contentPreferences";
 import { TagBlockMenu } from "./TagBlockMenu";
+import { markDisliked } from "../feedPrefs";
 import VideoDetailsPanel from "./VideoDetailsPanel";
 import { PreferenceStorageNotice } from "./PreferenceStorageNotice";
 import LineQuickSwitch from "./LineQuickSwitch";
@@ -42,6 +43,8 @@ export type EpisodePlayerProps = {
   bottomInset: number;
   onBack?: () => void;
   onNearEnd?: () => void;
+  /** 刷剧流里点「不感兴趣」：先本地记账并跳下一条，再通知外壳（可选） */
+  onDislike?: (id: number) => void;
   /** 当前条目变化时回调（「抖音模式」外壳用它判断是否已在尾部） */
   onActiveIndex?: (index: number) => void;
   /** 无限流：允许 onNearEnd 在 context 模式下也触发，并在右上角显示 ⚡ 序位 */
@@ -52,7 +55,7 @@ export type EpisodePlayerProps = {
   startTime?: number;
 };
 
-export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mode, kind = "video", active, bottomInset, onBack, onNearEnd, onActiveIndex, endless = false, onBlocked, startEp, startTime }: EpisodePlayerProps) {
+export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mode, kind = "video", active, bottomInset, onBack, onNearEnd, onActiveIndex, endless = false, onBlocked, startEp, startTime, onDislike }: EpisodePlayerProps) {
   const store = useStore();
   const { isLiked, isFav, setLiked, setCollected, setFollowing, actionPending, accountScope, muted, setMuted, volume, setVolume, toast, addHistory, user, setLoginOpen, swipeEp, setSwipeEp, preferHevc, setPreferHevc } = store;
   const isDesktop = !isMobile;
@@ -373,8 +376,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     const v = videoRef.current?.el();
     const curT = v && Number.isFinite(v.currentTime) ? v.currentTime : liveRef.current.t;
     addHistory(curId, curEp, Math.max(0, curT), duration || liveRef.current.dur || 0);
-    store.push({ kind: "feed", videoIds: [curId], index: 0, title: detail?.title || title || "正片播放", endless: false });
-  }, [kind, curId, curEp, duration, addHistory, store, detail?.title, title]);
+    /* 「看全集」走首页进详情那条路（series 栈页），不再压一个 feed 页：
+       以前 push 的是 {kind:"feed"}，从刷剧流里再开一屏播放器，真机上表现成
+       「点了直接回首页」（v3.0.6 #6）。改成剧集详情后，返回时刷剧流还在原位。 */
+    store.push({ kind: "series", id: curId });
+  }, [kind, curId, curEp, duration, addHistory, store]);
   useEffect(() => {
     setSeriesEnded(false);
   }, [playKey]);
@@ -584,6 +590,17 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       if (Math.abs(box.scrollTop - target) > step * 0.5) box.scrollTop = target;
     }, 420);
   }, [index, effectiveVideoIds.length, pageStep]);
+
+  /* 「不感兴趣」（v3.0.6 #5）：刷剧流里点了必须立刻换片，不能只是弹个标签面板。
+     三件事——① 本地黑名单记账（30 天 / 200 条，见 feedPrefs.ts，下次取数不再给）
+     ② 立刻跳到下一条 ③ 给一句明确反馈。剧场模式仍走标签偏好面板。 */
+  const dislikeCurrent = useCallback(() => {
+    if (!endless || !onDislike || !curId) { openTagMenu(); return; }
+    markDisliked(curId);
+    onDislike(curId);
+    go(1);
+    toast("已跳过，这类内容会变少", "info");
+  }, [endless, onDislike, curId, go, openTagMenu, toast]);
 
   /* 统一的上下切换：swipeEp 开启且为多集视频时优先切集，否则切剧。
      桌面端键盘 ↑↓ 与右侧按钮都走这里，和移动端上下划手势保持一致。 */
@@ -1689,7 +1706,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   <Button aria-label="视频详情" onClick={() => setPanel("detail")} className="min-h-11 px-4 rounded-full hg-chip text-[12px] inline-flex items-center gap-1">
                     详情与标签<IChevR size={13} />
                   </Button>
-                  {isActive && <Button aria-label="不感兴趣" title="不感兴趣 / 内容偏好" onClick={openTagMenu}
+                  {isActive && <Button aria-label={endless ? "不感兴趣，跳过这条" : "不感兴趣"} title={endless ? "不感兴趣 · 立即跳过" : "不感兴趣 / 内容偏好"} onClick={dislikeCurrent}
                     className="video-preference-trigger"><IMore size={19} aria-hidden="true" /></Button>}
                 </div>
               </div>
@@ -1778,7 +1795,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                           </Button>
                         </>
                       )}
-                      {isActive && <Button aria-label="不感兴趣" title="不感兴趣 / 内容偏好" onClick={openTagMenu}
+                      {isActive && <Button aria-label={endless ? "不感兴趣，跳过这条" : "不感兴趣"} title={endless ? "不感兴趣 · 立即跳过" : "不感兴趣 / 内容偏好"} onClick={dislikeCurrent}
                         className="video-preference-trigger"><IMore size={19} aria-hidden="true" /></Button>}
                       {/* 线路就地切换：一个小胶囊 + 播放页内的底部面板，不再跳设置页 */}
                       {lineInfo.multi && (
