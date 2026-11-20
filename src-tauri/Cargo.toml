@@ -61,10 +61,6 @@ hyper-util = { version = "0.1.21", features = ["client-proxy", "client-proxy-sys
 # gen/android 是 .gitignore 里的生成目录，每次 `tauri android init` 都会重建，
 # 改那里的 Kotlin 会被覆盖，所以只能走 Rust + JNI。
 # 两个 crate 都已经在 Cargo.lock 里（tao/wry 的安卓依赖链），不会新增包。
-[target.'cfg(target_os = "android")'.dependencies]
-jni = { version = "0.21", features = ["invocation"] }
-ndk-context = "0.1"
-
 [dev-dependencies]
 getrandom = "=0.3.4"
 hyper-util = { version = "0.1.21", features = ["client-proxy", "client-proxy-system"] }

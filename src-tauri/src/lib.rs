@@ -18,6 +18,7 @@ mod logging;
 mod macos_titlebar;
 mod media;
 mod media_dns;
+mod orientation;
 mod net;
 mod network_policy;
 mod playback_log;
@@ -77,6 +78,8 @@ fn allowed_frontend_origin(origin: &str) -> bool {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
+        /* 安卓系统转屏（Kotlin OrientationPlugin）。desktop/iOS 上是空插件。 */
+        .plugin(orientation::plugin())
         .plugin(
             tauri_plugin_opener::Builder::new()
                 .open_js_links_on_click(false)

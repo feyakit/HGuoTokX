@@ -27,6 +27,19 @@ import {
 } from "../icons";
 import { ambientStyle, useAccent } from "../useAccent";
 
+/* 系统方向请求的唯一出口。
+   安卓：Rust 把请求转给 Kotlin 插件 OrientationPlugin（activity.requestedOrientation），
+   失败只会 Err + 打日志，画面退回 .fs-landscape 的 CSS 伪横屏 —— 不会再崩进程；
+   iOS：调 objc 锁方向。
+   调用一律带日志，真机用「播放诊断」/logcat 分流「JS 没发」还是「发了没成」。 */
+function requestOrientation(landscape: boolean) {
+  try {
+    void invoke("set_orientation", { landscape })
+      .then(() => logLine(`[orientation] set_orientation(landscape=${landscape}) 已下发${platform === "android" ? "（安卓走 Kotlin 插件）" : ""}`))
+      .catch((error) => logLine(`[orientation] set_orientation(landscape=${landscape}) 失败：${String(error)}`));
+  } catch { /* ignore */ }
+}
+
 /* 单击判定窗口：首次轻点先等这么久再落「暂停/继续」，
    这样双击（净屏）不会先闪一下暂停。人眼对这个量级不敏感，真机上等的是「有没有反应」。 */
 const TAP_DELAY_MS = 180;
@@ -1142,9 +1155,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
 
   /* 进全屏/横屏（报告 17 撤回：这个入口不能删）。
      走既有通路：fs 沉浸层 + rotated 舞台旋转兜底 + 系统方向请求。
-     安卓端 set_orientation 是空实现、WebView 的 orientation.lock 又要求 Fullscreen API，
-     通常都拿不到 → 靠 .fs-landscape 的 CSS 旋转做成「伪横屏」，注释见 index.css。
-     真系统横屏要 JNI 调 Activity.setRequestedOrientation，本轮不做（见清单文档）。 */
+     系统方向由 Kotlin 插件真转（安卓）；转不过去时 .fs-landscape 的 CSS 旋转仍兜底
+     （注释见 index.css），所以两条路互不依赖。 */
   const enterFs = useCallback((landscape = true) => {
     /* 先把当前可见项锁定下来，再收起滚动容器：否则进入全屏后 scrollTop 归零，
        还在 150ms 防抖里的 index 会被 resolveSwipe(0) 改回第一屏（「全屏后变成另一个视频」）。 */
@@ -1167,11 +1179,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
          真机实测点全屏时 CDP 连续 RemoteDisconnected，播放进度有丢失风险。
          系统真转屏后 CSS 伪横屏会自动关掉（vpLandscape=true → rotated=false），不会叠两层 90°。 */
       try { logLine(`[orientation] 全屏 → landscape=${landscape} 请求系统转屏`); } catch { /* ignore */ }
-      try {
-        void invoke("set_orientation", { landscape })
-          .then(() => logLine(`[orientation] 已请求系统转屏 landscape=${landscape}（结果看 logcat 的 [orientation] 行）`))
-          .catch((error) => logLine(`[orientation] set_orientation(landscape=${landscape}) 失败：${String(error)}`));
-      } catch { /* ignore */ }
+      requestOrientation(landscape);
     }
   }, [isDesktop, keepAlive, resolveSwipe, effectiveVideoIds.length, setClean, setFs, showControls]);
 
@@ -1183,7 +1191,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     showControls();
     keepAlive();
     if (!isDesktop) {
-      try { void invoke("set_orientation", { landscape: false }); } catch { /* ignore */ }
+      requestOrientation(false);
       try { screen.orientation?.unlock?.(); } catch { /* ignore */ }
       try { if (document.fullscreenElement) void document.exitFullscreen?.()?.catch(() => {}); } catch { /* ignore */ }
     }
@@ -1194,8 +1202,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     return registerOverlayBack(() => { exitFs(); return true; });
   }, [isDesktop, fs, exitFs]);
 
-  /* 安卓现在会真转屏（api.rs 的 set_orientation 走 JNI 调 setRequestedOrientation），
-     所以「退出播放器」和「切后台」这两条路径也必须还原竖屏，否则用户被锁在横屏里：
+  /* 系统方向（iOS 有效、安卓本轮 no-op）一旦被改过就必须还回去，
+     所以「退出播放器」和「切后台」这两条路径也照发一遍还原请求：
        · 组件卸载（返回上一页 / 换片）→ 还原；
        · 切后台（visibilitychange hidden）→ 还原，回来时若还在横屏全屏再转回去。
      fs/fsLandscape 用 ref 取最新值，避免每次开关全屏都重挂监听（cleanup 里会误还原）。 */
@@ -1204,11 +1212,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   useEffect(() => {
     if (isDesktop) return undefined;
     const setOrientation = (landscape: boolean) => {
-      try {
-        void invoke("set_orientation", { landscape })
-          .then(() => logLine(`[orientation] 已请求系统转屏 landscape=${landscape}（结果看 logcat 的 [orientation] 行）`))
-          .catch((error) => logLine(`[orientation] set_orientation(landscape=${landscape}) 失败：${String(error)}`));
-      } catch { /* ignore */ }
+      requestOrientation(landscape);
     };
     const onVisibility = () => {
       if (document.visibilityState === "hidden") setOrientation(false);
@@ -1224,10 +1228,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   /* 若用户在视频首帧宽高解析出来前已点进全屏，解析出横屏后自动补发横屏方向请求 */
   useEffect(() => {
     if (isDesktop || !fs || !landscapeVideo) return;
-    try { void invoke("set_orientation", { landscape: true }); } catch { /* ignore */ }
-    try {
-      (screen.orientation as unknown as { lock?: (o: string) => Promise<void> })?.lock?.("landscape")?.catch(() => {});
-    } catch { /* ignore */ }
+    requestOrientation(true);
   }, [isDesktop, fs, landscapeVideo]);
 
   /* 系统真旋转了（iOS 原生请求成功后），CSS 就不再转 90°；

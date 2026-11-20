@@ -468,7 +468,7 @@ pub async fn open_url(app: tauri::AppHandle, url: String) -> Result<(), String> 
         .map_err(|e| e.to_string())
 }
 
-/// 切换移动端屏幕方向：iOS 走 objc，Android 走 JNI 调 Activity.setRequestedOrientation。
+/// 切换移动端屏幕方向：iOS 走 objc；Android 目前是 no-op（JNI 系统转屏待重做，走 CSS 伪横屏）。
 ///
 /// 3.0.5 之前 Android 分支是空实现，点「横屏全屏」只走 `.fs-landscape` 的 CSS 旋转（伪横屏），
 /// 系统仍是竖屏。现在两端都真转；前端 `EpisodePlayer` 在退全屏 / 退出播放器 / 切后台
@@ -485,13 +485,13 @@ pub async fn set_orientation(app: tauri::AppHandle, landscape: bool) -> Result<(
     }
     #[cfg(target_os = "android")]
     {
-        /* Android 只允许在 UI 线程改方向；Tauri 在安卓的事件循环就跑在 UI 线程，
-           run_on_main_thread 正好把这次 JNI 调用排进去。 */
-        let _ = app.run_on_main_thread(move || {
-            if let Err(error) = request_android_orientation(landscape) {
-                eprintln!("[orientation] setRequestedOrientation failed: {error}");
-            }
-        });
+        /* 安卓：走 Kotlin 插件（orientation.rs），Rust 里**不再有任何裸 JNI** ——
+           上一版那条 JNI 路径没清 Java 异常，点全屏直接 SIGABRT 把进程带走。
+           这里拿到 Err 就只打日志，画面继续靠 CSS 伪横屏（.fs-landscape）。 */
+        match crate::orientation::request(&app, landscape).await {
+            Ok(()) => eprintln!("[orientation] 已下发 Kotlin setOrientation(landscape={landscape})"),
+            Err(error) => eprintln!("[orientation] 下发失败，降级 CSS 伪横屏：{error}"),
+        }
     }
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
     {
@@ -500,47 +500,6 @@ pub async fn set_orientation(app: tauri::AppHandle, landscape: bool) -> Result<(
     Ok(())
 }
 
-/// Android：`ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE`(0) / `..._PORTRAIT`(1)。
-///
-/// 用 `ndk_context` 拿 JavaVM + 当前 Activity，再 JNI 调 `setRequestedOrientation(int)`。
-/// 不写死方向解锁（`UNSPECIFIED`），因为「退出全屏」要立刻回竖屏，而不是等系统重力感应。
-#[cfg(target_os = "android")]
-fn request_android_orientation(landscape: bool) -> Result<(), String> {
-    use jni::objects::{JObject, JValue};
-    use jni::JavaVM;
-
-    const SCREEN_ORIENTATION_LANDSCAPE: i32 = 0;
-    const SCREEN_ORIENTATION_PORTRAIT: i32 = 1;
-    let value = if landscape { SCREEN_ORIENTATION_LANDSCAPE } else { SCREEN_ORIENTATION_PORTRAIT };
-
-    let context = ndk_context::android_context();
-    /* Activity / VM 还没就绪（极早期调用或上下文被回收）时直接放弃：
-       返回 Err 由调用方打日志，页面留在 CSS 伪横屏，不 panic、不 UB。 */
-    if context.vm().is_null() || context.context().is_null() {
-        return Err("Android Activity 尚未就绪，跳过系统转屏".into());
-    }
-    let vm = unsafe { JavaVM::from_raw(context.vm().cast()) }
-        .map_err(|error| format!("JavaVM::from_raw: {error}"))?;
-    let mut env = vm
-        .attach_current_thread()
-        .map_err(|error| format!("attach_current_thread: {error}"))?;
-    let activity = unsafe { JObject::from_raw(context.context().cast()) };
-    /* jni 0.21 的 `call_method` 返回的是 `Result<JValueOwned>`（不是泛型 T），
-       所以不能赋给 `()`；这里只关心成功/失败，失败原样返回给调用方打日志。
-       绝不用 unwrap/expect —— 安卓上 Java 异常会直接 abort 进程。 */
-    if let Err(error) = env.call_method(
-        &activity,
-        "setRequestedOrientation",
-        "(I)V",
-        &[JValue::Int(value)],
-    ) {
-        return Err(format!("setRequestedOrientation({value}): {error}"));
-    }
-    /* 成功也打一条：真机取证时 `adb logcat | grep orientation` 要能看到调用真的到了，
-       否则「转没转」只能靠肉眼看屏幕。 */
-    eprintln!("[orientation] setRequestedOrientation({value}) ok");
-    Ok(())
-}
 
 /// iOS 专用：切换 WKWebView 文本交互。
 /// 主界面默认关闭以消除长按快进时的系统放大镜；输入框聚焦时前端调用此命令重新打开，
@@ -1363,3 +1322,4 @@ mod tests {
         assert!(!is_newer(&version_in("hgfix-1.2.1-r5"), "1.2.1+hg.1"));
     }
 }
+

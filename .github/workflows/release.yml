@@ -172,6 +172,12 @@ jobs:
       - name: 生成 Android 工程
         run: pnpm tauri android init --ci
 
+      # src-tauri/gen/ 在 .gitignore 里，init 会把它重建，所以 Kotlin 源放在
+      # src-tauri/android/（被跟踪）并在 init 之后、build 之前注入。
+      # 注入失败直接让 job 红，避免出现「Kotlin 没进包、点全屏没反应却看不出来」。
+      - name: 注入安卓方向插件（Kotlin）
+        run: node scripts/inject-android-plugin.mjs
+
       - name: 编译 APK（按 ABI 分包）
         run: |
           # quick / android-arm64 只出 arm64：真机验证用不到 v7a 和 x86_64，省三分之二时间
