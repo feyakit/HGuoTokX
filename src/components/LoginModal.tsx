@@ -131,6 +131,11 @@ export default function LoginModal() {
     <p className="ios-description">登录后同步账号收藏、关注和观看记录；游客的本机记录单独保留。</p>
     <SegmentedControl className="ios-auth-tabs" aria-label="账号操作" activeIndex={mode === "login" ? 0 : 1}>
       {([ ["login", "登录"], ["register", "注册"] ] as const).map(([key, label]) => <Button key={key}
+        /* 分段控件里的「登录」和底部提交按钮的「登录」是同名不同物：
+           以前两者在 DOM 里都只叫「登录」，自动化/读屏分不清，文本选择器会命中"当前已选中的标签页"，
+           点下去当然没有任何反应（v3.0.6 真机"隐藏的登录 UI 可被命中"其实就是这个）。
+           这里给标签页一个独立的名字，提交按钮保持「登录」。 */
+        role="tab" aria-selected={mode === key} aria-label={`切换到${label}`}
         disabled={busy} aria-pressed={mode === key} onClick={() => { if (!pending.current) { setMode(key); setErr(""); setShowPassword(false); } }}>{label}</Button>)}
     </SegmentedControl>
     <Form ref={formRef} className="ios-auth-form" aria-busy={busy} onSubmit={event => { event.preventDefault(); void submit(); }}>

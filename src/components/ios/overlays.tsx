@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef,
 import { createPortal } from "react-dom";
 import { Button } from "./controls";
 import { registerOverlayBack } from "../../back";
+import { logLine } from "../../api";
 
 type Layer = { token: symbol; ancestors: symbol[]; element: HTMLElement; panel: HTMLElement; previous: HTMLElement | null; lastFocus: HTMLElement | null };
 const LayerContext = createContext<symbol[]>([]);
@@ -77,6 +78,21 @@ function DialogFrame({ open, onClose, children, kind, width, label, z }: {
     const timeout = setTimeout(() => setMounted(false), motion ? 180 : 0);
     return () => clearTimeout(timeout);
   }, [open, motion]);
+  /* 关闭动画还在播（mounted=true && open=false）时，这一层必须彻底不可交互：
+     只靠 .is-closing 的 pointer-events:none 挡不住脚本点击，也挡不住读屏/自动化选择器命中
+     （真机就出现过"隐藏的登录 UI 仍被命中"）。 */
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    if (open) {
+      element.inert = false;
+      element.removeAttribute("aria-hidden");
+      return;
+    }
+    element.inert = true;
+    element.setAttribute("aria-hidden", "true");
+  }, [open, mounted]);
+
   useLayoutEffect(() => {
     const element = ref.current;
     if (!open || !mounted || !element) return;
@@ -84,6 +100,12 @@ function DialogFrame({ open, onClose, children, kind, width, label, z }: {
        若同一层先以 is-closing 身份被标记过，重开时可能残留 inert ——
        表现就是"面板看着正常、点哪都没反应"，而且没有任何视觉提示。 */
     element.inert = false;
+    element.removeAttribute("aria-hidden");
+    /* 同一 label 的层不允许同时打开两份（平台判定中途变化/HMR 的典型残留）：
+       真机遇到时在「播放诊断」里能看到这条，便于定位是哪个面板重复挂载。 */
+    const twins = [...document.querySelectorAll<HTMLElement>(".ios-overlay.is-open [role=dialog]")]
+      .filter(other => other !== element.querySelector("[role=dialog]") && other.getAttribute("aria-label") === label);
+    if (twins.length) logLine(`[overlay] 同名层重复：${label} ×${twins.length + 1}`);
     const panel = element.querySelector<HTMLElement>("[role=dialog]")!;
     // Child layout effects run first. Insert an initially open parent below its children.
     const firstChild = layers.findIndex(layer => layer.ancestors.includes(token));

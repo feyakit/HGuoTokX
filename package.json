@@ -32,7 +32,8 @@
     "ios:icons": "node scripts/generate-ios-icons.mjs",
     "android:dev": "tauri android dev",
     "android:build": "tauri android build",
-    "test:player-gestures": "node scripts/test-player-gestures.mjs"
+    "test:player-gestures": "node scripts/test-player-gestures.mjs",
+    "test:hidden-hits": "node scripts/test-hidden-hit-targets.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",
