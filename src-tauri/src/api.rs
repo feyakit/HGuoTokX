@@ -514,22 +514,28 @@ fn request_android_orientation(landscape: bool) -> Result<(), String> {
     let value = if landscape { SCREEN_ORIENTATION_LANDSCAPE } else { SCREEN_ORIENTATION_PORTRAIT };
 
     let context = ndk_context::android_context();
+    /* Activity / VM 还没就绪（极早期调用或上下文被回收）时直接放弃：
+       返回 Err 由调用方打日志，页面留在 CSS 伪横屏，不 panic、不 UB。 */
+    if context.vm().is_null() || context.context().is_null() {
+        return Err("Android Activity 尚未就绪，跳过系统转屏".into());
+    }
     let vm = unsafe { JavaVM::from_raw(context.vm().cast()) }
         .map_err(|error| format!("JavaVM::from_raw: {error}"))?;
     let mut env = vm
         .attach_current_thread()
         .map_err(|error| format!("attach_current_thread: {error}"))?;
     let activity = unsafe { JObject::from_raw(context.context().cast()) };
-    /* `let _: ()` 是必需的：call_method 的返回类型是泛型 T（要配合 ReturnType），
-       直接 `.map(|_| ())` 会让 T 无从推断；这里用 () 定死「void 方法」。 */
-    let _: () = env
-        .call_method(
-            &activity,
-            "setRequestedOrientation",
-            "(I)V",
-            &[JValue::Int(value)],
-        )
-        .map_err(|error| format!("call_method: {error}"))?;
+    /* jni 0.21 的 `call_method` 返回的是 `Result<JValueOwned>`（不是泛型 T），
+       所以不能赋给 `()`；这里只关心成功/失败，失败原样返回给调用方打日志。
+       绝不用 unwrap/expect —— 安卓上 Java 异常会直接 abort 进程。 */
+    if let Err(error) = env.call_method(
+        &activity,
+        "setRequestedOrientation",
+        "(I)V",
+        &[JValue::Int(value)],
+    ) {
+        return Err(format!("setRequestedOrientation: {error}"));
+    }
     Ok(())
 }
 

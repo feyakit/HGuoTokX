@@ -722,7 +722,7 @@ fn custom_candidate(current: &str) -> Option<String> {
 /// mirrors concurrently and settle shortly after the first healthy mirror.
 pub async fn auto_pick() -> Value {
     let mut main_handle = tokio::spawn(probe_hit("main", FIXED[0].1));
-    let mut mirrors_handle = tokio::spawn(mirrors_cached());
+    let mirrors_handle = tokio::spawn(mirrors_cached());
     let mut hits = Vec::new();
     let mut main_pending = true;
 
