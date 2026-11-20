@@ -54,7 +54,7 @@ export type EpisodePlayerProps = {
 
 export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mode, kind = "video", active, bottomInset, onBack, onNearEnd, onActiveIndex, endless = false, onBlocked, startEp, startTime }: EpisodePlayerProps) {
   const store = useStore();
-  const { isLiked, isFav, setLiked, setCollected, setFollowing, actionPending, accountScope, muted, setMuted, volume, setVolume, toast, addHistory, user, setLoginOpen, swipeEp, setSwipeEp, preferHevc } = store;
+  const { isLiked, isFav, setLiked, setCollected, setFollowing, actionPending, accountScope, muted, setMuted, volume, setVolume, toast, addHistory, user, setLoginOpen, swipeEp, setSwipeEp, preferHevc, setPreferHevc } = store;
   const isDesktop = !isMobile;
   const contentPreferences = useContentPreferences();
   const { preferences, revision, blockReason } = contentPreferences;
@@ -145,6 +145,14 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const [nextEpPrompt, setNextEpPrompt] = useState(false);
   const [nextEpDismissedKey, setNextEpDismissedKey] = useState("");
   const [waiting, setWaiting] = useState(false);
+  /* 缓冲超过 4s 就补一句「线路较慢」：抖音模式首帧能等 5s 还是纯 spinner + 0:00/0:00，
+     用户不知道是在缓冲还是卡死（报告 v3.0.5 P2-2）。 */
+  const [slowBuffer, setSlowBuffer] = useState(false);
+  useEffect(() => {
+    if (!waiting) { setSlowBuffer(false); return undefined; }
+    const timer = window.setTimeout(() => setSlowBuffer(true), 4000);
+    return () => window.clearTimeout(timer);
+  }, [waiting]);
   const [err, setErr] = useState("");
   const [panel, setPanel] = useState<"episodes" | "comments" | "article" | "detail" | null>(null);
   /* 续播：拿到时长后再 seek 一次（只对进入时那一条生效） */
@@ -1744,6 +1752,18 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                         <PlaybackTime clock={playbackClock} /> <span className="opacity-60">/ {fmtTime(duration || 0)}</span>
                       </span>
                       <div className="ml-auto flex items-center gap-1.5">
+                        {/* 画质胶囊：复用设置·播放里的 preferHevc（同一个存储键），
+                            点一下在「高清优先 / 标准画质」之间切换并落盘。
+                            以前竖屏底栏只有 时间 / 倍速 / 下一集，画质入口只藏在三级设置里
+                            （报告 v3.0.5：播放器无画质胶囊）。class 与旁边倍速胶囊逐字对齐，
+                            视觉尺寸天然一致；热区由 .hg-quality-chip::after 上下各撑 6px。 */}
+                        <Button
+                          type="button"
+                          aria-label={`画质：${preferHevc ? "高清优先" : "标准画质"}，点击切换`}
+                          onClick={() => { setPreferHevc(!preferHevc); toast(preferHevc ? "画质：标准" : "画质：高清优先", "info"); }}
+                          className="hg-quality-chip h-8 px-2.5 rounded-full text-[12px] font-semibold flex items-center gap-1 hg-chip hg-ink-2 pressable">
+                          {preferHevc ? "高清" : "标准"}
+                        </Button>
                         <Button
                           type="button"
                           aria-label={`倍速 ${effRate}x`}
@@ -1816,7 +1836,13 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                 </div>
               )}
               {isActive && waiting && !err && !paused && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none"><Loader className="w-9 h-9 spinner" /></div>
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2.5 pointer-events-none">
+                  <Loader className="w-9 h-9 spinner" />
+                  {/* 出画面即随 waiting 一起卸载，不留残影 */}
+                  <span className="text-[12px] hg-ink-2 hg-ov-shadow-strong">
+                    {slowBuffer ? "缓冲中…（线路较慢，请稍候）" : "缓冲中…"}
+                  </span>
+                </div>
               )}
               {isActive && err && (
                 <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">

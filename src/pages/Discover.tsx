@@ -232,7 +232,7 @@ export function TopicPage({ slug, name, onBack, wide }: { slug: string; name: st
       <header className="shrink-0 hg-subpage-bar">
         <Button card aria-label="返回" onClick={onBack} className="hg-sub-btn"><IBack size={19} /></Button>
         <div className="hg-sub-titles">
-          <h1 className="hg-sub-title" title={topic?.title || name}>{topic?.title || name}</h1>
+          <h1 className="hg-sub-title is-2line" title={topic?.title || name}>{topic?.title || name}</h1>
           <div className="hg-sub-meta">{loading ? "加载中…" : `已加载 ${videos.length} / ${total} 部`}</div>
         </div>
         {videos.length > 0 && (

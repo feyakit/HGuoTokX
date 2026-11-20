@@ -682,15 +682,40 @@ fn auto_candidates(items: &[Value], current: &str, trusted: impl Fn(&str) -> boo
 }
 
 fn pick_from_hits(hits: &[Hit]) -> Value {
-    let winner = hits.iter().filter(|hit| hit.ok).min_by_key(|hit| hit.ms);
+    /* 自定义线路只在「别的线路都不通」时才算赢家：它可能有自己的登录体系，
+       自动切过去会清会话（见 api::line_auto 的 rebase 规则），交给用户手动选更稳。
+       `(tier=="custom", ms)` 让非自定义线路永远排在前面，同 tier 内仍按延迟取最快。 */
+    let winner = hits
+        .iter()
+        .filter(|hit| hit.ok)
+        .min_by_key(|hit| (hit.tier == "custom", hit.ms));
     let candidates: Vec<_> = hits.iter().map(Hit::json).collect();
     match winner {
         Some(hit) => json!({ "base": hit.url, "tier": hit.tier, "ms": hit.ms,
-            "reason": if hit.tier == "main" { "main-ok" } else { "mirror-ok" }, "candidates": candidates }),
+            "reason": match hit.tier { "main" => "main-ok", "custom" => "custom-ok", _ => "mirror-ok" },
+            "candidates": candidates }),
         None => {
             json!({ "base": "", "tier": "none", "ms": 0, "reason": "all-down", "candidates": candidates })
         }
     }
+}
+
+/// 用户显式保存的自定义线路（设置页「自定义线路」→ `line_custom_set`）。
+///
+/// 它不是发布页出来的，`is_trusted_mirror` 永远为 false，所以以前**压根不参与探活**：
+/// 主站和发布页镜像同时不通时，哪怕自定义镜像明明可用，也会被判成 all-down、
+/// 弹「线路全部不可用」（v3.0.5 报告第五节）。这里只把它加进**探活候选**
+/// （tier = "custom"），不授予任何凭据信任 —— 凭据信任仍只看
+/// `net::trusted_auth_origin`。
+fn custom_candidate(current: &str) -> Option<String> {
+    if !crate::net::is_custom_line() {
+        return None;
+    }
+    let origin = crate::net::normalize_base(current)?;
+    if is_fixed(&origin) {
+        return None;
+    }
+    Some(origin)
 }
 
 /// Prefer the real main API when it responds promptly; otherwise fetch cached
@@ -724,6 +749,11 @@ pub async fn auto_pick() -> Value {
     let mut set = tokio::task::JoinSet::new();
     if main_pending {
         set.spawn(async move { main_handle.await.ok() });
+    }
+    /* 自定义线路永远先探：发布页列表拿不到（`listing` 是 Err）时它照样要参与，
+       否则「镜像列表抓不到 + 主站不通」会直接把用户的可用自定义线路判死。 */
+    if let Some(origin) = custom_candidate(&crate::net::base()) {
+        set.spawn(async move { Some(probe_hit("custom", &origin).await) });
     }
     if let Ok(listing) = &listing {
         let items = listing

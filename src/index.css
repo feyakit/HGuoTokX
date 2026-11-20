@@ -561,3 +561,36 @@ html.theme-light .article-body blockquote { background: rgba(43, 40, 36, .045); 
 
 /* 3:4 骨架块（Chrome 87 无 aspect-ratio，用百分比 padding 撑高） */
 .hg-skel-poster::before { content:""; display:block; padding-top:133.3333%; }
+
+/* ------------------------------------------------------------------
+   详情页首屏骨架（报告 v3.0.5 P2-1：11.7s 纯黑 + 中央 spinner）
+   几何照抄真页面：72% 高的宽幅区（.hg-detail-hero）+ 左侧封面块 +
+   标题/元信息三行 + 标签胶囊 + 与 .hg-ep-grid 同列宽的选集格子。
+   配色交给 .shimmer（index.css 第 114 行），这里只管尺寸，
+   否则本文件的 background 会盖掉 shimmer 动画。
+   ------------------------------------------------------------------ */
+.hg-detail-skel { padding: 12px var(--space-page) 24px; }
+.hg-detail-skel-hero {
+  position: relative; width: 100%; padding-top: 72%;
+  border-radius: 15px; overflow: hidden; background: var(--hg-surface, #1E2029);
+}
+.hg-detail-skel-poster {
+  position: absolute; left: 14px; top: 14px; bottom: 14px; width: 96px;
+  border-radius: 14px; display: block;
+}
+.hg-detail-skel-lines {
+  position: absolute; left: 126px; right: 14px; top: 50%;
+  transform: translateY(-50%);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.hg-detail-skel-line { display: block; height: 13px; border-radius: 7px; }
+.hg-detail-skel-chips { display: flex; gap: 8px; margin-top: 16px; }
+.hg-detail-skel-chip { display: block; width: 64px; height: 26px; border-radius: 999px; }
+.hg-detail-skel-grid { margin-top: 18px; }
+.hg-detail-skel-cell { display: block; height: 46px; border-radius: 10px; }
+.hg-detail-skel-hint { margin-top: 12px; font-size: 12px; line-height: 1.4; color: #8E93AD; text-align: center; }
+
+/* 播放器画质胶囊：视觉尺寸与倍速胶囊一致（h-8 / 12px 字），
+   热区上下各外扩 6px（≥44×44），视觉一个像素都不放大 */
+.hg-quality-chip { position: relative; }
+.hg-quality-chip::after { content: ""; position: absolute; inset: -6px 0; }

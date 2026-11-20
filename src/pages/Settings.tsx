@@ -181,13 +181,20 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
                 <div className="text-[12px] text-mut">固定深色（浅色外观暂未开放）</div>
               </div>
               <SegmentedControl className="ios-appearance-picker" aria-label="外观模式" activeIndex={2}>
-                {([['system', '跟随'], ['light', '浅色'], ['dark', '深色']] as const).map(([value, label]) => (
-                  <Button key={value} type="button" disabled aria-pressed={value === "dark"}
-                    title={value === "light" ? "浅色外观暂未开放（当前固定深色）" : value === "system" ? "跟随系统暂未开放（当前固定深色）" : "当前外观"}
-                    onClick={() => setTheme(value)}>
-                    {label}
-                  </Button>
-                ))}
+                {([['system', '跟随'], ['light', '浅色'], ['dark', '深色']] as const).map(([value, label]) => {
+                  /* 浅色 / 跟随只做了深色一套配色，是真没实现：这里必须「真置灰」——
+                     disabled + aria-disabled + 降低不透明度 + 不挂 onClick，
+                     不能只靠文案说「暂未开放」还留着可点的样子（报告 v3.0.5-08）。 */
+                  const locked = value !== "dark";
+                  return (
+                    <Button key={value} type="button" disabled={locked} aria-disabled={locked || undefined}
+                      aria-pressed={value === "dark"}
+                      title={value === "light" ? "浅色外观暂未开放（当前固定深色）" : value === "system" ? "跟随系统暂未开放（当前固定深色）" : "当前外观"}
+                      onClick={locked ? undefined : () => setTheme(value)}>
+                      {label}
+                    </Button>
+                  );
+                })}
               </SegmentedControl>
             </div>
           </>)}

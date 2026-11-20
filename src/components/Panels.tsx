@@ -32,13 +32,16 @@ export function EpisodesPanel({ videoId, episodes, current, onPick, onClose, bar
       {bare ? (
         <div className="shrink-0 flex items-center gap-2 px-4 pb-2">
           <span className="text-[12px] text-mut">共 {episodes.length} 集</span>
-          <Button onClick={() => setAsc((v) => !v)} className="ml-auto text-[12px] text-primary pressable">{asc ? "倒序" : "正序"}</Button>
+          {/* 显式 44×44 热区 + 居中：测试量到的是文字墨迹 22.9×9.5 CSS，盒子本身
+              靠 .ios-button 的 :not([data-card]) 规则撑到 44，但一旦这类按钮被改成
+              card 样式就会静默退化，所以这里写死 hg-hit-44。字号/颜色不变。 */}
+          <Button onClick={() => setAsc((v) => !v)} className="ml-auto hg-hit-44 flex items-center justify-center text-[12px] text-primary pressable">{asc ? "倒序" : "正序"}</Button>
         </div>
       ) : (
         <div className="shrink-0 flex items-center gap-2 px-4 h-12">
           <span className="text-[14px] font-bold text-on">选集</span>
           <span className="text-[12px] text-mut">共 {episodes.length} 集</span>
-          <Button onClick={() => setAsc((v) => !v)} className="ml-auto text-[12px] text-primary pressable">{asc ? "倒序" : "正序"}</Button>
+          <Button onClick={() => setAsc((v) => !v)} className="ml-auto hg-hit-44 flex items-center justify-center text-[12px] text-primary pressable">{asc ? "倒序" : "正序"}</Button>
           <Button onClick={onClose} aria-label="关闭" className="w-7 h-7 rounded-full bg-s3 flex items-center justify-center text-mut pressable">
             <IClose size={13} />
           </Button>

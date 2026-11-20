@@ -82,6 +82,10 @@ const isNew = (v: VideoCard) => {
 export default function Category({ wide, active }: { wide: boolean; active: boolean }) {
   const { push, lineEpoch } = useStore();
   const [view, setView] = useState<CategoryView>("");
+  /* 频道筛选行右缘可见性：只剩 3 个 chip，通常放得下；一旦放不下（大字体/窄屏）
+     就在右缘做渐隐提示，而不是把最后一个 chip 硬裁成「精选推…」（报告 v3.0.5-02）。 */
+  const sortsRef = useRef<HTMLDivElement>(null);
+  const [sortsFade, setSortsFade] = useState(false);
   const [allSort, setAllSort] = useState<(typeof ALL_SORTS)[number]["key"]>("all");
   const [chanSort, setChanSort] = useState<(typeof CHANNEL_SORTS)[number]["value"]>("latest");
   const [origCate, setOrigCate] = useState<(typeof ORIGINAL_CATES)[number]["value"]>("all");
@@ -140,6 +144,20 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, view, subKey, lineEpoch, isCollectionView]);
 
+  useEffect(() => {
+    const el = sortsRef.current;
+    if (!el) return;
+    const update = () => setSortsFade(el.scrollWidth - el.clientWidth - el.scrollLeft > 2);
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
+    ro?.observe(el);
+    return () => {
+      el.removeEventListener("scroll", update);
+      ro?.disconnect();
+    };
+  }, [view]);
+
   const toggleTile = (target: CategoryView) => {
     setView(current => (current === target ? "" : target));
   };
@@ -153,7 +171,9 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
       <header className="shrink-0 hg-page-x pb-2 flex items-center gap-2 relative z-10"
         style={{ paddingTop: "calc(var(--sat, 0px) + 8px)" }}>
         <Button className="hg-searchbar flex-1 min-w-0" aria-label="搜索" onClick={() => push({ kind: "search", initialTab: "video" })}>
-          <ISearch size={16} /><span className="truncate">搜索短剧、漫剧、演员、题材</span>
+          {/* 文案收敛到 10 个字：原来「搜索短剧、漫剧、演员、题材」在 393dp 上被
+              截成「搜索短剧、漫剧、演…」，省略号正好吃掉唯一的动作词（报告 v3.0.5-04）。 */}
+          <ISearch size={16} /><span className="truncate">搜索短剧、漫剧、演员</span>
         </Button>
         <Button card aria-label="打开细分标签库"
           className="hg-tag-pill"
@@ -203,7 +223,7 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
           </div>
 
           {!isCollectionView && (
-            <div className="hg-inline-sorts" role="tablist" aria-label="频道排序">
+            <div ref={sortsRef} className="hg-inline-sorts" data-fade={sortsFade ? "1" : undefined} role="tablist" aria-label="频道排序">
               {view === "" && ALL_SORTS.map(s => (
                 <Button key={s.key} card role="tab" aria-selected={allSort === s.key}
                   className="hg-inline-sort"

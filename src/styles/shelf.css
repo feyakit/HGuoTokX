@@ -75,12 +75,19 @@
 .hg-section-title {
   font-size: var(--fs-section); font-weight: var(--fw-section);
   line-height: 1.3; color: var(--p-on); letter-spacing: -.1px;
+  /* 版块标题 + 右侧操作必须同行：标题占满剩余宽度并单行省略，
+     右侧「全部 xx」永不折行。以前两边同时被压窄，长标题会被拆成
+     「独家原创 · 宽画幅精」+「选」这种孤儿字（报告 v3.0.5-03）。 */
+  flex: 1 1 auto; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .hg-section-more {
+  flex: none;
   display: inline-flex; align-items: center; gap: 2px;
   font-size: 13px; font-weight: 500; line-height: 1.2;
   color: #8E93AD;                       /* v3.section_header.more */
   padding: 4px 0 4px 8px;
+  white-space: nowrap;
 }
 
 /* ------------------------------------------------------------------
@@ -591,9 +598,15 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
   border: 1px solid rgba(255, 255, 255, .09);
 }
 .ios-button.hg-sort-pill {
+  position: relative;                    /* 为 ::after 的透明热区定位 */
   min-height: 26px; padding: 4px 12px; border-radius: 999px;
   font-size: 12px; font-weight: 600; color: rgba(245, 246, 250, .6);
   background: transparent; border: 0;
+}
+/* 视觉仍是 26px 胶囊（实测含边框 29 CSS），热区上下各撑 9px → 44 CSS，
+   手指不必精准点中那条窄胶囊（报告 v3.0.5：37 CSS 高）。 */
+.ios-button.hg-sort-pill::after {
+  content: ""; position: absolute; inset: -9px 0;
 }
 .ios-button.hg-sort-pill[aria-selected="true"] {
   background: rgba(139, 92, 246, .28);
@@ -1232,6 +1245,13 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
   font-size: 17px; font-weight: 700; line-height: 1.25; color: #fff;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* 顶栏右侧还有「连刷 + 搜索」两个按钮的页面（专题详情）：标题宁可折 2 行，
+   也不能把「精品高分AI短剧专辑」截成「精品高分AI短…」（报告 v3.0.5-05）。 */
+.hg-sub-title.is-2line {
+  white-space: normal; overflow: hidden; text-overflow: clip;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  word-break: break-word;
+}
 .hg-sub-meta {
   margin-top: 2px; font-size: 11px; line-height: 1.25; color: #8E93AD;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -1724,6 +1744,13 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 }
 .hg-inline-sorts { display: flex; align-items: center; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
 .hg-inline-sorts::-webkit-scrollbar { display: none; }
+/* 放不下时（大字体 / 极窄屏）：右缘留 16px 安全边 + 渐隐，提示「右边还有 chip」，
+   而不是把最后一个 chip 硬裁成「精选推…」。放得下时这条规则完全不生效。 */
+.hg-inline-sorts[data-fade] {
+  padding-right: 16px;
+  -webkit-mask-image: linear-gradient(270deg, transparent 0, #000 22px);
+  mask-image: linear-gradient(270deg, transparent 0, #000 22px);
+}
 .ios-button.hg-inline-sort {
   flex: none; white-space: nowrap; min-height: 44px; min-block-size: 44px; min-inline-size: 44px;
   padding: 0 clamp(8px, 2.8vw, 12px); border-radius: 10px; border: 0;

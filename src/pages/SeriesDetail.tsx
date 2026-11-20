@@ -4,7 +4,6 @@ import { useStore } from "../store";
 import { ambientStyle, useAccent } from "../useAccent";
 import { Button } from "../components/ios/controls";
 import { Img } from "../components/ui";
-import { Loader } from "../components/ios/effects";
 import { IBack, IPlayF, IStar, IStarF } from "../icons";
 import type { Detail, VideoCard } from "../types";
 
@@ -17,8 +16,16 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
   const [related, setRelated] = useState<VideoCard[]>([]);
   const [err, setErr] = useState("");
   const [favDelta, setFavDelta] = useState(0);
+  /* 慢线路兜底文案：3s 还没出详情就明说是线路慢，而不是让用户对着黑屏猜。 */
+  const [slow, setSlow] = useState(false);
   const seq = useRef(0);
   const accentScheme = useAccent(id, detail?.cover ? cover(detail.cover, 900) : undefined);
+
+  useEffect(() => {
+    if (detail || err) { setSlow(false); return undefined; }
+    const timer = window.setTimeout(() => setSlow(true), 3000);
+    return () => window.clearTimeout(timer);
+  }, [detail, err, id]);
 
   useEffect(() => {
     const my = ++seq.current;
@@ -81,7 +88,28 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
 
       <div className="flex-1 scroll-y pb-6 relative z-10">
         {err && <p role="alert" className="py-6 text-center text-[12px] text-danger">{err}</p>}
-        {!detail && !err && <div className="flex justify-center py-10"><Loader className="w-6 h-6 spinner" /></div>}
+        {/* 首屏骨架（报告 v3.0.5 P2-1：进详情后 11.7s 只有纯黑 + 中央 spinner）。
+            骨架照着真页面的几何摆：72% 高的宽幅区 + 封面块 + 标题/元信息线 +
+            标签胶囊 + 5 列选集格子；超过 3s 补一行「正在加载…（当前线路较慢）」。 */}
+        {!detail && !err && (
+          <div className="hg-detail-skel" aria-busy="true" aria-label="正在加载剧集详情">
+            <div className="hg-detail-skel-hero">
+              <span className="hg-detail-skel-poster shimmer" aria-hidden="true" />
+              <span className="hg-detail-skel-lines" aria-hidden="true">
+                <span className="hg-detail-skel-line shimmer" style={{ width: "78%" }} />
+                <span className="hg-detail-skel-line shimmer" style={{ width: "42%" }} />
+                <span className="hg-detail-skel-line shimmer" style={{ width: "58%" }} />
+              </span>
+            </div>
+            {slow && <p className="hg-detail-skel-hint">正在加载…（当前线路较慢）</p>}
+            <div className="hg-detail-skel-chips" aria-hidden="true">
+              {[0, 1, 2].map(i => <span key={i} className="hg-detail-skel-chip shimmer" />)}
+            </div>
+            <div className="hg-ep-grid hg-detail-skel-grid" aria-hidden="true">
+              {Array.from({ length: 10 }).map((_, i) => <span key={i} className="hg-detail-skel-cell shimmer" />)}
+            </div>
+          </div>
+        )}
 
         {detail && (
           <>

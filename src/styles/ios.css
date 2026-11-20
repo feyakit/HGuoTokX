@@ -41,6 +41,9 @@ html.theme-light {
 .ios-button svg { flex-shrink:0; }
 .ios-button:not([data-card]):active { opacity:.66; }
 .ios-button:disabled { opacity:.45; cursor:default; }
+/* 44×44 热区但视觉不变大：Tailwind 的 min-h-* 写的是 min-height，
+   会被下面 .ios-button 的 min-block-size 盖掉，所以这里显式写 block 轴向。 */
+.ios-button.hg-hit-44 { min-block-size:44px; min-inline-size:44px; }
 .ios-button-primary { background:var(--p-primary); color:var(--p-on-primary); }
 .ios-button-secondary { background:var(--p-s1); color:var(--p-on); padding:10px 20px; border:1px solid var(--ios-edge); border-radius:var(--control-radius); box-shadow:var(--control-shadow); }
 .ios-button-danger { background:var(--p-danger); color:var(--p-on-danger); }
@@ -162,6 +165,16 @@ html.theme-light .ios-overlay-sheet .ios-dialog { background:rgb(250 249 246 / .
 .ios-mobile-nav-items { position:relative; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); height:100%; }
 .ios-mobile-nav .ios-mobile-nav-item { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7.2px; color:var(--p-mut); border-radius:999px; min-width:0; white-space:nowrap; font-size:11px; font-weight:600; background:transparent; }
 .ios-mobile-nav .ios-mobile-nav-item[aria-current=page] { color:#fff; }   /* 参考选中=图标实心+白字 */
+
+/* 手机横屏（矮而宽）：内容按底栏胶囊同宽（440）居中，不再整屏铺开。
+   3.0.5 在小米9 横屏实测：.win-main 直接占满 851dp，首页一张主推卡就撑出屏幕、
+   一列卡片被拉成长条（报告第 13 条「无最大宽度约束」）。
+   只在「横屏 + 视口高 ≤560」生效，竖屏(393/411dp)、平板、桌面窗口零影响。
+   底栏不遮内容这一项不必改：导航栏实高 90px（12+66+12），页面已预留 110px+sab。 */
+@media (orientation: landscape) and (max-height: 560px) {
+  .plat-android .win-main,
+  .plat-ios .win-main { width: 100%; max-width: 440px; margin-inline: auto; }
+}
 .win-titlebar { height:44px; background:var(--p-canvas); }
 .win-wordmark { font-size:14px; letter-spacing:-.3px; }
 .win-sidebar { width:224px; background:var(--p-canvas); }
@@ -438,7 +451,7 @@ html.theme-light {
 .ios-settings-fields>.ios-appearance-row { display:grid; grid-template-columns:36px minmax(0,1fr); column-gap:12px; row-gap:14px; padding:14px 18px; }
 .ios-appearance-picker { grid-column:1/-1; min-width:0; width:100%; }
 .ios-appearance-picker>.ios-segmented-items>.ios-button { padding-inline:8px; }
-.ios-appearance-picker>.ios-segmented-items>.ios-button:disabled:not([aria-pressed="true"]) { opacity:0.38; cursor:not-allowed; }
+.ios-appearance-picker>.ios-segmented-items>.ios-button:disabled:not([aria-pressed="true"]) { opacity:0.3; cursor:not-allowed; }
 @media (min-width:560px) {
   .ios-settings-fields>.ios-appearance-row { grid-template-columns:36px minmax(0,1fr) auto; }
   .ios-appearance-picker { grid-column:auto; width:228px; }
