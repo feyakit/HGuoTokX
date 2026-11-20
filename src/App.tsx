@@ -166,7 +166,9 @@ function AppBody() {
   return (
     <div className={`absolute inset-0 flex bg-canvas plat-${platform}`}>
       {!isMobile && <DesktopRail collapsed={collapsed} />}
-      <div ref={mainRef} className="relative flex-1 min-w-0 overflow-hidden win-main">
+      {/* data-stack=1 表示正在看栈页（详情/播放器）：横屏的 440 限宽不能套在播放器上，
+          否则全屏层会被压成手机宽度、右边留黑（真机 iOS 横屏只占左半边）。 */}
+      <div ref={mainRef} data-stack={stack.length ? "1" : "0"} className="relative flex-1 min-w-0 overflow-hidden win-main">
         <MainTabs wide={wide} pageActive={pageActive} bottomInset={bottomInset} />
 
         {stack.map((p, i) => (

@@ -96,7 +96,10 @@ button { cursor: pointer; font-family: inherit; }
 .a-rise { animation: kf-rise .34s cubic-bezier(.22,1,.36,1) both; }
 @keyframes kf-scale-in { from{opacity:0;transform:scale(.95)} to{opacity:1;transform:scale(1)} }
 @keyframes kf-page-in { from{opacity:0;transform:translate3d(28px,0,0)} to{opacity:1;transform:translate3d(0,0,0)} }
-.a-page-in { animation: kf-page-in .28s cubic-bezier(.22,1,.36,1) both; }
+/* 注意不能 both/forwards：动画结束保留 transform:translate3d(0,0,0) 也会建立包含块，
+   于是页面里的 position:fixed 全屏层改成相对这个祖先定位（真机横屏全屏只占半屏的根因之一）。
+   首尾帧都是 0 位移，不保留最终帧视觉上完全一样。 */
+.a-page-in { animation: kf-page-in .28s cubic-bezier(.22,1,.36,1); }
 @keyframes kf-page-out { from{opacity:1;transform:translate3d(0,0,0)} to{opacity:0;transform:translate3d(24px,0,0)} }
 .a-page-out { animation: kf-page-out .2s cubic-bezier(.4,0,1,1) both; }
 @keyframes kf-win-in { from{opacity:0;transform:translate3d(0,10px,0) scale(.992)} to{opacity:1;transform:translate3d(0,0,0) scale(1)} }
@@ -466,8 +469,10 @@ input[type="range"].hg-range::-webkit-slider-thumb { -webkit-appearance: none; w
 .fs-immersive {
   position: fixed;
   inset: 0;
-  width: 100vw; height: 100vh;
-  width: 100dvw; height: 100dvh;
+  /* 用 --vp-w/--vp-h（window.innerWidth/Height 的真实像素）：iOS 在原生全屏/旋转期间
+     会把 100vw/100dvh 按旋转前的竖屏视口解析，导致全屏层只有半屏宽。 */
+  width: var(--vp-w, 100vw); height: var(--vp-h, 100vh);
+  width: var(--vp-w, 100dvw); height: var(--vp-h, 100dvh);
   z-index: 45;
   background: #000;
   overflow: hidden;
@@ -477,8 +482,10 @@ input[type="range"].hg-range::-webkit-slider-thumb { -webkit-appearance: none; w
 .fs-landscape {
   position: fixed;
   top: 50%; left: 50%; right: auto; bottom: auto;
-  width: 100vh; height: 100vw;
-  width: 100dvh; height: 100dvw;
+  /* 伪横屏是「把竖屏视口转 90° 用」：宽=视口高，高=视口宽，必须成对交换，
+     否则系统真转横后会出现「宽按竖屏算」的半月形黑边（真机 46% 宽度那次）。 */
+  width: var(--vp-h, 100vh); height: var(--vp-w, 100vw);
+  width: var(--vp-h, 100dvh); height: var(--vp-w, 100dvw);
   transform: translate(-50%, -50%) rotate(90deg);
   transform-origin: center center;
   z-index: 45;
