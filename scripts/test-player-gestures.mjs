@@ -1,0 +1,192 @@
+/**
+ * 播放器手势判定层的单测（纯函数，不需要真机/浏览器）。
+ * 跑：node scripts/test-player-gestures.mjs
+ *
+ * 用 vite 的 ssrLoadModule 直接加载 TS 源码，跟仓库其它测试的启动方式一致。
+ */
+import assert from "node:assert/strict";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { createServer } from "vite";
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const vite = await createServer({ root, server: { middlewareMode: true }, appType: "custom" });
+let passed = 0;
+const check = (name, fn) => {
+  fn();
+  passed += 1;
+  console.log("  ✓ " + name);
+};
+
+try {
+  const G = await vite.ssrLoadModule("/src/playerGestures.ts");
+  const {
+    GESTURE, lockAxis, seekSecondsPer100px, seekDeltaSeconds, canSeek, snapSeek,
+    doubleTapSeek, isEdgeBackStart, isDoubleTap, rotationLocked, episodeIntent, judgeGesture,
+  } = G;
+
+  console.log("[常量]");
+  check("阈值常数与设计一致", () => {
+    assert.equal(GESTURE.deadZone, 10);
+    assert.equal(GESTURE.axisRatio, 1.4);
+    assert.equal(GESTURE.edgeBack, 24);
+    assert.equal(GESTURE.doubleTapMs, 280);
+    assert.equal(GESTURE.doubleTapSeek, 10);
+    assert.equal(GESTURE.minSeekPx, 20);
+    assert.equal(GESTURE.episodeSwitch, 0.3);
+    assert.equal(GESTURE.episodePreview, 0.6);
+    assert.equal(GESTURE.snapSeconds, 5);
+    assert.equal(GESTURE.rotateLockMs, 300);
+    assert.equal(GESTURE.seekBubbleMs, 800);
+  });
+
+  console.log("[死区 + 方向锁]");
+  check("10px 内不算任何方向", () => {
+    assert.equal(lockAxis("none", 9, 9), "none");
+    assert.equal(lockAxis("none", -10, 3), "none");
+  });
+  check("超过死区、横向占优 → x", () => {
+    assert.equal(lockAxis("none", 14, 8), "x");
+    assert.equal(lockAxis("none", -12, 1), "x");
+  });
+  check("超过死区、纵向占优 → y", () => {
+    assert.equal(lockAxis("none", 8, 14), "y");
+  });
+  check("斜着（1:1）继续等，不判方向", () => {
+    assert.equal(lockAxis("none", 30, 30), "none");
+    assert.equal(lockAxis("none", 100, 80), "none");
+  });
+  check("1.4 倍边界：刚好 1.4 判横/竖", () => {
+    assert.equal(lockAxis("none", 14, 10), "x");
+    assert.equal(lockAxis("none", 10, 14), "y");
+  });
+  check("定下方向后锁死，反向移动也不改判", () => {
+    const locked = lockAxis("none", 40, 5);
+    assert.equal(locked, "x");
+    assert.equal(lockAxis(locked, 0, 90), "x");
+    assert.equal(lockAxis(locked, -80, 120), "x");
+  });
+
+  console.log("[seek 量纲三档]");
+  check("<=60s：15s/100px", () => {
+    assert.equal(seekSecondsPer100px(30), 15);
+    assert.equal(seekSecondsPer100px(60), 15);
+    assert.equal(seekDeltaSeconds(100, 30), 15);
+  });
+  check("60–600s：30s/100px", () => {
+    assert.equal(seekSecondsPer100px(120), 30);
+    assert.equal(seekSecondsPer100px(600), 30);
+    assert.equal(seekDeltaSeconds(100, 300), 30);
+  });
+  check(">600s：60s/100px", () => {
+    assert.equal(seekSecondsPer100px(601), 60);
+    assert.equal(seekSecondsPer100px(3600), 60);
+    assert.equal(seekDeltaSeconds(100, 1800), 60);
+  });
+  check("未知片长按 30s/100px 兜底", () => {
+    assert.equal(seekSecondsPer100px(0), 30);
+    assert.equal(seekSecondsPer100px(Number.NaN), 30);
+  });
+  check("长片不再一滑几百秒：1800s 片子滑 100px 从 458s 降到 60s", () => {
+    const oldStyle = (100 / 393) * 1800; // 旧实现：按屏宽百分比换秒
+    assert.ok(oldStyle > 400);
+    assert.equal(seekDeltaSeconds(100, 1800), 60);
+  });
+  check("30s 短片滑 100px 恰好半集（15s），不超过半集", () => {
+    assert.ok(seekDeltaSeconds(100, 30) <= 30 / 2);
+  });
+  check("短滑 <20px 不 seek", () => {
+    assert.equal(canSeek(19), false);
+    assert.equal(canSeek(-19), false);
+    assert.equal(canSeek(20), true);
+    assert.equal(canSeek(-21), true);
+  });
+  check("松手吸附到整 5s 并夹在 [0,total]", () => {
+    assert.equal(snapSeek(63.2, 300), 65);
+    assert.equal(snapSeek(62.4, 300), 60);
+    assert.equal(snapSeek(-8, 300), 0);
+    assert.equal(snapSeek(999, 300), 300);
+  });
+
+  console.log("[双击]");
+  check("左半屏 −10s，右半屏 +10s", () => {
+    assert.equal(doubleTapSeek(10, 393), -10);
+    assert.equal(doubleTapSeek(197, 393), 10);
+    /* 正中线归左半边（x < width/2 才回退），边界写死在函数里 */
+    assert.equal(doubleTapSeek(196, 393), -10);
+    assert.equal(doubleTapSeek(392, 393), 10);
+  });
+  check("窗口 280ms：280 内成立，281 不成立", () => {
+    assert.equal(isDoubleTap(1000, 1280), true);
+    assert.equal(isDoubleTap(1000, 1281), false);
+    assert.equal(isDoubleTap(0, 100), false);
+  });
+
+  console.log("[边缘返回]");
+  check("左缘 24px 内起手才算边缘", () => {
+    assert.equal(isEdgeBackStart(0), true);
+    assert.equal(isEdgeBackStart(24), true);
+    assert.equal(isEdgeBackStart(25), false);
+  });
+  check("边缘右滑到 72px 才真的退一层", () => {
+    const a = judgeGesture({ dx: 40, dy: 2, dt: 200, startX: 10, stageWidth: 393, stageHeight: 851, total: 300 });
+    assert.equal(a.action.kind, "none");
+    const b = judgeGesture({ dx: 80, dy: 2, dt: 200, startX: 10, stageWidth: 393, stageHeight: 851, total: 300 });
+    assert.equal(b.action.kind, "edge-back");
+  });
+  check("非边缘起手的右滑仍是 seek", () => {
+    const r = judgeGesture({ dx: 120, dy: 3, dt: 300, startX: 200, stageWidth: 393, stageHeight: 851, total: 300 });
+    assert.equal(r.action.kind, "seek");
+    assert.equal(Math.round(r.action.seconds), 36);
+  });
+  check("边缘左滑（反方向）不返回，走 seek", () => {
+    const r = judgeGesture({ dx: -120, dy: 3, dt: 300, startX: 5, stageWidth: 393, stageHeight: 851, total: 300 });
+    assert.equal(r.action.kind, "seek");
+  });
+
+  console.log("[上下滑换集]");
+  check("30% 屏高才提交，60% 出预览", () => {
+    const h = 800;
+    const a = episodeIntent(-200, h); // 25%
+    assert.equal(a.commit, false);
+    assert.equal(a.preview, false);
+    const b = episodeIntent(-260, h); // 32.5%
+    assert.equal(b.commit, true);
+    assert.equal(b.preview, false);
+    const c = episodeIntent(-500, h); // 62.5%
+    assert.equal(c.commit, true);
+    assert.equal(c.preview, true);
+  });
+  check("上滑=下一集(1)，下滑=上一集(-1)", () => {
+    assert.equal(episodeIntent(-300, 800).dir, 1);
+    assert.equal(episodeIntent(300, 800).dir, -1);
+  });
+
+  console.log("[旋转冷却]");
+  check("方向变化后 300ms 内禁手势", () => {
+    assert.equal(rotationLocked(1000, 1100), true);
+    assert.equal(rotationLocked(1000, 1300), false);
+    assert.equal(rotationLocked(0, 5000), false);
+  });
+
+  console.log("[整条链路 judgeGesture]");
+  check("死区内不产生动作", () => {
+    const r = judgeGesture({ dx: 6, dy: 5, dt: 100, startX: 100, stageWidth: 393, stageHeight: 851, total: 300 });
+    assert.equal(r.axis, "none");
+    assert.equal(r.action.kind, "none");
+  });
+  check("横向锁死后纵向大位移也不改判（仍是 seek）", () => {
+    const r = judgeGesture({ dx: 90, dy: 300, dt: 400, startX: 200, axis: "x", stageWidth: 393, stageHeight: 851, total: 300 });
+    assert.equal(r.action.kind, "seek");
+  });
+  check("竖向 → episode 且未过门槛不给 commit", () => {
+    const r = judgeGesture({ dx: 4, dy: -100, dt: 300, startX: 200, stageWidth: 393, stageHeight: 851, total: 300 });
+    assert.equal(r.action.kind, "episode");
+    assert.equal(r.action.commit, false);
+    assert.equal(r.action.dir, 1);
+  });
+
+  console.log(`\nPassed: ${passed} 项手势判定单测`);
+} finally {
+  await vite.close();
+}

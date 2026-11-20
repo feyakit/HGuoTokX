@@ -22,6 +22,10 @@ import { PreferenceStorageNotice } from "./PreferenceStorageNotice";
 import LineQuickSwitch from "./LineQuickSwitch";
 import { getHoldZone, stageXY, HOLD_DELAY_MS, HOLD_LOCK_DISTANCE, type HoldZone } from "../mobileHold";
 import {
+  GESTURE, canSeek, doubleTapSeek, episodeIntent, isDoubleTap, isEdgeBackStart,
+  lockAxis, rotationLocked, seekDeltaSeconds, snapSeek, type Axis,
+} from "../playerGestures";
+import {
   IBack, IBoltF, IChevR, IChevronDown, IChevronUp, IClose, ICommentF, ICompress, IExpand, IFileText, IGlobe, IHeart, IHeartF, IMore,
   IList, ILockF, IPauseF, IPlayF, ISearch, IStar, IStarF, IVertSwap, IVol, IVolMute,
 } from "../icons";
@@ -229,11 +233,28 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const epSlideTimer = useRef<number | undefined>(undefined);
   const gesture = useRef<{
     x: number; y: number; startY: number; t: number; timer: number | null;
-    mode: "idle" | "hold" | "scrub" | "pan" | "enterSeries"; base: number; width: number; playing: boolean;
+    mode: "idle" | "hold" | "scrub" | "pan" | "enterSeries" | "edgeBack";
+    base: number; width: number; playing: boolean;
     zone: HoldZone; hiddenAtDown: boolean;
+    /* 方向锁：定下方向后同一次手势内不再改判（见 playerGestures.lockAxis） */
+    axis: Axis;
+    /* 从舞台左缘 24px 内起手 = 边缘返回优先 */
+    edge: boolean;
+    /* 舞台高度（换集门槛按屏高百分比算） */
+    stageH: number;
   } | null>(null);
-  /* 单击 / 双击判定：单击净屏，双击暂停 */
+  /* 单击 / 双击判定：
+     单击 = 两态（控件收起→唤出；可见→暂停/播放）；
+     双击 = 左半屏 −10s / 右半屏 +10s（窗口 280ms，见 playerGestures.isDoubleTap）。 */
   const lastTapRef = useRef<{ timer: number | null; clean?: boolean; idle?: boolean }>({ timer: null });
+  const tapRef = useRef<{ lastAt: number; timer: number | null }>({ lastAt: 0, timer: null });
+  /* 瞬时的 seek 提示（双击/松手后 800ms 消失）：不新增常驻控件，样式沿用现有胶囊类 */
+  const [seekHint, setSeekHint] = useState<{ delta: number; target: number } | null>(null);
+  const seekHintTimer = useRef<number | undefined>(undefined);
+  /* 上滑换集预览（拖过 60% 屏高才出）：只显示现有集数，不造数据 */
+  const [epPreview, setEpPreview] = useState<{ dir: 1 | -1; label: string } | null>(null);
+  /* 方向切换后的冷却时间戳（orientationchange / rotated 变化后 300ms 内禁手势） */
+  const rotatedAtRef = useRef(0);
   /* 系统是否真的转成了横屏（iOS 原生旋转后为 true） */
   const [vpLandscape, setVpLandscape] = useState(
     () => typeof window !== "undefined" && window.innerWidth > window.innerHeight,
@@ -316,10 +337,27 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     window.clearTimeout(idleTimer.current);
     if (!isDesktop && fs) setIdle(true); else setClean(true);
   }, [isDesktop, fs, setClean]);
+  /* seek 提示气泡：显示 800ms 后自动消失（双击 ±10s / 松手吸附后各用一次） */
+  const flashSeek = useCallback((delta: number, target: number) => {
+    window.clearTimeout(seekHintTimer.current);
+    setSeekHint({ delta, target });
+    seekHintTimer.current = window.setTimeout(() => setSeekHint(null), GESTURE.seekBubbleMs) as unknown as number;
+  }, []);
+  /* 相对当前位置跳 seconds 秒（双击用；松手用 scrubTarget，走另一条） */
+  const seekBy = useCallback((seconds: number) => {
+    const el = videoRef.current?.el();
+    const total = duration || liveRef.current.dur || 0;
+    const base = el && Number.isFinite(el.currentTime) ? el.currentTime : playbackClock.getSnapshot();
+    const target = snapSeek(Math.max(0, Math.min(total > 0 ? total : base + seconds, base + seconds)), total);
+    videoRef.current?.seek(target, "double_tap");
+    flashSeek(target - base, target);
+  }, [duration, flashSeek]);
+
   useEffect(() => {
     showControls();
     return () => window.clearTimeout(hideTimer.current);
   }, [playKey, showControls]);
+  useEffect(() => () => window.clearTimeout(seekHintTimer.current), []);
   /* 离场复位：clean 是**全局**状态（App 里 `!clean` 才渲染底栏），
      播放器收起控件时置 true，不还原的话退出播放页后首页底栏会一直不出现。 */
   useEffect(() => () => setClean(false), [setClean]);
@@ -432,6 +470,17 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   useEffect(() => { setZoom({ s: 1, x: 0, y: 0, g: false }); pinchRef.current = null; pointersRef.current.clear(); }, [playUrl]);
   useEffect(() => { videoRef.current?.trace("page.active", { active, view: mode, video_id: curId, episode: curEp }); }, [active, mode, curId, curEp]);
   const episodes = detail?.episodes || [];
+  /* 上滑换集的预览文案：只用现有集数，不造数据 */
+  const episodeLabel = useCallback((dir: 1 | -1) => {
+    const ep = epMap[curId] || 1;
+    const want = dir === 1 ? ep + 1 : ep - 1;
+    if (!episodes.some((row) => row.ep_num === want)) {
+      return dir === 1 ? "已经是最后一集" : "已经是第一集";
+    }
+    return `${
+      dir === 1 ? "下一集" : "上一集"
+    } · 第${want}集${episodes.length ? ` / 共 ${episodes.length} 集` : ""}`;
+  }, [curId, epMap, episodes]);
   const post = posts[curId];
 
   /* 观看进度：onTime 里每 5 秒落一次；退出播放页时再用 liveRef 兜一次 */
@@ -508,6 +557,10 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   /* 伪横屏：系统不给转（安卓 WebView 的 orientation.lock 需要 Fullscreen API，通常拿不到）时，
      整块舞台用 CSS 旋转 90°，用户把手机横过来就看到「横屏播放器」。系统真转了就不用兜底。 */
   const rotated = !isDesktop && fs && fsLandscape && !vpLandscape;
+  /* 方向变化（伪横屏 rotated / 真横屏 vpLandscape）→ 记录时间戳，300ms 内禁一切手势，
+     避免旋转动画期间手指还按在屏幕上被误判成 seek / 换集。 */
+  useEffect(() => { rotatedAtRef.current = Date.now(); }, [rotated, vpLandscape]);
+
   const landscapeVideo = videoSize.w > 0 && videoSize.h > 0 && videoSize.w > videoSize.h;
   const portraitVideo = videoSize.w > 0 && videoSize.h > 0 && videoSize.w <= videoSize.h;
   const ambientCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -900,6 +953,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
        （bar 在 pointerup 与 click 之间被卸载，click 直接丢失）。 */
     const pressed = e.target instanceof Element ? e.target.closest("[data-hg-control]") : null;
     if (pressed) return;
+    /* 方向刚变过（rotation 动画期间）不接受新手势 */
+    if (rotationLocked(rotatedAtRef.current, Date.now())) return;
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointersRef.current.size === 2) {
       const pts = [...pointersRef.current.values()];
@@ -925,13 +980,22 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     const rect = el.getBoundingClientRect();
     /* 伪横屏下整块舞台转 90°：手势判定要用舞台自身坐标，屏幕横向变成舞台纵向 */
     const width = (rotated ? rect.height : el.clientWidth) || 1;
+    const stageH = (rotated ? rect.width : el.clientHeight) || 1;
+    /* 三条路径（竖屏 / 伪横屏 rotated / 真横屏 vpLandscape）统一走 stageXY，
+       组件里任何地方都不再自己按宽高做换算。 */
     const [sx, sy] = stageXY(rotated, e.clientX, e.clientY);
     // 按视觉矩形求真正的正方形；CSS 旋转全屏时也与蒙板标记重合。
     const zone = getHoldZone(e.clientX - rect.left, e.clientY - rect.top, rect.width, rect.height);
     try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
     armAutoHide();
+    /* 左缘返回：只按竖屏（未伪横屏）下的屏幕左缘判 —— 伪横屏是旋转过的舞台，
+       "左缘"在屏幕上不是左边，干脆不启用边缘返回，免得旋转状态下误退页。 */
+    const edgeStart = !rotated && isEdgeBackStart(e.clientX - rect.left);
     const g = {
       x: sx, y: sy, startY: sy, t: Date.now(), base: videoRef.current?.el()?.currentTime ?? playbackClock.getSnapshot(), width,
+      stageH,
+      axis: "none" as Axis,
+      edge: edgeStart,
       mode: "idle" as "idle" | "hold" | "scrub" | "pan",
       zone,
       /* 按下这一刻控件是不是收起的：全屏态的 pointerdown 会先 wake() 把 idle 清掉，
@@ -988,17 +1052,23 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       return;
     }
 
+    /* 方向锁：过死区后按 1.4 倍比例定轴，定下即锁死（lockAxis 内部保证不再改判） */
+    g.axis = lockAxis(g.axis, dx, dy);
+    if (g.axis === "none") return;
+
     if (g.mode === "idle") {
-      if (Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy)) {
-        if (g.timer) window.clearTimeout(g.timer);
-        if (endless && g.hiddenAtDown && dx < 0) {
+      if (g.timer) window.clearTimeout(g.timer);
+      if (g.axis === "x") {
+        if (g.edge && dx > 0) {
+          /* 边缘返回优先：左缘 24px 内右滑=退一层，不参与 seek */
+          g.mode = "edgeBack";
+        } else if (endless && g.hiddenAtDown && dx < 0) {
           g.mode = "enterSeries";
         } else {
           g.mode = "scrub";
           videoRef.current?.pause();
         }
-      } else if (Math.abs(dy) > 14) {
-        if (g.timer) window.clearTimeout(g.timer);
+      } else {
         g.mode = "pan";
       }
       return;
@@ -1007,13 +1077,18 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     if (g.mode === "scrub") {
       const total = duration || 0;
       if (!total) return;
-      const target = Math.max(0, Math.min(total, g.base + (dx / g.width) * total));
+      /* 量纲按片长自适应（<=60s 15s/100px，60–600s 30s/100px，>600s 60s/100px），
+         不再拿「屏宽的百分比」当秒数 —— 否则短视频一滑就跨半集。 */
+      const target = Math.max(0, Math.min(total, g.base + seekDeltaSeconds(dx, total)));
       scrubTarget.current = target;
       setScrub({ pct: (target / total) * 100, target });
-    } else if (g.mode === "pan" && !fs && !endless && swipeEp && kind === "video" && zoom.s <= 1.05) {
+    } else if (g.mode === "pan" && !fs && !endless && swipeEp && episodes.length > 1 && zoom.s <= 1.05) {
       const pdy = msy - g.startY;
-      const damped = Math.max(-96, Math.min(96, pdy * 0.42));
-      setEpSlide({ y: damped, animate: false });
+      const intent = episodeIntent(pdy, g.stageH);
+      /* 跟手：内容直接跟着手指走（transform，不重排），上下限各半屏 */
+      const limit = g.stageH * 0.5;
+      setEpSlide({ y: Math.max(-limit, Math.min(limit, pdy)), animate: false });
+      setEpPreview(intent.preview ? { dir: intent.dir, label: episodeLabel(intent.dir) } : null);
     }
   };
 
@@ -1058,10 +1133,22 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       }
       return;
     }
+    if (g.mode === "edgeBack") {
+      /* 边缘返回：位移够才退，不够就当没发生（不产生任何跳转） */
+      const dxEdge = e ? stageXY(rotated, e.clientX, e.clientY)[0] - g.x : 0;
+      if (!cancelled && dxEdge >= GESTURE.edgeBackCommit) store.pop();
+      return;
+    }
     if (g.mode === "scrub") {
       setEpSlide({ y: 0, animate: true });
       const target = scrubTarget.current;
-      if (!cancelled && target != null) videoRef.current?.seek(target, "mobile_gesture");
+      const dxScrub = e ? stageXY(rotated, e.clientX, e.clientY)[0] - g.x : 0;
+      /* 短滑 <20px 不 seek（只当误触）；够长就吸附到整 5 秒并给一次提示 */
+      if (!cancelled && target != null && canSeek(dxScrub)) {
+        const snapped = snapSeek(target, duration || liveRef.current.dur || 0);
+        videoRef.current?.seek(snapped, "mobile_gesture");
+        flashSeek(snapped - g.base, snapped);
+      }
       setScrub(null);
       scrubTarget.current = null;
       if (g.playing && active) videoRef.current?.play();
@@ -1071,15 +1158,15 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     if (!cancelled && !fs && e && g.mode === "pan") {
       const [ux2, uy2] = stageXY(rotated, e.clientX, e.clientY);
       const dy = uy2 - g.startY;
-      const dx2 = ux2 - g.x;
-      if (Math.abs(dy) > 56 && Math.abs(dy) > Math.abs(dx2)) {
-        const dir = dy < 0 ? 1 : -1;
+      const intent = episodeIntent(dy, g.stageH);
+      if (intent.commit) {
+        const dir = intent.dir;
         const ep = epMap[curId] || 1;
         const total = episodes.length;
         const want = dir === 1 ? (total === 0 || ep < total ? ep + 1 : 0) : (ep > 1 ? ep - 1 : 0);
         /* 抖音模式：竖滑固定「下一部」，不按集切（用户在这个模式里要的是换剧） */
         if (endless) { setEpSlide({ y: 0, animate: false }); go(dir); return; }
-        if (swipeEp && kind === "video" && want) {
+        if (swipeEp && episodes.length > 1 && want) {
           window.clearTimeout(epSlideTimer.current);
           setEpSlide({ y: dir > 0 ? -72 : 72, animate: true });
           epSlideTimer.current = window.setTimeout(() => {
@@ -1095,42 +1182,39 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       }
     }
     setEpSlide({ y: 0, animate: true });
-    /* 全屏态：控件隐藏时单击呼出；控件显示时单击收起、双击暂停/继续
-       竖屏非全屏态：净屏时单击呼出；显示时单击暂停/继续、双击净屏 */
+    setEpPreview(null);
+    /*
+      单击 / 双击语义（重写）：
+        · 双击（280ms 内第二下）：左半屏 −10s、右半屏 +10s，屏上给 800ms 时间气泡；
+        · 单击两态：控件收起 → 唤出；控件可见 → 播放/暂停。
+      以前双击被拆成两次单击（唤出 + 收起）互相抵消，用户根本感受不到双击。
+    */
     if (!cancelled && g.mode === "idle" && Date.now() - g.t < 260) {
-      if (fs) {
-        if (g.hiddenAtDown || idle) {
-          showControls();
-          return;
-        }
-        if (lastTapRef.current.timer) {
-          window.clearTimeout(lastTapRef.current.timer);
-          lastTapRef.current.timer = null;
-          videoRef.current?.toggle();
-          armAutoHide();
-          return;
-        }
-        lastTapRef.current.timer = window.setTimeout(() => {
-          lastTapRef.current.timer = null;
-          hideControls();
-        }, TAP_DELAY_MS) as unknown as number;
-        return;
-      }
-      if (g.hiddenAtDown || clean) {
+      const now = Date.now();
+      if (isDoubleTap(tapRef.current.lastAt, now)) {
+        window.clearTimeout(tapRef.current.timer ?? undefined);
+        tapRef.current = { lastAt: 0, timer: null };
+        window.clearTimeout(lastTapRef.current.timer ?? undefined);
+        lastTapRef.current.timer = null;
+        seekBy(doubleTapSeek(g.x, g.width));
         showControls();
         return;
       }
-      if (lastTapRef.current.timer) {
-        window.clearTimeout(lastTapRef.current.timer);
-        lastTapRef.current.timer = null;
-        hideControls();
+      const hidden = g.hiddenAtDown || clean || (!isDesktop && fs && idle);
+      tapRef.current.lastAt = now;
+      window.clearTimeout(tapRef.current.timer ?? undefined);
+      if (hidden) {
+        /* 收起状态：立刻唤出，体感要跟手 */
+        tapRef.current.timer = null;
+        showControls();
         return;
       }
-      lastTapRef.current.timer = window.setTimeout(() => {
-        lastTapRef.current.timer = null;
+      /* 可见状态：等过双击窗口再切换播放/暂停，避免双击被当成两次暂停 */
+      tapRef.current.timer = window.setTimeout(() => {
+        tapRef.current = { lastAt: 0, timer: null };
         videoRef.current?.toggle();
         armAutoHide();
-      }, TAP_DELAY_MS) as unknown as number;
+      }, GESTURE.doubleTapMs) as unknown as number;
     }
   };
 
@@ -1925,9 +2009,33 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
               {!isDesktop && scrub && (
                 <div className="absolute inset-0 z-30 flex flex-col items-center justify-center pointer-events-none" style={{ background: "rgba(0,0,0,.25)" }}>
                   <span className="text-[26px] font-bold hg-ink tabular-nums hg-ov-shadow">{fmtTime(scrub.target)}</span>
-                  <span className="text-[12px] hg-ink-4 mt-1 tabular-nums">/ {fmtTime(duration)}</span>
+                  <span className="text-[12px] hg-ink-4 mt-1 tabular-nums">
+                    / {fmtTime(duration)}
+                    {scrub.target != null && duration ? `　${scrub.target >= 0 ? "+" : "−"}${Math.abs(Math.round(scrub.target - (videoRef.current?.el()?.currentTime ?? 0)))}s` : ""}
+                  </span>
                   <div className="mt-4 w-[62%] h-[3px] rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,.25)" }}>
                     <div className="h-full bg-white" style={{ width: `${scrub.pct}%` }} />
+                  </div>
+                </div>
+              )}
+
+              {/* 双击 / 松手 seek 的瞬时提示（800ms 自动消失） */}
+              {!isDesktop && seekHint && (
+                <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
+                  <div className="hg-chip hg-ink px-4 py-2 rounded-full flex items-center gap-2 backdrop-blur-md elev-2">
+                    <span className="text-[15px] font-bold tabular-nums">
+                      {seekHint.delta >= 0 ? "+" : "−"}{Math.abs(Math.round(seekHint.delta))}s
+                    </span>
+                    <span className="text-[12px] hg-ink-4 tabular-nums">{fmtTime(seekHint.target)}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* 上滑换集预览：拖过 60% 屏高才出，内容只用现有集数 */}
+              {!isDesktop && epPreview && (
+                <div className="absolute inset-x-0 z-30 flex justify-center pointer-events-none" style={{ bottom: "18%" }}>
+                  <div className="hg-chip hg-ink px-4 py-2 rounded-full text-[13px] font-semibold backdrop-blur-md elev-2">
+                    {epPreview.label}
                   </div>
                 </div>
               )}
