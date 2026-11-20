@@ -1458,12 +1458,19 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     if (!curId || likePending || pendingActions.current.has(pendingKey)) return;
     pendingActions.current.add(pendingKey);
     const on = !liked;
+    const step = on ? 1 : -1;
+    /* 立刻给反馈：计数 ±1 + 按钮 180ms 缩放。服务端失败再撤回，不造假。 */
+    setLikeDelta((d) => d + step);
+    setLikeBump((n) => n + 1);
     try {
       await setLiked(kind, curId, curEp, on);
+      /* 成功：liked 已经翻转会自带 ±1，把本地增量收掉，避免双计 */
+      setLikeDelta((d) => d - step);
       if (!actionIsCurrent()) return;
       if (on) setHeartBurst((n) => n + 1);
       toast(on ? "已加入喜欢" : "已取消喜欢", on ? "heart" : "info");
     } catch (error) {
+      setLikeDelta((d) => d - step);
       if (actionIsCurrent()) toast(error instanceof Error ? error.message : "点赞失败，请重试", "info");
     } finally { pendingActions.current.delete(pendingKey); }
   };
@@ -1501,12 +1508,16 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     setPanel(null);
   };
 
+  /* 点赞乐观增量：服务端回包前先本地 ±1，回包成功后由 liked 态接管（增量归零），
+     失败则撤回。计数全是「33.3万」这种格式化值，±1 看不出来，所以还要配一个 180ms 动效。 */
+  const [likeDelta, setLikeDelta] = useState(0);
+  const [likeBump, setLikeBump] = useState(0);
   const likeCount = useMemo(() => {
     const base = meta.like;
     const loadedLiked = kind === "video" && detail?.interaction?.liked
       && (detail.interaction.liked_ep === undefined || detail.interaction.liked_ep === curEp);
-    return Math.max(0, base + Number(liked) - Number(!!loadedLiked));
-  }, [meta.like, liked, kind, detail?.interaction, curEp]);
+    return Math.max(0, base + likeDelta + Number(liked) - Number(!!loadedLiked));
+  }, [meta.like, likeDelta, liked, kind, detail?.interaction, curEp]);
   const collectCount = useMemo(() => {
     const loadedCollected = kind === "video" && detail?.interaction?.collected;
     return Math.max(0, meta.collect + Number(collected) - Number(!!loadedCollected));
@@ -1732,7 +1743,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                 <div className={`mobile-video-action-rail absolute right-3 z-20 flex flex-col items-center ${vpLandscape ? "gap-1.5" : "gap-3"}`}
                   style={{ bottom: vpLandscape ? "calc(var(--sab, 0px) + 12px)" : `calc(var(--sab, 0px) + ${bottomInset + 178}px)` }}>
                   {kind === "video" && (
-                    <Button onClick={() => void onLike()} disabled={likePending} aria-busy={likePending} className="min-w-11 min-h-11 flex flex-col items-center justify-center gap-1 pressable" aria-pressed={liked} aria-label="点赞">
+                    <Button key={`like-${likeBump}`} onClick={() => void onLike()} disabled={likePending} aria-busy={likePending}
+                      className={`min-w-11 min-h-11 flex flex-col items-center justify-center gap-1 pressable${likeBump ? " hg-like-bump" : ""}`}
+                      aria-pressed={liked} aria-label="点赞">
                       {liked ? <IHeartF size={26} className="text-neon" /> : <IHeart size={26} className="hg-ink hg-ov-shadow" />}
                       <span className="text-[12px] text-white/90 tabular-nums">{fmt(likeCount)}</span>
                     </Button>

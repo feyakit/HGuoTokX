@@ -581,6 +581,16 @@ input[type="range"].hg-range::-webkit-slider-thumb { -webkit-appearance: none; w
    热区上下各外扩 6px（≥44×44），视觉一个像素都不放大 */
 .hg-quality-chip { position: relative; }
 .hg-quality-chip::after { content: ""; position: absolute; inset: -6px 0; }
+/* 点赞反馈：计数被格式化成「33.3万」，±1 在文本上看不出来，
+   所以点下去给一次 180ms 的缩放脉冲（只动 transform，老内核也没问题）。 */
+@keyframes hg-like-bump-kf {
+  0% { transform: scale(1); }
+  38% { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+.hg-like-bump { animation: hg-like-bump-kf .18s cubic-bezier(.22,1,.36,1); }
+@media (prefers-reduced-motion: reduce) { .hg-like-bump { animation: none; } }
+
 /* 只有一条流时画质是「静态信息」不是按钮：压一点不透明度、不要手型光标，
    视觉尺寸与倍速胶囊完全一致（都是 h-8 / text-[12px]）。 */
 .hg-quality-fixed { opacity: 0.72; cursor: default; }
