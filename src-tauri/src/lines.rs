@@ -55,6 +55,8 @@ const MIRROR_CACHE_FILE: &str = "lines-cache.json";
 /// Only origins actually parsed from a trusted publisher can enter this set.
 /// Loading line.json, displaying the current line and probing a host never add trust.
 static TRUSTED_MIRRORS: RwLock<Vec<String>> = RwLock::new(Vec::new());
+/// 落盘缓存里的 origin：只允许「自动切线切过去（游客浏览）」，**不授予**登录凭据信任。
+static CACHED_MIRRORS: RwLock<Vec<String>> = RwLock::new(Vec::new());
 static MIRRORS_CACHE: RwLock<Option<(Instant, Value)>> = RwLock::new(None);
 /// 应用数据目录，由 [`bind`] 在启动时绑定；落盘列表写这里。
 static CACHE_DIR: RwLock<Option<PathBuf>> = RwLock::new(None);
@@ -105,6 +107,7 @@ fn load_mirrors_cache() -> Option<Value> {
         return None;
     }
     let recommended = items.iter().take(RECOMMENDED_MAX).cloned().collect::<Vec<_>>();
+    remember_cached(&items);
     Some(json!({
         "source": "cache",
         "script": "",
@@ -139,6 +142,33 @@ pub fn is_trusted_mirror(origin: &str) -> bool {
         .read()
         .map(|known| known.iter().any(|value| value == origin))
         .unwrap_or(false)
+}
+
+/// 落盘缓存里的 origin：可以自动切过去（游客浏览），但登录凭据信任仍只看
+/// [`is_trusted_mirror`] / 固定线路 / 用户自定义线路。
+pub fn is_cached_mirror(origin: &str) -> bool {
+    CACHED_MIRRORS
+        .read()
+        .map(|known| known.iter().any(|value| value == origin))
+        .unwrap_or(false)
+}
+
+fn remember_cached(items: &[Value]) {
+    let mut known = CACHED_MIRRORS
+        .write()
+        .unwrap_or_else(|error| error.into_inner());
+    known.clear();
+    for origin in items
+        .iter()
+        .filter_map(|item| item.get("url").and_then(Value::as_str))
+    {
+        if known.len() >= 256 {
+            break;
+        }
+        if !known.iter().any(|value| value == origin) {
+            known.push(origin.to_owned());
+        }
+    }
 }
 
 pub fn fixed() -> Value {
@@ -1283,6 +1313,8 @@ var emails = ['huangguoaiai@gmail.com'];
         let cached = load_mirrors_cache().unwrap();
         assert_eq!(cached["stale"], json!(true));
         assert_eq!(origins(cached["items"].as_array().unwrap()), ["https://cached.example"]);
+        // 落盘缓存可以「切过去」，但绝不进登录凭据信任集合。
+        assert!(is_cached_mirror("https://cached.example"));
         assert!(!is_trusted_mirror("https://cached.example"));
         let _ = std::fs::remove_dir_all(&dir);
     }

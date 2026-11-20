@@ -163,7 +163,11 @@ fn save_line(current: &mut LineConfig, next: LineConfig, path: Option<&std::path
 fn apply_base(url: &str, custom: bool) -> Result<String, String> {
     let next = normalize_base(url)
         .ok_or_else(|| "线路地址无效（需要纯 HTTPS 站点地址，禁止内网）".to_string())?;
-    if !custom && !crate::lines::is_fixed(&next) && !crate::lines::is_trusted_mirror(&next) {
+    if !custom
+        && !crate::lines::is_fixed(&next)
+        && !crate::lines::is_trusted_mirror(&next)
+        && !crate::lines::is_cached_mirror(&next)
+    {
         return Err("线路不在固定线路或可信发布页清单中".into());
     }
     let mut current = BASE.write().map_err(|_| "线路设置锁失败")?;
