@@ -2,7 +2,7 @@
    uses solid, legible surfaces. All effects have a non-transparent fallback. */
 :root {
   color-scheme: dark;
-  --p-canvas:#101012; --p-bg:#151517; --p-s1:#232325; --p-s2:#2b2b2e;
+  --p-canvas:#000000; --p-bg:#000000; --p-s1:#232325; --p-s2:#2b2b2e;
   --p-s3:#343437; --p-s4:#48484d; --p-on:#f5f5f7; --p-mut:#b6b6bd; --p-dim:#a0a0a9;
   --p-primary:#74b7ff; --p-on-primary:#082749; --p-pc:#193c60; --p-on-pc:#d4e8ff;
   --p-sec:#343b45; --p-on-sec:#dcecff; --p-like:#ff819a; --p-star:#f5cc66;
@@ -263,7 +263,9 @@
   --motion-spring:cubic-bezier(.22,1,.36,1);
   --motion-spring-soft:cubic-bezier(.25,1,.5,1);
   --ios-spring:var(--motion-spring);
-  --p-canvas:#0A0B14; --p-bg:#0A0B14; --p-s1:#1E1E2E; --p-s2:#26263A; --p-s3:#2A2A3E; --p-s4:#45455E;
+  /* 纯黑基调（用户：直接和抖音一样黑）：画布与页面底一律 #000，
+     层次靠 s1..s4 的深灰卡片区分，强调色不动。 */
+  --p-canvas:#000000; --p-bg:#000000; --p-s1:#1E1E2E; --p-s2:#26263A; --p-s3:#2A2A3E; --p-s4:#45455E;
   --p-on:#ffffff; --p-mut:#C7C7D1; --p-dim:#9CA3AF; --p-primary:#7C5CFF; --p-on-primary:#ffffff;
   --p-pc:#26263A; --p-on-pc:#C4B5FD; --p-sec:#26263A; --p-on-sec:#C4B5FD;
   --p-like:#FF3B30; --p-star:#F5A623; --p-success:#8bd3a0; --p-danger:#ff928b; --p-on-danger:#3b100d;
@@ -545,3 +547,92 @@ body { background:var(--motion-paper); }
   .ios-mobile-nav .hg-drop>.ios-liquid-fill,.ios-segmented-indicator { background:Highlight; }
   .ios-mobile-nav .ios-mobile-nav-item[aria-current=page],.ios-mobile-nav[data-over-video=true] .ios-mobile-nav-item[aria-current=page],.ios-segmented-items>[aria-pressed=true] { color:HighlightText!important; }
 }
+
+
+/* ============ 移动端体验层（v3.0.6 第三批） ============
+   页面转场 / 点击反馈 / 面板时长。桌面壳不参与（只在 plat-android / plat-ios 下生效）。 */
+@keyframes hg-page-forward { from { opacity: 0; transform: translate3d(0, 8px, 0); } to { opacity: 1; transform: none; } }
+@keyframes hg-page-back { from { opacity: 1; transform: none; } to { opacity: 0; transform: translate3d(0, 8px, 0); } }
+
+.plat-android .a-page-in,
+.plat-ios .a-page-in { animation: hg-page-forward 180ms var(--ease-out); }
+.plat-android .a-page-out,
+.plat-ios .a-page-out { animation: hg-page-back var(--dur-1) var(--ease-in) both; }
+
+/* 点击反馈：
+   · 按钮/胶囊按下 98%（覆盖旧的 transform:none，这是用户要的"有反馈"）
+   · 卡片与列表行给一层底色高亮（抖音也有），只用 :active，不挂 JS，不影响滚动 */
+.pressable:active:not(:disabled) { transform: scale(.98); transition: transform var(--dur-1) var(--ease-out); }
+.hg-wide-card:active,
+.hg-tl-card:active,
+.hg-poster:active,
+.hg-profile-guest:active { background-color: rgba(255, 255, 255, .06); transition: background-color var(--dur-1) linear; }
+.ios-button[data-card]:active { background-color: rgba(255, 255, 255, .07); }
+
+/* 面板/抽屉：进出统一 220ms（遮罩 160ms），与 .ios-overlay 的既有 keyframes 合并 */
+.ios-overlay.is-open .ios-dialog { animation-duration: var(--dur-2); animation-timing-function: var(--ease-out); }
+.ios-overlay-backdrop { transition: opacity 160ms var(--ease-out); }
+
+
+/* ============ 状态变化动画统一层（v3.0.6 第三批·全量盘点） ============
+   只动 transform / opacity / 颜色类可合成属性；不改布局尺寸、不改配色。
+   过渡关掉时（reduced-motion / data-fx=low）见文件末尾的降级块。 */
+@keyframes hg-fade-in { from { opacity: 0; transform: translate3d(0, 6px, 0); } to { opacity: 1; transform: none; } }
+@keyframes hg-fade-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translate3d(0, 6px, 0); } }
+.hg-fade-in { animation: hg-fade-in 160ms var(--ease-out) both; }
+/* 淡出期间不接点击：卸载前那 120ms 不能挡住下面的控件 */
+.hg-fade-out { animation: hg-fade-out 120ms var(--ease-in) both; pointer-events: none; }
+
+/* toast：滑入 200ms（原来 260ms），退出由挂载层直接移除 */
+.a-toast { animation-duration: var(--dur-2); animation-timing-function: var(--ease-out); }
+
+/* 设置开关：滑块 160ms --ease-out，轨道颜色同步 */
+.ios-switch-thumb { transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out); }
+.ios-switch-track { transition: background-color 160ms var(--ease-out), border-color 160ms var(--ease-out); }
+
+/* 登录/表单错误行：淡入 + 高度展开（原来一出现就把按钮顶下去） */
+@keyframes hg-error-in { from { opacity: 0; max-block-size: 0; transform: translate3d(0, -4px, 0); } to { opacity: 1; max-block-size: 120px; transform: none; } }
+.ios-field-error { animation: hg-error-in 160ms var(--ease-out); overflow: hidden; }
+
+/* 详情页简介展开/折叠：高度过渡（不是一帧跳完） */
+.hg-detail-desc { transition: max-block-size var(--dur-2) var(--ease-out), opacity var(--dur-2) linear; max-block-size: 4.65em; overflow: hidden; }
+.hg-detail-desc.is-open { max-block-size: 60em; }
+
+/* 计数文字：固定数字宽度，避免 9→10 时整行抖动 */
+.hg-detail-counts, .hg-ep-cell, .tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* 列表追加：新卡片淡入 + 上移 12px，前 6 个错位 30ms */
+@keyframes hg-rise { from { opacity: 0; transform: translate3d(0, 12px, 0); } to { opacity: 1; transform: none; } }
+.hg-stagger > * { animation: hg-rise 200ms var(--ease-out) both; }
+.hg-stagger > *:nth-child(2) { animation-delay: 30ms; }
+.hg-stagger > *:nth-child(3) { animation-delay: 60ms; }
+.hg-stagger > *:nth-child(4) { animation-delay: 90ms; }
+.hg-stagger > *:nth-child(5) { animation-delay: 120ms; }
+.hg-stagger > *:nth-child(6) { animation-delay: 150ms; }
+
+/* 选集面板切换正序/倒序：整格淡入一次，不逐格闪 */
+.hg-ep-grid { animation: hg-crossfade-in 160ms var(--ease-out); }
+
+/* 点赞/收藏状态切换：心形 1 → 1.15 → 1（240ms），和 .hg-like-bump 同一套 */
+@keyframes hg-like-bump-kf {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+.hg-like-bump { animation: hg-like-bump-kf 240ms var(--ease-out); }
+
+/* 降级：系统开了"减少动态效果"，或低端机（js 打 data-fx="low"）→ 全部直接切 */
+@media (prefers-reduced-motion: reduce) {
+  .plat-android .a-page-in, .plat-ios .a-page-in,
+  .plat-android .a-page-out, .plat-ios .a-page-out,
+  .hg-crossfade, .ios-overlay.is-open .ios-dialog { animation: none !important; }
+  .pressable:active:not(:disabled) { transform: none; }
+  .hg-fade-in, .hg-fade-out, .ios-field-error, .hg-ep-grid, .hg-stagger > *,
+  .hg-like-bump, .a-toast, .ios-switch-thumb, .ios-switch-track, .hg-detail-desc {
+    animation: none !important; transition: none !important;
+  }
+}
+html[data-fx="low"] .plat-android .a-page-in,
+html[data-fx="low"] .plat-ios .a-page-in,
+html[data-fx="low"] .plat-android .a-page-out,
+html[data-fx="low"] .plat-ios .a-page-out { animation: none; }

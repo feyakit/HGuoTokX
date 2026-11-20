@@ -11,6 +11,8 @@ import { APP_VERSION, LOCAL, logLine, platform, webviewVersion } from "./api";
 import { mseHlsSupported } from "./mediaProbe";
 import { installLayoutDiagnostics } from "./layoutDiagnostics";
 import { installViewportVars } from "./viewport";
+import { installFxLevel } from "./fx";
+installFxLevel();
 installViewportVars();
 installPlaybackPageEvents();
 void initPlaybackLog();

@@ -1,4 +1,4 @@
-import { Children, forwardRef, type ButtonHTMLAttributes, type CSSProperties, type FormHTMLAttributes, type HTMLAttributes, type ImgHTMLAttributes, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { Children, forwardRef, type FocusEvent as ReactFocusEvent, type ButtonHTMLAttributes, type CSSProperties, type FormHTMLAttributes, type HTMLAttributes, type ImgHTMLAttributes, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import { cn } from "../../cn";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -18,8 +18,18 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   </button>;
 });
 
-export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input({ className, ...props }, ref) {
-  return <input {...props} ref={ref} aria-label={props["aria-label"] ?? props.placeholder}
+export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input({ className, onFocus, ...props }, ref) {
+  /* 移动端键盘会盖住输入框：聚焦后等键盘弹出（≈250ms）再把输入框滚到屏幕中间。
+     behavior 用 smooth，reduced-motion 下浏览器会自己退化成直接跳。 */
+  const focusIntoView = (event: ReactFocusEvent<HTMLInputElement>) => {
+    onFocus?.(event);
+    const el = event.currentTarget;
+    if (!el || el.type === "range") return;
+    window.setTimeout(() => {
+      try { el.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" }); } catch { /* 老内核忽略 */ }
+    }, 250);
+  };
+  return <input {...props} onFocus={focusIntoView} ref={ref} aria-label={props["aria-label"] ?? props.placeholder}
     data-ui={props.type === "range" ? "range" : "input"}
     className={cn(props.type === "range" ? "ios-range" : "ios-input", className)} />;
 });

@@ -21,6 +21,8 @@ import VideoDetailsPanel from "./VideoDetailsPanel";
 import { PreferenceStorageNotice } from "./PreferenceStorageNotice";
 import LineQuickSwitch from "./LineQuickSwitch";
 import { getHoldZone, stageXY, HOLD_DELAY_MS, HOLD_LOCK_DISTANCE, type HoldZone } from "../mobileHold";
+import { playEnter, playExit, originFromPoint } from "../fsTransition";
+import { useFadeMount } from "../useFadeMount";
 import {
   GESTURE, canSeek, doubleTapSeek, episodeIntent, isDoubleTap, isEdgeBackStart,
   lockAxis, rotationLocked, seekDeltaSeconds, snapSeek, tapVerdict, type Axis,
@@ -560,6 +562,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
      避免旋转动画期间手指还按在屏幕上被误判成 seek / 换集。 */
   useEffect(() => { rotatedAtRef.current = Date.now(); }, [rotated, vpLandscape]);
 
+  /* 控件层显隐动画（淡出 120ms 后才卸载） */
+  const cinemaBar = useFadeMount(!fs && !clean && !isDesktop);
+  const actionRail = useFadeMount(!fs && !clean && !isDesktop);
   const landscapeVideo = videoSize.w > 0 && videoSize.h > 0 && videoSize.w > videoSize.h;
   const portraitVideo = videoSize.w > 0 && videoSize.h > 0 && videoSize.w <= videoSize.h;
   const ambientCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -1258,6 +1263,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
      系统方向由 Kotlin 插件真转（安卓）；转不过去时 .fs-landscape 的 CSS 旋转仍兜底
      （注释见 index.css），所以两条路互不依赖。 */
   const enterFs = useCallback((landscape = true) => {
+    /* FLIP：切换前记下播放器当前几何，切换后用 WAAPI 从旧几何补间到满屏。
+       会请求系统转屏时（移动端）只淡入 —— 旋转由系统做，再叠缩放会打架。 */
+    const root = (boxRef.current?.closest(".hg-player-ui") as HTMLElement | null) ?? null;
+    const fromRect = root ? root.getBoundingClientRect() : null;
+    const willRotate = !isDesktop && landscape;
     /* 先把当前可见项锁定下来，再收起滚动容器：否则进入全屏后 scrollTop 归零，
        还在 150ms 防抖里的 index 会被 resolveSwipe(0) 改回第一屏（「全屏后变成另一个视频」）。 */
     const el = boxRef.current;
@@ -1272,6 +1282,10 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     setFsLandscape(landscape);
     showControls();
     keepAlive();
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (root) root.style.transformOrigin = originFromPoint(root);
+      playEnter(root, fromRect ? { left: fromRect.left, top: fromRect.top, width: fromRect.width, height: fromRect.height } : null, !willRotate);
+    }));
     if (!isDesktop) {
       /* 只做两件事：系统转屏（安卓 JNI setRequestedOrientation）+ CSS 舞台。
          这里**不能再调 requestFullscreen / orientation.lock** —— 安卓 WebView 收到全屏请求会走
@@ -1285,17 +1299,23 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
 
   /* 退出全屏：再点一次回到竖屏（并解除系统方向锁/全屏） */
   const exitFs = useCallback(() => {
+    const root = (boxRef.current?.closest(".hg-player-ui") as HTMLElement | null) ?? null;
+    const fromRect = root ? root.getBoundingClientRect() : null;
+    const wasFs = fs;
     setClean(false);
     setFs(false);
     setFsLandscape(false);
     showControls();
     keepAlive();
+    if (wasFs) requestAnimationFrame(() => requestAnimationFrame(() => {
+      playExit(root, fromRect ? { left: fromRect.left, top: fromRect.top, width: fromRect.width, height: fromRect.height } : null, true);
+    }));
     if (!isDesktop) {
       requestOrientation(false);
       try { screen.orientation?.unlock?.(); } catch { /* ignore */ }
       try { if (document.fullscreenElement) void document.exitFullscreen?.()?.catch(() => {}); } catch { /* ignore */ }
     }
-  }, [isDesktop, keepAlive, setClean, setFs, showControls]);
+  }, [isDesktop, keepAlive, setClean, setFs, showControls, fs]);
 
   useEffect(() => {
     if (isDesktop || !fs) return undefined;
@@ -1739,8 +1759,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
               )}
               {/* 右侧操作栏（移动端）：点赞 / 收藏 / 评论 / 全屏
                   颜色写死不跟主题走：浅色主题下这些字必须仍是白色 */}
-              {!fs && !clean && !isDesktop && (
-                <div className={`mobile-video-action-rail absolute right-3 z-20 flex flex-col items-center ${vpLandscape ? "gap-1.5" : "gap-3"}`}
+              {actionRail.mounted && (
+                <div className={`mobile-video-action-rail absolute right-3 z-20 flex flex-col items-center ${actionRail.cls} ${vpLandscape ? "gap-1.5" : "gap-3"}`}
                   style={{ bottom: vpLandscape ? "calc(var(--sab, 0px) + 12px)" : `calc(var(--sab, 0px) + ${bottomInset + 178}px)` }}>
                   {kind === "video" && (
                     <Button key={`like-${likeBump}`} onClick={() => void onLike()} disabled={likePending} aria-busy={likePending}
@@ -1836,9 +1856,10 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
               </div>
               )}
 
-              {/* 移动端：统一以剧场模式为基准的底部控台（抖音模式同步支持线路/全屏/倍速/进度条，且「看全集」直达剧场续播） */}
-              {!fs && !clean && !isDesktop && (
-                <div className="hg-cinema-bottom absolute inset-x-0 z-20" data-hg-control="bar"
+              {/* 移动端：统一以剧场模式为基准的底部控台（抖音模式同步支持线路/全屏/倍速/进度条，且「看全集」直达剧场续播）
+                  显隐走 useFadeMount：淡入 160ms / 淡出 120ms + 6px 位移，不再整块硬闪。 */}
+              {cinemaBar.mounted && (
+                <div className={`hg-cinema-bottom absolute inset-x-0 z-20 ${cinemaBar.cls}`} data-hg-control="bar"
                   style={{
                     bottom: `calc(var(--sab, 0px) + ${bottomInset + 14}px)`,
                     paddingRight: vpLandscape ? 64 : undefined,

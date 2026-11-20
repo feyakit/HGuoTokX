@@ -268,7 +268,8 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
               <Empty icon={<IGrid size={26} />} title="暂无相关内容" sub="换个板块或排序试试" />
             )}
 
-            <div className="hg-grid-c3 mt-3">
+            {/* hg-stagger：追加/换批时新卡片淡入 + 上移，前 6 个错位 30ms（CSS 控制，不挂 JS） */}
+            <div className="hg-grid-c3 mt-3 hg-stagger">
               {items.map(v => (
                 <Button key={v.id} className="hg-poster is-c3" onClick={() => push({ kind: "series", id: v.id })}>
                   <span className="hg-poster-art">
