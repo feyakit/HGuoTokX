@@ -1216,9 +1216,10 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
 .ios-button.hg-binge-pill {
   position: relative;
   flex: none; min-height: 44px; min-block-size: 44px; min-inline-size: 44px;
-  padding: 0 12px; border-radius: 12px;
+  padding: 0 clamp(8px, 2.6vw, 12px); border-radius: 12px;
   display: inline-flex; align-items: center; justify-content: center; gap: 4px;
-  font-size: 12px; font-weight: 600; line-height: 1;
+  white-space: nowrap;
+  font-size: clamp(11px, 3.1vw, 12px); font-weight: 600; line-height: 1;
   background: rgba(255, 255, 255, 0.10);
   border: 1px solid rgba(255, 255, 255, 0.14);
   color: #fff;
@@ -1269,6 +1270,7 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
   flex: none; min-height: 30px; min-block-size: 0; min-inline-size: 0;
   padding: 5px 11px; border-radius: 9px;
   display: inline-flex; align-items: center; gap: 5px;
+  white-space: nowrap;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
   color: #C4C8DE; font-size: 12px; font-weight: 500; line-height: 1.2;
@@ -1716,14 +1718,16 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
   padding: 10px 0 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 .hg-cat-scope {
+  flex-shrink: 0; white-space: nowrap;
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: 15px; font-weight: 800; color: #fff;
+  font-size: clamp(14px, 3.8vw, 15px); font-weight: 800; color: #fff;
 }
-.hg-inline-sorts { display: flex; align-items: center; gap: 4px; overflow-x: auto; }
+.hg-inline-sorts { display: flex; align-items: center; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
+.hg-inline-sorts::-webkit-scrollbar { display: none; }
 .ios-button.hg-inline-sort {
-  flex: none; min-height: 44px; min-block-size: 44px; min-inline-size: 44px;
-  padding: 0 12px; border-radius: 10px; border: 0;
-  background: transparent; color: #8E93AD; font-size: 12px; font-weight: 600;
+  flex: none; white-space: nowrap; min-height: 44px; min-block-size: 44px; min-inline-size: 44px;
+  padding: 0 clamp(8px, 2.8vw, 12px); border-radius: 10px; border: 0;
+  background: transparent; color: #8E93AD; font-size: clamp(11.5px, 3.2vw, 12px); font-weight: 600;
 }
 .ios-button.hg-inline-sort[aria-selected="true"] {
   background: rgba(255, 255, 255, 0.10); color: #fff; font-weight: 700;
