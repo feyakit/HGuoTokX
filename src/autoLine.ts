@@ -9,6 +9,7 @@ import { tracePlayback } from "./playbackDiagnostics";
 import { readStorage, STORAGE_KEYS } from "./storage";
 import { decideLine } from "./linePolicy";
 import { migrateLegacyAutoLine, normalizeBase, readPreferredLine } from "./linePreference";
+import { recordProbes } from "./lineProbeCache";
 
 const HEALTH_STEPS = [60_000, 120_000, 300_000];
 const RECHECK_MS = 1_500;
@@ -96,6 +97,8 @@ export async function pickLine(reason: string, force = false, preferredDown = fa
     if (!autoLineEnabled()) return;
     const result = await api.lineAuto();
     if (result.cancelled || !autoLineEnabled()) return;
+    /* 线路面板要用这批探活结果显示延迟（不额外发请求；没探过的显示「未测」） */
+    recordProbes(result.pick.candidates);
     lastPickAt = Date.now();
     downStreak = 0;
     failStreak = 0;

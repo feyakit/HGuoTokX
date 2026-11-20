@@ -1,6 +1,7 @@
 import { Button, SegmentedControl } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { prefetchDetails } from "../detailFast";
 import { api, fmt } from "../api";
 import type { VideoCard } from "../types";
 import { useStore } from "../store";
@@ -118,6 +119,7 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
       const rows = (res?.items ?? []).filter(v => v && v.cover);
       const pages = Math.max(1, res?.pagination?.pages || 1);
       setItems(prev => p === 1 ? rows : [...prev, ...rows.filter(r => !prev.some(x => x.id === r.id))]);
+      if (p === 1) prefetchDetails(rows.slice(0, 4).map(v => v.id));
       setPage(p);
       setDone(!rows.length || p >= pages);
     } catch (e) {

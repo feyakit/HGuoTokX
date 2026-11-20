@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, cover, fmt } from "../api";
+import { cachedDetail, loadDetail } from "../detailFast";
 import { useStore } from "../store";
 import { ambientStyle, useAccent } from "../useAccent";
 import { Button } from "../components/ios/controls";
@@ -12,7 +13,7 @@ import type { Detail, VideoCard } from "../types";
    下面依次是 #标签小签、简介、选集（5 列 56×56）、相关推荐；顶部悬浮返回 + 收藏按钮，底部智能续播主 CTA。 */
 export default function SeriesDetail({ id, onBack }: { id: number; onBack: () => void }) {
   const { push, lineEpoch, history, isFav, setCollected, actionPending, toast } = useStore();
-  const [detail, setDetail] = useState<Detail | null>(null);
+  const [detail, setDetail] = useState<Detail | null>(() => cachedDetail(id));
   const [related, setRelated] = useState<VideoCard[]>([]);
   const [err, setErr] = useState("");
   const [favDelta, setFavDelta] = useState(0);
@@ -31,7 +32,9 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
     const my = ++seq.current;
     setErr("");
     setFavDelta(0);
-    api.video(id)
+    /* 首屏加速：预取命中时同步出内容（上面的 useState 初值），未命中走 loadDetail
+       —— 超过 3s 会用一次自动选线并行换线重试，谁先回用谁。 */
+    loadDetail(id)
       .then(res => { if (my === seq.current) setDetail(res); })
       .catch(e => { if (my === seq.current) setErr((e as Error)?.message || "加载失败"); });
     api.related(id)

@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { prefetchDetails } from "../detailFast";
 import { api, fmt, logLine } from "../api";
 import type { Detail, RankItem, TopicCard, VideoCard } from "../types";
 import { useStore } from "../store";
@@ -120,6 +121,8 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
       const pages = Math.max(1, res?.pagination?.pages || 1);
       setTotalPages(pages);
       setItems(prev => (p === 1 || replaceBatch) ? rows : [...prev, ...rows.filter(r => !prev.some(x => x.id === r.id))]);
+      /* 首屏预取详情（并发 2、失败静默）：点进去时详情页能直接出内容，不用等镜像 RTT */
+      if (p === 1 || replaceBatch) prefetchDetails(rows.slice(0, 4).map(v => v.id));
       setPage(p);
       if (replaceBatch) setSeedPage(p);
       setDone(!rows.length || p >= pages);

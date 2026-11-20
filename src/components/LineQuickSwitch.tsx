@@ -5,7 +5,8 @@ import { pauseAutoPick } from "../autoLine";
 import { setPreferredLine } from "../linePreference";
 import { Button } from "./ios/controls";
 import { Sheet } from "./ui";
-import { ICheck, IClose } from "../icons";
+import { ICheck, IChevR, IClose } from "../icons";
+import { domainFamily, readProbe } from "../lineProbeCache";
 
 /**
  * 播放页就地切线路：只列线路、点一下即切换、切完自动收面板。
@@ -18,6 +19,9 @@ export default function LineQuickSwitch({ open, onClose }: { open: boolean; onCl
   const [fixed, setFixed] = useState<LineItem[]>([]);
   const [mirrors, setMirrors] = useState<LineItem[]>([]);
   const [busy, setBusy] = useState("");
+  /* 分组折叠：默认只展开当前线路所在的域名族（39 行一次列完根本没法挑）。
+     只记"用户手动改过的那几个"，没记过的按「是不是当前族」决定，省得等异步数据回来还要同步状态。 */
+  const [openOverride, setOpenOverride] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!open) return undefined;
@@ -56,14 +60,50 @@ export default function LineQuickSwitch({ open, onClose }: { open: boolean; onCl
      「https://ruc.zuxszoix.cc」和带尾斜杠/大小写不同的写法，按 url 去重会把
      8 个 host 渲染成 16 行（v3.0.6 #7 真机现象）。 */
   const seen = new Set<string>();
-  const rows: { url: string; label: string; host: string }[] = [];
+  const rows: { url: string; label: string; host: string; family: string }[] = [];
   for (const i of [...fixed, ...mirrors]) {
     if (!i?.url) continue;
     const key = (hostOf(i.url) || i.url).toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    rows.push({ url: i.url, label: i.name?.trim() || hostOf(i.url), host: hostOf(i.url) });
+    rows.push({ url: i.url, label: i.name?.trim() || hostOf(i.url), host: hostOf(i.url), family: domainFamily(i.url) });
   }
+
+  /* 分组：同一域名族一组；组内按探活结果排序 —— 可用（延迟小的在前）→ 未测 → 不可用。
+     延迟只用自动选线缓存的探活结果，没探过就显示「未测」，不编数字。 */
+  const probeOf = (url: string) => readProbe(url);
+  const rank = (url: string) => {
+    const probe = probeOf(url);
+    if (!probe) return 1;
+    return probe.ok ? 0 : 2;
+  };
+  const groups = new Map<string, typeof rows>();
+  for (const row of rows) {
+    const list = groups.get(row.family) ?? [];
+    list.push(row);
+    groups.set(row.family, list);
+  }
+  for (const list of groups.values()) {
+    list.sort((a, b) => {
+      const diff = rank(a.url) - rank(b.url);
+      if (diff) return diff;
+      return (probeOf(a.url)?.ms ?? 0) - (probeOf(b.url)?.ms ?? 0);
+    });
+  }
+  const currentFamily = base ? domainFamily(base) : "";
+  const ordered = [...groups.entries()].sort((a, b) => {
+    if (a[0] === currentFamily) return -1;
+    if (b[0] === currentFamily) return 1;
+    return b[1].length - a[1].length;
+  });
+  const isOpen = (family: string) => openOverride[family] ?? (family === currentFamily);
+  const toggle = (family: string) => setOpenOverride((prev) => ({ ...prev, [family]: !isOpen(family) }));
+  const latency = (url: string) => {
+    const probe = probeOf(url);
+    if (!probe) return { text: "未测", cls: "text-dim" };
+    if (!probe.ok) return { text: "不可用", cls: "text-rose-300/80" };
+    return { text: `${probe.ms}ms`, cls: probe.ms <= 400 ? "text-mint" : "text-mut" };
+  };
 
   return (
     <Sheet open={open} onClose={onClose} label="切换线路">
@@ -79,22 +119,48 @@ export default function LineQuickSwitch({ open, onClose }: { open: boolean; onCl
         </div>
         <div className="flex-1 scroll-y px-3 pb-4">
           {!rows.length && <div className="text-center text-[12px] text-dim py-8">正在读取线路…</div>}
-          {rows.map(item => {
-            const current = item.url === base;
+          {ordered.map(([family, list]) => {
+            const open = isOpen(family);
+            const okCount = list.filter((row) => probeOf(row.url)?.ok).length;
             return (
-              <Button key={item.url} card onClick={() => void pick(item.url)} disabled={!!busy}
-                className={`w-full flex items-center gap-2 px-3.5 py-3 rounded-(--r-md) mb-1.5 text-left pressable ${current ? "bg-s3/70" : "bg-s2"}`}>
-                {/* 没有自定义名称时 label 就是域名，再渲染一行 host 会出现两行完全相同的字
-                    （v3.0.6 真机：「nku.zuxszoix.cc」上下重复）。只有真有名称时才补第二行。 */}
-                <span className="flex-1 min-w-0">
-                  <span className="block text-[14px] text-on truncate">{item.label}</span>
-                  {item.host && item.host !== item.label ? (
-                    <span className="block text-[12px] text-mut truncate mt-0.5">{item.host}</span>
-                  ) : null}
-                </span>
-                {busy === item.url ? <span className="text-[12px] text-mut shrink-0">切换中…</span>
-                  : current ? <ICheck size={15} className="text-mint shrink-0" /> : null}
-              </Button>
+              <div key={family} className="mb-1.5">
+                {/* 域名族分组头：点击折叠/展开，默认只展开当前线路所在族 */}
+                <Button card aria-expanded={open} aria-label={`${family} 分组，${list.length} 条${family === currentFamily ? "，当前线路" : ""}`}
+                  onClick={() => toggle(family)}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-(--r-md) bg-s3/40 pressable">
+                  <span className="flex-1 min-w-0 text-left">
+                    <span className="block text-[13px] font-semibold text-on truncate">
+                      {family}{family === currentFamily ? " · 当前" : ""}
+                    </span>
+                    <span className="block text-[11px] text-mut mt-0.5">
+                      {list.length} 条{okCount ? ` · ${okCount} 条可用` : ""}
+                    </span>
+                  </span>
+                  <span className={`shrink-0 text-mut transition-transform ${open ? "rotate-90" : ""}`}>
+                    <IChevR size={14} />
+                  </span>
+                </Button>
+                {open && list.map((item) => {
+                  const current = item.url === base;
+                  const lat = latency(item.url);
+                  return (
+                    <Button key={item.url} card onClick={() => void pick(item.url)} disabled={!!busy}
+                      className={`w-full flex items-center gap-2 px-3.5 py-3 rounded-(--r-md) mt-1 mb-1 text-left pressable ${current ? "bg-s3/70" : "bg-s2"}`}>
+                      {/* 没有自定义名称时 label 就是域名，再渲染一行 host 会出现两行完全相同的字
+                          （v3.0.6 真机：「nku.zuxszoix.cc」上下重复）。只有真有名称时才补第二行。 */}
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-[14px] text-on truncate">{item.label}</span>
+                        {item.host && item.host !== item.label ? (
+                          <span className="block text-[12px] text-mut truncate mt-0.5">{item.host}</span>
+                        ) : null}
+                      </span>
+                      <span className={`shrink-0 text-[11px] tabular-nums ${lat.cls}`}>{lat.text}</span>
+                      {busy === item.url ? <span className="text-[12px] text-mut shrink-0">切换中…</span>
+                        : current ? <ICheck size={15} className="text-mint shrink-0" /> : null}
+                    </Button>
+                  );
+                })}
+              </div>
             );
           })}
         </div>

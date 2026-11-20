@@ -18,7 +18,7 @@ import { IBack, IBoltF, IBroom, IChevR, IHeart, IInfo, ILink, ILockF, IRefresh, 
 const SETTING_GROUPS = ["播放", "内容偏好", "本地数据", "网络", "播放诊断", "其他"] as const;
 type SettingGroup = typeof SETTING_GROUPS[number];
 const GROUP_SUMMARIES: Record<SettingGroup, string> = {
-  播放: "启动静音与画质偏好",
+  播放: "启动静音",
   内容偏好: "标签屏蔽与内容显示",
   本地数据: "收藏、观看记录与缓存",
   网络: "代理、线路与连接诊断",
@@ -29,7 +29,7 @@ const GROUP_SUMMARIES: Record<SettingGroup, string> = {
 /* 独立设置页：线路 / 播放 / 本地数据 / 清理缓存 / 网络诊断 / 关于
    入口：Windows 侧栏「设置」、Android「我的」右上角齿轮 */
 export default function Settings({ onBack, initialSection }: { onBack: () => void; wide: boolean; initialSection?: "内容偏好" }) {
-  const { favs, postFavs, history, postHistory, muteOnStartup, setMuteOnStartup, preferHevc, setPreferHevc, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity, toast } = useStore();
+  const { favs, postFavs, history, postHistory, muteOnStartup, setMuteOnStartup, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity, toast } = useStore();
   const { preferences: contentPrefs } = useContentPreferences();
   const [about, setAbout] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
@@ -71,7 +71,7 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
   const totalSaved = favs.length + postFavs.length;
   const totalHistory = history.length + postHistory.length;
   const groupBadges: Partial<Record<SettingGroup, string>> = {
-    播放: preferHevc ? "高清优先" : "标准画质",
+    播放: muteOnStartup ? "启动静音" : "正常音量",
     内容偏好: contentPrefs.paused
       ? "已暂停"
       : contentPrefs.blockedTags.length > 0
@@ -180,14 +180,6 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
                 <div className="text-[12px] text-mut">默认开启，每次启动均静音；关闭后记住上次静音状态。下次启动生效。</div>
               </div>
               <Toggle desktop on={muteOnStartup} onChange={setMuteOnStartup} label="启动时静音" />
-            </div>
-            <div className="flex items-center gap-3 px-3.5 py-3">
-              <span className="ios-setting-icon"><IBoltF size={16} /></span>
-              <div className="flex-1 min-w-0">
-                <div className="text-[14px] text-on">优先高清</div>
-                <div className="text-[12px] text-mut">有高清就用 HEVC，播不了会自动切回标准</div>
-              </div>
-              <Toggle desktop on={preferHevc} onChange={setPreferHevc} label="优先高清" />
             </div>
           </>)}
 

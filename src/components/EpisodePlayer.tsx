@@ -1814,7 +1814,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
 
                 <p className="mt-1 text-[12px] leading-relaxed hg-ink-4 clamp-1">{meta.desc || "暂无简介"}</p>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <Button aria-label="视频详情" onClick={() => setPanel("detail")} className="min-h-11 px-4 rounded-full hg-chip text-[12px] inline-flex items-center gap-1">
+                  <Button aria-label="详情与标签" onClick={() => setPanel("detail")} className="min-h-11 px-4 rounded-full hg-chip text-[12px] inline-flex items-center gap-1">
                     详情与标签<IChevR size={13} />
                   </Button>
                   {isActive && <Button aria-label={endless ? "不感兴趣，跳过这条" : "不感兴趣"} title={endless ? "不感兴趣 · 立即跳过" : "不感兴趣 / 内容偏好"} onClick={dislikeCurrent}
@@ -1925,7 +1925,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                         <PlaybackTime clock={playbackClock} /> <span className="opacity-60">/ {fmtTime(duration || 0)}</span>
                       </span>
                       <div className="ml-auto flex items-center gap-1.5">
-                        {/* 画质胶囊：复用设置·播放里的 preferHevc（同一个存储键），
+                        {/* 画质胶囊：直接用 preferHevc（存储键不变；设置页的入口已按"没有实效的功能不要"删除），
                             点一下在「高清优先 / 标准画质」之间切换并落盘。
                             以前竖屏底栏只有 时间 / 倍速 / 下一集，画质入口只藏在三级设置里
                             （报告 v3.0.5：播放器无画质胶囊）。class 与旁边倍速胶囊逐字对齐，
@@ -2265,7 +2265,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
             </div>
           </Sheet>
 
-          <Sheet open={active && (panel === "detail" || panel === "episodes")} label={panel === "detail" ? "视频详情" : "选集"} onClose={() => setPanel(null)}>
+          {/* 面板 label 不能和按钮同名：DialogFrame 会把它写成 role=dialog 的 aria-label，
+              于是「视频详情」在同页出现两份，自动化/读屏可能命中离屏的那个（真机 x=-169 那次）。 */}
+          <Sheet open={active && (panel === "detail" || panel === "episodes")} label={panel === "detail" ? "视频详情面板" : "选集面板"} onClose={() => setPanel(null)}>
             <div className="video-details-sheet">
               {/* 双栏抽屉：详情 / 选集 */}
               <div className="shrink-0 flex items-center gap-2 px-4 pb-2">
