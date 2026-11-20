@@ -38,6 +38,21 @@ use std::time::{Duration, Instant};
 /// 默认上游（固定线路 1）。
 pub const DEFAULT_BASE: &str = "https://huangguoai.com";
 
+/// 国内实测这几个域名被 DNS 污染到**公网** Facebook 段（157.240.1.50 / 2a03:2880:...:face:b00c），
+/// 不是 127.0.0.1 也不是私网，所以旧的「私网才回退 DoH」判断救不到：TCP 会一直挂到超时。
+/// 这几个域名把解析顺序反过来——先 DoH，失败再退回系统 DNS。
+const DOH_FIRST_HOSTS: [&str; 3] = [
+    "huangguoai.com",
+    "huangguoai.pages.dev",
+    "huang-guo.pages.dev",
+];
+
+fn doh_first(host: &str) -> bool {
+    DOH_FIRST_HOSTS
+        .iter()
+        .any(|known| host == *known || host.ends_with(&format!(".{known}")))
+}
+
 /// 当前上游基址（不带结尾斜杠）。可在设置里切到固定线路 2 或镜像线路，运行时立即生效。
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct LineConfig {
@@ -562,20 +577,31 @@ async fn client_for_dns(raw: &str, public_dns: bool) -> Result<(url::Url, Arc<re
         let resolution = resolve_doh_fallback(host, port, &route, strict).await?;
         (resolution.addresses, CLIENT_TTL.min(resolution.ttl))
     } else if strict {
-        match network_policy::resolve_target(&target, strict).await {
-            Ok(addrs) => (addrs, CLIENT_TTL),
-            Err(err)
-                if target.scheme() == "https"
-                    && matches!(target.host(), Some(url::Host::Domain(_))) =>
-            {
-                // 系统 DNS 超时、失败或被运营商/路由器污染为 127.0.0.1 / 0.0.0.0 / 私网黑洞地址时，
-                // 自动回退加密 DoH（阿里 + Cloudflare）获取真实公网地址；DoH 结果仍经过严格公网 IP 校验。
-                match resolve_doh_fallback(host, port, &route, strict).await {
-                    Ok(resolution) => (resolution.addresses, CLIENT_TTL.min(resolution.ttl)),
-                    Err(_) => return Err(err),
-                }
+        if doh_first(host) {
+            // 先 DoH：被污染的域名拿到真地址，才不会在 TCP 上白等一整份超时。
+            match resolve_doh_fallback(host, port, &route, strict).await {
+                Ok(resolution) => (resolution.addresses, CLIENT_TTL.min(resolution.ttl)),
+                Err(_) => match network_policy::resolve_target(&target, strict).await {
+                    Ok(addrs) => (addrs, CLIENT_TTL),
+                    Err(err) => return Err(err),
+                },
             }
-            Err(err) => return Err(err),
+        } else {
+            match network_policy::resolve_target(&target, strict).await {
+                Ok(addrs) => (addrs, CLIENT_TTL),
+                Err(err)
+                    if target.scheme() == "https"
+                        && matches!(target.host(), Some(url::Host::Domain(_))) =>
+                {
+                    // 系统 DNS 超时、失败或被运营商/路由器污染为 127.0.0.1 / 0.0.0.0 / 私网黑洞地址时，
+                    // 自动回退加密 DoH（阿里 + Cloudflare）获取真实公网地址；DoH 结果仍经过严格公网 IP 校验。
+                    match resolve_doh_fallback(host, port, &route, strict).await {
+                        Ok(resolution) => (resolution.addresses, CLIENT_TTL.min(resolution.ttl)),
+                        Err(_) => return Err(err),
+                    }
+                }
+                Err(err) => return Err(err),
+            }
         }
     } else {
         (Vec::new(), CLIENT_TTL)
@@ -617,6 +643,18 @@ pub async fn get(
     referer: Option<&str>,
 ) -> Result<reqwest::Response, String> {
     get_with_dns(raw, timeout, accept, referer, false).await
+}
+
+/// 同 [`get`]，但强制走加密 DoH 解析。
+/// 发布页域名在国内会被污染成**公网** Facebook 段，系统 DNS 的答案看起来「合法」，
+/// 只有 DoH 才拿得到真地址。
+pub async fn get_public_dns(
+    raw: &str,
+    timeout: Duration,
+    accept: Option<&str>,
+    referer: Option<&str>,
+) -> Result<reqwest::Response, String> {
+    get_with_dns(raw, timeout, accept, referer, true).await
 }
 
 async fn get_with_dns(

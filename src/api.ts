@@ -373,7 +373,8 @@ export type ProxyProbe = { ok: boolean; status?: number | null; ms: number; erro
 
 /** 自动选线：主站可用时优先，否则检测可信发布页中的镜像。 */
 export type LineAutoCandidate = {
-  tier: "main" | "cn" | "mirror";
+  /** main=固定线路；mirror=发布页镜像；seed=内置兜底；custom=用户自定义线路 */
+  tier: "main" | "cn" | "mirror" | "seed" | "custom";
   url: string;
   ok: boolean;
   reachable: boolean;
@@ -387,7 +388,7 @@ export type LineAuto = {
   switched: boolean;
   pick: {
     base: string;
-    tier: "main" | "cn" | "mirror" | "none";
+    tier: "main" | "cn" | "mirror" | "seed" | "custom" | "none";
     ms: number;
     reason: string;
     candidates: LineAutoCandidate[];
