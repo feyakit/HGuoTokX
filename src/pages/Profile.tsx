@@ -1,13 +1,13 @@
 import { Button, SegmentedControl } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
 import { useEffect, useRef, useState } from "react";
-import { api, APP_VERSION, fmtTime, platform } from "../api";
+import { api, fmtTime } from "../api";
 import type { Detail, Post } from "../types";
 import { useStore } from "../store";
 import { Empty, Img, Modal } from "../components/ui";
 import { MediaCard } from "../components/cards";
 import { useContentPreferences } from "../contentPreferences";
-import { IBack, IBoltF, IChevR, IClock, ILogout, IMenuFollow, IMenuHistory, IMenuLikes, IPlayF, ISettings, IStar } from "../icons";
+import { IBack, IBoltF, IChevR, IClock, IMenuFollow, IMenuHistory, IMenuLikes, IPlayF, ISettings, IStar } from "../icons";
 
 function GuestCatAvatar() {
   return (
@@ -37,16 +37,11 @@ export default function Profile({ wide }: { wide: boolean }) {
 }
 
 function ProfileContent({ wide: _wide }: { wide: boolean }) {
-  const { user, setLoginOpen, logout, history, postHistory, favs, postFavs, follows, push, accountSync, syncAccount } = useStore();
-  const [logoutOpen, setLogoutOpen] = useState(false);
-  const [logoutBusy, setLogoutBusy] = useState(false);
-  const [logoutError, setLogoutError] = useState("");
+  const { user, setLoginOpen, history, postHistory, favs, postFavs, follows, push, accountSync, syncAccount } = useStore();
   const [recentDetails, setRecentDetails] = useState<Record<number, Detail>>({});
   const [recentFailed, setRecentFailed] = useState<Record<number, boolean>>({});
   const recentDetailsRef = useRef(recentDetails);
   recentDetailsRef.current = recentDetails;
-  const logoutPending = useRef(false);
-  const mounted = useRef(true);
   const recentIdsKey = history.slice(0, 8).map((h) => h.id).join(",");
   useEffect(() => {
     const ids = recentIdsKey ? recentIdsKey.split(",").map(Number).filter(Boolean) : [];
@@ -68,7 +63,6 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
   }, [recentIdsKey]);
   const [stats, setStats] = useState<{ followers: number; post_count: number; video_count: number } | null>(null);
 
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => {
     if (!user?.id) { setStats(null); return; }
     let alive = true;
@@ -77,22 +71,6 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
     }).catch(() => {});
     return () => { alive = false; };
   }, [user?.id]);
-
-  const confirmLogout = async () => {
-    if (logoutPending.current) return;
-    logoutPending.current = true;
-    setLogoutBusy(true);
-    setLogoutError("");
-    try {
-      await logout();
-      if (mounted.current) setLogoutOpen(false);
-    } catch (error) {
-      if (mounted.current) setLogoutError(error instanceof Error ? error.message : "退出失败，请重试");
-    } finally {
-      logoutPending.current = false;
-      if (mounted.current) setLogoutBusy(false);
-    }
-  };
 
   return (
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
@@ -239,32 +217,9 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
           )}
         </section>
 
-        {user && (
-          <div className="hg-menu hg-menu-danger">
-            <Button className="hg-menu-row" onClick={() => { setLogoutError(""); setLogoutOpen(true); }}>
-              <span className="hg-menu-icon"><ILogout size={19} strokeWidth={1.75} /></span>
-              <span className="hg-menu-label">退出登录</span>
-              <IChevR size={14} className="hg-menu-chevron" />
-            </Button>
-          </div>
-        )}
-
-        <div className="text-center text-[12px] text-dim mt-6 mb-6 pb-2">HGuoX {APP_VERSION} · {platform === "android" ? "Android" : platform === "ios" ? "iOS" : platform === "macos" ? "macOS" : platform === "linux" ? "Linux" : "Windows"} 客户端</div>
+        {/* 退出登录已搬到「设置 → 账号」，版本号只在「设置 → 关于」显示一次 */}
       </div>
 
-      <Modal open={logoutOpen} onClose={() => { if (!logoutPending.current) setLogoutOpen(false); }} label="退出登录">
-        <div className="p-5">
-          <h2 className="text-[18px] font-bold">退出登录</h2>
-          <p className="mt-2 text-[14px] text-mut">退出当前账户？账号数据和本机进度会保留，退出后显示游客的本机记录。</p>
-          {logoutError && <p role="alert" className="mt-3 text-[13px] text-danger">{logoutError}</p>}
-          <div className="mt-4 flex gap-3">
-            <Button variant="secondary" disabled={logoutBusy} onClick={() => setLogoutOpen(false)} className="flex-1">取消</Button>
-            <Button variant="danger" disabled={logoutBusy} onClick={() => void confirmLogout()} className="flex-1 rounded-(--r-ctl) px-3">
-              {logoutBusy ? "正在退出…" : "确认退出"}
-            </Button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 }
