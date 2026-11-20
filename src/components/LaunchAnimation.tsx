@@ -99,10 +99,14 @@ export function LaunchAnimation({ onFinish }: { onFinish: () => void }) {
   </div>;
 }
 
-/** Children mount once the reveal finishes. 3.0.0 起不再有首启「条款闸门」：动画演完直接进主界面。 */
+/** Children mount once the reveal finishes. 3.0.0 起不再有首启「条款闸门」：动画演完直接进主界面。
+ *
+ * 3.0.7 性能：孩子**在动画期间就开始挂载**（动画是不透明全屏层，z-index 10000，看不到下面），
+ * 于是「拉首页数据 + React 首次渲染」和 2.2s 的品牌动画并行跑；动画一收尾内容已经在，
+ * 不再出现「动画结束 → 空白 500ms → 才出第一张卡」。动画时长、样式、节奏一个像素没动。 */
 export default function StartupGate({ children }: { children: ReactNode }) {
   const [finished, setFinished] = useState(() => launchCompleted);
   const finish = useCallback(() => { launchCompleted = true; setFinished(true); }, []);
-  if (!finished) return <LaunchAnimation onFinish={finish} />;
+  if (!finished) return <><LaunchAnimation onFinish={finish} />{children}</>;
   return children;
 }

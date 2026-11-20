@@ -8,8 +8,6 @@ import { isMobile, selfTest } from "./api";
 import { addPluginListener, invoke } from "@tauri-apps/api/core";
 import { runBack } from "./back";
 import Home from "./pages/Home";
-import Feed from "./components/Feed";
-import EndlessFeed from "./components/EndlessFeed";
 import LoginModal from "./components/LoginModal";
 import { ToastHost } from "./components/ui";
 import { DesktopRail, DesktopTitleBar } from "./components/DesktopChrome";
@@ -18,6 +16,11 @@ import { tracePlayback } from "./playbackDiagnostics";
 import { INavCategory, INavCommunity, INavHome, INavProfile } from "./icons";
 
 // Local chunks load on first visit; visited tabs stay mounted as before.
+/* 播放器整条链（Feed → EpisodePlayer → VideoSurface → hls.js）单独成 chunk：
+   它是入口包里最重的一块（hls.js + 2300 行播放器），首屏一个字都用不到。
+   点播时才拉本地协议里的这个 chunk，几毫秒的事。 */
+const Feed = lazy(() => import("./components/Feed"));
+const EndlessFeed = lazy(() => import("./components/EndlessFeed"));
 const Search = lazy(() => import("./pages/Search"));
 const RankPage = lazy(() => import("./pages/Search").then(module => ({ default: module.RankPage })));
 const Category = lazy(() => import("./pages/Category"));

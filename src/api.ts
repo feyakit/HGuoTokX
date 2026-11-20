@@ -75,18 +75,37 @@ const failMessage = (msg: string, status?: string) =>
     ? `服务器请求失败（HTTP ${status}），请稍后重试或在设置中切换线路`
     : msg.length > 140 ? `${msg.slice(0, 140)}…` : msg;
 
+/** 读缓存 TTL（毫秒）。口径按"用户感知的新鲜度"定：
+ *  - 首页 feed / 分类 / 榜单 / 专题：60s 级别的目录页，数据本身不会秒变；
+ *  - 详情：5min（剧本信息、集数几乎不变；收藏/点赞数由本地乐观值维护）；
+ *  - 播放地址：90s（有过期风险，不放宽）。
+ *  没过期直接给；过期但还在 STALE_WINDOW 内先给旧值再后台刷新（见 call()）。
+ */
 const CACHE_TTL: Record<string, number> = {
-  api_video: 180_000,
-  api_play: 90_000,
-  api_post: 180_000,
+  api_feed: 30_000,
+  api_category: 60_000,
+  api_original_videos: 60_000,
+  api_tag_videos: 60_000,
+  api_posts: 60_000,
+  api_post_category: 60_000,
+  api_topic: 60_000,
+  api_topics: 60_000,
+  api_rank: 60_000,
   api_blog_posts: 60_000,
+  api_play: 90_000,
   api_post_playback: 90_000,
+  api_video: 300_000,
+  api_post: 180_000,
+  api_related: 300_000,
   api_tags: 300_000,
   api_post_categories: 300_000,
-  api_rank: 120_000,
-  api_related: 180_000,
   api_search_hot: 180_000,
 };
+/** 过了 TTL 还能当"垫底数据"用的窗口：先给旧内容，后台静默刷新。
+ *  再久就不给了（用户可能已经换线路/内容换季），直接等新数据。 */
+const STALE_WINDOW = 10 * 60_000;
+/** 缓存条目上限（首页分页 + 详情 + 榜单，200 条足够，超出按插入顺序淘汰最旧的） */
+const CACHE_MAX = 200;
 const READ_CACHE = new Map<string, { value: unknown; expires: number }>();
 const INFLIGHT = new Map<string, Promise<unknown>>();
 export const clearApiReadCache = () => {
@@ -100,37 +119,27 @@ if (typeof window !== "undefined") {
 const cacheKey = (cmd: string, args?: Record<string, unknown>) =>
   `${cmd}:${args ? JSON.stringify(args) : ""}`;
 
-async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  if (cmd === "line_set" || cmd === "line_custom_set" || cmd === "line_reset" || cmd === "cache_clear") {
-    clearApiReadCache();
+function remember(key: string, ttl: number, value: unknown) {
+  if (!key || !ttl) return;
+  if (READ_CACHE.size >= CACHE_MAX) {
+    const oldest = READ_CACHE.keys().next().value;
+    if (oldest !== undefined) READ_CACHE.delete(oldest);
   }
-  const ttl = CACHE_TTL[cmd];
-  const key = ttl ? cacheKey(cmd, args) : "";
-  if (ttl && key) {
-    const hit = READ_CACHE.get(key);
-    if (hit && hit.expires > Date.now()) {
-      return hit.value as T;
-    }
-    const pending = INFLIGHT.get(key);
-    if (pending) return pending as Promise<T>;
-  }
-  const run = async (): Promise<T> => {
-    const once = () => invoke(cmd, args) as Promise<T>;
-    try {
-      const r = await once();
-      notifyNet({ ok: true, cmd });
-      if (ttl && key) {
-        if (READ_CACHE.size > 120) {
-          const oldest = READ_CACHE.keys().next().value;
-          if (oldest !== undefined) READ_CACHE.delete(oldest);
-        }
-        READ_CACHE.set(key, { value: r, expires: Date.now() + ttl });
-      }
-      return r;
-    } catch (e) {
-      const msg = typeof e === "string" ? e : "请求失败，请检查网络";
-      const status = /^HTTP (\d{3})\b/.exec(msg)?.[1];
-      const networkish = !status && NET_FAIL.test(msg);
+  READ_CACHE.set(key, { value, expires: Date.now() + ttl });
+}
+
+/** 一次真正的请求（含链路异常重试一次），成功后写缓存。 */
+async function request<T>(cmd: string, args: Record<string, unknown> | undefined, key: string, ttl: number): Promise<T> {
+  const once = () => invoke(cmd, args) as Promise<T>;
+  try {
+    const r = await once();
+    notifyNet({ ok: true, cmd });
+    remember(key, ttl, r);
+    return r;
+  } catch (e) {
+    const msg = typeof e === "string" ? e : "请求失败，请检查网络";
+    const status = /^HTTP (\d{3})\b/.exec(msg)?.[1];
+    const networkish = !status && NET_FAIL.test(msg);
     // 落盘完整错误链（dns error / connection refused / 证书错误…），toast 只显示截断版
     logLine(`[api] ${cmd} → ${msg}`);
     tracePlayback("api.fail", { cmd, err: msg, status: status ?? null, networkish });
@@ -145,7 +154,7 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> 
         logLine(`[api] ${cmd} 重试成功`);
         tracePlayback("api.retry_ok", { cmd });
         notifyNet({ ok: true, cmd });
-        if (ttl && key) READ_CACHE.set(key, { value: r, expires: Date.now() + ttl });
+        remember(key, ttl, r);
         return r;
       } catch (e2) {
         const again = typeof e2 === "string" ? e2 : msg;
@@ -156,18 +165,55 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> 
       }
     }
     throw new Error(failMessage(msg, status));
-    }
-  };
-  const promise = run();
+  }
+}
+
+/** 后台静默刷新：同一个 key 只跑一次，失败不弹任何东西（下次进来还是旧值兜底）。 */
+function revalidate(cmd: string, args: Record<string, unknown> | undefined, key: string, ttl: number) {
+  if (!key || INFLIGHT.has(key)) return;
+  const task = request(cmd, args, key, ttl);
+  INFLIGHT.set(key, task);
+  const done = () => { if (INFLIGHT.get(key) === task) INFLIGHT.delete(key); };
+  // 两个分支都接住，避免后台刷新失败变成未处理的 rejection
+  void task.then(done, done);
+}
+
+async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  if (cmd === "line_set" || cmd === "line_custom_set" || cmd === "line_reset" || cmd === "cache_clear") {
+    clearApiReadCache();
+  }
+  const ttl = CACHE_TTL[cmd] ?? 0;
+  const key = ttl ? cacheKey(cmd, args) : "";
+  /* 1) 缓存命中：没过期直接给；过期但还在 STALE_WINDOW 内 —— 先给旧内容、后台悄悄刷新。
+        这就是"先给缓存后静默刷新"：返回首页/详情不再空屏等网络，下一次进来就是新的。 */
   if (ttl && key) {
-    INFLIGHT.set(key, promise);
-    try {
-      return await promise;
-    } finally {
-      if (INFLIGHT.get(key) === promise) INFLIGHT.delete(key);
+    const hit = READ_CACHE.get(key);
+    if (hit) {
+      if (hit.expires > Date.now()) return hit.value as T;
+      if (hit.expires + STALE_WINDOW > Date.now()) {
+        revalidate(cmd, args, key, ttl);
+        return hit.value as T;
+      }
+      READ_CACHE.delete(key);
     }
   }
-  return promise;
+  /* 2) 并发去重：只读命令按 cmd+参数 合并"在途"请求。
+        以前只有配了 TTL 的命令才去重，同一次渲染里两处同时拉同一页会发两遍。 */
+  const dedupeKey = READ_ONLY.has(cmd) ? key || cacheKey(cmd, args) : "";
+  if (dedupeKey) {
+    const pending = INFLIGHT.get(dedupeKey);
+    if (pending) return pending as Promise<T>;
+  }
+  const task = request<T>(cmd, args, key, ttl);
+  if (dedupeKey) {
+    INFLIGHT.set(dedupeKey, task);
+    try {
+      return await task;
+    } finally {
+      if (INFLIGHT.get(dedupeKey) === task) INFLIGHT.delete(dedupeKey);
+    }
+  }
+  return task;
 }
 
 /* ── 接口 ───────────────────────────────────────────────── */

@@ -1,7 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useSyncExternalStore, type RefObject } from "react";
-import Hls from "hls.js";
-import type { FragBufferedData, FragLoadedData, FragLoadingData } from "hls.js";
+/* 只做类型引用：hls.js 是 ~500KB 的重依赖，这里一旦静态 import 就会被打进入口 chunk，
+   而入口 chunk 要在冷启第一帧前求值。真正需要 hls.js 运行期值的诊断在 ./hlsDiag。 */
+import type Hls from "hls.js";
 import { copyText } from "./clipboard";
 
 type Data = Record<string, unknown>;
@@ -56,7 +57,7 @@ export async function flushPlaybackLog() {
 export function initPlaybackLog() {
   return init ??= playbackLogApi.status().then(saved => {
     publish({ ...saved, ready: true });
-    tracePlayback("app.start", { version: __APP_VERSION__, platform: navigator.platform, user_agent: navigator.userAgent, hls_version: Hls.version, media_source: !!window.MediaSource, managed_media_source: "ManagedMediaSource" in window });
+    tracePlayback("app.start", { version: __APP_VERSION__, platform: navigator.platform, user_agent: navigator.userAgent, hls_version: hlsVersion, media_source: !!window.MediaSource, managed_media_source: "ManagedMediaSource" in window });
   }).catch(() => { init = undefined; publish({ error: "无法读取诊断日志设置" }); });
 }
 
@@ -67,7 +68,7 @@ export async function setPlaybackLog(on: boolean) {
     await flushPlaybackLog();
     const saved = await playbackLogApi.set(on);
     publish({ ...saved, pending: false });
-    tracePlayback("app.snapshot", { version: __APP_VERSION__, platform: navigator.platform, user_agent: navigator.userAgent, hls_version: Hls.version, media_source: !!window.MediaSource, managed_media_source: "ManagedMediaSource" in window });
+    tracePlayback("app.snapshot", { version: __APP_VERSION__, platform: navigator.platform, user_agent: navigator.userAgent, hls_version: hlsVersion, media_source: !!window.MediaSource, managed_media_source: "ManagedMediaSource" in window });
   } finally { if (state.pending) publish({ pending: false }); }
 }
 
@@ -110,6 +111,11 @@ function ranges(value: TimeRanges) {
 }
 const round = (n: number) => Number.isFinite(n) ? Math.round(n * 1000) / 1000 : null;
 const engines = new WeakMap<Hls, string>();
+/** 播放器 chunk 加载后由 hlsDiag 回填（这里拿不到 hls.js 的值，否则会把整包拉进入口） */
+export const setEngine = (hls: Hls, name: string) => { engines.set(hls, name); };
+/** hls.js 版本号，同样由 hlsDiag 在加载后回填；没加载过就是 "?" */
+let hlsVersion = "?";
+export const noteHlsVersion = (version: string) => { hlsVersion = version; };
 export function mediaSnapshot(v: HTMLVideoElement, hls?: Hls | null) {
   return { time: round(v.currentTime), duration: round(v.duration), paused: v.paused, seeking: v.seeking, ready: v.readyState, network: v.networkState,
     buffered: ranges(v.buffered), seekable: ranges(v.seekable), muted: v.muted, volume: v.volume, rate: v.playbackRate,
@@ -202,34 +208,6 @@ export function usePlayerDiagnostics(videoRef: RefObject<HTMLVideoElement | null
   }, []);
   useEffect(() => { trace("player.context"); }, [context.active, context.view, context.video_id, context.episode, context.resource]);
   return { trace, requestSeek };
-}
-
-export function observeHls(hls: Hls, trace: (event: string, data?: Data) => void) {
-  hls.on(Hls.Events.MEDIA_ATTACHED, (_event, data) => {
-    const source = data.mediaSource;
-    engines.set(hls, source?.constructor.name || "MediaSource");
-    trace("hls.attached", { engine: engines.get(hls), prefer_managed: hls.config.preferManagedMediaSource });
-    if (source) {
-      const start = () => trace("mms.startstreaming");
-      const end = () => trace("mms.endstreaming");
-      source.addEventListener("startstreaming", start);
-      source.addEventListener("endstreaming", end);
-      hls.once(Hls.Events.DESTROYING, () => { source.removeEventListener("startstreaming", start); source.removeEventListener("endstreaming", end); });
-    }
-  });
-  hls.on(Hls.Events.MANIFEST_PARSED, () => trace("hls.manifest", { levels: hls.levels.length }));
-  for (const event of [Hls.Events.FRAG_LOADING, Hls.Events.FRAG_LOADED, Hls.Events.FRAG_BUFFERED, Hls.Events.FRAG_LOAD_EMERGENCY_ABORTED] as const) {
-    hls.on(event, (_event: string, data: FragLoadingData | FragLoadedData | FragBufferedData) => {
-      if (!playbackLogEnabled()) return;
-      const { frag } = data;
-      const loading = frag.stats.loading;
-      trace(event, { resource: mediaResource(frag.url), host: mediaHost(frag.url), fragment: frag.sn, start: round(frag.start), duration: round(frag.duration), bytes: frag.stats.loaded,
-        load_ms: loading.end > 0 && loading.end >= loading.start ? round(loading.end - loading.start) : null,
-        first_byte_ms: loading.first > 0 && loading.first >= loading.start ? round(loading.first - loading.start) : null });
-    });
-  }
-  hls.on(Hls.Events.ERROR, (_event, data) => trace("hls.error", { type: data.type, detail: data.details, fatal: data.fatal, status: data.response?.code,
-    fragment: data.frag?.sn, resource: data.frag ? mediaResource(data.frag.url) : undefined, host: data.frag ? mediaHost(data.frag.url) : undefined }));
 }
 
 export function installPlaybackPageEvents() {

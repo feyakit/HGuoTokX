@@ -43,6 +43,18 @@ const WEEK = 7 * DAY;
 /* 主推展台自动轮换间隔：2.1.2 有、3.0.0 重构时丢了（报告 7「三分钟内无自动轮换」） */
 const HERO_ROTATE_MS = 6000;
 
+/** 空闲时再跑（有 requestIdleCallback 就用，超时兜底到 900ms；返回取消函数）。
+ *  首屏之后的预取/次要货架都走这里：不跟首帧抢主线程和带宽。 */
+const scheduleIdle = (fn: () => void, timeout: number): (() => void) => {
+  const ric = (window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
+  if (ric) {
+    const id = ric(fn, { timeout });
+    return () => (window as Window & { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(id);
+  }
+  const timer = window.setTimeout(fn, Math.min(timeout, 900));
+  return () => window.clearTimeout(timer);
+};
+
 const parseTime = (raw?: string | number) => {
   if (raw == null || raw === "") return NaN;
   if (typeof raw === "number") return raw > 1e12 ? raw : raw * 1000;
@@ -102,6 +114,7 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
   const loadingRef = useRef(false);
   const seq = useRef(0);
   const shelvesKey = useRef("");
+  const topicsKey = useRef("");
   const loadedKey = useRef("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -126,6 +139,10 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
       setPage(p);
       if (replaceBatch) setSeedPage(p);
       setDone(!rows.length || p >= pages);
+      /* 首屏落地后空闲时预取第 2 页（滚动加载时命中读缓存，省掉一个来回） */
+      if (p === 1 && key === "all" && pages > 1) {
+        scheduleIdle(() => { void api.feed(2, 21).catch(() => { /* 预取失败无所谓，滚到底还会再请求 */ }); }, 1400);
+      }
     } catch (e) {
       if (my === seq.current) setError((e as Error)?.message || "加载失败");
     } finally {
@@ -137,7 +154,8 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
     }
   }, []);
 
-  /* 推荐页专属异构货架数据（官方口碑推荐榜 + 热播榜 TOP10 + 独家原创宽画幅 + 精选专题）：按线路缓存 */
+  /* 推荐页专属异构货架数据（官方口碑推荐榜 + 热播榜 TOP10 + 独家原创宽画幅）：按线路缓存。
+     精选专题不在这里 —— 它在首屏出来之后再取（见下面那个 effect）。 */
   useEffect(() => {
     if (!active || tab !== "all") return;
     const key = String(lineEpoch);
@@ -147,17 +165,31 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
       api.rank("recommend").then(r => (r?.items ?? []).filter(x => x && x.cover && x.video_id > 0).slice(0, 12)).catch(() => [] as RankItem[]),
       api.rank("hot").then(r => (r?.items ?? []).filter(x => x && x.cover && x.video_id > 0).slice(0, 10)).catch(() => [] as RankItem[]),
       api.originalVideos("all", 1, 10, "new").then(r => (r?.items ?? []).filter(x => x && x.cover && x.id > 0)).catch(() => [] as VideoCard[]),
-      api.topics().then(r => (r?.items ?? []).filter(x => x && x.cover).slice(0, 8)).catch(() => [] as TopicCard[]),
-    ]).then(([recRanks, hotRanks, origs, tps]) => {
+    ]).then(([recRanks, hotRanks, origs]) => {
       if (!alive) return;
       shelvesKey.current = key;
       setRecommendRanks(recRanks);
       setTopRanks(hotRanks);
       setOriginals(origs);
-      setTopics(tps);
     });
     return () => { alive = false; };
   }, [active, tab, lineEpoch]);
+
+  /* 精选专题：最底部的一个横滑货架，既不参与主推/热榜的错峰去重，也不参与"为你推荐"的过滤，
+     所以晚到不会引起任何重排。放到首屏卡片出来之后再空闲时取，首屏少一个并发请求。 */
+  useEffect(() => {
+    if (!active || tab !== "all" || !items.length) return undefined;
+    const key = String(lineEpoch);
+    if (topicsKey.current === key) return undefined;
+    let alive = true;
+    const cancel = scheduleIdle(() => {
+      api.topics()
+        .then(r => (r?.items ?? []).filter(x => x && x.cover).slice(0, 8))
+        .then(tps => { if (!alive) return; topicsKey.current = key; setTopics(tps); })
+        .catch(() => { /* 专题拉不到就不显示这一栏，不影响其他内容 */ });
+    }, 1600);
+    return () => { alive = false; cancel(); };
+  }, [active, tab, items.length, lineEpoch]);
 
   useEffect(() => {
     if (!active || tab === "rank") return;
@@ -636,7 +668,8 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
                       <Button key={`${r.video_id}-${rankNum}`} card className="hg-top10-card"
                         onClick={() => openSeries(r.video_id)}>
                         <span className="hg-top10-art">
-                          <Img src={r.cover} alt="" />
+                          {/* 首屏第一屏能看到的就前三张：给高优先级，其余仍 lazy */}
+                          <Img src={r.cover} alt="" eager={idx < 3} />
                           {r.metric_value > 0 && (
                             <span className="hg-top10-heat">{r.metric_label || "热度"} {fmt(r.metric_value)}</span>
                           )}
