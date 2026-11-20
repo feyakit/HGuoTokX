@@ -1,6 +1,6 @@
 import { Button, SegmentedControl } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useId, useRef, useState } from "react";
 import { api, fmt } from "../api";
 import type { Post, TopicCard, TopicDetail, VideoCard } from "../types";
 import { useStore } from "../store";
@@ -147,6 +147,39 @@ export function TopicsPage({ onBack, wide }: { onBack: () => void; wide: boolean
 }
 
 /* ================= 专题详情页 ================= */
+/* 专题标题在顶栏只剩 ~170–230px（还要给「连刷 / 搜索」两个按钮让位），大字体下会折两行。
+ * 裸 CJK 折行是「先把第一行填满」，于是出现「精品高分AI短剧专」/「辑」这种孤儿。
+ * 这里在**语义边界**插 <wbr>（类型词、后缀词之前），配合 CSS 的 word-break:keep-all：
+ * 只在这些位置能断，浏览器按可用宽度挑最靠后的那个能放下的断点，于是
+ *   394dp@1.4 → 「精品高分AI短剧」/「专辑」
+ *   360dp@1.4 → 「精品高分AI」/「短剧专辑」（最靠后的断点放不下时的降级）
+ *   一行放得下 → <wbr> 不产生任何效果，不会硬凑成两行。
+ * 没有命中词表的标题原样返回（行为与以前一致，靠 overflow-wrap 兜底）。
+ */
+const BREAK_TOKEN = /(专辑|合集|系列|榜单|精选|专区|特辑|片单|专题|短剧|漫剧|长剧)$/;
+function splitForBreak(title: string): string[] {
+  const parts: string[] = [];
+  let rest = title.trim();
+  while (parts.length < 2) {
+    const match = BREAK_TOKEN.exec(rest);
+    if (!match || match.index === 0) break;
+    parts.unshift(match[1]);
+    rest = rest.slice(0, match.index);
+  }
+  return parts.length ? [rest, ...parts] : [title];
+}
+function titleWithBreak(title: string) {
+  const parts = splitForBreak(title);
+  if (parts.length < 2) return title;
+  return (
+    <>
+      {parts.map((part, index) => (
+        <Fragment key={index}>{index > 0 && <wbr />}{part}</Fragment>
+      ))}
+    </>
+  );
+}
+
 export function TopicPage({ slug, name, onBack, wide }: { slug: string; name: string; onBack: () => void; wide: boolean }) {
   const { push } = useStore();
   const [searching, setSearching] = useState(false);
@@ -232,7 +265,11 @@ export function TopicPage({ slug, name, onBack, wide }: { slug: string; name: st
       <header className="shrink-0 hg-subpage-bar">
         <Button card aria-label="返回" onClick={onBack} className="hg-sub-btn"><IBack size={19} /></Button>
         <div className="hg-sub-titles">
-          <h1 className="hg-sub-title is-2line" title={topic?.title || name}>{topic?.title || name}</h1>
+          {/* 顶栏标题：一行放得下就一行；放不下时断在语义边界（「精品高分AI短剧」/「专辑」），
+              而不是把「辑」单独甩到第二行。见 titleWithBreak()。 */}
+          <h1 className="hg-sub-title is-2line" title={topic?.title || name}>
+            {titleWithBreak(topic?.title || name)}
+          </h1>
           <div className="hg-sub-meta">{loading ? "加载中…" : `已加载 ${videos.length} / ${total} 部`}</div>
         </div>
         {videos.length > 0 && (

@@ -1250,11 +1250,14 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 /* 顶栏右侧还有「连刷 + 搜索」两个按钮的页面（专题详情）：标题宁可折 2 行，
-   也不能把「精品高分AI短剧专辑」截成「精品高分AI短…」（报告 v3.0.5-05）。 */
+   也不能把「精品高分AI短剧专辑」截成「精品高分AI短…」（报告 v3.0.5-05）。
+   折行位置由 JSX 里的 <wbr>（titleWithBreak）决定：keep-all 禁掉 CJK 字间断行，
+   只在语义边界断，不会出现「…短剧专」/「辑」这种孤儿；一行放得下就还是一行。
+   overflow-wrap 只在「某一段本身比整行还宽」（360dp@1.4）时兜底，避免溢出。 */
 .hg-sub-title.is-2line {
   white-space: normal; overflow: hidden; text-overflow: clip;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
-  word-break: break-word;
+  word-break: keep-all; overflow-wrap: break-word;
 }
 .hg-sub-meta {
   margin-top: 2px; font-size: 11px; line-height: 1.25; color: #8E93AD;
@@ -1746,7 +1749,14 @@ html:not(.theme-light) { --p-canvas: #0A0B14; --p-bg: #0A0B14; }
   display: inline-flex; align-items: center; gap: 6px;
   font-size: clamp(14px, 3.8vw, 15px); font-weight: 800; color: #fff;
 }
-.hg-inline-sorts { display: flex; align-items: center; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
+/* 频道筛选：大字体下 360dp@1.4 实测容器 192 / 内容 278，横滑会被右缘吃掉一整项
+   （用户默认看不到「精选推荐」）。按「默认就能看全」优先：放不下就换行，不做横滑。
+   `overflow-x:auto` 保留，只为「单个 chip 本身比整行还宽」的极端情况不溢出；
+   `[data-fade]` 那条渐隐也保留，但换行生效后 scrollWidth==clientWidth，不会再触发。 */
+.hg-inline-sorts {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+  min-width: 0; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none;
+}
 .hg-inline-sorts::-webkit-scrollbar { display: none; }
 /* 放不下时（大字体 / 极窄屏）：右缘留 16px 安全边 + 渐隐，提示「右边还有 chip」，
    而不是把最后一个 chip 硬裁成「精选推…」。放得下时这条规则完全不生效。 */
