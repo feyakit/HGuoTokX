@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { prefetchDetails } from "../detailFast";
-import { api, fmt, logLine } from "../api";
+import { useTabSwipe } from "../useTabSwipe";
+import { api, fmt, isMobile, logLine } from "../api";
 import type { Detail, RankItem, TopicCard, VideoCard } from "../types";
 import { useStore } from "../store";
 import { Button } from "../components/ios/controls";
@@ -91,7 +92,7 @@ const releaseLabel = (v: VideoCard) => {
 };
 
 export default function Home({ active }: { active: boolean; bottomInset?: number }) {
-  const { push, lineEpoch, user, history, toast } = useStore();
+  const { push, lineEpoch, user, history, toast, stack, loginOpen } = useStore();
   const { preferences, storageError, blockReason } = useContentPreferences();
   const [tab, setFeedTab] = useState<TabKey>("all");
   const [items, setItems] = useState<VideoCard[]>([]);
@@ -117,6 +118,14 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
   const topicsKey = useRef("");
   const loadedKey = useRef("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  /* 左右手势切页：只在移动端、首页 feed tab、没有栈页/登录面板时接管 */
+  const swipe = useTabSwipe({
+    order: TABS.map(t => t.key),
+    current: tab,
+    onSelect: key => setFeedTab(key as TabKey),
+    enabled: isMobile && stack.length === 0 && !loginOpen,
+    containerRef: scrollRef,
+  });
 
   const load = useCallback(async (p: number, key: FeedTab, replaceBatch = false) => {
     if (loadingRef.current) return;
@@ -422,7 +431,11 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
       </header>
 
       <div ref={scrollRef} className="flex-1 scroll-y hg-page-x relative z-10"
-        style={{ paddingBottom: `calc(${continueShown ? 190 : 110}px + var(--sab, 0px))` }}
+        style={{ paddingBottom: `calc(${continueShown ? 190 : 110}px + var(--sab, 0px))`, touchAction: swipe.touchAction }}
+        onPointerDown={swipe.onPointerDown}
+        onPointerMove={swipe.onPointerMove}
+        onPointerUp={swipe.onPointerUp}
+        onPointerCancel={swipe.onPointerCancel}
         onScroll={(e) => {
           if (tab === "rank" || loading || done || error) return;
           const el = e.currentTarget;
