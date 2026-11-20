@@ -1589,9 +1589,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   return (
     <div
       className={`hg-player-ui hg-player-ambient ${rotated ? "fs-landscape" : (!isDesktop && fs ? "fs-immersive" : "absolute inset-0")} overflow-hidden bg-black player-root ${controlsLocked ? "is-locked" : ""} ${isDesktop ? "player-surface" : ""} ${theater ? "is-theater" : ""} ${isDesktop && idle ? "is-idle" : ""}`}
-      data-ambient={accentScheme.source}
+      /* 播放页固定纯黑：不挂取色（用户：只有播放页去取色）。"none" 只为样式兜底，不再有渐变层。 */
+      data-ambient="none"
       data-player-mode={endless ? "feed" : "cinema"}
-      style={ambientStyle(accentScheme)}
       data-clean={clean}
       /* W20 对账用：当前第几条 / 当前剧 id / 已装载条数（滚动与追加是否错位一眼可见） */
       data-binge={endless ? "true" : undefined}
@@ -1603,39 +1603,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       onFocusCapture={() => { if (active && isDesktop) wake(); }}
       onPointerMove={() => { if (isDesktop) wake(); }}>
       <div className="absolute inset-0" inert={controlsLocked}>
-      {/* 封面取色氛围底：颜色来自当前剧封面（根节点上 ambientStyle 挂的 --deep / --ambient）。
-          视频是不透明元素、盖在它上面，所以这层只在视频以外的信箱区/上下条可见，
-          不给 video 加任何滤镜。取色失败时 data-ambient="fallback" → 这一层不渲染，回纯黑。 */}
-      <div aria-hidden="true" className="hg-player-ambient-layer" />
-      {/* 氛围背景：起播前由增强版封面毛玻璃垫底，起播后由实时视频流光接管 */}
-      {!isDesktop && posterUrl && (
-        <div className="absolute inset-0 pointer-events-none"
-          style={{
-            transform: "scale(1.16)",
-            filter: "blur(42px) saturate(1.45) brightness(0.62)",
-            opacity: ambientLive ? 0.15 : 0.45,
-            transition: "opacity 0.5s ease",
-          }}>
-          <Image src={posterUrl} alt="" className="w-full h-full object-cover" />
-        </div>
-      )}
-      {!isDesktop && (
-        <canvas
-          ref={ambientCanvasRef}
-          width={32}
-          height={18}
-          aria-hidden="true"
-          className="absolute inset-0 w-full h-full pointer-events-none"
-          style={{
-            objectFit: "cover",
-            transform: "scale(1.18)",
-            filter: "blur(46px) saturate(1.55) brightness(0.64)",
-            opacity: ambientLive ? 0.72 : 0,
-            transition: "opacity 0.5s ease",
-          }}
-        />
-      )}
-
+      {/* 播放页固定纯黑：原来的三层上色（取色径向层 / 毛玻璃封面底 / 视频流光 canvas）
+          全部移除。它们只在信箱区与上下条可见 —— 正是"上边不黑、下边黑"的来源。
+          白字可读性由控件自身那两条压光负责（顶部 96px / 底部 116px）。 */}
       <div ref={boxRef} onScroll={onScroll}
         className={`absolute inset-y-0 left-0 no-bar ${fs ? "overflow-hidden" : "overflow-y-scroll snap-y snap-mandatory overscroll-y-contain"}`}
         style={{ right: isDesktop && panel ? 372 : 0, transition: "right .3s cubic-bezier(.2,0,0,1)" }}>

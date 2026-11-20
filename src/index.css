@@ -464,6 +464,12 @@ input[type="range"].hg-range::-webkit-slider-thumb { -webkit-appearance: none; w
       rgba(0, 0, 0, .18) 100%);
 }
 .hg-player-ambient[data-ambient="fallback"] .hg-player-ambient-layer { display: none; }
+/* 播放页固定纯黑（用户：只有播放页去取色）："none" 下整块与任何残留氛围层都必须是纯黑 */
+.hg-player-ambient[data-ambient="none"],
+.hg-player-ambient[data-ambient="none"] .hg-player-ambient-layer { background: #000000; background-image: none; }
+/* 播放页里的封面占位/错误块也用纯黑：原来取 --p-s2 的深灰，在信箱区看得见（"上边不黑"的一部分） */
+.player-root .ios-image,
+.player-root .ios-image-error { background-color: #000000; }
 
 /* —— 移动端沉浸全屏：固定铺满视口，不受外层滚动容器影响 —— */
 .fs-immersive {
