@@ -57,5 +57,12 @@ export default defineConfig({
     target: "es2021",
     minify: "esbuild",
     sourcemap: false,
+    rollupOptions: {
+      output: {
+        /* hls.js 单独成 chunk：它只被播放链路用到（~546KB），如果跟着共享 chunk 走，
+           连"吃瓜"这种用到 TagBlockMenu 的页面也会把它一起拉下来。首屏不受影响。 */
+        manualChunks: (id: string) => (id.includes("node_modules/hls.js") ? "hls" : undefined),
+      },
+    },
   },
 });
