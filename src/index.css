@@ -581,3 +581,6 @@ input[type="range"].hg-range::-webkit-slider-thumb { -webkit-appearance: none; w
    热区上下各外扩 6px（≥44×44），视觉一个像素都不放大 */
 .hg-quality-chip { position: relative; }
 .hg-quality-chip::after { content: ""; position: absolute; inset: -6px 0; }
+/* 只有一条流时画质是「静态信息」不是按钮：压一点不透明度、不要手型光标，
+   视觉尺寸与倍速胶囊完全一致（都是 h-8 / text-[12px]）。 */
+.hg-quality-fixed { opacity: 0.72; cursor: default; }

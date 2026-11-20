@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, fmt } from "../api";
+import { api, fmt, logLine } from "../api";
 import type { Detail, RankItem, TopicCard, VideoCard } from "../types";
 import { useStore } from "../store";
 import { Button } from "../components/ios/controls";
@@ -372,7 +372,11 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
           ))}
         </div>
         <Button card className="hg-binge-pill" aria-label="抖音模式"
-          onClick={() => push({ kind: "feed", videoIds: [], index: 0, title: "抖音模式", endless: true })}>
+          onClick={() => {
+            /* 入口自证：真机取证时按「我的 · 播放诊断」看这条日志，确认点击真的进来了 */
+            logLine("[binge] 首页入口点击 → push 刷剧流");
+            push({ kind: "feed", videoIds: [], index: 0, title: "抖音模式", endless: true });
+          }}>
           <IBoltF size={12} /><span>抖音模式</span>
         </Button>
         <Button card className="hg-sub-btn" aria-label="搜索" onClick={() => push({ kind: "search", initialTab: "video" })}>

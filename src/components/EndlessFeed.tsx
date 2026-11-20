@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "../api";
+import { api, logLine } from "../api";
 import { readDislikedIds } from "../feedPrefs";
 import { pickLine } from "../autoLine";
 import EpisodePlayer from "./EpisodePlayer";
+import { Button } from "./ios/controls";
 
 /**
  * 「抖音模式」外壳：全站随机、真·无限刷。
@@ -67,14 +68,21 @@ export default function EndlessFeed({ title = "", bottomInset = 0, active, onBac
   const idsRef = useRef<number[]>([]);
   const indexRef = useRef(0);
   const [booting, setBooting] = useState(true);
+  /* 取数连续失败：不能只留一块黑屏，要告诉用户并给重试（真机取证用） */
+  const [bootFailed, setBootFailed] = useState(false);
   const [index, setIndex] = useState(0);
   idsRef.current = ids;
   indexRef.current = index;
 
-  useEffect(() => () => {
-    alive.current = false;
-    window.clearTimeout(retryTimer.current);
-    retryTimer.current = 0;
+  useEffect(() => {
+    /* 挂载时必须复位：StrictMode 或任何一次重挂载都会跑一次 cleanup（alive=false），
+       不复位的话 bootstrap/pull 会一直提前 return，界面上永远是「正在随机挑剧…」。 */
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      window.clearTimeout(retryTimer.current);
+      retryTimer.current = 0;
+    };
   }, []);
 
   /* 一次请求可能正好赶上坏线路：先让自动选线强制重选一次，再试同一批页码 */
@@ -157,7 +165,12 @@ export default function EndlessFeed({ title = "", bottomInset = 0, active, onBac
   const bootstrap = useCallback(async () => {
     const probe = await requestPages([1]);
     if (!alive.current) return;
-    if (!probe.ok) { scheduleRetry(); return; }
+    if (!probe.ok) {
+      logLine(`[binge] bootstrap 取数失败，第 ${backoffStep.current + 1} 次退避重试`);
+      if (backoffStep.current >= 2) setBootFailed(true);
+      scheduleRetry();
+      return;
+    }
     pages.current = probe.totalPages;
     const extra = pages.current > 1 ? pickPages(pages.current, PICK_MIN) : [];
     const more = extra.length ? await requestPages(extra) : { items: [], totalPages: 0, ok: true };
@@ -165,8 +178,10 @@ export default function EndlessFeed({ title = "", bottomInset = 0, active, onBac
     if (!pages.current && more.totalPages) pages.current = more.totalPages;
     const fresh = takeFresh(shuffle([...probe.items, ...more.items]));
     if (fresh.length) {
+      logLine(`[binge] bootstrap ok，首批 ${fresh.length} 条`);
       setIds(fresh);
       setBooting(false);
+      setBootFailed(false);
       backoffStep.current = 0;
     } else {
       scheduleRetry();
@@ -192,7 +207,22 @@ export default function EndlessFeed({ title = "", bottomInset = 0, active, onBac
   if (booting) {
     return (
       <div className="absolute inset-0 grid place-items-center bg-black">
-        <span className="text-[13px] text-white/70">正在随机挑剧…</span>
+        <div className="flex flex-col items-center gap-3 px-8 text-center">
+          <span className="text-[13px] text-white/70">
+            {bootFailed ? "线路取不到片单，正在重试…" : "正在随机挑剧…"}
+          </span>
+          {bootFailed && (
+            <>
+              <span className="text-[12px] leading-relaxed text-white/45">
+                可能是网络或线路问题。可以在「我的 · 网络」里换一条线路，或点下面重试。
+              </span>
+              <Button card className="hg-chip hg-ink-2 h-9 px-4 rounded-full text-[13px] font-semibold pressable"
+                onClick={() => { setBootFailed(false); backoffStep.current = 0; void bootstrap(); }}>
+                重试
+              </Button>
+            </>
+          )}
+        </div>
       </div>
     );
   }

@@ -534,8 +534,11 @@ fn request_android_orientation(landscape: bool) -> Result<(), String> {
         "(I)V",
         &[JValue::Int(value)],
     ) {
-        return Err(format!("setRequestedOrientation: {error}"));
+        return Err(format!("setRequestedOrientation({value}): {error}"));
     }
+    /* 成功也打一条：真机取证时 `adb logcat | grep orientation` 要能看到调用真的到了，
+       否则「转没转」只能靠肉眼看屏幕。 */
+    eprintln!("[orientation] setRequestedOrientation({value}) ok");
     Ok(())
 }
 

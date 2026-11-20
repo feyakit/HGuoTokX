@@ -56,13 +56,13 @@ export default function LineQuickSwitch({ open, onClose }: { open: boolean; onCl
      「https://ruc.zuxszoix.cc」和带尾斜杠/大小写不同的写法，按 url 去重会把
      8 个 host 渲染成 16 行（v3.0.6 #7 真机现象）。 */
   const seen = new Set<string>();
-  const rows: { url: string; label: string }[] = [];
+  const rows: { url: string; label: string; host: string }[] = [];
   for (const i of [...fixed, ...mirrors]) {
     if (!i?.url) continue;
     const key = (hostOf(i.url) || i.url).toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    rows.push({ url: i.url, label: i.name?.trim() || hostOf(i.url) });
+    rows.push({ url: i.url, label: i.name?.trim() || hostOf(i.url), host: hostOf(i.url) });
   }
 
   return (
@@ -84,9 +84,13 @@ export default function LineQuickSwitch({ open, onClose }: { open: boolean; onCl
             return (
               <Button key={item.url} card onClick={() => void pick(item.url)} disabled={!!busy}
                 className={`w-full flex items-center gap-2 px-3.5 py-3 rounded-(--r-md) mb-1.5 text-left pressable ${current ? "bg-s3/70" : "bg-s2"}`}>
+                {/* 没有自定义名称时 label 就是域名，再渲染一行 host 会出现两行完全相同的字
+                    （v3.0.6 真机：「nku.zuxszoix.cc」上下重复）。只有真有名称时才补第二行。 */}
                 <span className="flex-1 min-w-0">
                   <span className="block text-[14px] text-on truncate">{item.label}</span>
-                  <span className="block text-[12px] text-mut truncate mt-0.5">{hostOf(item.url)}</span>
+                  {item.host && item.host !== item.label ? (
+                    <span className="block text-[12px] text-mut truncate mt-0.5">{item.host}</span>
+                  ) : null}
                 </span>
                 {busy === item.url ? <span className="text-[12px] text-mut shrink-0">切换中…</span>
                   : current ? <ICheck size={15} className="text-mint shrink-0" /> : null}

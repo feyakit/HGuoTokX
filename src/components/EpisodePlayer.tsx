@@ -856,6 +856,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   }, []);
 
   const toggleFull = () => {
+    /* 移动端（安卓/iOS WebView）一律不走 Fullscreen API：会重建视图、可能丢进度。
+       移动端的全屏入口统一是 enterFs/exitFs（纯 CSS + set_orientation）。 */
+    if (!isDesktop) return;
     const el = boxRef.current?.parentElement;
     if (!el) return;
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
@@ -1158,14 +1161,17 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     showControls();
     keepAlive();
     if (!isDesktop) {
-      try { void invoke("set_orientation", { landscape }); } catch { /* ignore */ }
-      if (landscape) {
-        /* Fullscreen API 是 orientation.lock 的前置条件；拿不到就静默走 CSS 兜底 */
-        try { void document.documentElement.requestFullscreen?.()?.catch(() => {}); } catch { /* ignore */ }
-        try {
-          (screen.orientation as unknown as { lock?: (o: string) => Promise<void> })?.lock?.("landscape")?.catch(() => {});
-        } catch { /* ignore */ }
-      }
+      /* 只做两件事：系统转屏（安卓 JNI setRequestedOrientation）+ CSS 舞台。
+         这里**不能再调 requestFullscreen / orientation.lock** —— 安卓 WebView 收到全屏请求会走
+         WebChromeClient.onShowCustomView 把 WebView 挪进全屏容器，等于重建一次视图：
+         真机实测点全屏时 CDP 连续 RemoteDisconnected，播放进度有丢失风险。
+         系统真转屏后 CSS 伪横屏会自动关掉（vpLandscape=true → rotated=false），不会叠两层 90°。 */
+      try { logLine(`[orientation] 全屏 → landscape=${landscape} 请求系统转屏`); } catch { /* ignore */ }
+      try {
+        void invoke("set_orientation", { landscape })
+          .then(() => logLine(`[orientation] 已请求系统转屏 landscape=${landscape}（结果看 logcat 的 [orientation] 行）`))
+          .catch((error) => logLine(`[orientation] set_orientation(landscape=${landscape}) 失败：${String(error)}`));
+      } catch { /* ignore */ }
     }
   }, [isDesktop, keepAlive, resolveSwipe, effectiveVideoIds.length, setClean, setFs, showControls]);
 
@@ -1198,7 +1204,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   useEffect(() => {
     if (isDesktop) return undefined;
     const setOrientation = (landscape: boolean) => {
-      try { void invoke("set_orientation", { landscape }); } catch { /* ignore */ }
+      try {
+        void invoke("set_orientation", { landscape })
+          .then(() => logLine(`[orientation] 已请求系统转屏 landscape=${landscape}（结果看 logcat 的 [orientation] 行）`))
+          .catch((error) => logLine(`[orientation] set_orientation(landscape=${landscape}) 失败：${String(error)}`));
+      } catch { /* ignore */ }
     };
     const onVisibility = () => {
       if (document.visibilityState === "hidden") setOrientation(false);
@@ -1819,18 +1829,29 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                             以前竖屏底栏只有 时间 / 倍速 / 下一集，画质入口只藏在三级设置里
                             （报告 v3.0.5：播放器无画质胶囊）。class 与旁边倍速胶囊逐字对齐，
                             视觉尺寸天然一致；热区由 .hg-quality-chip::after 上下各撑 6px。 */}
-                        <Button
-                          type="button"
-                          disabled={!qualitySwitchable}
-                          aria-disabled={qualitySwitchable ? undefined : true}
-                          aria-label={qualitySwitchable
-                            ? `画质：${preferHevc ? "高清优先" : "标准画质"}，点击切换`
-                            : "画质：标准（本集无独立高清流）"}
-                          title={qualitySwitchable ? "在高清流 / 标准流之间切换" : "本集没有独立的高清流，自动使用标准画质"}
-                          onClick={qualitySwitchable ? switchQuality : undefined}
-                          className="hg-quality-chip h-8 px-2.5 rounded-full text-[12px] font-semibold flex items-center gap-1 hg-chip hg-ink-2 pressable">
-                          {qualitySwitchable && preferHevc ? "高清" : "标准"}
-                        </Button>
+                        {qualitySwitchable ? (
+                          <Button
+                            type="button"
+                            aria-label={`画质：${preferHevc ? "高清优先" : "标准画质"}，点击切换`}
+                            title="在高清流 / 标准流之间切换"
+                            onClick={switchQuality}
+                            className="hg-quality-chip h-8 px-2.5 rounded-full text-[12px] font-semibold flex items-center gap-1 hg-chip hg-ink-2 pressable">
+                            {preferHevc ? "高清" : "标准"}
+                          </Button>
+                        ) : (
+                          /* 不可切时不渲染成按钮：disabled 的 button 在安卓 WebView 上不吞 pointer
+                             事件，指头一落就冒泡到播放器舞台 → 控制条收起、胶囊看起来「消失了」。
+                             这里用静态 span，自己吞掉按下/点击，点不动也不会连累控制条。 */
+                          <span
+                            aria-label="画质：标准（本集无独立高清流，不可切换）"
+                            title="本集没有独立的高清流，自动使用标准画质"
+                            onPointerDown={(e) => { e.stopPropagation(); }}
+                            onPointerUp={(e) => { e.stopPropagation(); }}
+                            onClick={(e) => { e.stopPropagation(); }}
+                            className="hg-quality-chip hg-quality-fixed h-8 px-2.5 rounded-full text-[12px] font-semibold flex items-center gap-1 hg-chip hg-ink-2">
+                            标准
+                          </span>
+                        )}
                         <Button
                           type="button"
                           aria-label={`倍速 ${effRate}x`}
