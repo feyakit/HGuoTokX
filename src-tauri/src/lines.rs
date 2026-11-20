@@ -406,11 +406,18 @@ fn scan_published_hosts(js: &str) -> Result<Vec<String>, String> {
         if value.is_empty() || value.contains('@') || value.chars().any(char::is_control) {
             continue;
         }
-        let rest = value
+        // 只认两种写法：完整 `https?://host`，或发布页那种带尾斜杠的站根 `xxx.cc/`。
+        // 裸 `bad.example` 这种太含糊（注释/字符串/函数体里到处都是），一律不认。
+        let rest = if let Some(rest) = value
             .strip_prefix("https://")
             .or_else(|| value.strip_prefix("http://"))
-            .unwrap_or(value)
-            .trim_end_matches('/');
+        {
+            rest.trim_end_matches('/')
+        } else if let Some(rest) = value.strip_suffix('/') {
+            rest
+        } else {
+            continue;
+        };
         // 带路径、端口、查询的一律不要：只接受裸 origin。
         if rest.contains('/') || rest.contains(':') || rest.contains('?') || rest.contains('#') {
             continue;
@@ -1291,14 +1298,18 @@ var foreverUrls = ['https://huangguoai.com','https://huangguoai.ai'];
     #[test]
     fn script_without_urls_array_falls_back_to_static_host_scan() {
         let js = r#"
-var newestUrls = ['https://thu.dvygahpw.cc','https://pku.zuxszoix.cc'];
+var newestUrls = ['https://thu.dvygahpw.cc','https://pku.zuxszoix.cc','newfamily.cc/'];
 var otherUrls = ['https://huangguoai.pages.dev','https://huangguoai.com','https://huangguoai.ai'];
 var emails = ['huangguoaiai@gmail.com'];
 "#;
         let items = parse_mirrors(js).unwrap();
         assert_eq!(
             origins(&items),
-            ["https://thu.dvygahpw.cc", "https://pku.zuxszoix.cc"]
+            [
+                "https://thu.dvygahpw.cc",
+                "https://pku.zuxszoix.cc",
+                "https://newfamily.cc"
+            ]
         );
     }
 
