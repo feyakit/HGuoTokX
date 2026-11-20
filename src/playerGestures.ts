@@ -160,6 +160,8 @@ export function judgeGesture(input: {
   total: number;
   axis?: Axis;
   held?: boolean;
+  /** 全屏/沉浸态：左缘返回不启用（否则从左侧起手 seek 会直接退全屏）。缺省 false，向后兼容。 */
+  fullscreen?: boolean;
 }): { axis: Axis; action: GestureAction } {
   const axis = input.axis && input.axis !== "none"
     ? input.axis
@@ -169,7 +171,7 @@ export function judgeGesture(input: {
   if (axis === "none") return { axis, action: { kind: "none" } };
 
   if (axis === "x") {
-    if (isEdgeBackStart(input.startX) && input.dx > 0) {
+    if (!input.fullscreen && isEdgeBackStart(input.startX) && input.dx > 0) {
       return {
         axis,
         action: input.dx >= GESTURE.edgeBackCommit ? { kind: "edge-back" } : { kind: "none" },

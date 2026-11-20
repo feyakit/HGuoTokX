@@ -197,6 +197,16 @@ try {
     const r = judgeGesture({ dx: 90, dy: 300, dt: 400, startX: 200, axis: "x", stageWidth: 393, stageHeight: 851, total: 300 });
     assert.equal(r.action.kind, "seek");
   });
+  check("全屏态左缘右滑 = seek（不是 edge-back）", () => {
+    const r = judgeGesture({ dx: 100, dy: 2, dt: 200, startX: 10, stageWidth: 393, stageHeight: 851, total: 300, fullscreen: true });
+    assert.equal(r.action.kind, "seek");
+    /* 全屏里从左边起手想快退，绝不能退全屏 */
+    assert.notEqual(r.action.kind, "edge-back");
+  });
+  check("非全屏态同样参数仍是 edge-back", () => {
+    const r = judgeGesture({ dx: 100, dy: 2, dt: 200, startX: 10, stageWidth: 393, stageHeight: 851, total: 300 });
+    assert.equal(r.action.kind, "edge-back");
+  });
   check("竖向 → episode 且未过门槛不给 commit", () => {
     const r = judgeGesture({ dx: 4, dy: -100, dt: 300, startX: 200, stageWidth: 393, stageHeight: 851, total: 300 });
     assert.equal(r.action.kind, "episode");

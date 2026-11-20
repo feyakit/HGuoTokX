@@ -999,9 +999,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     const zone = getHoldZone(e.clientX - rect.left, e.clientY - rect.top, rect.width, rect.height);
     try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
     armAutoHide();
-    /* 左缘返回：只按竖屏（未伪横屏）下的屏幕左缘判 —— 伪横屏是旋转过的舞台，
-       "左缘"在屏幕上不是左边，干脆不启用边缘返回，免得旋转状态下误退页。 */
-    const edgeStart = !rotated && isEdgeBackStart(e.clientX - rect.left);
+    /* 左缘返回：只在**非全屏的竖屏播放页**启用。
+       - 伪横屏（rotated）是旋转过的舞台，"左缘"在屏幕上不是左边；
+       - 真横屏全屏（vpLandscape）与全屏（fs）里左缘右滑必须留给 seek，
+         否则从左侧起手想快退会直接退出全屏。 */
+    const edgeStart = !rotated && !fs && !vpLandscape && isEdgeBackStart(e.clientX - rect.left);
     const g = {
       x: sx, y: sy, startY: sy, t: Date.now(), base: videoRef.current?.el()?.currentTime ?? playbackClock.getSnapshot(), width,
       stageH,
