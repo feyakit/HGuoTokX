@@ -80,6 +80,10 @@ function DialogFrame({ open, onClose, children, kind, width, label, z }: {
   useLayoutEffect(() => {
     const element = ref.current;
     if (!open || !mounted || !element) return;
+    /* 打开时强制可交互：syncBackground 会给"被挡住的兄弟层"打 inert，
+       若同一层先以 is-closing 身份被标记过，重开时可能残留 inert ——
+       表现就是"面板看着正常、点哪都没反应"，而且没有任何视觉提示。 */
+    element.inert = false;
     const panel = element.querySelector<HTMLElement>("[role=dialog]")!;
     // Child layout effects run first. Insert an initially open parent below its children.
     const firstChild = layers.findIndex(layer => layer.ancestors.includes(token));

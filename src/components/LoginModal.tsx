@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { api, isMobile } from "../api";
+import { api, isMobile, logLine } from "../api";
 import type { User } from "../types";
 import { useStore } from "../store";
 import { Modal, Sheet } from "./ui";
@@ -44,6 +44,13 @@ export default function LoginModal() {
   /* 提交超过 3s 才提示「线路较慢」：既说明还在动，也给出可操作的建议 */
   const [slowSubmit, setSlowSubmit] = useState(false);
   const pending = useRef(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  /* 浏览器/系统自动填充有时只写 DOM 不触发 onChange，state 会是空的。
+     提交时以「state 优先、DOM 兜底」读值，避免"填了却提交空值"。 */
+  const fieldValue = (name: string) => {
+    const el = formRef.current?.querySelector<HTMLInputElement>(`input[name="${name}"]`);
+    return el?.value ?? "";
+  };
   const mounted = useRef(true);
   const context = useRef({ accountScope, lineEpoch });
   context.current = { accountScope, lineEpoch };
@@ -62,7 +69,15 @@ export default function LoginModal() {
     };
   }, []);
   useEffect(() => {
-    if (!loginOpen) { setPassword(""); setShowPassword(false); setErr(""); }
+    if (loginOpen) {
+      /* 打开即复位：万一上一轮提交卡在 pending/busy（网络半死不活、组件被复用），
+         也不会出现"按钮点下去什么都不发生"这种死状态。 */
+      pending.current = false;
+      setBusy(false);
+      setSlowSubmit(false);
+      return;
+    }
+    setPassword(""); setShowPassword(false); setErr("");
   }, [loginOpen]);
   useEffect(() => {
     if (!busy) { setSlowSubmit(false); return undefined; }
@@ -76,15 +91,23 @@ export default function LoginModal() {
   };
   const submit = async () => {
     // A ref locks synchronously: two submit events can arrive before React paints disabled.
-    if (pending.current) return;
-    if (!username.trim() || !password) { setErr("请输入账号与密码"); return; }
+    if (pending.current) {
+      /* 连点第二次：给一句状态，别让用户以为点击丢了 */
+      setSlowSubmit(true);
+      return;
+    }
+    const account = (username.trim() || fieldValue("username").trim());
+    const pass = (password || fieldValue("password"));
+    const mail = (email.trim() || fieldValue("email").trim());
+    logLine(`[login] submit mode=${mode} account=${account ? "有" : "空"} pass=${pass ? "有" : "空"}`);
+    if (!account || !pass) { setErr("请输入账号与密码"); return; }
     pending.current = true;
     setBusy(true); setErr("");
     const started = context.current;
     const epoch = requestEpoch.current;
     try {
       const result = await withDeadline(
-        mode === "login" ? api.login(username.trim(), password) : api.register(username.trim(), password, email.trim()),
+        mode === "login" ? api.login(account, pass) : api.register(account, pass, mail),
         SUBMIT_TIMEOUT_MS,
       );
       if (!mounted.current) return;
@@ -92,9 +115,13 @@ export default function LoginModal() {
         setErr("账号或线路已变化，请重新登录");
         return;
       }
+      logLine(`[login] 成功：${result?.user?.nickname || account}`);
       setUser(result.user as User, result.origin); setPassword(""); setLoginOpen(false);
       toast(mode === "login" ? `欢迎回来，${result.user?.nickname || username}` : "注册成功", "ok");
-    } catch (error) { if (mounted.current) setErr(loginErrorMessage(error)); }
+    } catch (error) {
+      logLine(`[login] 失败：${(error as Error)?.message || String(error)}`.slice(0, 160));
+      if (mounted.current) setErr(loginErrorMessage(error));
+    }
     finally { pending.current = false; if (mounted.current) setBusy(false); }
   };
   const content = <div className="ios-auth">
@@ -106,7 +133,7 @@ export default function LoginModal() {
       {([ ["login", "登录"], ["register", "注册"] ] as const).map(([key, label]) => <Button key={key}
         disabled={busy} aria-pressed={mode === key} onClick={() => { if (!pending.current) { setMode(key); setErr(""); setShowPassword(false); } }}>{label}</Button>)}
     </SegmentedControl>
-    <Form className="ios-auth-form" aria-busy={busy} onSubmit={event => { event.preventDefault(); void submit(); }}>
+    <Form ref={formRef} className="ios-auth-form" aria-busy={busy} onSubmit={event => { event.preventDefault(); void submit(); }}>
       <label className="ios-field"><span>账号</span><Input aria-label="账号" data-autofocus autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} readOnly={busy} name="username" placeholder="输入账号" value={username}
         onChange={event => setUsername(event.target.value)} aria-invalid={!!err} aria-describedby={err ? errorId : undefined} /></label>
       <div className="ios-field"><span id={passwordId}>密码</span><div className="relative">
@@ -118,7 +145,13 @@ export default function LoginModal() {
       {mode === "register" && <label className="ios-field"><span>邮箱 <small>可选</small></span><Input aria-label="邮箱" type="email" autoComplete="email" readOnly={busy} name="email"
         placeholder="用于账号联系" value={email} onChange={event => setEmail(event.target.value)} /></label>}
       {err && <p id={errorId} role="alert" className="ios-field-error">{err}</p>}
-      {busy && !err && <p className="ios-field-status" role="status">{slowSubmit ? "还在等线路响应…网络慢时可以在「设置 · 网络」换一条线路" : "正在提交…"}</p>}
+      {(busy || slowSubmit) && !err && (
+        <p className="ios-field-status" role="status">
+          {busy
+            ? (slowSubmit ? "还在等线路响应…网络慢时可以在「设置 · 网络」换一条线路" : "正在提交…")
+            : "上一次提交还没有返回，请稍候；一直不动可以关掉面板重开"}
+        </p>
+      )}
       <Button variant="primary" className="ios-auth-submit" type="submit" disabled={busy}>
         {busy && <Loader className="size-5" />}{busy ? "处理中…" : mode === "login" ? "登录" : "创建账号"}
       </Button>
