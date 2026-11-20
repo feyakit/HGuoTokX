@@ -364,6 +364,10 @@ export default function App() {
       void import("./pages/Profile");
       void import("./pages/Settings");
       void import("./pages/Search");
+      /* 播放器链（EpisodePlayer + hls.js，~600KB）现在按需 chunk：
+         点「播放」时再拉会多等一次下载+解析（实测 +400~600ms 首帧）。
+         首屏稳定后空闲时先把它拉到内存里，点播瞬间起播。 */
+      void import("./components/Feed");
     };
     const ric = (window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
     if (ric) {
