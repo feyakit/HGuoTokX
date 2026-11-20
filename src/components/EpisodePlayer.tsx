@@ -23,7 +23,7 @@ import LineQuickSwitch from "./LineQuickSwitch";
 import { getHoldZone, stageXY, HOLD_DELAY_MS, HOLD_LOCK_DISTANCE, type HoldZone } from "../mobileHold";
 import {
   GESTURE, canSeek, doubleTapSeek, episodeIntent, isDoubleTap, isEdgeBackStart,
-  lockAxis, rotationLocked, seekDeltaSeconds, snapSeek, type Axis,
+  lockAxis, rotationLocked, seekDeltaSeconds, snapSeek, tapVerdict, type Axis,
 } from "../playerGestures";
 import {
   IBack, IBoltF, IChevR, IChevronDown, IChevronUp, IClose, ICommentF, ICompress, IExpand, IFileText, IGlobe, IHeart, IHeartF, IMore,
@@ -246,7 +246,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   /* 单击 / 双击判定：
      单击 = 两态（控件收起→唤出；可见→暂停/播放）；
      双击 = 左半屏 −10s / 右半屏 +10s（窗口 280ms，见 playerGestures.isDoubleTap）。 */
-  const lastTapRef = useRef<{ timer: number | null; clean?: boolean; idle?: boolean }>({ timer: null });
   const tapRef = useRef<{ lastAt: number; timer: number | null }>({ lastAt: 0, timer: null });
   /* 瞬时的 seek 提示（双击/松手后 800ms 消失）：不新增常驻控件，样式沿用现有胶囊类 */
   const [seekHint, setSeekHint] = useState<{ delta: number; target: number } | null>(null);
@@ -1189,13 +1188,15 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
         · 单击两态：控件收起 → 唤出；控件可见 → 播放/暂停。
       以前双击被拆成两次单击（唤出 + 收起）互相抵消，用户根本感受不到双击。
     */
-    if (!cancelled && g.mode === "idle" && Date.now() - g.t < 260) {
+    /* 单击判定必须同时看位移和时长：以前只看「模式还是 idle」，于是在死区内滑 6–8px
+       也被当成单击，一抖就把视频暂停了。6px ≤ 位移 < 10px 现在是无动作。 */
+    const tapDx = e ? stageXY(rotated, e.clientX, e.clientY)[0] - g.x : 0;
+    const tapDy = e ? stageXY(rotated, e.clientX, e.clientY)[1] - g.startY : 0;
+    if (!cancelled && g.mode === "idle" && tapVerdict(tapDx, tapDy, Date.now() - g.t) === "tap") {
       const now = Date.now();
       if (isDoubleTap(tapRef.current.lastAt, now)) {
         window.clearTimeout(tapRef.current.timer ?? undefined);
         tapRef.current = { lastAt: 0, timer: null };
-        window.clearTimeout(lastTapRef.current.timer ?? undefined);
-        lastTapRef.current.timer = null;
         seekBy(doubleTapSeek(g.x, g.width));
         showControls();
         return;
@@ -1224,8 +1225,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       onUp(true);
       pointersRef.current.clear();
       pinchRef.current = null;
-      if (lastTapRef.current.timer) window.clearTimeout(lastTapRef.current.timer);
-      lastTapRef.current.timer = null;
     }
     // Cancel pending gestures when the page is hidden or controls are locked.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1233,8 +1232,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
 
   useEffect(() => () => {
     if (gesture.current?.timer) window.clearTimeout(gesture.current.timer);
-    if (lastTapRef.current.timer) window.clearTimeout(lastTapRef.current.timer);
-    lastTapRef.current.timer = null;
     gesture.current = null;
     holdRef.current = false;
     lockArmedRef.current = false;

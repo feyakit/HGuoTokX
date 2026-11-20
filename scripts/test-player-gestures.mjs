@@ -23,6 +23,7 @@ try {
   const {
     GESTURE, lockAxis, seekSecondsPer100px, seekDeltaSeconds, canSeek, snapSeek,
     doubleTapSeek, isEdgeBackStart, isDoubleTap, rotationLocked, episodeIntent, judgeGesture,
+    tapVerdict,
   } = G;
 
   console.log("[常量]");
@@ -33,8 +34,10 @@ try {
     assert.equal(GESTURE.doubleTapMs, 280);
     assert.equal(GESTURE.doubleTapSeek, 10);
     assert.equal(GESTURE.minSeekPx, 20);
-    assert.equal(GESTURE.episodeSwitch, 0.3);
-    assert.equal(GESTURE.episodePreview, 0.6);
+    assert.equal(GESTURE.tapSlop, 6);
+    assert.equal(GESTURE.tapMs, 300);
+    assert.equal(GESTURE.episodeSwitch, 0.4);
+    assert.equal(GESTURE.episodePreview, 0.7);
     assert.equal(GESTURE.snapSeconds, 5);
     assert.equal(GESTURE.rotateLockMs, 300);
     assert.equal(GESTURE.seekBubbleMs, 800);
@@ -108,6 +111,23 @@ try {
     assert.equal(snapSeek(999, 300), 300);
   });
 
+  console.log("[单击容差 tapSlop]");
+  check("位移 3px 且 200ms 内 → tap", () => {
+    assert.equal(tapVerdict(3, 0, 200), "tap");
+    assert.equal(tapVerdict(0, 3, 120), "tap");
+    assert.equal(tapVerdict(2, 2, 299), "tap");
+  });
+  check("位移 6/8/9px 的微动 → none（不 tap、不 seek、不换集）", () => {
+    assert.equal(tapVerdict(6, 0, 120), "none");
+    assert.equal(tapVerdict(8, 0, 120), "none");
+    assert.equal(tapVerdict(9, 0, 120), "none");
+    assert.equal(tapVerdict(5, 5, 120), "none"); // 欧氏距离 ≈7.07
+  });
+  check("超过 300ms 的长按 → 不是 tap", () => {
+    assert.equal(tapVerdict(2, 2, 301), "none");
+    assert.equal(tapVerdict(0, 0, 800), "none");
+  });
+
   console.log("[双击]");
   check("左半屏 −10s，右半屏 +10s", () => {
     assert.equal(doubleTapSeek(10, 393), -10);
@@ -145,17 +165,15 @@ try {
   });
 
   console.log("[上下滑换集]");
-  check("30% 屏高才提交，60% 出预览", () => {
+  check("40% 屏高才提交，70% 出预览（边界）", () => {
     const h = 800;
-    const a = episodeIntent(-200, h); // 25%
-    assert.equal(a.commit, false);
-    assert.equal(a.preview, false);
-    const b = episodeIntent(-260, h); // 32.5%
-    assert.equal(b.commit, true);
-    assert.equal(b.preview, false);
-    const c = episodeIntent(-500, h); // 62.5%
-    assert.equal(c.commit, true);
-    assert.equal(c.preview, true);
+    assert.equal(episodeIntent(-200, h).commit, false);   // 25%
+    assert.equal(episodeIntent(-300, h).commit, false);   // 37.5%
+    assert.equal(episodeIntent(-320, h).commit, true);    // 40% 整
+    assert.equal(episodeIntent(-320, h).preview, false);
+    assert.equal(episodeIntent(-480, h).preview, false);  // 60%
+    assert.equal(episodeIntent(-560, h).preview, true);   // 70% 整
+    assert.equal(episodeIntent(-560, h).commit, true);
   });
   check("上滑=下一集(1)，下滑=上一集(-1)", () => {
     assert.equal(episodeIntent(-300, 800).dir, 1);

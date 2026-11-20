@@ -13,6 +13,11 @@
 export const GESTURE = {
   /** 起手死区：位移没超过这个值之前不定方向（px） */
   deadZone: 10,
+  /** 点击容差：总位移 < 6px 且时长 < 300ms 才算「单击」；
+      6px ≤ 位移 < deadZone 的微动属于**无动作**（不 tap、不 seek、不换集） */
+  tapSlop: 6,
+  /** 单击的最长按压时长（ms） */
+  tapMs: 300,
   /** 定方向比例：|dx| >= |dy|*1.4 判横，|dy| >= |dx|*1.4 判竖 */
   axisRatio: 1.4,
   /** 左缘返回区宽度（px，从舞台左边缘算） */
@@ -25,10 +30,10 @@ export const GESTURE = {
   doubleTapSeek: 10,
   /** 短滑不 seek 的最小位移（px） */
   minSeekPx: 20,
-  /** 换集提交门槛：拖过屏高的 30% */
-  episodeSwitch: 0.3,
-  /** 换集预览门槛：拖过屏高的 60% */
-  episodePreview: 0.6,
+  /** 换集提交门槛：拖过屏高的 40% 才切 */
+  episodeSwitch: 0.4,
+  /** 换集预览门槛：拖过屏高的 70% 才露预览 */
+  episodePreview: 0.7,
   /** 松手吸附到整 5 秒 */
   snapSeconds: 5,
   /** 方向切换动画期间禁手势（ms） */
@@ -99,6 +104,17 @@ export function doubleTapSeek(x: number, stageWidth: number): number {
 /** 是否从左缘返回区起手（按舞台内坐标，非屏幕坐标） */
 export function isEdgeBackStart(localX: number): boolean {
   return localX <= GESTURE.edgeBack;
+}
+
+/**
+ * 单击判定。总位移（欧氏距离）与时长一起看：
+ *   · 位移 < tapSlop(6px) 且时长 < tapMs(300ms) → "tap"
+ *   · 其余一律 "none" —— 特别是 6–10px 的微动：过不了死区（不会 seek/换集），
+ *     但也不该被当成单击（以前 6–8px 的抖动会把视频暂停，手感很怪）。
+ */
+export function tapVerdict(dx: number, dy: number, dt: number): "tap" | "none" {
+  if (dt > GESTURE.tapMs) return "none";
+  return Math.hypot(dx, dy) < GESTURE.tapSlop ? "tap" : "none";
 }
 
 /** 双击是否成立：与上次点击间隔在窗口内 */
