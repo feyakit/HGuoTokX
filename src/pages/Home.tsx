@@ -417,13 +417,18 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
             </Button>
           ))}
         </div>
-        <Button card className="hg-binge-pill" aria-label="抖音模式"
+        <Button card className="hg-binge-pill" aria-label="打开抖音模式" role="button"
           onClick={() => {
             /* 入口自证：真机取证时按「我的 · 播放诊断」看这条日志，确认点击真的进来了 */
             logLine("[binge] 首页入口点击 → push 刷剧流");
             push({ kind: "feed", videoIds: [], index: 0, title: "抖音模式", endless: true });
           }}>
-          <IBoltF size={12} /><span>抖音模式</span>
+          {/* 不用 emoji：字体差异会让⚡在各机型渲染成不同宽度。内联 14×14 描边闪电，纯白 1.8。 */}
+          <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#fff"
+            strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+            <path d="M13.2 2.2 4.4 13.1h5.1l-1.4 8.7 8.8-10.9h-5.1z" />
+          </svg>
+          <span>抖音模式</span>
         </Button>
         <Button card className="hg-sub-btn" aria-label="搜索" onClick={() => push({ kind: "search", initialTab: "video" })}>
           <ISearch size={18} />
