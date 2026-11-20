@@ -152,10 +152,13 @@ export default function ProxySettings() {
   </div>;
 
   return <>
-    <Button onClick={openForm} className="w-full flex items-center gap-3 px-3.5 py-3 text-left pressable">
-      <span className="ios-setting-icon" aria-hidden="true"><ILink size={16} /></span>
-      <div className="flex-1 min-w-0"><div className="text-[14px] text-on">代理访问</div><div className="text-[12px] text-mut truncate">{summary(state, !!loadError)}</div></div>
-      <IChevR size={15} className="text-mut" />
+    <Button onClick={openForm} className="hg-set-row">
+      <span className="hg-set-row-icon" aria-hidden="true"><ILink size={16} /></span>
+      <span className="hg-set-row-copy">
+        <span className="hg-set-row-title">代理访问</span>
+        <span className="hg-set-row-sub">{summary(state, !!loadError)}</span>
+      </span>
+      <span className="hg-set-row-chev" aria-hidden="true"><IChevR size={14} /></span>
     </Button>
     {isMobile ? <Sheet open={open} onClose={close} label="代理访问">{body}</Sheet> : <Modal open={open} onClose={close} label="代理访问" width={460}>{body}</Modal>}
   </>;

@@ -1,35 +1,28 @@
 import { Button, Surface, TextArea } from "../components/ios/controls";
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { api, APP_VERSION, hostOf, logLine, platform, type UpdateInfo } from "../api";
+import { useEffect, useRef, useState } from "react";
+import { api, APP_VERSION, hostOf, logLine, type UpdateInfo } from "../api";
 import { useStore } from "../store";
-import { Modal, Toggle } from "../components/ui";
+import { Modal } from "../components/ui";
 import LinePicker from "../components/LinePicker";
 import ProxySettings from "../components/ProxySettings";
-import ContentPreferencesSettings from "../components/ContentPreferencesSettings";
-import SettingsSection from "../components/SettingsSection";
+import { ContentPreferenceToggles } from "../components/ContentPreferencesSettings";
+import { SettingsGroup, SettingsRow } from "../components/SettingsGroup";
 import { autoLineEnabled, setAutoLine } from "../autoLine";
 import { useContentPreferences } from "../contentPreferences";
 import { copyPlaybackLog, initPlaybackLog, setPlaybackLog, tracePlayback, usePlaybackLog } from "../playbackDiagnostics";
 import { formatNetDiag, shortVerdict } from "../netDiagReport";
 import { copyText } from "../clipboard";
-import { Loader } from "../components/ios/effects";
-import { IBack, IBoltF, IBroom, IChevR, IHeart, IInfo, ILink, ILockF, IRefresh, IVolMute } from "../icons";
+import { IBack, IBoltF, IBroom, IClapper, IFileText, IInfo, ILockF, IList, ILink, ILogout, IRefresh, ISparkF, IVolMute } from "../icons";
 
-const SETTING_GROUPS = ["播放", "内容偏好", "本地数据", "网络", "播放诊断", "其他"] as const;
-type SettingGroup = typeof SETTING_GROUPS[number];
-const GROUP_SUMMARIES: Record<SettingGroup, string> = {
-  播放: "启动静音",
-  内容偏好: "标签屏蔽与内容显示",
-  本地数据: "收藏、观看记录与缓存",
-  网络: "代理、线路与连接诊断",
-  播放诊断: "详细日志与问题排查",
-  其他: "检查更新、版本信息与开源许可",
-};
-
-/* 独立设置页：线路 / 播放 / 本地数据 / 清理缓存 / 网络诊断 / 关于
-   入口：Windows 侧栏「设置」、Android「我的」右上角齿轮 */
-export default function Settings({ onBack, initialSection }: { onBack: () => void; wide: boolean; initialSection?: "内容偏好" }) {
-  const { favs, postFavs, history, postHistory, muteOnStartup, setMuteOnStartup, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity, toast } = useStore();
+/* 设置页：7 组平铺（播放 / 内容偏好 / 网络 / 本地数据 / 播放诊断 / 账号 / 关于）
+ *
+ * 原来是六张可折叠卡 + 顶部概览卡：概览里的线路 chip 与「网络」卡重复，三个圆形
+ * 快捷按钮又与下面同名卡重复，卡的摘要和徽标还常跟行内的值说同一句话。现在每组
+ * 一张卡，行只有三种右侧形态（开关 / 值 + › / 仅 ›），同一个值全页只出现一次。
+ *
+ * 入口：Windows 侧栏「设置」、Android / iOS「我的」右上角齿轮 */
+export default function Settings({ onBack }: { onBack: () => void; wide: boolean }) {
+  const { user, logout, muteOnStartup, setMuteOnStartup, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity, toast, push } = useStore();
   const { preferences: contentPrefs } = useContentPreferences();
   const [about, setAbout] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
@@ -50,51 +43,18 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
   const [diagnosing, setDiagnosing] = useState(false);
   const [diagReport, setDiagReport] = useState<string | null>(null);
   const [copyingReport, setCopyingReport] = useState(false);
-  const [openGroups, setOpenGroups] = useState<Set<SettingGroup>>(() => new Set(initialSection ? [initialSection] : []));
-  const contentRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!initialSection) return;
-    const frame = requestAnimationFrame(() => {
-      const target = contentRef.current?.querySelector<HTMLElement>(`#settings-${initialSection}`);
-      target?.scrollIntoView({ block: "start", behavior: "instant" });
-      target?.querySelector<HTMLElement>(".ios-settings-trigger")?.focus({ preventScroll: true });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [initialSection]);
-  const jumpToGroup = (title: SettingGroup) => {
-    setOpenGroups((prev) => new Set(prev).add(title));
-    requestAnimationFrame(() => {
-      const target = contentRef.current?.querySelector<HTMLElement>(`#settings-${title}`);
-      target?.scrollIntoView({ block: "start", behavior: "smooth" });
-    });
-  };
-  const totalSaved = favs.length + postFavs.length;
-  const totalHistory = history.length + postHistory.length;
-  const groupBadges: Partial<Record<SettingGroup, string>> = {
-    播放: muteOnStartup ? "启动静音" : "正常音量",
-    内容偏好: contentPrefs.paused
-      ? "已暂停"
-      : contentPrefs.blockedTags.length > 0
-        ? `屏蔽 ${contentPrefs.blockedTags.length}`
-        : contentPrefs.hideUntagged
-          ? "隐藏无标签"
-          : "未开启",
-    本地数据: `${totalSaved + totalHistory} 项`,
-    网络: lineBase ? hostOf(lineBase) : undefined,
-    播放诊断: playbackLog.enabled ? "已开启" : "基础日志",
-    其他: `v${APP_VERSION}`,
-  };
-  const section = (title: SettingGroup, children: ReactNode) => <SettingsSection title={title} summary={GROUP_SUMMARIES[title]}
-    badge={groupBadges[title]}
-    open={openGroups.has(title)} onToggle={() => setOpenGroups(previous => {
-      const next = new Set(previous);
-      if (next.has(title)) next.delete(title); else next.add(title);
-      return next;
-    })}>{children}</SettingsSection>;
+  /* 退出登录：这一段壳（防连点 + 确认弹窗 + 失败红字）整块从「我的」页搬来，
+     store 里的 logout 一份没动——这里不写第二份实现。 */
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const [logoutBusy, setLogoutBusy] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
+  const logoutPending = useRef(false);
+  const mounted = useRef(true);
 
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => { void initPlaybackLog(); }, []);
 
-  const readLine = () => { api.lineState().then((state) => { setLineBase(state.base); setLineError(""); }).catch(() => setLineError("线路读取失败，点击重新选择")); };
+  const readLine = () => { api.lineState().then((state) => { setLineBase(state.base); setLineError(""); }).catch(() => setLineError("线路读取失败，点「播放源」重新选择")); };
   useEffect(() => {
     const sync = () => { readLine(); setAutoLineOn(autoLineEnabled()); };
     sync();
@@ -105,6 +65,22 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
       window.removeEventListener("hg:auto-line-changed", sync);
     };
   }, []);
+
+  const confirmLogout = async () => {
+    if (logoutPending.current) return;
+    logoutPending.current = true;
+    setLogoutBusy(true);
+    setLogoutError("");
+    try {
+      await logout();
+      if (mounted.current) setLogoutOpen(false);
+    } catch (error) {
+      if (mounted.current) setLogoutError(error instanceof Error ? error.message : "退出失败，请重试");
+    } finally {
+      logoutPending.current = false;
+      if (mounted.current) setLogoutBusy(false);
+    }
+  };
 
   const checkUpdate = async () => {
     if (checking) return;
@@ -138,210 +114,155 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
     }
   };
 
+  const lineHost = lineBase ? hostOf(lineBase) : "";
+
   return (
     <div className="ios-page ios-settings-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
-      <div data-settings-header className="ios-settings-header shrink-0 relative z-10">
-        <div className="ios-settings-column">
-          <Button onClick={onBack} aria-label="返回" className="ios-icon-button"><IBack size={20} /></Button>
-        </div>
+      <div className="hg-set-header shrink-0 relative z-10">
+        <Button onClick={onBack} aria-label="返回" className="ios-icon-button"><IBack size={20} /></Button>
       </div>
-      <div data-settings-scroll className="ios-page-body flex-1 min-h-0 scroll-y">
-        <div ref={contentRef} className="ios-settings-column ios-settings-content">
-          <div className="pt-1 pb-4">
-            <h1 className="ios-page-title text-on">设置</h1>
-            <p className="text-[13px] text-mut mt-2">让 HGuoX 更合你的习惯</p>
-            <div className="ios-settings-overview">
-              <div className="ios-settings-overview-row">
-                <span className="ios-settings-overview-chip">
-                  <IBoltF size={13} />
-                  <span>{lineBase ? hostOf(lineBase) : "自动线路"}</span>
-                </span>
-                <span className="ios-settings-overview-chip">
-                  <ILockF size={13} />
-                  <span>{strictSecurity ? "严格安全" : "兼容模式"}</span>
-                </span>
-              </div>
-              <div className="ios-settings-quick-jumps">
-                {(["播放", "内容偏好", "网络"] as const).map((g) => (
-                  <Button key={g} onClick={() => jumpToGroup(g)} className="ios-settings-jump-btn">
-                    {g}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          </div>
+      <div className="ios-page-body flex-1 min-h-0 scroll-y">
+        <div className="hg-set-column">
+          <h1 className="ios-page-title">设置</h1>
+          <p className="hg-set-status">
+            {lineError || `${lineHost ? `当前线路 ${lineHost}` : "线路读取中…"} · ${autoLineOn ? "自动选线已开" : "手动选线"}`}
+          </p>
 
-          {section("播放", <>
-            <div className="flex items-center gap-3 px-3.5 py-3">
-              <span className="ios-setting-icon"><IVolMute size={16} /></span>
-              <div className="flex-1 min-w-0">
-                <div className="text-[14px] text-on">启动时静音</div>
-                <div className="text-[12px] text-mut">默认开启，每次启动均静音；关闭后记住上次静音状态。下次启动生效。</div>
-              </div>
-              <Toggle desktop on={muteOnStartup} onChange={setMuteOnStartup} label="启动时静音" />
-            </div>
-          </>)}
-
-          {section("内容偏好", <ContentPreferencesSettings />)}
-
-          {section("本地数据", <>
-            <div className="flex items-center gap-3 px-3.5 py-3">
-              <span className="ios-setting-icon"><IHeart size={16} /></span>
-              <div className="flex-1">
-                <div className="text-[14px] text-on">本地片库</div>
-                <div className="text-[12px] text-mut">{totalSaved} 项收藏 · {totalHistory} 条观看与浏览记录</div>
-              </div>
-            </div>
-            <Button onClick={() => { setClearError(""); setClearOpen(true); }} className="w-full flex items-center gap-3 px-3.5 py-3 text-left pressable">
-              <span className="ios-setting-icon"><IBroom size={16} /></span>
-              <div className="flex-1">
-                <div className="text-[14px] text-on">清理缓存</div>
-                <div className="text-[12px] text-mut">非 Linux 只清应用内媒体缓存；Linux 桌面版额外清 WebView 缓存</div>
-              </div>
-              <IChevR size={15} className="text-mut" />
-            </Button>
-          </>)}
-
-          {section("网络", <>
-            <ProxySettings />
-            <Button onClick={() => setLineOpen(true)} className="w-full flex items-center gap-3 px-3.5 py-3 text-left pressable">
-              <span className="ios-setting-icon"><IBoltF size={16} /></span>
-              <div className="flex-1 min-w-0">
-                <div className="text-[14px] text-on">播放源</div>
-                <div className="text-[12px] text-mut truncate">{lineError || (lineBase ? hostOf(lineBase) : "读取中…")}</div>
-              </div>
-              <IChevR size={15} className="text-mut" />
-            </Button>
-            <div className="flex items-center gap-3 px-3.5 py-3">
-              <span className="ios-setting-icon"><IRefresh size={15} /></span>
-              <div className="flex-1 min-w-0">
-                <div className="text-[14px] text-on">自动选择线路</div>
-                <div className="text-[12px] text-mut">手动选的线只作优先，不会关掉这里；关掉才是完全不自动</div>
-              </div>
-              <Toggle desktop label="自动选择线路" disabled={autoLineBusy} on={autoLineOn} onChange={(on) => {
-                if (autoLineBusy) return;
-                const previous = autoLineOn;
-                setAutoLineBusy(true);
-                setAutoLineOn(on);
-                void setAutoLine(on)
-                  .then(() => {
-                    toast(on ? "已开启自动选择线路" : "已关闭自动选线，可手动选择播放源", "info");
-                  })
-                  .catch(() => {
-                    setAutoLineOn(previous);
-                    toast(on ? "开启自动选线失败，请重试" : "关闭自动选线失败，请重试", "info");
-                  })
-                  .finally(() => setAutoLineBusy(false));
+          <SettingsGroup title="播放">
+            <SettingsRow icon={<IVolMute size={16} />} title="启动时静音" sub="关闭后沿用上次音量"
+              right={{ kind: "switch", on: muteOnStartup, onChange: setMuteOnStartup, label: "启动时静音" }} />
+            <SettingsRow icon={<IBoltF size={16} />} title="播放源" sub="手动选线只作优先"
+              right={{ kind: "nav" }} onClick={() => setLineOpen(true)} />
+            <SettingsRow icon={<IRefresh size={16} />} title="自动选择线路" sub="关闭后只用手动线路"
+              right={{
+                kind: "switch", on: autoLineOn, disabled: autoLineBusy, label: "自动选择线路",
+                onChange: (on) => {
+                  if (autoLineBusy) return;
+                  const previous = autoLineOn;
+                  setAutoLineBusy(true);
+                  setAutoLineOn(on);
+                  void setAutoLine(on)
+                    .then(() => {
+                      toast(on ? "已开启自动选择线路" : "已关闭自动选线，可手动选择播放源", "info");
+                    })
+                    .catch(() => {
+                      setAutoLineOn(previous);
+                      toast(on ? "开启自动选线失败，请重试" : "关闭自动选线失败，请重试", "info");
+                    })
+                    .finally(() => setAutoLineBusy(false));
+                },
               }} />
-            </div>
-            <div className="flex items-center gap-3 px-3.5 py-3">
-              <span className="ios-setting-icon"><ILockF size={15} /></span>
-              <div className="flex-1 min-w-0">
-                <div className="text-[14px] text-on">严格安全模式</div>
-                <div className="text-[12px] text-mut">
-                  {cliRelaxed
-                    ? "已由启动参数 --no-strict 切换为兼容模式；可手动重新开启"
-                    : "默认开启，防上游投毒与内网探测；若导致正文或特殊代理异常可关闭（或用 --no-strict 启动）"}
-                </div>
-              </div>
-              <Toggle desktop
-                on={strictSecurity}
-                disabled={!strictSecurityReady || securityPending}
-                onChange={(on) => {
+          </SettingsGroup>
+
+          <SettingsGroup title="内容偏好">
+            <ContentPreferenceToggles />
+            <SettingsRow icon={<IList size={16} />} title="屏蔽标签" sub="只影响本机展示"
+              right={{ kind: "value", value: `${contentPrefs.blockedTags.length} 个` }}
+              onClick={() => push({ kind: "settings-tags" })} />
+          </SettingsGroup>
+
+          <SettingsGroup title="网络">
+            <ProxySettings />
+            <SettingsRow icon={<ILockF size={16} />} title="严格安全模式"
+              sub={cliRelaxed ? "已由 --no-strict 切到兼容模式" : "防投毒与内网探测"}
+              right={{
+                kind: "switch", on: strictSecurity, disabled: !strictSecurityReady || securityPending, label: "严格安全模式",
+                onChange: (on) => {
                   void setStrictSecurity(on).then(() => {
                     toast(on ? "已开启严格安全模式" : "已切换为兼容模式（关闭激进清洗与守卫）", "info");
                   }).catch(() => toast("安全设置保存失败，已保持原模式", "info"));
-                }}
-                label="严格安全模式"
-              />
-            </div>
+                },
+              }} />
             {/* 打不开时先点这里：把 DNS / 代理 / HTTP 结果复制给维护者 */}
-            <Button disabled={diagnosing} onClick={async () => {
-              setDiagnosing(true);
-              try {
-                const diag = await api.netDiag();
-                // 落盘走原始 JSON（便于脚本统计），复制给对方的是分段可读报告。
-                logLine(`[net_diag] ${JSON.stringify(diag)}`);
-                const http = (diag.http ?? {}) as { ms?: number; status?: number };
-                const dns = (diag.dns ?? {}) as { count?: number; has_fake_ip?: boolean };
-                const env = (diag.env ?? {}) as Record<string, unknown>;
-                tracePlayback("net.diag", {
-                  verdict: String(diag.verdict ?? ""),
-                  host: hostOf(String(diag.host ?? "")), http_status: http.status ?? null, http_ms: http.ms ?? null,
-                  dns_count: dns.count ?? null, fake_ip: dns.has_fake_ip ?? null,
-                  proxy: Object.values(env).some(Boolean), strict: strictSecurity,
-                });
-                const report = formatNetDiag(diag);
+            <SettingsRow icon={<ILink size={16} />} title={diagnosing ? "正在诊断…" : "网络诊断"}
+              sub="DNS / 代理 / 连通性"
+              disabled={diagnosing}
+              right={{ kind: "nav" }}
+              onClick={async () => {
+                setDiagnosing(true);
                 try {
-                  await copyText(report);
-                  toast(`诊断已复制 · ${shortVerdict(diag)}`, "ok");
-                } catch {
-                  setDiagReport(report);
-                  toast("诊断已完成，复制失败，可在报告中重试", "info");
+                  const diag = await api.netDiag();
+                  // 落盘走原始 JSON（便于脚本统计），复制给对方的是分段可读报告。
+                  logLine(`[net_diag] ${JSON.stringify(diag)}`);
+                  const http = (diag.http ?? {}) as { ms?: number; status?: number };
+                  const dns = (diag.dns ?? {}) as { count?: number; has_fake_ip?: boolean };
+                  const env = (diag.env ?? {}) as Record<string, unknown>;
+                  tracePlayback("net.diag", {
+                    verdict: String(diag.verdict ?? ""),
+                    host: hostOf(String(diag.host ?? "")), http_status: http.status ?? null, http_ms: http.ms ?? null,
+                    dns_count: dns.count ?? null, fake_ip: dns.has_fake_ip ?? null,
+                    proxy: Object.values(env).some(Boolean), strict: strictSecurity,
+                  });
+                  const report = formatNetDiag(diag);
+                  try {
+                    await copyText(report);
+                    toast(`诊断已复制 · ${shortVerdict(diag)}`, "ok");
+                  } catch {
+                    setDiagReport(report);
+                    toast("诊断已完成，复制失败，可在报告中重试", "info");
+                  }
+                } catch (e) {
+                  const detail = e instanceof Error ? e.message : typeof e === "string" ? e : "请稍后重试";
+                  toast(`网络诊断失败：${detail}`, "info");
+                } finally {
+                  setDiagnosing(false);
                 }
-              } catch (e) {
-                const detail = e instanceof Error ? e.message : typeof e === "string" ? e : "请稍后重试";
-                toast(`网络诊断失败：${detail}`, "info");
-              } finally {
-                setDiagnosing(false);
-              }
-            }} className="w-full flex items-center gap-3 px-3.5 py-3 text-left pressable disabled:opacity-60">
-              <span className="ios-setting-icon"><ILink size={16} /></span>
-              <div className="flex-1">
-                <div className="text-[14px] text-on">{diagnosing ? "正在诊断…" : "网络诊断"}</div>
-                <div className="text-[12px] text-mut">DNS / TCP / 系统代理 / 官网连通性，一键复制带结论的报告</div>
-              </div>
-              <IChevR size={15} className="text-mut" />
-            </Button>
-          </>)}
+              }} />
+          </SettingsGroup>
 
-          {section("播放诊断", <>
-            <div className="flex items-center gap-3 px-3.5 py-3">
-              <span className="ios-setting-icon"><IInfo size={16} /></span>
-              <div className="flex-1 min-w-0">
-                <div className="text-[14px] text-on">播放诊断日志</div>
-                <div className="text-[12px] text-mut">版本、平台、当前线路和播放失败原因始终记录；开关只额外记录拖动与缓冲细节</div>
-                {playbackLog.error && <div role="alert" className="text-[12px] text-danger">{playbackLog.error}</div>}
-              </div>
-              <Toggle desktop label="播放诊断日志" on={playbackLog.enabled} disabled={!playbackLog.ready || playbackLog.pending}
-                onChange={(on) => { void setPlaybackLog(on).then(() => toast(on ? "已开启播放诊断，请复现问题" : "已关闭播放诊断，已有日志保留", "ok")).catch(() => toast("日志设置保存失败，请重试", "info")); }} />
-            </div>
-            <Button disabled={!playbackLog.ready || playbackLog.pending || copyingLog} onClick={async () => {
-              setCopyingLog(true);
-              try { await copyPlaybackLog(); toast("播放诊断日志已复制", "ok"); }
-              catch (e) { toast((e as Error).message || "复制日志失败", "info"); }
-              finally { setCopyingLog(false); }
-            }} className="w-full flex items-center gap-3 px-3.5 py-3 text-left pressable disabled:opacity-60">
-              <span className="ios-setting-icon"><ILink size={16} /></span>
-              <div className="flex-1 min-w-0">
-                <div className="text-[14px] text-on">{copyingLog ? "正在复制…" : "复制播放诊断日志"}</div>
-                <div className="text-[12px] text-mut">含版本、平台、当前线路和播放失败原因</div>
-              </div>
-              <IChevR size={15} className="text-mut" />
-            </Button>
-            {playbackLog.path && <details className="ios-settings-log-path text-[12px] text-mut"><summary className="cursor-pointer py-3">查看日志保存位置</summary><p className="break-all select-text pb-3">{playbackLog.path}</p></details>}
-          </>)}
-          {section("其他", <>
-            <Button onClick={checkUpdate} disabled={checking} className="w-full flex items-center gap-3 px-3.5 py-3 text-left pressable disabled:opacity-60">
-              <span className="ios-setting-icon">{checking ? <Loader label="正在检查更新" className="size-4" /> : <IRefresh size={16} />}</span>
-              <div className="flex-1">
-                <div className="text-[14px] text-on">检查更新</div>
-                <div className="text-[12px] text-mut">{checking ? "检查中…" : `当前 v${APP_VERSION} · 对比 GitHub Release`}</div>
-              </div>
-              <IChevR size={15} className="text-mut" />
-            </Button>
-            <Button onClick={() => setAbout(true)} className="w-full flex items-center gap-3 px-3.5 py-3 text-left pressable">
-              <span className="ios-setting-icon"><IInfo size={16} /></span>
-              <div className="flex-1">
-                <div className="text-[14px] text-on">关于 HGuoX</div>
-                <div className="text-[12px] text-mut">版本 {APP_VERSION} · 仅限非商业使用</div>
-              </div>
-              <IChevR size={15} className="text-mut" />
-            </Button>
-          </>)}
+          <SettingsGroup title="本地数据">
+            <SettingsRow icon={<IBroom size={16} />} title="清理缓存" sub="封面与分片缓存；收藏保留"
+              right={{ kind: "nav" }} onClick={() => { setClearError(""); setClearOpen(true); }} />
+          </SettingsGroup>
 
-          <div className="text-center text-[12px] text-dim mt-5">HGuoX {APP_VERSION} · {platform === "android" ? "Android" : platform === "ios" ? "iOS" : platform === "macos" ? "macOS" : platform === "linux" ? "Linux" : "Windows"} 客户端</div>
+          <SettingsGroup title="播放诊断">
+            <SettingsRow icon={<IClapper size={16} />} title="播放诊断日志"
+              sub={playbackLog.error || "额外记录缓冲与拖动"}
+              right={{
+                kind: "switch", on: playbackLog.enabled, disabled: !playbackLog.ready || playbackLog.pending, label: "播放诊断日志",
+                onChange: (on) => {
+                  void setPlaybackLog(on)
+                    .then(() => toast(on ? "已开启播放诊断，请复现问题" : "已关闭播放诊断，已有日志保留", "ok"))
+                    .catch(() => toast("日志设置保存失败，请重试", "info"));
+                },
+              }} />
+            <SettingsRow icon={<IFileText size={16} />} title={copyingLog ? "正在复制…" : "复制播放日志"}
+              sub="含版本、平台与失败原因"
+              disabled={!playbackLog.ready || playbackLog.pending || copyingLog}
+              right={{ kind: "nav" }}
+              onClick={async () => {
+                setCopyingLog(true);
+                try { await copyPlaybackLog(); toast("播放诊断日志已复制", "ok"); }
+                catch (e) { toast((e as Error).message || "复制日志失败", "info"); }
+                finally { setCopyingLog(false); }
+              }} />
+            {playbackLog.path && (
+              <details className="hg-set-log-path">
+                <summary>查看日志保存位置</summary>
+                <p>{playbackLog.path}</p>
+              </details>
+            )}
+          </SettingsGroup>
+
+          {user && (
+            <SettingsGroup title="账号">
+              <SettingsRow icon={<ILogout size={16} />} title="退出登录" danger
+                sub={`${user.nickname || user.username} · 本机进度保留`}
+                right={{ kind: "nav" }}
+                onClick={() => { setLogoutError(""); setLogoutOpen(true); }} />
+            </SettingsGroup>
+          )}
+
+          <SettingsGroup title="关于">
+            <SettingsRow icon={<ISparkF size={16} />} title={checking ? "正在检查更新…" : "检查更新"}
+              sub={update?.has_update ? "有新版本可下载" : "对比 GitHub Release"}
+              disabled={checking}
+              right={{ kind: "value", value: update?.has_update ? `v${update.latest}` : undefined }}
+              onClick={checkUpdate} />
+            <SettingsRow icon={<IInfo size={16} />} title="关于 HGuoX" sub="版本、许可与项目地址"
+              right={{ kind: "value", value: `v${APP_VERSION}` }} onClick={() => setAbout(true)} />
+          </SettingsGroup>
         </div>
       </div>
 
@@ -456,6 +377,20 @@ export default function Settings({ onBack, initialSection }: { onBack: () => voi
             </Button>
           </div>
           <details className="text-[12px] text-mut mt-2.5"><summary className="py-3 cursor-pointer">下载地址</summary><p className="break-all select-text">{update?.url}</p></details>
+        </div>
+      </Modal>
+
+      <Modal open={logoutOpen} onClose={() => { if (!logoutPending.current) setLogoutOpen(false); }} label="退出登录">
+        <div className="p-5">
+          <h2 className="text-[18px] font-bold">退出登录</h2>
+          <p className="mt-2 text-[14px] text-mut">退出当前账户？账号数据和本机进度会保留，退出后显示游客的本机记录。</p>
+          {logoutError && <p role="alert" className="mt-3 text-[13px] text-danger">{logoutError}</p>}
+          <div className="mt-4 flex gap-3">
+            <Button variant="secondary" disabled={logoutBusy} onClick={() => setLogoutOpen(false)} className="flex-1">取消</Button>
+            <Button variant="danger" disabled={logoutBusy} onClick={() => void confirmLogout()} className="flex-1 rounded-(--r-ctl) px-3">
+              {logoutBusy ? "正在退出…" : "确认退出"}
+            </Button>
+          </div>
         </div>
       </Modal>
     </div>

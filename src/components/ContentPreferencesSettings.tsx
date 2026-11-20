@@ -1,12 +1,32 @@
 import { useId, useState } from "react";
 import { MAX_BLOCKED_TAGS, MAX_TAG_LENGTH, normalizeTag, useContentPreferences } from "../contentPreferences";
 import { Button, Form, Input } from "./ios/controls";
-import { Modal, Toggle } from "./ui";
-import { IClose } from "../icons";
+import { Modal } from "./ui";
+import { SettingsRow } from "./SettingsGroup";
+import { IBan, IClose, IEyeOff } from "../icons";
 import "../styles/content-preferences.css";
 
-export default function ContentPreferencesSettings() {
-  const { preferences, storageError, blockTags, unblockTag, setPaused, setHideUntagged, clearBlockedTags, isTagBlocked } = useContentPreferences();
+/** 设置页「内容偏好」组里的两个开关。
+ *
+ *  这里原来和标签编辑器挤在同一个内联块里：标签一多就把设置页撑成三屏，
+ *  而这两个开关恰恰是最常用的。现在开关留在设置首页，标签编辑器搬进
+ *  「屏蔽标签」二级页（ContentPreferenceTags），两边不重复。
+ */
+export function ContentPreferenceToggles() {
+  const { preferences, setPaused, setHideUntagged } = useContentPreferences();
+  return (
+    <>
+      <SettingsRow icon={<IBan size={16} />} title="暂停全部屏蔽" sub="暂时显示全部内容"
+        right={{ kind: "switch", on: preferences.paused, onChange: setPaused, label: "暂停全部屏蔽" }} />
+      <SettingsRow icon={<IEyeOff size={16} />} title="隐藏无标签视频" sub="无标签内容默认保留"
+        right={{ kind: "switch", on: preferences.hideUntagged, onChange: setHideUntagged, label: "隐藏无标签视频" }} />
+    </>
+  );
+}
+
+/** 屏蔽标签的编辑面板：加 / 搜 / 删 / 清空 + 规则说明。放在「屏蔽标签」二级页里。 */
+export function ContentPreferenceTags() {
+  const { preferences, storageError, blockTags, unblockTag, setPaused, clearBlockedTags, isTagBlocked } = useContentPreferences();
   const [value, setValue] = useState("");
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
@@ -34,18 +54,6 @@ export default function ContentPreferencesSettings() {
       <span className="content-preference-state-dot" aria-hidden="true" />
       <div className="min-w-0 text-[12px] leading-relaxed text-mut"><p className="font-semibold text-[13px] text-on">{preferences.paused ? "屏蔽已暂停" : preferences.blockedTags.length || preferences.hideUntagged ? "内容筛选已开启" : "尚未设置屏蔽规则"}</p>
         <p className="mt-1">{preferences.paused ? "已保存的规则保留，恢复后继续生效。" : `已保存 ${preferences.blockedTags.length} / ${MAX_BLOCKED_TAGS} 个标签；仅影响本机内容展示。`}</p>
-      </div>
-    </div>
-    <div className="content-preference-switches">
-      <div className="flex items-center gap-3">
-        <div className="flex-1 min-w-0"><h3 className="text-[14px] font-semibold text-on">暂停全部屏蔽</h3>
-          <p className="text-[12px] text-mut mt-1">暂时展示所有内容，已保存的标签仍会保留。</p></div>
-        <Toggle desktop label="暂停全部屏蔽" on={preferences.paused} onChange={setPaused} />
-      </div>
-      <div className="flex items-center gap-3">
-        <div className="flex-1 min-w-0"><h3 className="text-[14px] font-semibold text-on">隐藏无标签视频</h3>
-          <p className="text-[12px] text-mut mt-1">默认保留无标签内容；开启后也会受“暂停全部屏蔽”控制。</p></div>
-        <Toggle desktop label="隐藏无标签视频" on={preferences.hideUntagged} onChange={setHideUntagged} />
       </div>
     </div>
     <Form className="space-y-2" onSubmit={event => { event.preventDefault(); add(); }}>

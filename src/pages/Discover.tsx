@@ -591,7 +591,7 @@ export function TagPage({ tag, name, onBack, wide }: { tag: string; name: string
                 className={`hg-tag-pill${tagBlocked ? " is-on" : ""}`}>
                 {tagBlocked ? "取消屏蔽此标签" : "屏蔽此标签"}
               </Button>
-              <Button card className="hg-tag-pill" onClick={() => push({ kind: "settings", section: "内容偏好" })}>管理屏蔽标签</Button>
+              <Button card className="hg-tag-pill" onClick={() => push({ kind: "settings-tags" })}>管理屏蔽标签</Button>
             </div>
           </div>
           {preferences.paused && <p role="status" className="mt-2 text-[12px] text-mut">屏蔽已暂停，新增标签会保存，恢复后生效。</p>}

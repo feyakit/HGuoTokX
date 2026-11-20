@@ -29,6 +29,7 @@ const Profile = lazy(() => import("./pages/Profile"));
 const HistoryPage = lazy(() => import("./pages/Profile").then(module => ({ default: module.HistoryPage })));
 const FavoritesPage = lazy(() => import("./pages/Profile").then(module => ({ default: module.FavoritesPage })));
 const SettingsPage = lazy(() => import("./pages/Settings"));
+const SettingsTagsPage = lazy(() => import("./pages/SettingsTags"));
 const PostsPage = lazy(() => import("./pages/Posts").then(module => ({ default: module.PostsPage })));
 const PostDetail = lazy(() => import("./pages/Posts").then(module => ({ default: module.PostDetail })));
 const TopicsPage = lazy(() => import("./pages/Discover").then(module => ({ default: module.TopicsPage })));
@@ -94,7 +95,8 @@ function StackPageContent({ page, onBack, wide, top, bottomInset }: {
   if (page.kind === "favorites") return <FavoritesPage onBack={onBack} wide={wide} initialTab={page.initialTab} />;
   if (page.kind === "channel") return <ChannelPage cate={page.cate} name={page.name} onBack={onBack} wide={wide} />;
   if (page.kind === "ranks") return <RankPage onBack={onBack} wide={wide} />;
-  if (page.kind === "settings") return <SettingsPage onBack={onBack} wide={wide} initialSection={page.section} />;
+  if (page.kind === "settings") return <SettingsPage onBack={onBack} wide={wide} />;
+  if (page.kind === "settings-tags") return <SettingsTagsPage onBack={onBack} />;
   if (page.kind === "posts") return <PostsPage onBack={onBack} wide={wide} />;
   if (page.kind === "post") return <PostDetail id={page.id} onBack={onBack} active={top} />;
   if (page.kind === "topics") return <TopicsPage onBack={onBack} wide={wide} />;
