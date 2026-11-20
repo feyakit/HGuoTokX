@@ -31,7 +31,14 @@ import {
   IBack, IBoltF, IChevR, IChevronDown, IChevronUp, IClose, ICommentF, ICompress, IExpand, IFileText, IGlobe, IHeart, IHeartF, IMore,
   IList, ILockF, IPauseF, IPlayF, ISearch, IStar, IStarF, IVertSwap, IVol, IVolMute,
 } from "../icons";
-import { ambientStyle, useAccent } from "../useAccent";
+import { ambientStyle } from "../useAccent";
+import type { AccentScheme } from "../accent";
+
+/* 播放器页固定纯黑：**不跟随封面取色**（用户：只有播放页去掉取色，其他页保留）。
+   data-ambient 会是 fallback，氛围层与雾面都不渲染；控件强调色仍是品牌紫。 */
+const PLAYER_SCHEME: AccentScheme = {
+  accent: "#7C5CFF", second: "#3B82F6", deep: "#000000", tag: "#26263A", source: "fallback", luma: 0,
+};
 
 /* 系统方向请求的唯一出口。
    安卓：Rust 把请求转给 Kotlin 插件 OrientationPlugin（activity.requestedOrientation），
@@ -548,7 +555,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
 
   const posterUrl = cover(meta.cover, 900);
   /* 封面色链路：这一屏的主视觉决定了全站强调色（换剧才换色） */
-  const accentScheme = useAccent(curId, posterUrl || undefined);
+  const accentScheme = PLAYER_SCHEME;
   const setAccent = useStore().setAccent;
   useEffect(() => { setAccent(accentScheme); }, [accentScheme, setAccent]);
   const articleHtml = kind === "post" && !post?.video_url ? (post?.content || "") : "";

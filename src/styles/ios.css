@@ -2,7 +2,7 @@
    uses solid, legible surfaces. All effects have a non-transparent fallback. */
 :root {
   color-scheme: dark;
-  --p-canvas:#000000; --p-bg:#000000; --p-s1:#232325; --p-s2:#2b2b2e;
+  --p-canvas:#101012; --p-bg:#151517; --p-s1:#232325; --p-s2:#2b2b2e;
   --p-s3:#343437; --p-s4:#48484d; --p-on:#f5f5f7; --p-mut:#b6b6bd; --p-dim:#a0a0a9;
   --p-primary:#74b7ff; --p-on-primary:#082749; --p-pc:#193c60; --p-on-pc:#d4e8ff;
   --p-sec:#343b45; --p-on-sec:#dcecff; --p-like:#ff819a; --p-star:#f5cc66;
@@ -263,9 +263,7 @@
   --motion-spring:cubic-bezier(.22,1,.36,1);
   --motion-spring-soft:cubic-bezier(.25,1,.5,1);
   --ios-spring:var(--motion-spring);
-  /* 纯黑基调（用户：直接和抖音一样黑）：画布与页面底一律 #000，
-     层次靠 s1..s4 的深灰卡片区分，强调色不动。 */
-  --p-canvas:#000000; --p-bg:#000000; --p-s1:#1E1E2E; --p-s2:#26263A; --p-s3:#2A2A3E; --p-s4:#45455E;
+  --p-canvas:#0A0B14; --p-bg:#0A0B14; --p-s1:#1E1E2E; --p-s2:#26263A; --p-s3:#2A2A3E; --p-s4:#45455E;
   --p-on:#ffffff; --p-mut:#C7C7D1; --p-dim:#9CA3AF; --p-primary:#7C5CFF; --p-on-primary:#ffffff;
   --p-pc:#26263A; --p-on-pc:#C4B5FD; --p-sec:#26263A; --p-on-sec:#C4B5FD;
   --p-like:#FF3B30; --p-star:#F5A623; --p-success:#8bd3a0; --p-danger:#ff928b; --p-on-danger:#3b100d;

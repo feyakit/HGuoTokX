@@ -1,16 +1,3 @@
-/**
- * 背景基调：**纯黑（抖音式）**。
- *
- * 用户定了「直接和抖音一样黑的吧」（2026-11-20）：大面积背景不再跟着封面取色，
- * 所以 `useAccent()` 现在固定返回 `BLACK_SCHEME`（source = "fallback"）。
- *
- * **取色能力保留**（`accent.ts` 里的 `schemeFromPixels` / 读写缓存、本文件的
- * `extractAccent` / `sample` / `loadImage` 一行没删）：将来要做「动态取色」开关时
- * 直接把它们接回来即可。因此这些导出在 linter 里可能显示为未使用，属于有意保留。
- *
- * 强调色（按钮/进度条/选中态）仍是品牌紫 —— 抖音也是黑底 + 少量品牌色，
- * 只把**大面积背景**变黑，不是把所有颜色都压掉。
- */
 import { useEffect, useState, type CSSProperties } from "react";
 import { FALLBACK_SCHEME, readAccentCache, schemeFromPixels, writeAccentCache, type AccentScheme } from "./accent";
 import { EXTRA_STORAGE_KEYS } from "./storage";
@@ -95,16 +82,6 @@ export function readAmbient(): AccentScheme {
   }
 }
 
-/** 纯黑背景方案：背景黑，强调色保留品牌紫（控件、进度条、选中态照旧看得见）。 */
-export const BLACK_SCHEME: AccentScheme = {
-  accent: "#7C5CFF",
-  second: "#3B82F6",
-  deep: "#000000",
-  tag: "#1C1C1E",
-  source: "fallback",
-  luma: 0,
-};
-
 /** 剧场 / 追剧 / 我的跟最近一次成功取色，没有封面时也不是一块纯黑。 */
 export function useAmbient(): AccentScheme {
   const [scheme, setScheme] = useState<AccentScheme>(readAmbient);
@@ -116,28 +93,41 @@ export function useAmbient(): AccentScheme {
   return scheme;
 }
 
-/**
- * 氛围底样式：**只输出纯黑背景 + 品牌强调色**。
- * `--ambient` 交给纯黑（原来的径向渐变就是拿它上色的），`--accent*` 仍给按钮/进度条。
- */
 export function ambientStyle(scheme: AccentScheme): CSSProperties {
   return {
-    ["--ambient" as string]: "#000000",
+    ["--ambient" as string]: scheme.accent,
     ["--accent" as string]: scheme.accent,
     ["--accent-2" as string]: scheme.second,
-    ["--deep" as string]: "#000000",
+    ["--deep" as string]: scheme.deep,
     ["--tag" as string]: scheme.tag,
-    background: "#000000",
   };
 }
 
 /** 先读缓存。取色失败才退回品牌紫，慢一点的封面不再被 150ms 超时盖成紫色。 */
 export function useAccent(id: number | string | null | undefined, url?: string): AccentScheme {
-  /* 背景固定纯黑：不再读缓存、不再采样封面（id/url 只保留给调用点签名兼容，
-     将来做开关时把下面这段换回取色逻辑即可）。 */
+  const [scheme, setScheme] = useState<AccentScheme>(() => (id != null && readAccentCache(String(id))) || FALLBACK_SCHEME);
   useEffect(() => {
-    if (id == null) return;
-    publishAccent(id, url ?? "", BLACK_SCHEME);
+    if (id == null || !url) { setScheme(FALLBACK_SCHEME); return; }
+    const key = String(id);
+    const cached = readAccentCache(key);
+    if (cached) {
+      setScheme(cached);
+      publishAccent(id, url, cached);
+      return;
+    }
+    let cancel = false;
+    extractAccent(url).then(next => {
+      if (cancel) return;
+      writeAccentCache(key, next);
+      publishAccent(id, url, next);
+      setScheme(next);
+    }).catch(error => {
+      if (cancel) return;
+      console.warn("[accent] fallback", key, error instanceof Error ? error.message : error);
+      publishAccent(id, url, FALLBACK_SCHEME);
+      setScheme(FALLBACK_SCHEME);
+    });
+    return () => { cancel = true; };
   }, [id, url]);
-  return BLACK_SCHEME;
+  return scheme;
 }
