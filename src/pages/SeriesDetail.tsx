@@ -28,6 +28,20 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
     return () => window.clearTimeout(timer);
   }, [detail, err, id]);
 
+  /* 播放器 chunk 预热：详情页里用户下一步大概率点「播放」，而播放器整条链
+     （EpisodePlayer + hls.js，约 600KB）现在是按需 chunk。趁这次浏览的空闲先拉下来，
+     点播放时就不用再等它下载+解析。失败无所谓，真点播放还会正常加载。 */
+  useEffect(() => {
+    const warm = () => { void import("../components/Feed"); };
+    const ric = (window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
+    if (ric) {
+      const handle = ric(warm, { timeout: 1500 });
+      return () => (window as Window & { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(handle);
+    }
+    const timer = window.setTimeout(warm, 800);
+    return () => window.clearTimeout(timer);
+  }, [id]);
+
   useEffect(() => {
     const my = ++seq.current;
     setErr("");

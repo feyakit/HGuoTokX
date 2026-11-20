@@ -139,9 +139,11 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
       setPage(p);
       if (replaceBatch) setSeedPage(p);
       setDone(!rows.length || p >= pages);
-      /* 首屏落地后空闲时预取第 2 页（滚动加载时命中读缓存，省掉一个来回） */
-      if (p === 1 && key === "all" && pages > 1) {
-        scheduleIdle(() => { void api.feed(2, 21).catch(() => { /* 预取失败无所谓，滚到底还会再请求 */ }); }, 1400);
+      /* 空闲时预取下一页（滚动到底时命中读缓存，省掉一个来回）：
+         首屏 → 第 2 页；每次追加完 → 再下一页。失败无所谓，滚到底还会正常请求。 */
+      if (key === "all" && !replaceBatch && p + 1 <= pages) {
+        const next = p + 1;
+        scheduleIdle(() => { void api.feed(next, 21).catch(() => { /* 预取失败无所谓 */ }); }, 1400);
       }
     } catch (e) {
       if (my === seq.current) setError((e as Error)?.message || "加载失败");
