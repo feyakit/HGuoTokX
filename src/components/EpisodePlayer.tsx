@@ -1780,10 +1780,12 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                     ? "none"
                     : "transform .22s cubic-bezier(.22,1,.36,1), opacity .2s ease-out",
                 }}>
-                {/* 横版片源在竖屏下是 contain，上下会留黑边 —— 那条"分割线"就是画面底边。
-                    这里垫一层同一张封面的虚化放大（低压版机自动关掉），并给画面上下各 56px
-                    渐隐，把边缘化进底色；竖屏 9:16 的 cover 片源不加，避免雾化。 */}
-                {!isDesktop && !fs && !(portraitVideo && !rotated && !vpLandscape) && (
+                {/* 横版片源在竖屏（含竖屏全屏 fs-immersive）是 contain，上下留黑边 ——
+                    那条"分割线"就是画面底边。垫一层同一张封面的虚化放大 + 上下 56px 渐隐。
+                    只在「竖屏方向 + 非竖版片源」渲染：
+                      · vpLandscape（真横屏）/ rotated（伪横屏）：16:9 本来就铺满，虚化层看不见，跳过省性能；
+                      · portraitVideo：cover 铺满，加雾化反而脏，不加。 */}
+                {!isDesktop && !rotated && !vpLandscape && !portraitVideo && (
                   <>
                     <div aria-hidden="true" className="hg-lb-blur"><Img src={posterUrl} alt="" /></div>
                     <span aria-hidden="true" className="hg-vfade hg-vfade-top" />
