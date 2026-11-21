@@ -72,6 +72,8 @@ export type Toast = {
   icon?: "ok" | "heart" | "star" | "info";
   /** 线路切换专用的结构化内容，有这个就不看 msg */
   line?: { region: "cn" | "intl"; host: string; ms: number };
+  /** 同 tag 的 toast 原地替换（如 playback-hint 统一承载播放状态提示），快速触发不堆叠；无 tag 正常堆叠。 */
+  tag?: string;
 };
 
 /** 观看记录：看到第几集、第几秒（`dur` 用来判断是否已看完） */
@@ -169,7 +171,7 @@ type Store = {
   volume: number; setVolume: (v: number) => void;
   searchHist: string[]; addSearch: (q: string) => void; clearSearchHist: () => void;
   strictSecurity: boolean; strictSecurityReady: boolean; securityPending: boolean; cliRelaxed: boolean; setStrictSecurity: (on: boolean) => Promise<void>;
-  toasts: Toast[]; toast: (msg: string, icon?: Toast["icon"]) => void;
+  toasts: Toast[]; toast: (msg: string, icon?: Toast["icon"], tag?: string) => void;
   /** 线路切换计数：变了就让列表页重挂载，重新拉一遍数据 */
   lineEpoch: number;
   /** 当前封面取色（全站 accent 的唯一来源） */
@@ -284,9 +286,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [strictSecurityReady]);
 
-  const toast = useCallback((msg: string, icon?: Toast["icon"]) => {
+  /* 带 tag 的提示共用同一个槽位：原地替换内容并重置 2200ms 计时，不堆叠、不重放入场动画
+     （上游 PR #200）。无 tag 的普通提示仍是「最多 3 张」的堆叠行为。 */
+  const toast = useCallback((msg: string, icon?: Toast["icon"], tag?: string) => {
     const id = ++toastSeq.current;
-    setToasts((t) => [...t.slice(-2), { id, msg, icon }]);
+    setToasts((t) => {
+      if (tag) {
+        const idx = t.findIndex((x) => x.tag === tag);
+        const next: Toast = { id, msg, icon, tag };
+        if (idx >= 0) { const copy = t.slice(); copy[idx] = next; return copy; }
+        return [...t.slice(-2), next];
+      }
+      return [...t.slice(-2), { id, msg, icon }];
+    });
     window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 2200);
   }, []);
   const acceptMerge = useCallback(async (onProgress?: (done: number, total: number) => void) => {

@@ -659,11 +659,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     const pending = pendingEpisodeToast.current;
     if (!pending) return;
     if (err) { pendingEpisodeToast.current = null; return; }
-    if (!fs || isDesktop) { pendingEpisodeToast.current = null; toast(pending, "info"); return; }
+    if (!fs || isDesktop) { pendingEpisodeToast.current = null; toast(pending, "info", "playback-hint"); return; }
     /* 等的是「这一段的画面」，不是上一段的：舞台要等自己的尺寸和首帧播放就绪才转。 */
     if (playingKey !== playKey || videoSize.key !== measurementKey || videoSize.h <= 0) return;
     pendingEpisodeToast.current = null;
-    toast(pending, "info");
+    toast(pending, "info", "playback-hint");
   }, [err, fs, isDesktop, measurementKey, playKey, playingKey, toast, videoSize]);
   /* 舞台实测尺寸（用于判断是否真的有 letterbox：容器比画面更"方"才会出现上下黑边） */
   const [stageBox, setStageBox] = useState({ w: 0, h: 0 });
@@ -2252,14 +2252,14 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                             key: "prev",
                             ariaLabel: "上一集",
                             off: curEp <= 1,
-                            onPress: () => { if (curEp <= 1) { toast("已经是第一集", "info"); return; } pickEp(curEp - 1); },
+                            onPress: () => { if (curEp <= 1) { toast("已经是第一集", "info", "playback-hint"); return; } pickEp(curEp - 1); },
                             label: "上一集",
                           }] : []),
                           ...(!endless ? [{
                             key: "next",
                             ariaLabel: curEp < episodes.length ? `下一集 第${curEp + 1}集` : "下一集",
                             off: curEp >= episodes.length,
-                            onPress: () => { if (curEp >= episodes.length) { toast("已经是最后一集", "info"); return; } pickEp(curEp + 1); },
+                            onPress: () => { if (curEp >= episodes.length) { toast("已经是最后一集", "info", "playback-hint"); return; } pickEp(curEp + 1); },
                             label: "下一集",
                           }] : []),
                         ]} />
@@ -2385,7 +2385,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
           nextDisabled={!episodes.some((e) => e.ep_num === curEp + 1) && index >= effectiveVideoIds.length - 1}
           nextTitle={episodes.some((e) => e.ep_num === curEp + 1) ? "下一集 E" : "下一部 ↓"}
           swipeEp={swipeEp}
-          onToggleSwipe={() => { setSwipeEp(!swipeEp); toast(swipeEp ? "上下划切集已关闭" : "上下划切集已开启"); }}
+          onToggleSwipe={() => { setSwipeEp(!swipeEp); toast(swipeEp ? "上下划切集已关闭" : "上下划切集已开启", "info", "playback-hint"); }}
           onToggle={() => videoRef.current?.toggle()}
           onSeek={(t, source) => { videoRef.current?.seek(t, source); playbackClock.publish(t); }}
           onSeekInteraction={(phase, input, target, pointerTarget) => videoRef.current?.trace(`seek.input.${phase}`, { input, target, pointer_target: pointerTarget })}
@@ -2570,7 +2570,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   key: "next",
                   ariaLabel: curEp < episodes.length ? `下一集 第${curEp + 1}集` : "下一集",
                   off: curEp >= episodes.length,
-                  onPress: () => { if (curEp >= episodes.length) { toast("已经是最后一集", "info"); return; } pickEp(curEp + 1); },
+                  onPress: () => { if (curEp >= episodes.length) { toast("已经是最后一集", "info", "playback-hint"); return; } pickEp(curEp + 1); },
                   label: "下集",
                 }] : []),
               ]} />
