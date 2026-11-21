@@ -1780,6 +1780,16 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                     ? "none"
                     : "transform .22s cubic-bezier(.22,1,.36,1), opacity .2s ease-out",
                 }}>
+                {/* 横版片源在竖屏下是 contain，上下会留黑边 —— 那条"分割线"就是画面底边。
+                    这里垫一层同一张封面的虚化放大（低压版机自动关掉），并给画面上下各 56px
+                    渐隐，把边缘化进底色；竖屏 9:16 的 cover 片源不加，避免雾化。 */}
+                {!isDesktop && !fs && !(portraitVideo && !rotated && !vpLandscape) && (
+                  <>
+                    <div aria-hidden="true" className="hg-lb-blur"><Img src={posterUrl} alt="" /></div>
+                    <span aria-hidden="true" className="hg-vfade hg-vfade-top" />
+                    <span aria-hidden="true" className="hg-vfade hg-vfade-bottom" />
+                  </>
+                )}
                 <VideoSurface ref={videoRef} src={playUrl} poster={posterUrl} autoPlay active={active && !tagMenu && !showHoldGuide} muted={muted}
                   diagnosticContext={{ active: active && !tagMenu && !showHoldGuide, view: mode, kind, video_id: curId, episode: curEp }}
                   volume={volume} rate={effRate}
@@ -2061,7 +2071,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                         屏幕最底部（14px + 安全区）反而没暗化，就是用户看到的分界线。 */}
                     {/* 剧场控制行：时间 + 快捷倍速 + 下一集 */}
                     <div className="mx-4 mt-2 flex items-center gap-2.5 relative z-10">
-                      <span className="hg-video-time">
+                      <span className="hg-video-time" style={{ color: "rgba(255,255,255,.72)", textShadow: "0 1px 2px rgba(0,0,0,.65), 0 0 8px rgba(0,0,0,.45)" }}>
                         <PlaybackTime clock={playbackClock} /> <span className="opacity-60">/ {fmtTime(duration || 0)}</span>
                       </span>
                       {/* 右下角控制组：统一 13/600、行高 18、水平 padding 10、间距 8（gap），
@@ -2183,8 +2193,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   <button type="button" aria-label="继续播放"
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => { e.stopPropagation(); videoRef.current?.play(); }}
-                    className="pointer-events-auto w-[66px] h-[66px] rounded-full flex items-center justify-center backdrop-blur-md border-0 cursor-pointer"
-                    style={{ background: "rgba(0,0,0,.55)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,.12)" }}>
+                    className="hg-player-center-btn pointer-events-auto w-[66px] h-[66px] rounded-full flex items-center justify-center border-0 cursor-pointer">
                     <IPlayF size={28} className="hg-ink ml-0.5" />
                   </button>
                 </div>
@@ -2291,7 +2300,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
 
       {/* 播放器底部压光（唯一一层）：从屏幕最底边往上 280px，一条线性渐变盖住
           安全区 + 进度条 + 控件区，中途没有任何容器级背景/blur 形成色带。 */}
-      {!isDesktop && !fs && (
+      {!isDesktop && !fs && !clean && (
         <div aria-hidden="true" className="hg-scrim-bottom z-10">
           <span className="hg-scrim-dither" aria-hidden="true" />
         </div>

@@ -660,22 +660,26 @@ html.plat-android .hg-num { transform: translateY(1px); }
 
 /* ===== 底栏分段胶囊（倍速 | 上一集 | 下一集 / 倍速 | 选集 | 下集）=====
    原来是三个各自带底的方圆角小块，并排很碎；这里合并成一个整体分段胶囊。 */
+/* 全浮底栏（用户拍定）：无底、无边框、无分隔线，纯文字 + 双层文字阴影。
+   横向绝不出现色块/色带，控件之间只靠 14px 间距分组。 */
 .hg-seg-pill {
-  position: relative; display: inline-flex; align-items: center; height: 28px;
-  border-radius: 999px; background-color: rgba(0, 0, 0, .42);
-  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); overflow: hidden;
+  position: relative; display: inline-flex; align-items: center; gap: 14px; height: 28px;
+  background: none; border: 0; box-shadow: none;
 }
 /* 热区 ≥44：容器外扩，不影响布局 */
 .hg-seg-pill::after { content: ""; position: absolute; left: -6px; right: -6px; top: 50%; height: 44px; transform: translateY(-50%); }
 .hg-seg {
-  flex: 1 1 0; min-width: 52px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
-  padding: 0 10px; border: 0; border-radius: 0; background: none; box-shadow: none;
+  flex: 1 1 0; min-width: 44px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 4px; border: 0; border-radius: 8px; background: none; box-shadow: none;
   font-size: 12px; font-weight: 600; line-height: 16px; color: #fff; white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .65), 0 0 8px rgba(0, 0, 0, .45);
+  transition: opacity 120ms var(--ease-out, cubic-bezier(.2,.8,.2,1)), transform 120ms var(--ease-out, cubic-bezier(.2,.8,.2,1));
 }
+.hg-seg:active:not([aria-disabled="true"]) { opacity: .72; transform: scale(.96); }
 /* .ios-button 基类的 44 最小尺寸要让开（热区由容器 ::after 提供） */
 .ios-button.hg-seg.hg-seg.hg-seg { height: 28px; min-height: 0; min-block-size: 0; min-inline-size: 0; }
 .hg-seg.is-off { opacity: .38; }
-.hg-seg-div { flex: none; width: 1px; height: 14px; background: rgba(255, 255, 255, .10); }
+.hg-seg-div { display: none; }
 
 /* ===== 结束态卡片品牌化 ===== */
 .hg-endcard {
@@ -710,7 +714,8 @@ html.plat-android .hg-num { transform: translateY(1px); }
    配合 dither 打碎台阶，肉眼看不到带。低端机（html[data-fx="low"]）关掉 dither。 */
 .hg-scrim-bottom, .hg-scrim-top { position: absolute; inset-inline: 0; pointer-events: none; }
 .hg-scrim-bottom {
-  bottom: 0; height: 240px;
+  /* 比例型高度：竖屏 28vh（≥240），横屏/全屏 22vh（≥160），并延伸到安全区之下 */
+  bottom: 0; height: max(28vh, 240px);
   /* 用 to bottom + 反序停点，避免 to top 在部分内核里被反转（真机上量到过反相） */
   background: linear-gradient(to bottom,
     rgba(0, 0, 0, 0) 0%,
@@ -719,7 +724,7 @@ html.plat-android .hg-num { transform: translateY(1px); }
     rgba(0, 0, 0, .45) 100%);
 }
 .hg-scrim-top {
-  top: 0; height: 160px;
+  top: 0; height: max(18vh, 140px);
   background: linear-gradient(to bottom,
     rgba(0, 0, 0, .45) 0%,
     rgba(0, 0, 0, .28) 34%,
@@ -740,5 +745,30 @@ html[data-fx="low"] .hg-scrim-dither { display: none; }
 .hg-cinema-bottom .hg-seg-pill,
 .hg-seg-pill { -webkit-backdrop-filter: none; backdrop-filter: none; }
 /* 分段胶囊改成极低白底 + 文字阴影，不在横向上形成色带 */
-.hg-seg-pill { background-color: rgba(255, 255, 255, .06); }
+.hg-seg-pill { background: none; }
 .hg-seg, .hg-ctrl { text-shadow: 0 1px 2px rgba(0, 0, 0, .45); }
+
+/* 全屏横屏：压光矮一档，但同样延伸到屏幕最底（含安全区） */
+.hg-player-ui.fs-immersive .hg-scrim-bottom { height: max(22vh, 160px); }
+.hg-player-ui.fs-landscape .hg-scrim-bottom { height: max(22vh, 160px); }
+.hg-player-ui.fs-immersive .hg-scrim-top { height: max(16vh, 120px); }
+.hg-player-ui.fs-landscape .hg-scrim-top { height: max(16vh, 120px); }
+
+/* 全浮：中央播放键与右栏图标去底，只留图标 + drop-shadow（热区仍 44） */
+.hg-player-center-btn { background: none !important; border: 0 !important; box-shadow: none !important; }
+.hg-player-center-btn svg { filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
+.mobile-video-action-rail > .ios-button {
+  background: none !important; border: 0 !important; box-shadow: none !important;
+}
+.mobile-video-action-rail > .ios-button svg { filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
+
+/* ===== 横版片源竖屏播放（letterbox）：虚化同帧 + 边缘渐隐，消掉画面底边那条硬线 ===== */
+.hg-lb-blur {
+  position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+  -webkit-filter: blur(28px) brightness(.55); filter: blur(28px) brightness(.55);
+}
+.hg-lb-blur > * { transform: scale(1.18); }
+html[data-fx="low"] .hg-lb-blur { display: none; }
+.hg-vfade { position: absolute; left: 0; right: 0; height: 56px; pointer-events: none; }
+.hg-vfade-top { top: 0; background: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0) 100%); }
+.hg-vfade-bottom { bottom: 0; background: linear-gradient(to top, #000 0%, rgba(0, 0, 0, 0) 100%); }
