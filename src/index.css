@@ -782,9 +782,9 @@ html[data-fx="low"] .hg-scrim-dither { display: none; }
 
 /* ===== 横版片源竖屏播放（letterbox）：虚化同帧 + 边缘渐隐，消掉画面底边那条硬线 ===== */
 .hg-lb-blur {
-  position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0;
-  /* 单独隔离：filter 只在自身层内生效，不影响上面的视频层 */
-  isolation: isolate;
+  /* 永远垫在视频下面：父级 isolation:isolate 建立独立层叠上下文，这里 -1 只会落到视频之后，
+     不会盖住画面（横屏全屏时也不会出现"封面颜色盖住视频"）。 */
+  position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: -1;
   -webkit-filter: blur(28px) brightness(.55); filter: blur(28px) brightness(.55);
 }
 .hg-lb-blur > * { transform: scale(1.18); }

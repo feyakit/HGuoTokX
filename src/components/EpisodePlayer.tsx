@@ -637,34 +637,17 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   }, []);
   const letterbox = useMemo(() => {
     if (!videoSize.w || !videoSize.h || !stageBox.w || !stageBox.h) return false;
+    /* 竖版源在"竖屏舞台"里走 cover 铺满 → 根本不留黑边，不需要虚化。
+       但同样是竖版源进横屏全屏时是 contain，左右会出现很宽的黑边，那种情况要铺虚化。 */
+    const coverFit = videoSize.w <= videoSize.h && !rotated && !vpLandscape;
+    if (coverFit) return false;
     const containerRatio = stageBox.w / stageBox.h;
     const videoRatio = videoSize.w / videoSize.h;
-    /* 容器比画面"更方"（比值更大）→ 上下一定留黑边；留 2% 容差避免像素抖动 */
-    return containerRatio > videoRatio * 1.02;
-  }, [videoSize.w, videoSize.h, stageBox.w, stageBox.h]);
-  const ambientCanvasRef = useRef<HTMLCanvasElement>(null);
-  const [ambientLive, setAmbientLive] = useState(false);
-
-  useEffect(() => {
-    setAmbientLive(false);
-    if (isDesktop || !active) return undefined;
-    let alive = true;
-    const paint = () => {
-      if (!alive) return;
-      const v = videoRef.current?.el();
-      const canvas = ambientCanvasRef.current;
-      if (!v || !canvas || v.readyState < 2 || v.videoWidth <= 0) return;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      try {
-        ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
-        setAmbientLive((prev) => (prev ? prev : true));
-      } catch { /* ignore */ }
-    };
-    paint();
-    const timer = window.setInterval(paint, 220);
-    return () => { alive = false; window.clearInterval(timer); };
-  }, [isDesktop, active, playKey, paused]);
+    /* contain 下只要画面比例与容器差 > 2%，就一定有黑边：
+       画面更宽 → 上下黑边（letterbox）；画面更窄 → 左右黑边（pillarbox）。
+       两种都铺同一层全幅虚化垫底，黑边里看到的就是画面配色而不是纯黑。 */
+    return Math.abs(videoRatio - containerRatio) / containerRatio > 0.02;
+  }, [videoSize.w, videoSize.h, stageBox.w, stageBox.h, rotated, vpLandscape]);
   /* 竖屏快捷胶囊：仅双指放大后显示「还原」按钮，横屏视频不再在竖屏下弹「铺满」裁切提示 */
   const capsuleOn = !fs && !clean && !isDesktop && zoom.s > 1.05;
 
@@ -1824,6 +1807,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                 <div style={{
                   position: "absolute",
                   inset: 0,
+                  /* 视频与其装饰层同一个层叠上下文：虚化层 z-index:-1 只会待在视频下面 */
+                  isolation: "isolate",
                   transform: isDesktop ? undefined : `translate3d(${zoom.x}px, ${zoom.y + epSlide.y}px, 0) scale(${zoom.s})`,
                   opacity: isDesktop ? 1 : Math.max(0.55, 1 - Math.abs(epSlide.y) / 140),
                   transformOrigin: "center center",
