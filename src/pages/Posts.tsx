@@ -244,7 +244,7 @@ export function PostsPage({ onBack, embedded = false, active = true }: { onBack?
         <button type="button" className="hg-tl-author"
           onClick={authorId ? (e) => { e.stopPropagation(); push({ kind: "user", id: authorId, name: author?.name }); } : undefined}>
           <span className="hg-tl-avatar" aria-hidden="true">
-            {pic ? <Img src={pic} /> : (initial || "吃")}
+            {pic ? <Img src={pic} w={96} h={96} /> : (initial || "吃")}
           </span>
           <span className="hg-tl-author-name">
             {author?.name || "吃瓜快讯"}{dateLabel ? ` · ${dateLabel}` : ""}
@@ -308,7 +308,7 @@ export function PostsPage({ onBack, embedded = false, active = true }: { onBack?
       return (
         <div className="hg-tl-card is-hero" {...cardHit(p)}>
           <div className="hg-tl-hero">
-            <Img src={p.cover} alt="" />
+            <Img src={p.cover} alt="" w={1080} h={1440} />
             {rank != null ? (
               <span className={`hg-tl-cate-badge hg-rank-badge ${rank <= 3 ? `top-${rank}` : ""}`}>TOP {rank}</span>
             ) : showCate ? (
@@ -347,7 +347,7 @@ export function PostsPage({ onBack, embedded = false, active = true }: { onBack?
           </div>
           {p.cover && (
             <div className="hg-tl-thumb">
-              <Img src={p.cover} alt="" />
+              <Img src={p.cover} alt="" w={270} h={360} />
               {hasVideo && (
                 <span className="hg-tl-media-badge"><IPlayF size={8} /></span>
               )}
@@ -600,7 +600,7 @@ export function PostDetail({ id, onBack, active = true }: { id: number; onBack: 
                   }} />
               ) : src ? (
                 <Button aria-label="播放视频" onClick={() => setPlay(true)} className="absolute inset-0">
-                  <Img src={currentPost.cover} eager />
+                  <Img src={currentPost.cover} eager w={1080} h={1600} />
                     <span className="absolute inset-0 flex items-center justify-center">
                       <span className="w-14 h-14 rounded-full bg-black/70 flex items-center justify-center elev-2">
                         <IPlayF size={24} className="text-white ml-0.5" />
@@ -608,7 +608,7 @@ export function PostDetail({ id, onBack, active = true }: { id: number; onBack: 
                     </span>
                 </Button>
               ) : (
-                <div className="absolute inset-0"><Img src={currentPost.cover} eager /></div>
+                <div className="absolute inset-0"><Img src={currentPost.cover} eager w={1080} h={1600} /></div>
               )}
               {resolving && !src && <div className="absolute inset-0 flex items-center justify-center gap-3 pointer-events-none bg-black/40 text-white"><Loader label="正在解析视频" /><span>正在解析视频…</span></div>}
             </div>

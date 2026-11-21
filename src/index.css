@@ -839,3 +839,6 @@ html.is-scrolling .ios-image-error { animation: none !important; }
   background-size: cover; background-position: center; background-repeat: no-repeat;
   transition: opacity 160ms ease-out;
 }
+
+/* 详情页大图：限制重绘范围（contain: paint）—— 长图解码/绘制只影响图片自身盒子 */
+[data-post-media] .ios-image { contain: paint; }

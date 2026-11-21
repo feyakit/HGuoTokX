@@ -249,6 +249,50 @@ fn image_kind(buf: &[u8]) -> Option<&'static str> {
 }
 
 /// 取封面：命中缓存直接返回；同地址的进行中请求共享下载和解密结果。
+/// 解码后按 max_w × max_h 等比缩到界限内（thumbnail 保持比例，不放大）。
+/// 失败（非图片 / 解码器不支持）返回 None，调用方回退原图，绝不让图片挂掉。
+fn resize_image(bytes: &[u8], max_w: u32, max_h: u32) -> Option<Vec<u8>> {
+    let decoded = image::load_from_memory(bytes).ok()?;
+    /* 已经比上限小：不重编码（省 CPU，也避免再降一次质量） */
+    if decoded.width() <= max_w && decoded.height() <= max_h {
+        return None;
+    }
+    let thumb = decoded.thumbnail(max_w, max_h);
+    let mut out = std::io::Cursor::new(Vec::new());
+    thumb.write_to(&mut out, image::ImageFormat::Jpeg).ok()?;
+    Some(out.into_inner())
+}
+
+/// 带缩略尺寸的入口：缓存键包含 w|h，避免同一张图不同尺寸互相顶掉。
+pub async fn load_image_with(url: &str, want_w: Option<u32>, want_h: Option<u32>) -> ImageResult {
+    let (kind, bytes) = load_image(url).await?;
+    let (Some(w), Some(h)) = (want_w, want_h) else {
+        return Ok((kind, bytes));
+    };
+    let variant = format!("{url}|{w}|{h}");
+    let req_scope = crate::net::request_scope();
+    let generation = IMG_GENERATION.load(Ordering::Acquire);
+    let cache_key = image_cache_key(&variant, req_scope, generation);
+    {
+        let cache = IMG_CACHE.lock().unwrap();
+        if let Some(hit) = cache.get(&cache_key).cloned() {
+            return Ok(("image/jpeg".to_string(), hit));
+        }
+    }
+    let Some(resized) = resize_image(bytes.as_ref(), w, h) else {
+        return Ok((kind, bytes));
+    };
+    let arc = Arc::new(resized);
+    {
+        let mut cache = IMG_CACHE.lock().unwrap();
+        if cache.len() >= IMG_CACHE_MAX {
+            cache.clear();
+        }
+        cache.insert(cache_key, arc.clone());
+    }
+    Ok(("image/jpeg".to_string(), arc))
+}
+
 pub async fn load_image(url: &str) -> ImageResult {
     // 缓存 key 带请求作用域：切代理/改严格模式后，旧代次解密出来的图不能当新一代的用。
     let req_scope = crate::net::request_scope();
@@ -659,6 +703,18 @@ pub async fn handle(path: &str, query: &str, origin: &str, range: Option<&str>) 
         .find_map(|kv| kv.strip_prefix("u="))
         .map(dec)
         .unwrap_or_default();
+    /* 可选的缩略尺寸（前端按渲染尺寸 × dpr 传）：不带就原样透传，
+       带了就在解密后解码缩放 —— 长图原尺寸解码是滚动掉帧/隔帧亮度台阶的来源。 */
+    let want_w = query
+        .split('&')
+        .find_map(|kv| kv.strip_prefix("w="))
+        .and_then(|v| v.parse::<u32>().ok())
+        .filter(|v| (16..=4096).contains(v));
+    let want_h = query
+        .split('&')
+        .find_map(|kv| kv.strip_prefix("h="))
+        .and_then(|v| v.parse::<u32>().ok())
+        .filter(|v| (16..=4096).contains(v));
 
     if target.is_empty() {
         return respond(400, "text/plain", b"missing u".to_vec(), "no-store");
@@ -676,7 +732,7 @@ pub async fn handle(path: &str, query: &str, origin: &str, range: Option<&str>) 
         serde_json::json!({"route": route, "resource": crate::playback_log::resource_id(&target)}),
     );
     let response = match path {
-        "/img" => match load_image(&target).await {
+        "/img" => match load_image_with(&target, want_w, want_h).await {
             Ok((kind, bytes)) => respond(
                 200,
                 &kind,

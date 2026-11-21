@@ -42,9 +42,16 @@ export const LOCAL =
 /** src 是否已是本地协议地址（避免在详情页把代理地址再包一层） */
 export const isLocalMedia = (src: string) => src.startsWith(`${LOCAL}/`);
 
-/** 封面：经本地协议解密（站点封面是 AES 密文）。 */
-export const cover = (url?: string, _w = 480) =>
-  url ? `${LOCAL}/img?u=${encodeURIComponent(url)}` : "";
+/** 封面：经本地协议解密（站点封面是 AES 密文）。
+ *  `w` / `h` 是**输出像素**上限（调用方按 cssWidth × dpr 传），Rust 侧解码后等比缩到界限内；
+ *  不传就原样透传 —— 但长图原尺寸解码是滚动掉帧/隔帧亮度的根源，页面里请尽量带上。 */
+export const cover = (url?: string, w?: number, h?: number) => {
+  if (!url) return "";
+  let out = `${LOCAL}/img?u=${encodeURIComponent(url)}`;
+  if (w && w > 0) out += `&w=${Math.round(w)}`;
+  if (h && h > 0) out += `&h=${Math.round(h)}`;
+  return out;
+};
 
 /** 播放列表：经本地协议改写分片地址，规避 CORS 与防盗链。 */
 export const playlist = (url: string) => `${LOCAL}/hls?u=${encodeURIComponent(url)}`;

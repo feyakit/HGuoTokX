@@ -43,6 +43,8 @@ reqwest = { version = "0.12", default-features = false, features = [
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "net", "sync", "io-util"] }
 aes = "0.8"
 base64 = "0.22"
+# 图片代理按 w/h 缩略（长图原尺寸解码是滚动掉帧的根源）；只开需要的解码器
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 percent-encoding = "2"
 once_cell = "1"
 url = "2"

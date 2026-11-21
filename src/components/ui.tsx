@@ -114,10 +114,12 @@ export function ToastHost() {
 }
 
 /* ——— 图片（骨架 + 渐显，自动走本地解密协议） ——— */
-export function Img({ src, alt = "", className = "", eager = false, raw = false, loadingIndicator = false }: {
+export function Img({ src, alt = "", className = "", eager = false, raw = false, loadingIndicator = false, w, h }: {
   src: string; alt?: string; className?: string; eager?: boolean; raw?: boolean; loadingIndicator?: boolean;
+  /** 输出像素上限（按 cssWidth × dpr 传），透传给本地图片代理做解码后缩略 */
+  w?: number; h?: number;
 }) {
-  const url = raw ? src : cover(src);
+  const url = raw ? src : cover(src, w, h);
   // 每个地址独立持有状态，避免换图后的 effect 把缓存命中的 onLoad 重置掉。
   /* key 用稳定的原始 src（不能是可变的派生 url）；同一条目重新渲染不会再挂载新组件 */
   return <ImageLoad key={src || alt} url={url} alt={alt} className={className} eager={eager} raw={raw} loadingIndicator={loadingIndicator} />;
@@ -143,7 +145,15 @@ function ImageLoad({ url, alt, className, eager, raw, loadingIndicator }: {
       {loadingIndicator && !ok && <div className="absolute inset-0 grid place-items-center"><Loader label="封面加载中" /></div>}
       {err && !loadingIndicator && <div className="ios-image-error" role="img" aria-label={alt || "封面暂不可用"}>HG</div>}
       {url && !err && <Image src={retryUrl} alt={alt} loading={eager ? "eager" : "lazy"} decoding="async"
-        onLoad={() => { LOADED_IMAGES.add(url); setOk(true); setErr(false); }}
+        onLoad={(e) => {
+          LOADED_IMAGES.add(url);
+          setOk(true);
+          setErr(false);
+          /* 预热：onLoad 只保证字节到了，解码（尤其长图）可能留到首次绘制才做。
+             这里主动 decode 一次，把解码成本挪到滚动之前。 */
+          const node = e.currentTarget;
+          node.decode?.().catch(() => {});
+        }}
         onError={() => {
           /* 真机上偶发失败（代理抖动/断流）：记一条，滚动中"闪"能据此定位是解码还是重挂载 */
           logLine(`[img] error attempt=${attempt} src=${url.slice(0, 80)}`);
