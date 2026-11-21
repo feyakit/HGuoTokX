@@ -1,5 +1,4 @@
 export const HOLD_DELAY_MS = 380;
-export const HOLD_LOCK_DISTANCE = 64;
 export type HoldZone = "fast" | "slow" | "menu";
 export type HoldMenuBounds = { left: number; top: number; size: number };
 

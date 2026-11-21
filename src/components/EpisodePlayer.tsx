@@ -20,7 +20,7 @@ import { markDisliked } from "../feedPrefs";
 import VideoDetailsPanel from "./VideoDetailsPanel";
 import { PreferenceStorageNotice } from "./PreferenceStorageNotice";
 import LineQuickSwitch from "./LineQuickSwitch";
-import { getHoldZone, stageXY, HOLD_DELAY_MS, HOLD_LOCK_DISTANCE, type HoldZone } from "../mobileHold";
+import { getHoldZone, stageXY, HOLD_DELAY_MS, type HoldZone } from "../mobileHold";
 import { playEnter, playExit, originFromPoint } from "../fsTransition";
 import { useFadeMount } from "../useFadeMount";
 import {
@@ -239,19 +239,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const [lineInfo, setLineInfo] = useState<{ label: string; multi: boolean }>({ label: "线路", multi: false });
   /* —— 移动端手势 —— */
   const [holdSpeed, setHoldSpeed] = useState(false);
-  const [speedLock, setSpeedLock] = useState(false);
-  /* 锁定 2x 后允许提示条短暂出现 600ms（用户主动操作），之后跟着控件一起隐藏 */
-  const [speedTagBrief, setSpeedTagBrief] = useState(false);
-  const speedTagTimer = useRef<number | undefined>(undefined);
-  const flashSpeedTag = useCallback(() => {
-    setSpeedTagBrief(true);
-    window.clearTimeout(speedTagTimer.current);
-    speedTagTimer.current = window.setTimeout(() => setSpeedTagBrief(false), 600);
-  }, []);
-  useEffect(() => () => window.clearTimeout(speedTagTimer.current), []);
-  const [lockArmed, setLockArmed] = useState(false);
+  /* 只保留「长按临时加速 / 松手恢复」：拖动/上滑锁定 2x 的持久锁定交互已按上游 PR #193 移除，
+     持久倍速走全屏倍速按钮与「更多 → 播放设置」。 */
   const holdRef = useRef(false);
-  const lockArmedRef = useRef(false);
   const [scrub, setScrub] = useState<{ pct: number; target: number } | null>(null);
   const scrubTarget = useRef<number | null>(null);
   /* 进度条拖动 */
@@ -646,7 +636,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const articleHtml = kind === "post" && !post?.video_url ? (post?.content || "") : "";
 
   /* 倍速：中心小方块打开偏好，两侧长按 2.0x。 */
-  const effRate = holdSpeed || speedLock ? 2 : rate;
+  const effRate = holdSpeed ? 2 : rate;
   /* 伪横屏：系统不给转（安卓 WebView 的 orientation.lock 需要 Fullscreen API，通常拿不到）时，
      整块舞台用 CSS 旋转 90°，用户把手机横过来就看到「横屏播放器」。系统真转了就不用兜底。 */
   const rotated = !isDesktop && fs && fsLandscape && !vpLandscape;
@@ -1155,8 +1145,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       if (gesture.current?.timer) window.clearTimeout(gesture.current.timer);
       gesture.current = null;
       if (holdRef.current) { holdRef.current = false; setHoldSpeed(false); }
-      lockArmedRef.current = false;
-      setLockArmed(false);
       setZoom((z) => ({ ...z, g: true }));
       return;
     }
@@ -1203,8 +1191,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
           holdRef.current = true;
           setHoldSpeed(true);
         }
-        setLockArmed(false);
-        lockArmedRef.current = false;
         try { navigator.vibrate?.(25); } catch { /* ignore */ }
       }, HOLD_DELAY_MS) as unknown as number,
     };
@@ -1231,16 +1217,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     const dx = msx - g.x;
     const dy = msy - g.y;
 
-    /* 长按中：任意一侧长按加速时上滑 64px 进入「松开即锁定」 */
-    if (g.mode === "hold") {
-      if (g.zone === "menu") return;
-      const armed = g.startY - msy > HOLD_LOCK_DISTANCE;
-      if (armed !== lockArmedRef.current) {
-        lockArmedRef.current = armed;
-        setLockArmed(armed);
-      }
-      return;
-    }
+    /* 长按中：只换挡/加速，不再有「上滑锁定」态（上游 PR #193） */
+    if (g.mode === "hold") return;
 
     /* 方向锁：过死区后按 1.4 倍比例定轴，定下即锁死（lockAxis 内部保证不再改判） */
     g.axis = lockAxis(g.axis, dx, dy);
@@ -1313,8 +1291,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
        但 holdRef 若留在 true，下面的 touchmove 会一直 preventDefault，
        整个列表就再也滑不动（表现为「播放后不能上滑」）。 */
     if (holdRef.current) { holdRef.current = false; setHoldSpeed(false); }
-    const wasLockArmed = lockArmedRef.current;
-    if (lockArmedRef.current) { lockArmedRef.current = false; setLockArmed(false); }
     if (!g) { setEpSlide({ y: 0, animate: true }); return; }
     if (g.timer) window.clearTimeout(g.timer);
 
@@ -1322,13 +1298,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       setEpSlide({ y: 0, animate: true });
       holdRef.current = false;
       setHoldSpeed(false);
-      if (!cancelled && wasLockArmed) {
-        setSpeedLock(true);
-        flashSpeedTag();
-        toast("已锁定 2.0x 倍速 · 点顶部标签解除", "info");
-      }
-      lockArmedRef.current = false;
-      setLockArmed(false);
       return;
     }
     if (g.mode === "enterSeries") {
@@ -1486,7 +1455,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     if (gesture.current?.timer) window.clearTimeout(gesture.current.timer);
     gesture.current = null;
     holdRef.current = false;
-    lockArmedRef.current = false;
   }, [playKey]);
 
   /* 进出全屏：iOS 的 WKWebView 会在这时把播放打断，需要补几次 play()。
@@ -2272,14 +2240,13 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                         <SegPill items={[
                           {
                             key: "speed",
-                            ariaLabel: `倍速 ${effRate}x${speedLock ? "（已锁定）" : ""}`,
+                            ariaLabel: `倍速 ${effRate}x`,
                             onPress: () => {
-                              if (speedLock) { setSpeedLock(false); return; }
                               const seq = [1, 1.25, 1.5, 2];
                               const idx = seq.indexOf(rate);
                               setRate(seq[(idx + 1) % seq.length]);
                             },
-                            label: <span className="hg-num relative">{effRate}x{speedLock && <span className="hg-speed-lock" aria-hidden="true">2x 中</span>}</span>,
+                            label: <span className="hg-num relative">{effRate}x</span>,
                           },
                           ...(!endless ? [{
                             key: "prev",
@@ -2488,28 +2455,16 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
         </div>
       )}
 
-      {/* 移动端：倍速状态 / 锁定提示 */}
-      {/* 倍速提示条：必须跟控件一起隐藏（原来只看 rate/speedLock，控件收起后它还浮在画面上）。
-          例外：刚锁定 2x 的 600ms 内允许出现，用户此刻正在主动操作。 */}
-      {!isDesktop && (holdSpeed || speedLock || rate !== 1) && (!clean || holdSpeed || speedTagBrief) && (!fs || !idle) && (
+      {/* 移动端倍速提示条：必须跟控件一起隐藏；只反映「长按中的临时倍速」，
+          持久锁定交互与「上滑到此锁定倍速」目标已移除（上游 PR #193）。 */}
+      {!isDesktop && (holdSpeed || rate !== 1) && (!clean || holdSpeed) && (!fs || !idle) && (
         <Button
-          onClick={() => {
-            if (speedLock) { setSpeedLock(false); toast("已解除倍速锁定", "info"); }
-            else if (rate !== 1 && !holdSpeed) setRate(1);
-          }}
-          className={`absolute left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 px-3.5 h-8 rounded-full backdrop-blur-md text-[13px] font-bold elev-2 pressable ${speedLock ? "bg-primary text-on-primary" : "hg-chip hg-gold"}`}
+          onClick={() => { if (rate !== 1 && !holdSpeed) setRate(1); }}
+          className="absolute left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 px-3.5 h-8 rounded-full backdrop-blur-md text-[13px] font-bold elev-2 pressable hg-chip hg-gold"
           style={{ top: "calc(var(--sat, 0px) + 54px)" }}>
           <IBoltF size={13} />
-          {effRate}x {speedLock ? "已锁定 · 点按解除" : holdSpeed ? "倍速中 · 松开恢复" : "倍速"}
+          {effRate}x {holdSpeed ? "倍速中 · 松开恢复" : "倍速"}
         </Button>
-      )}
-      {!isDesktop && holdSpeed && (
-        <div
-          className={`absolute left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-4 h-10 rounded-xl backdrop-blur-md elev-2 ${lockArmed ? "bg-primary text-on-primary" : "hg-chip-strong hg-ink-2"}`}
-          style={{ top: "38%" }}>
-          <ILockF size={16} />
-          <span className="text-[14px] font-bold">{lockArmed ? "松开锁定 2.0x" : "上滑到此锁定倍速"}</span>
-        </div>
       )}
 
       {/* 移动端：沉浸全屏顶栏 / 进度条 / 底栏 */}
@@ -2597,14 +2552,13 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
               <SegPill items={[
                 {
                   key: "speed",
-                  ariaLabel: `倍速 ${effRate}x${speedLock ? "（已锁定）" : ""}`,
+                  ariaLabel: `倍速 ${effRate}x`,
                   onPress: () => {
-                    if (speedLock) { setSpeedLock(false); return; }
                     const seq = [1, 1.25, 1.5, 2];
                     const idx = seq.indexOf(rate);
                     setRate(seq[(idx + 1) % seq.length]);
                   },
-                  label: <span className="hg-num relative">{effRate}x{speedLock && <span className="hg-speed-lock" aria-hidden="true">2x 中</span>}</span>,
+                  label: <span className="hg-num relative">{effRate}x</span>,
                 },
                 ...(episodes.length > 1 ? [{
                   key: "eps",

@@ -620,11 +620,6 @@ input[type="range"].hg-range::-webkit-slider-thumb { -webkit-appearance: none; w
 /* 只对安卓 WebView 生效：那边的中文与数字字面底线差 1.1 CSS px（小米9 实测 2125 vs 2128 设备 px），
    Chromium/桌面本来对齐，不动。 */
 html.plat-android .hg-num { transform: translateY(1px); }
-.hg-speed-lock {
-  position: absolute; top: -4px; right: -10px; padding: 0 4px; border-radius: 999px;
-  font-size: 9px; line-height: 14px; font-weight: 700; letter-spacing: .2px;
-  background: var(--p-primary, #7C5CFF); color: #fff; white-space: nowrap; pointer-events: none;
-}
 /* 上一集 / 下一集：44×44 热区，禁用态置灰（仍可点，点了给 toast） */
 .hg-ep-nav { border-radius: 999px; }
 .hg-quality-chip { position: relative; }
