@@ -145,7 +145,7 @@ pub async fn line_state() -> Result<Value, String> {
 /// 手动保存的自定义线路**不算**：它可能有自己的登录，但 token 绝不跟着切过去，
 /// 也绝不从它搬回来。
 fn trusted_line_origin(origin: &str) -> bool {
-    crate::lines::is_fixed(origin) || crate::lines::is_trusted_mirror(origin)
+    crate::session::rebase_trust(origin)
 }
 
 /// 手动切换线路：只允许固定线路或刚从可信发布页读取的镜像。
@@ -630,26 +630,13 @@ fn request_ios_orientation(landscape: bool) {
 #[tauri::command]
 pub async fn app_boot(state: State<'_, Api>) -> Result<Value, String> {
     // 冷启动对账：会话可能还停在上一轮的线路（例如 App 没开时自动选线换了地址）。
-    // 两端都可信就把登录态搬到当前线路；不可信就清空——绝不把 token 留在不可信站点上。
-    // 已存 origin 若只是发布页「以前」推荐过的镜像，本进程还没有信任记录，先验一次发布页。
-    if let Some(stored) = state.session.stored_origin() {
-        let current = base();
-        if stored != current {
-            if !crate::lines::is_trusted_mirror(&stored) {
-                let _ = crate::lines::verify_published_origin(&stored).await;
-            }
-            if !state.session.rebase_if_trusted(&current, trusted_line_origin) {
-                state.session.clear();
-            }
-        }
-    }
-    let origin = base();
-    if crate::network_policy::strict_security()
-        && state.session.token(&origin).is_some()
-        && !crate::net::trusted_auth_origin(&origin)
-    {
-        let _ = crate::lines::verify_published_origin(&origin).await;
-    }
+    // 两端都可信就把登录态搬到当前线路；不可信就不搬——绝不把 token 带给另一个站点。
+    //
+    // 与 12f1968 那版的差别（上游 5ecfaee）：这里**不再失败即 clear**。
+    // 搬不动只说明"当前这条线路暂时没登录"，会话原样留在旧 origin，等发布页恢复或用户切回去
+    // 还能用；清空等于把一次临时的发布页故障变成"重新登录"。boot 照实报 logged_in=false。
+    let current = base();
+    state.session.reconcile_on_boot(&current).await;
     let origin = base();
     let credentials_allowed = !crate::network_policy::strict_security()
         || crate::net::trusted_auth_origin(&origin);

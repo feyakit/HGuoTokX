@@ -773,8 +773,12 @@ pub fn err_text(e: &reqwest::Error) -> String {
     redact_error_proxy_auth(&out)
 }
 
-/// Transport source chains are not guaranteed to redact proxy userinfo. Remove
-/// userinfo from embedded URLs while keeping hosts and useful failure details.
+/// Transport source chains are not guaranteed to redact proxy userinfo or signed
+/// query parameters. Remove userinfo and query strings from embedded URLs while
+/// keeping hosts, paths and useful failure details.
+///
+/// 上游 5ecfaee 的加固点：CDN 播放地址常带签名（`?token=...&expires=...`），
+/// 报错文本一旦原样进日志/剪贴板就等于把签名泄出去；这里连 query 和 fragment 一起砍掉。
 fn redact_error_proxy_auth(message: &str) -> String {
     let mut output = String::with_capacity(message.len());
     let mut rest = message;
@@ -782,7 +786,7 @@ fn redact_error_proxy_auth(message: &str) -> String {
         let authority_start = separator + 3;
         output.push_str(&rest[..authority_start]);
         rest = &rest[authority_start..];
-        let authority_end = rest.find(|ch: char| ch.is_whitespace() || matches!(ch, '/' | '?' | '#' | '\'' | '"' | '<' | '>'))
+        let authority_end = rest.find(|ch: char| ch.is_whitespace() || matches!(ch, '/' | '?' | '#' | '\'' | '"' | '<' | '>' | ')' | ';'))
             .unwrap_or(rest.len());
         let authority = &rest[..authority_end];
         if let Some(at) = authority.rfind('@') {
@@ -792,6 +796,10 @@ fn redact_error_proxy_auth(message: &str) -> String {
             output.push_str(authority);
         }
         rest = &rest[authority_end..];
+        let url_end = rest.find(|ch: char| ch.is_whitespace() || matches!(ch, '\'' | '"' | '<' | '>' | ')' | ';')).unwrap_or(rest.len());
+        let tail = &rest[..url_end];
+        output.push_str(tail.split(['?', '#']).next().unwrap_or(tail));
+        rest = &rest[url_end..];
     }
     output.push_str(rest);
     output
@@ -1716,6 +1724,20 @@ mod tests {
         assert!(safe.contains("https://example.com/") && safe.contains("[::1]:7897 refused"));
         assert!(safe.contains("socks5h://[redacted]@proxy.example:1080/path"));
         assert_eq!(redact_error_proxy_auth("tls handshake eof"), "tls handshake eof");
+    }
+
+    #[test]
+    fn transport_errors_drop_signed_query_and_fragment() {
+        // 上游 5ecfaee：CDN 签名在 query 里，报错文本进日志/剪贴板前必须砍掉。
+        let raw = "error sending request for url (https://cdn.example/a.m3u8?token=SECRET&expires=999#frag)";
+        let safe = redact_error_proxy_auth(raw);
+        assert!(!safe.contains("SECRET") && !safe.contains("expires") && !safe.contains("frag"), "{safe}");
+        assert!(safe.contains("https://cdn.example/a.m3u8"), "{safe}");
+        // 括号/分号结尾的地址也要正确截断，别把后面的失败原因一起吃掉。
+        assert_eq!(
+            redact_error_proxy_auth("failed (https://cdn.example/x?t=1); retry"),
+            "failed (https://cdn.example/x); retry"
+        );
     }
 
     #[test]

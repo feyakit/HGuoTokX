@@ -176,6 +176,60 @@ mod tests {
         assert_eq!(store.token("https://huangguoai.com"), None);
     }
 
+    #[tokio::test]
+    async fn boot_reconcile_verifies_stored_mirror_even_when_current_line_is_fixed() {
+        let store = SessionStore::new();
+        store.set("https://mirror-a.example", "secret-token".into(), json!({"id": 1}));
+        let verified = std::sync::Mutex::new(Vec::<String>::new());
+        store
+            .reconcile_with(
+                "https://huangguoai.com",
+                || "https://huangguoai.com".to_string(),
+                |origin| {
+                    origin == "https://huangguoai.com"
+                        || verified.lock().unwrap().iter().any(|item| item == origin)
+                },
+                |origin| {
+                    if origin != "https://huangguoai.com" {
+                        verified.lock().unwrap().push(origin);
+                    }
+                    std::future::ready(())
+                },
+            )
+            .await;
+        assert_eq!(
+            store.token("https://huangguoai.com").as_deref(),
+            Some("secret-token")
+        );
+        assert_eq!(store.token("https://mirror-a.example"), None);
+    }
+
+    #[tokio::test]
+    async fn boot_reconcile_keeps_the_session_when_the_line_moved_mid_refresh() {
+        let store = SessionStore::new();
+        store.set("https://mirror-a.example", "secret-token".into(), json!({"id": 1}));
+        store
+            .reconcile_with(
+                "https://huangguoai.com",
+                || "https://other.example".to_string(),
+                |_| true,
+                |_| std::future::ready(()),
+            )
+            .await;
+        // 线路在验发布页期间被改走：不动会话，等下一次 boot 再对账。
+        assert_eq!(store.token("https://mirror-a.example").as_deref(), Some("secret-token"));
+        assert_eq!(store.token("https://huangguoai.com"), None);
+    }
+
+    #[test]
+    fn same_origin_untrusted_is_not_reported_as_usable() {
+        let store = SessionStore::new();
+        let origin = "https://custom.example";
+        store.set(origin, "secret-token".into(), json!({"id": 1}));
+        assert!(!store.rebase_if_trusted(origin, trusted_pair));
+        assert_eq!(store.token(origin).as_deref(), Some("secret-token"));
+    }
+
     #[test]
     fn rebase_to_the_same_origin_keeps_the_revision() {
         let store = SessionStore::new();
@@ -186,6 +240,12 @@ mod tests {
         assert!(store.is_current(&before));
         assert_eq!(store.revision(), before.revision);
     }
+}
+
+/// 参与会话搬家的「可信线路」：固定入口，或本进程内被发布页确认过的镜像。
+/// 自定义线路刻意不算——用户自己填的站点可能有自己的登录，token 绝不跟着走。
+pub fn rebase_trust(origin: &str) -> bool {
+    crate::lines::is_fixed(origin) || crate::lines::is_trusted_mirror(origin)
 }
 
 pub struct SessionStore {
@@ -253,17 +313,66 @@ impl SessionStore {
             if cur.token.is_empty() || cur.origin.is_empty() {
                 return false;
             }
-            if cur.origin == new_origin {
-                return true;
-            }
+            /* 上游 5ecfaee：可信判定要放在「同一个 origin」之前。否则一个停在不可信
+               自定义线路上的会话会被报成"可用"，调用方就不会 clear，token 继续挂在那个站点上。 */
             if !trusted(&cur.origin) || !trusted(new_origin) {
                 return false;
+            }
+            if cur.origin == new_origin {
+                return true;
             }
             cur.origin = new_origin.to_string();
             cur.revision = cur.revision.wrapping_add(1);
         }
         self.persist();
         true
+    }
+
+    /// 冷启动对账：会话可能还停在上一轮的线路（例如 App 没开时自动选线换了地址）。
+    ///
+    /// 上游 5ecfaee 修的就是这里：以前只在「已存 origin 不是可信镜像」时验一次发布页，
+    /// 于是「当前是固定主站、已存的是上一轮的镜像」这种最常见的组合只验了一半，
+    /// rebase 直接失败 → 老登录态被丢掉。现在两端都验，并且在验的过程中线路/会话变了就不动手。
+    pub async fn reconcile_on_boot(&self, origin: &str) {
+        self.reconcile_with(
+            origin,
+            crate::net::base,
+            rebase_trust,
+            |target| async move {
+                let _ = crate::lines::verify_published_origin(&target).await;
+            },
+        )
+        .await;
+    }
+
+    async fn reconcile_with<Cur, Trust, Verify, Fut>(
+        &self,
+        origin: &str,
+        current_base: Cur,
+        trusted: Trust,
+        mut verify: Verify,
+    ) where
+        Cur: Fn() -> String,
+        Trust: Fn(&str) -> bool,
+        Verify: FnMut(String) -> Fut,
+        Fut: std::future::Future<Output = ()>,
+    {
+        let rev = self.revision();
+        let stored = self.stored_origin();
+        if self.token(origin).is_none() {
+            if let Some(old) = stored.as_deref().filter(|old| *old != origin) {
+                verify(old.to_owned()).await;
+                verify(origin.to_owned()).await;
+                // 验发布页要花几百毫秒：期间线路被别人改掉、或会话已经换了身份，就别再搬。
+                if current_base() == origin && self.revision() == rev {
+                    let _ = self.rebase_if_trusted(origin, trusted);
+                }
+            }
+        } else if !crate::net::trusted_auth_origin(origin) {
+            // 会话已经落在当前 origin 上，但这个 origin 还没有信任记录（自定义/新镜像）：
+            // 补一次发布页确认，让它有机会升级成可信，而不是直接把人踢下线。
+            verify(origin.to_owned()).await;
+        }
     }
 
     pub fn revision(&self) -> u64 {
@@ -346,7 +455,26 @@ impl SessionStore {
         let snapshot = self.current.lock().unwrap();
         if let Some(path) = self.file.lock().unwrap().as_ref() {
             if let Ok(text) = serde_json::to_string_pretty(&*snapshot) {
-                let _ = std::fs::write(path, text);
+                /* 上游 5ecfaee：先写临时文件再 rename，避免写到一半被杀进程留下半个 JSON
+                   （下次 bind() 反序列化失败 = 静默登出）。unix 上顺便把权限钉成 0600：
+                   这个文件里是 token。Windows 的 rename 带 MOVEFILE_REPLACE_EXISTING，
+                   失败时退回直接写，绝不让"原子"变成"丢登录态"。 */
+                let temp = path.with_extension("json.tmp");
+                let mut options = std::fs::OpenOptions::new();
+                options.write(true).create(true).truncate(true);
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::OpenOptionsExt;
+                    options.mode(0o600);
+                }
+                let written = options.open(&temp).ok().is_some_and(|mut file| {
+                    use std::io::Write;
+                    file.write_all(text.as_bytes()).is_ok() && file.sync_all().is_ok()
+                });
+                if !written || std::fs::rename(&temp, path).is_err() {
+                    let _ = std::fs::remove_file(&temp);
+                    let _ = std::fs::write(path, text);
+                }
             }
         }
     }
