@@ -1,5 +1,5 @@
 import { Button } from "./ios/controls";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ILockF } from "../icons";
 
 /**
@@ -10,8 +10,14 @@ import { ILockF } from "../icons";
  *   ③ 长按屏幕任意位置 600ms
  * 屏蔽层自己吞掉 pointer 事件，所以解锁判定必须写在屏蔽层上，不能靠下层的视频手势。
  */
-export default function PlaybackLock({ active, onUnlock }: { active: boolean; onUnlock: () => void }) {
+export default function PlaybackLock({ active, onUnlock, hideUnlockUntilTapped = false }: {
+  active: boolean; onUnlock: () => void;
+  /** 移动端清屏锁定：解锁钮先不画，第一次点按屏幕时才跟提示一起出现（上游 PR #194）。 */
+  hideUnlockUntilTapped?: boolean;
+}) {
   const timer = useRef<number | undefined>(undefined);
+  const revealTimer = useRef<number | undefined>(undefined);
+  const [revealed, setRevealed] = useState(false);
   const lastTap = useRef(0);
   const down = useRef<{ x: number; y: number; t: number; id: number } | null>(null);
 
@@ -30,7 +36,15 @@ export default function PlaybackLock({ active, onUnlock }: { active: boolean; on
     return () => window.removeEventListener("keydown", block, true);
   }, [active]);
 
-  useEffect(() => () => window.clearTimeout(timer.current), []);
+  useEffect(() => () => { window.clearTimeout(timer.current); window.clearTimeout(revealTimer.current); }, []);
+
+  /* 首次点按：解锁钮与「轻触即可解锁」提示同生共死，2200ms 后一起收起 —— 不再常驻挡画面。 */
+  const revealUnlock = () => {
+    if (!hideUnlockUntilTapped) return;
+    setRevealed(true);
+    window.clearTimeout(revealTimer.current);
+    revealTimer.current = window.setTimeout(() => setRevealed(false), 2200) as unknown as number;
+  };
 
   const cancelHold = () => window.clearTimeout(timer.current);
 
@@ -39,6 +53,7 @@ export default function PlaybackLock({ active, onUnlock }: { active: boolean; on
       e.stopPropagation();
       /* 解锁钮自己的 pointerdown 已经 stopPropagation，走到这里说明点的是空白处 */
       down.current = { x: e.clientX, y: e.clientY, t: Date.now(), id: e.pointerId };
+      revealUnlock();
       cancelHold();
       timer.current = window.setTimeout(() => { down.current = null; onUnlock(); }, 600) as unknown as number;
     }}
@@ -57,13 +72,17 @@ export default function PlaybackLock({ active, onUnlock }: { active: boolean; on
     onPointerCancel={() => { cancelHold(); down.current = null; }}
     onPointerLeave={() => { cancelHold(); down.current = null; }}
     onClick={e => e.stopPropagation()} onWheel={e => e.stopPropagation()}>
-    <Button type="button" data-playback-unlock aria-label="解锁播放控制" title="解锁播放控制（也可以双击/长按屏幕）" aria-pressed
-      onClick={onUnlock}
-      className="playback-unlock absolute right-3 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full flex items-center justify-center">
-      <ILockF size={22} />
-    </Button>
-    <span className="playback-unlock-hint absolute left-1/2 -translate-x-1/2 bottom-[18%] text-[12px] text-white/70">
-      双击或长按屏幕解锁
-    </span>
+    {(!hideUnlockUntilTapped || revealed) && (
+      <>
+        <Button type="button" data-playback-unlock aria-label="解锁播放控制" title="解锁播放控制（也可以双击/长按屏幕）" aria-pressed
+          onClick={onUnlock}
+          className="playback-unlock absolute right-3 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full flex items-center justify-center">
+          <ILockF size={22} />
+        </Button>
+        <span className="playback-unlock-hint absolute left-1/2 -translate-x-1/2 bottom-[18%] text-[12px] text-white/70">
+          双击或长按屏幕解锁
+        </span>
+      </>
+    )}
   </div>;
 }

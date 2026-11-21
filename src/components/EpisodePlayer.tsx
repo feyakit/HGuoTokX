@@ -2714,7 +2714,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
           onClick={(e) => { e.stopPropagation(); showControls(); }}
         />
       )}
-      {controlsLocked && <PlaybackLock active={active} onUnlock={() => { setControlsLocked(false); if (isDesktop) wake(); else showControls(); }} />}
+      {controlsLocked && <PlaybackLock active={active} hideUnlockUntilTapped={!isDesktop} onUnlock={() => { setControlsLocked(false); if (isDesktop) wake(); else showControls(); }} />}
     </div>
   );
 }
