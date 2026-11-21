@@ -11,10 +11,14 @@ import { Avatar, Empty } from "./ui";
 import { IClose, IHeart, ISendF } from "../icons";
 
 /* ================= 选集 ================= */
-export function EpisodesPanel({ videoId, episodes, current, onPick, onClose, bare = false }: {
+export function EpisodesPanel({ videoId, episodes, current, onPick, onClose, bare = false,
+  onRetry,
+}: {
   videoId: number; episodes: Episode[]; current: number; onPick: (ep: number) => void; onClose: () => void;
   /** 嵌在双栏抽屉里时，隐藏自带的标题栏与底注 */
   bare?: boolean;
+  /** 集数为空时的重试（详情接口没回来） */
+  onRetry?: () => void;
 }) {
   const [asc, setAsc] = useState(true);
   const list = asc ? episodes : [...episodes].reverse();
@@ -58,7 +62,15 @@ export function EpisodesPanel({ videoId, episodes, current, onPick, onClose, bar
             </Button>
           ))}
         </div>
-        {!episodes.length && <div className="text-center text-[12px] text-dim py-8">暂无剧集</div>}
+        {!episodes.length && (
+          <div className="text-center py-8">
+            <div className="text-[12px] text-dim">集数暂未取到（详情接口没回来或该剧没有分集数据）</div>
+            {onRetry && (
+              <Button onClick={onRetry} data-hg-control="episodes-retry"
+                className="mt-3 min-h-11 rounded-full bg-s3 px-4 text-[12px] text-on pressable">重试</Button>
+            )}
+          </div>
+        )}
       </div>
       {!bare && <div className="shrink-0 px-4 py-2.5 text-[12px] text-dim bg-s2/60">剧集 ID {videoId} · 点选即切换播放</div>}
     </div>
