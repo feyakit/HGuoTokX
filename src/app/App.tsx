@@ -262,7 +262,14 @@ function MobileShell() {
   const { platform } = useStore();
   return (
     <div className={`absolute inset-0 flex flex-col bg-canvas plat-${platform}`}
-      style={{ "--sat": "max(env(safe-area-inset-top), 24px)", "--sab": platform === "android" ? "max(env(safe-area-inset-bottom), 24px)" : "max(env(safe-area-inset-bottom), 16px)" } as React.CSSProperties}>
+      style={{
+        "--sat": "max(env(safe-area-inset-top), 24px)",
+        "--sab": platform === "android" ? "max(env(safe-area-inset-bottom), 24px)" : "max(env(safe-area-inset-bottom), 16px)",
+        /* 横向安全区只在横屏/刘海屏才有值；竖屏恒为 0，所以不给下限，
+           给下限会把竖屏两侧各推出几像素（上游 7ab0a51 的做法）。 */
+        "--sar": "env(safe-area-inset-right, 0px)",
+        "--sal": "env(safe-area-inset-left, 0px)",
+      } as React.CSSProperties}>
       <div className="relative flex-1 min-h-0">
         <AppBody />
       </div>

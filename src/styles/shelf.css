@@ -517,7 +517,7 @@
 }
 
 /* 底栏浮岛：半透明亮磨砂玻璃，对齐设计稿 */
-.ios-mobile-nav { padding: 8px 16px calc(12px + var(--sab, 0px)); }
+.ios-mobile-nav { padding: 8px calc(16px + var(--sar, 0px)) calc(12px + var(--sab, 0px)) calc(16px + var(--sal, 0px)); }
 .ios-mobile-nav .hg-glass {
   height: 66px; width: 100%; max-width: 360px; border-radius: 33px;
   background-color: rgba(255, 255, 255, 0.14);

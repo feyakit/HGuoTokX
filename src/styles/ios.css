@@ -102,8 +102,17 @@
 .ios-rank-meter span { display:block; height:100%; background:var(--p-primary); }
 .ios-rank-metric { display:flex; align-items:center; gap:4px; color:var(--p-primary); font-size:13px; white-space:nowrap; }
 .ios-page { container-type:inline-size; background:var(--p-bg); }
-.ios-page>.scroll-y { padding-inline:var(--ios-page-inset); }
-.ios-page>.shrink-0 { padding-inline:var(--ios-page-inset); }
+/* 上游 7ab0a51：标题与滚动体共用一列，手机全宽、平板限宽居中；
+   左右安全区各自加进内边距（横屏刘海在左边时，右边不该跟着多留）。 */
+.ios-page>.scroll-y,
+.ios-page>.shrink-0 {
+  width:100%; max-width:960px; margin-left:auto; margin-right:auto;
+  padding-left:calc(var(--ios-page-inset) + var(--sal,0px));
+  padding-right:calc(var(--ios-page-inset) + var(--sar,0px));
+}
+@supports (width:clamp(720px, 62vw, 960px)) {
+  .ios-page>.scroll-y, .ios-page>.shrink-0 { max-width:clamp(720px, 62vw, 960px); }
+}
 .ios-page-title { font-size:34px; line-height:1.2; font-weight:750; letter-spacing:-1px; }
 .ios-page-heading { padding-top:calc(var(--sat,0px) + 24px); padding-bottom:16px; }
 .ios-account-card { border-radius:28px; background:var(--p-s1); padding:22px; box-shadow:0 3px 16px rgb(0 0 0 / .035); }
@@ -114,13 +123,35 @@
 .ios-setting-group>:not(:last-child) { border-bottom:.5px solid var(--ios-edge); }
 .ios-setting-icon { display:inline-flex; align-items:center; justify-content:center; flex:none; border-radius:50%; width:36px; height:36px; background:var(--p-pc); color:var(--p-on-pc); }
 .ios-section-label { font-size:13px; font-weight:500; color:var(--p-mut); margin:28px 0 9px; padding-inline:16px; }
-.ios-overlay { position:absolute; inset:0; z-index:calc(260 + var(--ios-overlay-order,0)); display:flex; padding:24px; align-items:center; justify-content:center; --sab:env(safe-area-inset-bottom,0px); }
+/* 上游 7ab0a51：浮层沿用同一套原生/env 安全区输入，四边各自让位（横屏左右不对称也成立）。 */
+.ios-overlay {
+  position:absolute; top:0; right:0; bottom:0; left:0;
+  z-index:calc(260 + var(--ios-overlay-order,0)); display:flex; align-items:center; justify-content:center;
+  --overlay-gap:24px;
+  /* 四个方向都先取壳上给的值，壳外（portal 到 #root）再退回 env()。
+     注意不能写成 --sab:var(--sab,...)——自定义属性自引用是循环依赖，会被判无效。 */
+  --overlay-sat:var(--sat,env(safe-area-inset-top,0px));
+  --overlay-sar:var(--sar,env(safe-area-inset-right,0px));
+  --overlay-sab:var(--sab,env(safe-area-inset-bottom,0px));
+  --overlay-sal:var(--sal,env(safe-area-inset-left,0px));
+  padding:calc(var(--overlay-gap) + var(--overlay-sat)) calc(var(--overlay-gap) + var(--overlay-sar))
+    calc(var(--overlay-gap) + var(--overlay-sab)) calc(var(--overlay-gap) + var(--overlay-sal));
+}
+@supports (top:max(1px,2px)) {
+  /* 浮层可能挂在移动壳之外（portal 到 #root），所以自己再读一遍 env()，取两者更大值。 */
+  .ios-overlay {
+    --overlay-sat:max(var(--sat,0px),env(safe-area-inset-top,0px));
+    --overlay-sar:max(var(--sar,0px),env(safe-area-inset-right,0px));
+    --overlay-sab:max(var(--sab,0px),env(safe-area-inset-bottom,0px));
+    --overlay-sal:max(var(--sal,0px),env(safe-area-inset-left,0px));
+  }
+}
 .ios-overlay-backdrop.ios-button { position:absolute; inset:0; width:100%; height:100%; background:var(--ios-scrim); border:0; min-height:0; border-radius:0; box-shadow:none; cursor:default;  }
-.ios-dialog { position:relative; display:flex; flex-direction:column; min-width:0; width:min(var(--ios-dialog-width,440px),100%); max-height:calc(100dvh - 48px); border-radius:32px; background:var(--ios-glass); color:var(--p-on); border:1px solid var(--ios-edge); box-shadow:var(--ios-shadow),0 24px 80px rgb(0 0 0 / .15); backdrop-filter:blur(32px) saturate(150%); -webkit-backdrop-filter:blur(32px) saturate(150%); overflow:auto; overscroll-behavior:contain; }
+.ios-dialog { position:relative; display:flex; flex-direction:column; min-width:0; width:100%; max-width:var(--ios-dialog-width,440px); max-height:100%; border-radius:32px; background:var(--ios-glass); color:var(--p-on); border:1px solid var(--ios-edge); box-shadow:var(--ios-shadow),0 24px 80px rgb(0 0 0 / .15); backdrop-filter:blur(32px) saturate(150%); -webkit-backdrop-filter:blur(32px) saturate(150%); overflow:auto; overscroll-behavior:contain; }
 .ios-overlay.is-open .ios-dialog { animation:ios-dialog-in .24s cubic-bezier(.2,.8,.2,1) both; }
 .ios-overlay.is-closing { pointer-events:none; opacity:0; transition:opacity .18s; }
-.ios-overlay-sheet { align-items:end; padding:0 10px 10px; }
-.ios-overlay-sheet .ios-dialog { width:min(640px,100%); max-height:calc(100dvh - max(env(safe-area-inset-top),24px)); padding-bottom:max(env(safe-area-inset-bottom),12px); }
+.ios-overlay-sheet { align-items:flex-end; --overlay-gap:10px; }
+.ios-overlay-sheet .ios-dialog { max-width:640px; padding-bottom:12px; }
 /* P2-4：.78 的玻璃底压在视频画面上会透出底层的计数/集号，读起来发糊。
    实测 .94 仍能从右缘透出「12.8万」+ 星形 → 提到 .99，基本等于实底；
    模糊不可用时（老内核 @supports 分支）本来就是纯色，不受影响。 */
@@ -143,7 +174,7 @@
 .ios-field-status { color:var(--p-mut); font-size:13px; line-height:1.45; }
 .ios-auth-submit { min-height:50px; width:100%; display:flex; align-items:center; justify-content:center; gap:10px; border-radius:999px; font-size:16px; font-weight:600; }
 .ios-auth-note { margin:20px 0 0; font-size:12px; }
-.ios-mobile-nav { position:absolute; inset-inline:0; bottom:0; z-index:50; padding:10px 14px; pointer-events:none; }
+.ios-mobile-nav { position:absolute; inset-inline:0; bottom:0; z-index:50; padding:10px calc(14px + var(--sar,0px)) 10px calc(14px + var(--sal,0px)); pointer-events:none; }
 .ios-mobile-nav .hg-glass { position:relative; height:64px; width:min(100%,440px); margin-inline:auto; border-radius:999px; background:var(--ios-glass); border:1px solid var(--ios-edge); box-shadow:var(--ios-shadow); backdrop-filter:blur(28px) saturate(180%); -webkit-backdrop-filter:blur(28px) saturate(180%); pointer-events:auto; }
 .ios-mobile-nav .hg-drop { position:absolute; top:5px; bottom:5px; width:25%; left:0; border-radius:999px; transition:transform .42s var(--ios-spring); pointer-events:none; }
 .ios-mobile-nav .hg-drop>.ios-liquid-fill { margin-inline:5px; display:block; width:calc(100% - 10px); height:100%; border-radius:inherit; background:var(--ios-selected); box-shadow:inset 0 1px 0 var(--ios-highlight),0 1px 5px rgb(0 0 0 / .06); }
@@ -200,9 +231,8 @@
   .player-control.ios-button { min-width:44px; min-height:44px; }
 }
 @media(max-width:479px) {
-  .ios-overlay { padding:14px; }
-  .ios-overlay-sheet { padding:0 8px max(env(safe-area-inset-bottom),8px); }
-  .ios-dialog { max-height:calc(100dvh - 28px); }
+  .ios-overlay { --overlay-gap:14px; }
+  .ios-overlay-sheet { --overlay-gap:8px; }
   .ios-auth { padding:22px; }
   .ios-dialog-heading { gap:8px; }
   .ios-dialog-heading h2 { font-size:20px; }
@@ -213,7 +243,7 @@
   .ios-rank-metric { flex-direction:column; align-items:end; }
 }
 @media(max-height:480px) and (orientation:landscape) {
-  .ios-overlay-sheet .ios-dialog { max-height:calc(100dvh - 16px); }
+  .ios-overlay { --overlay-gap:8px; }
 }
 @media(prefers-reduced-motion:reduce) {
   *,*::before,*::after { animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; scroll-behavior:auto!important; }
