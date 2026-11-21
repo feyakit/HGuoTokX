@@ -38,8 +38,14 @@ export const GESTURE = {
   episodeVelocity: 600,
   /** 速度辅助的最小位移（px）：低于它即使很快也不切，避免 120px 轻甩误切 */
   episodeVelocityMinPx: 160,
+  /** 跟手阻尼：普通 / 到边界 */
+  episodeDamp: 0.85,
+  episodeEdgeDamp: 0.35,
+  /** 松手后的动画时长 */
+  episodeCommitMs: 220,
+  episodeReboundMs: 180,
   /** 换集预览门槛：拖过屏高的 70% 才露预览 */
-  episodePreview: 0.7,
+  episodePreview: 0.12,
   /** 松手吸附到整 5 秒 */
   snapSeconds: 5,
   /** 方向切换动画期间禁手势（ms） */
@@ -172,8 +178,16 @@ export function rotationLocked(changedAt: number, now: number): boolean {
 
 /**
  * 上下滑换集：dy<0（上滑）= 下一集，dy>0（下滑）= 上一集。
- * commit 门槛 30% 屏高，preview 门槛 60% 屏高（露出封面/集数预览）。
+ * commit 门槛 25% 屏高或速度 ≥600px/s，preview 门槛 12% 屏高（过了才出预览文案）。
  */
+/**
+ * 拖动时的跟手位移（带阻尼，直接拿来当 translateY）：
+ * 正常 0.85（手指走 100，画面走 85，跟手但不过冲）；到第一/最后一集 0.35（拉得动但拉不走）。
+ */
+export function episodeDrag(dy: number, atEdge: boolean): number {
+  return dy * (atEdge ? GESTURE.episodeEdgeDamp : GESTURE.episodeDamp);
+}
+
 export function episodeIntent(
   dy: number,
   stageHeight: number,
@@ -228,4 +242,14 @@ export function judgeGesture(input: {
 
   const ep = episodeIntent(input.dy, input.stageHeight);
   return { axis, action: { kind: "episode", dir: ep.dir, commit: ep.commit, preview: ep.preview } };
+}
+
+/**
+ * 控件自动收起的时长（ms）：全屏（含伪横屏/沉浸）下只给 1.2s —— 进全屏后画面应当立刻干净，
+ * 不要等常规的 3s。任何交互都会重新起算（组件里 showControls/armAutoHide 都走这个函数）。
+ */
+export const PLAYER_TIMING = { autohideMs: 3000, autohideFullscreenMs: 1200 } as const;
+
+export function autohideDelayMs(fullscreen: boolean): number {
+  return fullscreen ? PLAYER_TIMING.autohideFullscreenMs : PLAYER_TIMING.autohideMs;
 }

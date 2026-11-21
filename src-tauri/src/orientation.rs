@@ -7,7 +7,7 @@
 //! `Err`，Kotlin 侧有 try/catch 并 reject，不会污染 JNI 异常状态；最坏情况只是
 //! 转不过去，画面退回 CSS 伪横屏。
 //!
-//! Kotlin 源在 `src-tauri/android/com/hguox/app/OrientationPlugin.kt`（被跟踪），
+//! Kotlin 源在 `src-tauri/android/com/dusk/player/OrientationPlugin.kt`（被跟踪），
 //! 由 `scripts/inject-android-plugin.mjs` 在构建前注入 `src-tauri/gen/android`。
 
 #[cfg(target_os = "android")]
@@ -16,7 +16,7 @@ use tauri::Manager;
 pub const PLUGIN_NAME: &str = "orientation";
 
 #[cfg(target_os = "android")]
-const ANDROID_PACKAGE: &str = "com.hguox.app";
+const ANDROID_PACKAGE: &str = "com.dusk.player";
 #[cfg(target_os = "android")]
 const ANDROID_CLASS: &str = "OrientationPlugin";
 

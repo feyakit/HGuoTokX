@@ -1,4 +1,4 @@
-package com.hguox.app
+package com.dusk.player
 
 import android.app.Activity
 import android.content.pm.ActivityInfo
@@ -17,10 +17,10 @@ import app.tauri.plugin.Plugin
  * 走 Tauri 的移动端插件通道后，Kotlin 这边是普通 Java 调用（有 try/catch），失败只会
  * reject 回 Rust 的 Err，不会污染 JNI 异常状态，最坏情况也只是转不过去、退回 CSS 伪横屏。
  *
- * 本文件在仓库里的被跟踪位置：src-tauri/android/com/hguox/app/OrientationPlugin.kt
+ * 本文件在仓库里的被跟踪位置：src-tauri/android/com/dusk/player/OrientationPlugin.kt
  * src-tauri/gen/ 是 gitignore 的生成目录（CI 每次 tauri android init --ci 重建），
  * 所以构建前要用 scripts/inject-android-plugin.mjs 复制进
- * src-tauri/gen/android/app/src/main/java/com/hguox/app/。
+ * src-tauri/gen/android/app/src/main/java/com/dusk/player/。
  */
 @InvokeArg
 class SetOrientationArgs {

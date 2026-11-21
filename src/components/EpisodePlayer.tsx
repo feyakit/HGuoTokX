@@ -24,7 +24,7 @@ import { getHoldZone, stageXY, HOLD_DELAY_MS, HOLD_LOCK_DISTANCE, type HoldZone 
 import { playEnter, playExit, originFromPoint } from "../fsTransition";
 import { useFadeMount } from "../useFadeMount";
 import {
-  GESTURE, canSeek, doubleTapAction, episodeIntent, isDoubleTap, isEdgeBackStart,
+  GESTURE, PLAYER_TIMING, autohideDelayMs, canSeek, doubleTapAction, episodeDrag, episodeIntent, isDoubleTap, isEdgeBackStart,
   lockAxis, relativeSeek, rotationLocked, seekDeltaSeconds, snapSeek, tapVerdict, type Axis,
 } from "../playerGestures";
 import {
@@ -56,7 +56,9 @@ function requestOrientation(landscape: boolean) {
    这样双击（净屏）不会先闪一下暂停。人眼对这个量级不敏感，真机上等的是「有没有反应」。 */
 const TAP_DELAY_MS = 180;
 /* 移动端控件自动隐藏：显示后这么久没操作才收起来；暂停中、面板打开时不收 */
-const MOBILE_AUTOHIDE_MS = 4500;
+/* 控件自动收起时长统一走 playerGestures 里的 autohideDelayMs（可单测）：竖屏 3s / 全屏 1.2s */
+const MOBILE_AUTOHIDE_MS = PLAYER_TIMING.autohideMs;
+const FS_AUTOHIDE_MS = PLAYER_TIMING.autohideFullscreenMs;
 
 export type EpisodePlayerProps = {
   videoIds: number[];
@@ -255,7 +257,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const barRef = useRef<HTMLDivElement>(null);
   const barScrub = useRef(false);
   const [barPct, setBarPct] = useState<number | null>(null);
-  const [epSlide, setEpSlide] = useState<{ y: number; animate: boolean }>({ y: 0, animate: false });
+  const [epSlide, setEpSlide] = useState<{ y: number; animate: boolean; ms?: number }>({ y: 0, animate: false });
+  /* 回弹时的轻微缩放：1 → .98 → 1，跟 transform 一起走（不额外叠一层 DOM） */
+  const [epScale, setEpScale] = useState(1);
   /* 这次触摸是不是从舞台（视频区）起手的：只有这种才拦 touchmove */
   const stageTouch = useRef(false);
   const epSlideTimer = useRef<number | undefined>(undefined);
@@ -347,11 +351,14 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const armAutoHide = useCallback(() => {
     window.clearTimeout(hideTimer.current);
     if (isDesktop) return;
+    /* 全屏（含伪横屏/沉浸）给 1.2s：进全屏后控件应当立刻让画面，不要等 3s 的常规计时；
+       竖屏普通播放页仍 3s。任何交互都会重新计时（showControls / armAutoHide 都走这里）。 */
+    const delay = autohideDelayMs(uiRef.current.fs);
     hideTimer.current = window.setTimeout(() => {
       if (uiRef.current.paused || uiRef.current.panel) return;
       /* 全屏层用 idle 收控件，普通播放页用 clean 收 */
       if (uiRef.current.fs) setIdle(true); else setClean(true);
-    }, MOBILE_AUTOHIDE_MS) as unknown as number;
+    }, delay) as unknown as number;
   }, [isDesktop, setClean]);
   const showControls = useCallback(() => {
     window.clearTimeout(idleTimer.current);
@@ -359,6 +366,12 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     setIdle(false);
     armAutoHide();
   }, [armAutoHide, setClean]);
+  /* 未达门槛的回弹：180ms 回到 0，同时 1 → .98 → 1 的轻微缩放（不抖、不硬跳） */
+  const reboundSlide = useCallback(() => {
+    setEpScale(0.98);
+    setEpSlide({ y: 0, animate: true, ms: GESTURE.episodeReboundMs });
+    window.setTimeout(() => setEpScale(1), 90);
+  }, []);
   const hideControls = useCallback(() => {
     window.clearTimeout(hideTimer.current);
     window.clearTimeout(idleTimer.current);
@@ -393,6 +406,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   /* 离场复位：clean 是**全局**状态（App 里 `!clean` 才渲染底栏），
      播放器收起控件时置 true，不还原的话退出播放页后首页底栏会一直不出现。 */
   useEffect(() => () => setClean(false), [setClean]);
+  /* 进全屏：立刻重新起 1.2s 计时（控件先显示，到点收起）；退全屏：回到 3s 常规计时 */
+  useEffect(() => {
+    if (isDesktop) return;
+    showControls();
+  }, [fs, isDesktop, showControls]);
   useEffect(() => {
     if (paused) window.clearTimeout(hideTimer.current);
     else armAutoHide();
@@ -1230,8 +1248,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
          到了列表头尾按 dy×0.35 衰减 —— 拉得动一点但拉不走，比硬停更像手感。 */
       const dragDir: 1 | -1 = pdy <= 0 ? 1 : -1;
       const atEdge = !dramaNeighbor(dragDir) && !episodes.some((row) => row.ep_num === (epMap[curId] || 1) + dragDir);
-      const limit = g.stageH * 0.5;
-      const visual = atEdge ? pdy * 0.35 : pdy;
+      const limit = g.stageH * 0.62;
+      /* 跟手：0.85 阻尼直接把手指位移变成 translateY（只动 transform，不重排） */
+      const visual = episodeDrag(pdy, atEdge);
       setEpSlide({ y: Math.max(-limit, Math.min(limit, visual)), animate: false });
       setEpPreview(intent.preview ? { dir: intent.dir, label: episodeLabel(intent.dir) } : null);
     }
@@ -1317,12 +1336,15 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
         if (endless) { setEpSlide({ y: 0, animate: false }); go(dir); return; }
         if (swipeEp && episodes.length > 1 && want) {
           window.clearTimeout(epSlideTimer.current);
-          setEpSlide({ y: dir > 0 ? -72 : 72, animate: true });
+          /* 跟手收尾：先按手指方向把画面整屏滑出（220ms，ease-out-quint），
+             换集后从对侧 35% 位置滑回中间 —— 不是原来 ±72px 的硬移。 */
+          const out = dir > 0 ? -g.stageH : g.stageH;
+          setEpSlide({ y: out, animate: true, ms: GESTURE.episodeCommitMs });
           epSlideTimer.current = window.setTimeout(() => {
             setEpMap((m) => ({ ...m, [curId]: want }));
-            setEpSlide({ y: dir > 0 ? 48 : -48, animate: false });
-            requestAnimationFrame(() => setEpSlide({ y: 0, animate: true }));
-          }, 120);
+            setEpSlide({ y: dir > 0 ? g.stageH * 0.35 : -g.stageH * 0.35, animate: false });
+            requestAnimationFrame(() => setEpSlide({ y: 0, animate: true, ms: GESTURE.episodeCommitMs }));
+          }, GESTURE.episodeCommitMs);
           toast(`第 ${want} 集${total ? ` / ${total}` : ""}`, "info");
           try { navigator.vibrate?.(12); } catch { /* ignore */ }
           return;
@@ -1332,14 +1354,14 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
           if (seriesEnded) {
             setSeriesEnded(false);
             setEndRecs(null);
-            setEpSlide({ y: 0, animate: true });
+            reboundSlide();
             setEpPreview(null);
             showControls();
             return;
           }
           /* 播到最后一集后继续上滑：**不再自动滑进下一部剧**（用户要的是选择权），
              直接给结束态；下滑同理。 */
-          setEpSlide({ y: 0, animate: true });
+          reboundSlide();
           setEpPreview(null);
           try { navigator.vibrate?.(8); } catch { /* ignore */ }
           void openEndCard();
@@ -1347,7 +1369,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
         }
       }
     }
-    setEpSlide({ y: 0, animate: true });
+    reboundSlide();
     setEpPreview(null);
     /*
       单击 / 双击语义（重写）：
@@ -1811,12 +1833,12 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                      不用负值 —— 负 z-index 在带背景的父级里会被吃掉。 */
                   isolation: "isolate",
                   zIndex: 1,
-                  transform: isDesktop ? undefined : `translate3d(${zoom.x}px, ${zoom.y + epSlide.y}px, 0) scale(${zoom.s})`,
+                  transform: isDesktop ? undefined : `translate3d(${zoom.x}px, ${zoom.y + epSlide.y}px, 0) scale(${zoom.s * epScale})`,
                   opacity: isDesktop ? 1 : Math.max(0.55, 1 - Math.abs(epSlide.y) / 140),
                   transformOrigin: "center center",
                   transition: isDesktop || zoom.g || !epSlide.animate
                     ? "none"
-                    : "transform .22s cubic-bezier(.22,1,.36,1), opacity .2s ease-out",
+                    : `transform ${(epSlide.ms ?? GESTURE.episodeReboundMs)}ms cubic-bezier(.22,1,.36,1), opacity ${(epSlide.ms ?? GESTURE.episodeReboundMs)}ms ease-out`,
                 }}>
                 {/* 横版片源在竖屏（含竖屏全屏 fs-immersive）是 contain，上下留黑边 ——
                     那条"分割线"就是画面底边。垫一层同一张封面的虚化放大 + 上下 56px 渐隐。
@@ -2250,7 +2272,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                 </div>
               )}
 
-              {/* 上滑换集预览：拖过 60% 屏高才出，内容只用现有集数 */}
+              {/* 上滑换集预览：拖过 12% 屏高就出，内容只用现有集数 */}
               {!isDesktop && epPreview && (
                 <div className="absolute inset-x-0 z-30 flex justify-center pointer-events-none" style={{ bottom: "18%" }}>
                   <div className="hg-chip hg-ink px-4 py-2 rounded-full text-[13px] font-semibold backdrop-blur-md elev-2">

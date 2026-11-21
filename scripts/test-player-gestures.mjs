@@ -23,7 +23,7 @@ try {
   const {
     GESTURE, lockAxis, seekSecondsPer100px, seekDeltaSeconds, canSeek, snapSeek,
     doubleTapSeek, doubleTapAction, tapZone, relativeSeek, isEdgeBackStart, isDoubleTap, rotationLocked, episodeIntent, judgeGesture,
-    tapVerdict,
+    tapVerdict, episodeDrag, autohideDelayMs, PLAYER_TIMING,
   } = G;
 
   console.log("[常量]");
@@ -38,7 +38,7 @@ try {
     assert.equal(GESTURE.tapMs, 300);
     assert.equal(GESTURE.episodeSwitch, 0.25);
     assert.equal(GESTURE.episodeVelocity, 600);
-    assert.equal(GESTURE.episodePreview, 0.7);
+    assert.equal(GESTURE.episodePreview, 0.12);
     assert.equal(GESTURE.snapSeconds, 5);
     assert.equal(GESTURE.rotateLockMs, 300);
     assert.equal(GESTURE.seekBubbleMs, 800);
@@ -166,14 +166,14 @@ try {
   });
 
   console.log("[上下滑换集]");
-  check("40% 屏高才提交，70% 出预览（边界）", () => {
+  check("25% 屏高才提交，12% 出预览（边界）", () => {
     const h = 800;
-    assert.equal(episodeIntent(-150, h).commit, false);   // 18.75%：低于 25% 门槛
+    assert.equal(episodeIntent(-199, h).commit, false);   // 24.9%：差 1px 不提交
     assert.equal(episodeIntent(-200, h).commit, true);    // 25% 整：达到门槛
-    assert.equal(episodeIntent(-300, h).commit, true);    // 30% 已过 25% 门槛
-    assert.equal(episodeIntent(-320, h).preview, false);  // 32% 还没到 70%
-    assert.equal(episodeIntent(-480, h).preview, false);  // 60%
-    assert.equal(episodeIntent(-560, h).preview, true);   // 70% 整
+    assert.equal(episodeIntent(-300, h).commit, true);    // 37.5% 已过门槛
+    assert.equal(episodeIntent(-95, h).preview, false);   // 11.9%：还不出预览
+    assert.equal(episodeIntent(-96, h).preview, true);    // 12% 整：出预览
+    assert.equal(episodeIntent(-560, h).preview, true);
     assert.equal(episodeIntent(-560, h).commit, true);
     /* 速度辅助：位移 180px（22.5%，不到 25% 门槛）但速度 900px/s → 也切 */
     assert.equal(episodeIntent(-180, h, 900).commit, true);
@@ -188,6 +188,13 @@ try {
   check("上滑=下一集(1)，下滑=上一集(-1)", () => {
     assert.equal(episodeIntent(-300, 800).dir, 1);
     assert.equal(episodeIntent(300, 800).dir, -1);
+  });
+
+  check("控件收起时长：竖屏 3s / 全屏 1.2s", () => {
+    assert.equal(PLAYER_TIMING.autohideMs, 3000);
+    assert.equal(PLAYER_TIMING.autohideFullscreenMs, 1200);
+    assert.equal(autohideDelayMs(false), 3000);
+    assert.equal(autohideDelayMs(true), 1200);
   });
 
   console.log("[旋转冷却]");
@@ -274,7 +281,29 @@ try {
     assert.equal(relativeSeek(7.35, -5, 300), 2.4);
   });
 
-  console.log(`\nPassed: ${passed} 项手势判定单测`);
+  
+
+/* ===== 3.0.9：上下滑跟手换集的门槛与阻尼 ===== */
+  console.log("[跟手换集·3.0.9]");
+  check("速度门槛 599 不提交 / 600 提交", () => {
+    const h = 800;
+    assert.equal(episodeIntent(-160, h, 599).commit, false);
+    assert.equal(episodeIntent(-160, h, 600).commit, true);
+  });
+  check("跟手阻尼：普通 0.85，边界 0.35", () => {
+    assert.equal(episodeDrag(100, false), 85);
+    assert.equal(episodeDrag(100, true), 35);
+    assert.equal(episodeDrag(-100, false), -85);
+    assert.equal(episodeDrag(-100, true), -35);
+  });
+  check("提交/回弹时长常量", () => {
+    assert.equal(GESTURE.episodeCommitMs, 220);
+    assert.equal(GESTURE.episodeReboundMs, 180);
+    assert.equal(GESTURE.episodePreview, 0.12);
+    assert.equal(GESTURE.episodeSwitch, 0.25);
+  });
+
+console.log(`\nPassed: ${passed} 项手势判定单测`);
 } finally {
   await vite.close();
 }

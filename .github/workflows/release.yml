@@ -178,6 +178,11 @@ jobs:
       - name: 注入安卓方向插件（Kotlin）
         run: node scripts/inject-android-plugin.mjs
 
+      # tauri.conf 只暴露 minSdkVersion/versionCode；targetSdk=34 与 allowBackup=false
+      # 必须在 init 之后打进生成工程（gen/ 不入库，改生成文件下次就没了）。
+      - name: 补 Android 清单与 targetSdk（34 / 禁备份）
+        run: node scripts/patch-android-manifest.mjs
+
       - name: 编译 APK（按 ABI 分包）
         run: |
           # quick / android-arm64 只出 arm64：真机验证用不到 v7a 和 x86_64，省三分之二时间
