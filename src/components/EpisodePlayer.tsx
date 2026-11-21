@@ -1729,7 +1729,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
           白字可读性由控件自身那两条压光负责（顶部 96px / 底部 116px）。 */}
       <div ref={boxRef} onScroll={onScroll}
         className={`absolute inset-y-0 left-0 no-bar ${fs ? "overflow-hidden" : "overflow-y-scroll snap-y snap-mandatory overscroll-y-contain"}`}
-        style={{ right: isDesktop && panel ? 372 : 0, transition: "right .3s cubic-bezier(.2,0,0,1)" }}>
+        onTouchMove={(e) => { if (gesture.current && gesture.current.mode !== "idle") e.preventDefault(); }}
+        style={{ right: isDesktop && panel ? 372 : 0, transition: "right .3s cubic-bezier(.2,0,0,1)", touchAction: "none", overscrollBehavior: "contain" }}>
         {effectiveVideoIds.map((vid, i) => {
           const isActive = i === index;
           const sectionClass = `${fs && !isActive ? "hidden" : "relative w-full h-full"} snap-start snap-always overflow-hidden`;
@@ -1745,8 +1746,16 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
             <section key={vid} className={sectionClass} inert={!isActive || undefined} aria-hidden={!isActive || undefined}>
               {isActive && playUrl ? (
                 <div ref={holdTargetRef} data-mobile-hold-target={!isDesktop || undefined}
-                  className="absolute inset-0" style={{ touchAction: swipeEp ? "none" : "pan-y" }}
-                  onPointerDown={onDown} onPointerMove={onMove} onPointerUp={(e) => onUp(false, e)} onPointerCancel={(e) => onUp(true, e)} onLostPointerCapture={(e) => onUp(true, e)}>
+                  className="absolute inset-0" style={{ touchAction: "none" }}
+                  onPointerDown={onDown} onPointerMove={onMove} onPointerUp={(e) => onUp(false, e)}
+                  onPointerCancel={(e) => {
+                    /* 真机浏览器接管手势时会发 pointercancel：如果这时已经滑出方向且位移够，
+                       按正常抬手结算（否则表现为「滑了等于点了一下」→ 隐藏控件/全屏） */
+                    const g = gesture.current;
+                    const moved = g?.mode === "pan" || g?.mode === "scrub" || g?.mode === "edgeBack";
+                    logLine(`[gesture] cancel mode=${g?.mode ?? "-"} moved=${moved}`);
+                    onUp(!moved, e);
+                  }} onLostPointerCapture={(e) => onUp(true, e)}>
                 <div style={{
                   position: "absolute",
                   inset: 0,
@@ -2068,7 +2077,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                             setRate(seq[(idx + 1) % seq.length]);
                           }}
                           className="hg-ctrl hg-speed-btn text-white pressable">
-                          {effRate}x
+                          <span className="hg-num">{effRate}x</span>
                           {speedLock && <span className="hg-speed-lock" aria-hidden="true">2x 中</span>}
                         </Button>
                         {!endless && (

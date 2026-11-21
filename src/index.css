@@ -613,6 +613,12 @@ input[type="range"].hg-range::-webkit-slider-thumb { -webkit-appearance: none; w
 /* 倍速：纯文字（无胶囊底/边框），按下 scale(.96) 120ms；锁定 2x 时右上角挂小角标 */
 .hg-speed-btn { border: 0; box-shadow: none; letter-spacing: .2px; }
 .hg-speed-btn:active:not(:disabled) { scale: .96; transition: scale 120ms var(--ease-out, cubic-bezier(.2,.8,.2,1)); }
+/* 数字与中文的基线微调：数字没有下伸部，同一 font-size 下墨迹比中文矮 1.1 CSS px（小米9 实测
+   2125 vs 2128 设备 px）。这里不动 font-size，只给数字容器下移 1px 对齐字面底线。 */
+.hg-num { display: inline-block; font-variant-numeric: tabular-nums; }
+/* 只对安卓 WebView 生效：那边的中文与数字字面底线差 1.1 CSS px（小米9 实测 2125 vs 2128 设备 px），
+   Chromium/桌面本来对齐，不动。 */
+html.plat-android .hg-num { transform: translateY(1px); }
 .hg-speed-lock {
   position: absolute; top: -4px; right: -10px; padding: 0 4px; border-radius: 999px;
   font-size: 9px; line-height: 14px; font-weight: 700; letter-spacing: .2px;
