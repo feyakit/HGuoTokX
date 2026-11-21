@@ -568,12 +568,12 @@ function HistoryContent({ onBack, wide: _wide }: { onBack: () => void; wide: boo
 }
 
 /* ================= 二级栈页：我的收藏 ================= */
-export function FavoritesPage({ onBack, wide, initialTab = "video" }: { onBack: () => void; wide: boolean; initialTab?: "video" | "post" }) {
+export function FavoritesPage({ onBack, wide, initialTab = "video", active = true }: { onBack: () => void; wide: boolean; initialTab?: "video" | "post"; active?: boolean }) {
   const { accountScope, lineEpoch } = useStore();
-  return <FavoritesContent key={`${accountScope}:${lineEpoch}`} onBack={onBack} wide={wide} initialTab={initialTab} />;
+  return <FavoritesContent key={`${accountScope}:${lineEpoch}`} onBack={onBack} wide={wide} initialTab={initialTab} active={active} />;
 }
 
-function FavoritesContent({ onBack, wide, initialTab }: { onBack: () => void; wide: boolean; initialTab: "video" | "post" }) {
+function FavoritesContent({ onBack, wide, initialTab, active }: { onBack: () => void; wide: boolean; initialTab: "video" | "post"; active: boolean }) {
   const { blockReason } = useContentPreferences();
   const { user, favs, postFavs, push, setTab, accountSync, syncAccount } = useStore();
   const [favTab, setFavTab] = useState<"video" | "post">(initialTab);
@@ -589,6 +589,10 @@ function FavoritesContent({ onBack, wide, initialTab }: { onBack: () => void; wi
   const [reload, setReload] = useState(0);
   const [loading, setLoading] = useState(false);
   const [postLoading, setPostLoading] = useState(false);
+  /* 上游 3622227：从详情页返回收藏列表要重新校验可见卡片（点赞数、封面、是否还在架），
+     但每「回到列表一次」每张卡只重拉一次——否则翻页/重渲染会把同一批 id 反复打服务器。
+     离场（!active，被详情页盖住）时清空标记，返回时整屏静默重拉。 */
+  const refreshedFavorites = useRef(new Set<number>());
 
   const visibleIds = favs.slice(0, limits.video);
   const cards = visibleIds.map(id => cache[id]).filter((card): card is Detail => !!card);
@@ -606,26 +610,38 @@ function FavoritesContent({ onBack, wide, initialTab }: { onBack: () => void; wi
 
   useEffect(() => {
     if (favTab !== "video") return;
+    if (!active) { refreshedFavorites.current.clear(); return; }
     let alive = true;
-    const missing = visibleIds.filter(id => !cacheRef.current[id]);
+    const missing = visibleIds.filter(id => !cacheRef.current[id] || !refreshedFavorites.current.has(id));
     setFailedIds([]);
     if (!missing.length) { setLoading(false); return; }
-    setLoading(true);
-    Promise.allSettled(missing.map(id => api.video(id)))
-      .then(results => {
+    /* 已有卡片时不要整屏转圈：保留旧卡，后台换新。 */
+    setLoading(!visibleIds.some(id => cacheRef.current[id]));
+    void (async () => {
+      const loaded: Record<number, Detail> = {};
+      const nextFailed: number[] = [];
+      // 回到列表可能有十几张卡要校验：分批串行，别一次打十几个请求。
+      for (let offset = 0; offset < missing.length; offset += 6) {
+        const batch = missing.slice(offset, offset + 6);
+        /* 已缓存的卡片用 force 跳过读缓存：api.video 的 5min TTL + SWR 在「刚返回列表」
+           这个时间尺度上不会补请求（3s 内命中不重拉），不 force 就等于没刷新。 */
+        const results = await Promise.allSettled(batch.map(id => api.video(id, !!cacheRef.current[id])));
         if (!alive) return;
-        const loaded: Record<number, Detail> = {};
-        const nextFailed: number[] = [];
         results.forEach((result, index) => {
-          if (result.status === "fulfilled") loaded[missing[index]] = result.value;
-          else nextFailed.push(missing[index]);
+          const id = batch[index];
+          if (result.status === "fulfilled") {
+            loaded[id] = result.value;
+            refreshedFavorites.current.add(id);
+          } else if (!cacheRef.current[id]) nextFailed.push(id);
         });
         setCache(previous => ({ ...previous, ...loaded }));
-        setFailedIds(nextFailed);
-        setLoading(false);
-      });
+      }
+      if (!alive) return;
+      setFailedIds(nextFailed);
+      setLoading(false);
+    })();
     return () => { alive = false; };
-  }, [idsKey, favTab, reload]);
+  }, [idsKey, favTab, reload, active]);
 
   useEffect(() => {
     if (favTab !== "post") return;

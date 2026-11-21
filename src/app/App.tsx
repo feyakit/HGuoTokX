@@ -93,7 +93,7 @@ function StackPageContent({ page, onBack, wide, top, bottomInset }: {
   }
   if (page.kind === "search") return <Search active={top} wide={wide} initialTab={page.initialTab} onBack={onBack} />;
   if (page.kind === "history") return <HistoryPage onBack={onBack} wide={wide} />;
-  if (page.kind === "favorites") return <FavoritesPage onBack={onBack} wide={wide} initialTab={page.initialTab} />;
+  if (page.kind === "favorites") return <FavoritesPage onBack={onBack} wide={wide} initialTab={page.initialTab} active={top} />;
   if (page.kind === "channel") return <ChannelPage cate={page.cate} name={page.name} onBack={onBack} wide={wide} />;
   if (page.kind === "ranks") return <RankPage onBack={onBack} wide={wide} />;
   if (page.kind === "settings") return <SettingsPage onBack={onBack} wide={wide} />;
