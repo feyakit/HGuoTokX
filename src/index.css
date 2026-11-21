@@ -781,12 +781,14 @@ html[data-fx="low"] .hg-scrim-dither { display: none; }
 
 /* ===== 横版片源竖屏播放（letterbox）：虚化同帧 + 边缘渐隐，消掉画面底边那条硬线 ===== */
 .hg-lb-blur {
-  position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+  position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0;
+  /* 单独隔离：filter 只在自身层内生效，不影响上面的视频层 */
+  isolation: isolate;
   -webkit-filter: blur(28px) brightness(.55); filter: blur(28px) brightness(.55);
 }
 .hg-lb-blur > * { transform: scale(1.18); }
 html[data-fx="low"] .hg-lb-blur { display: none; }
-.hg-vfade { position: absolute; left: 0; right: 0; height: 56px; pointer-events: none; }
+.hg-vfade { position: absolute; left: 0; right: 0; height: 56px; pointer-events: none; z-index: 2; }
 .hg-vfade-top { top: 0; background: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0) 100%); }
 .hg-vfade-bottom { bottom: 0; background: linear-gradient(to top, #000 0%, rgba(0, 0, 0, 0) 100%); }
 

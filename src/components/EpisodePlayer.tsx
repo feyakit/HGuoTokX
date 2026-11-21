@@ -624,6 +624,23 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const actionRail = useFadeMount(!fs && !clean && !isDesktop);
   const landscapeVideo = videoSize.w > 0 && videoSize.h > 0 && videoSize.w > videoSize.h;
   const portraitVideo = videoSize.w > 0 && videoSize.h > 0 && videoSize.w <= videoSize.h;
+  /* 舞台实测尺寸（用于判断是否真的有 letterbox：容器比画面更"方"才会出现上下黑边） */
+  const [stageBox, setStageBox] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setStageBox({ w: el.clientWidth, h: el.clientHeight }));
+    ro.observe(el);
+    setStageBox({ w: el.clientWidth, h: el.clientHeight });
+    return () => ro.disconnect();
+  }, []);
+  const letterbox = useMemo(() => {
+    if (!videoSize.w || !videoSize.h || !stageBox.w || !stageBox.h) return false;
+    const containerRatio = stageBox.w / stageBox.h;
+    const videoRatio = videoSize.w / videoSize.h;
+    /* 容器比画面"更方"（比值更大）→ 上下一定留黑边；留 2% 容差避免像素抖动 */
+    return containerRatio > videoRatio * 1.02;
+  }, [videoSize.w, videoSize.h, stageBox.w, stageBox.h]);
   const ambientCanvasRef = useRef<HTMLCanvasElement>(null);
   const [ambientLive, setAmbientLive] = useState(false);
 
@@ -1800,10 +1817,10 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                 }}>
                 {/* 横版片源在竖屏（含竖屏全屏 fs-immersive）是 contain，上下留黑边 ——
                     那条"分割线"就是画面底边。垫一层同一张封面的虚化放大 + 上下 56px 渐隐。
-                    只在「竖屏方向 + 非竖版片源」渲染：
-                      · vpLandscape（真横屏）/ rotated（伪横屏）：16:9 本来就铺满，虚化层看不见，跳过省性能；
-                      · portraitVideo：cover 铺满，加雾化反而脏，不加。 */}
-                {!isDesktop && !rotated && !vpLandscape && !portraitVideo && (
+                    现在用**实测**判断：只有"容器比画面更方"（真会留黑边）才渲染，
+                    不再用 !portraitVideo 这种静态条件（元数据没到时会误判）。
+                    全屏/横行（vpLandscape / rotated）本来铺满，自然不满足条件。 */}
+                {!isDesktop && letterbox && (
                   <>
                     <div aria-hidden="true" className="hg-lb-blur"><Img src={posterUrl} alt="" /></div>
                     <span aria-hidden="true" className="hg-vfade hg-vfade-top" />
@@ -1822,6 +1839,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   onSize={(w, h, key) => {
                     if (key !== measurementKey || !isCurrentPlayback()) return false;
                     setVsize((prev) => (prev.key === key && prev.w === w && prev.h === h ? prev : { key, w, h }));
+                    /* 真机取证：片源真实宽高（用户报"画面被压成窄横条"时，先看这里是不是 3.5:1） */
+                    logLine(`[play] size id=${curId} ep=${curEp} ${w}x${h} fit=${portraitVideo ? "cover" : "contain"}`);
                     return true;
                   }}
                   onPlaying={() => { if (isCurrentPlayback()) { setPaused(false); setWaiting(false); setErr(""); setSeriesEnded(false); setPlayingKey(playKey); } }}
