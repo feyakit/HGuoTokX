@@ -183,6 +183,11 @@ jobs:
       - name: 补 Android 清单与 targetSdk（34 / 禁备份）
         run: node scripts/patch-android-manifest.mjs
 
+      # ⚠️ 仅 test/webview-debug 诊断分支：release 包打开 WebView 远程调试，
+      # 供 CDP 逐条关属性二分定位「帖子详情页下滑持续闪」。不要合进 main。
+      - name: 打开 WebView 远程调试（仅诊断分支）
+        run: node scripts/enable-webview-debug.mjs
+
       - name: 编译 APK（按 ABI 分包）
         run: |
           # quick / android-arm64 只出 arm64：真机验证用不到 v7a 和 x86_64，省三分之二时间
