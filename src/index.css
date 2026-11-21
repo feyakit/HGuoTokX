@@ -685,6 +685,7 @@ html.plat-android .hg-num { transform: translateY(1px); }
 .hg-endcard {
   border: 1px solid transparent;
   border-radius: 16px;
+  padding: 18px;
   /* 1px 品牌渐变描边（12%）：padding-box 铺卡底、border-box 铺描边，不依赖 mask */
   background:
     linear-gradient(rgba(0, 0, 0, .78), rgba(0, 0, 0, .78)) padding-box,
@@ -695,9 +696,25 @@ html.plat-android .hg-num { transform: translateY(1px); }
   background: linear-gradient(180deg, #7C5CFF, #5B6BFF);
 }
 .ios-button.hg-endcard-main.hg-endcard-main {
-  height: 44px; border-radius: 12px; font-size: 13px; font-weight: 600;
+  height: 44px; min-height: 44px; border-radius: 12px; font-size: 13px; font-weight: 600;
   background: var(--btn-grad, linear-gradient(135deg, #7C5CFF, #5B6BFF));
   color: #fff; box-shadow: var(--btn-ring, inset 0 0 0 1px rgba(255, 255, 255, .22));
+  transition: transform 120ms var(--ease-out, cubic-bezier(.2,.8,.2,1)), filter 120ms var(--ease-out, cubic-bezier(.2,.8,.2,1));
+}
+.ios-button.hg-endcard-main.hg-endcard-main:active:not(:disabled) { transform: scale(.96); filter: brightness(1.06); }
+/* 次行动：文字链（12/600、white/60） */
+.ios-button.hg-endcard-more.hg-endcard-more.hg-endcard-more {
+  background: none; border: 0; box-shadow: none; padding: 0 2px;
+  height: 24px; min-height: 0; min-block-size: 0; min-inline-size: 0;
+  font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, .6);
+}
+/* 封面缺失：10% 品牌色底 + 剧名首字（白 60%）+ 1px white/10 描边 */
+.hg-reccard .ios-image-error { background: rgba(124, 92, 255, .10); color: transparent; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .10); }
+/* 占位层常驻在下、封面图盖在上面：图加载失败时露出来的就是它（无需 :has 判断） */
+.hg-reccard-fallback {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 22px; font-weight: 700; color: rgba(255, 255, 255, .6);
+  background: rgba(124, 92, 255, .10); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .10); border-radius: 8px;
 }
 .ios-button.hg-endcard-ghost.hg-endcard-ghost {
   height: 44px; border-radius: 12px; font-size: 13px; font-weight: 600;

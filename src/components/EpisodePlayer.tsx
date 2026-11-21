@@ -29,8 +29,7 @@ import {
 } from "../playerGestures";
 import {
   IBack, IBoltF, IChevR, IChevronDown, IChevronUp, IClose, ICommentF, ICompress, IExpand, IFileText, IGlobe, IHeart, IHeartF, IMore,
-  IList, ILockF, IPauseF, IPlayF, ISearch, IStar, IStarF, IVertSwap, IVol, IVolMute,
-} from "../icons";
+  IList, ILockF, IPauseF, IPlayF, ISearch, IStar, IStarF, IVertSwap, IVol, IVolMute, IRefresh } from "../icons";
 import { ambientStyle } from "../useAccent";
 import type { AccentScheme } from "../accent";
 
@@ -2261,22 +2260,34 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       {/* 结束态（本剧看完）：不自动滑进下一部，给「看完 + 推荐 3 部」让用户选。
           推荐全部来自真实接口（api_related 优先，其次 api_feed），过滤本剧，不足 3 部就少显示。 */}
       {!isDesktop && !endless && seriesEnded && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center px-6" data-hg-control="endcard">
-          <div className="hg-endcard w-full max-w-[340px] p-5 text-center">
+        <div className="absolute inset-0 z-40 flex items-center justify-center px-5" data-hg-control="endcard">
+          <div className="hg-endcard w-full max-w-[340px] p-[18px] text-center">
             <p className="flex items-center justify-center gap-2 text-[15px] font-bold text-white">
               <span className="hg-endcard-bar" aria-hidden="true" />本剧已看完
             </p>
             <p className="mt-1 text-[13px] font-semibold text-white/85 clamp-1">{details[curId]?.title || meta.title}</p>
             <p className="mt-0.5 text-[12px] text-white/45">共 {episodes.length || 1} 集</p>
 
+            {/* 推荐区：标题行右侧是「换一批」文字链（次行动不再占一整条按钮） */}
+            <div className="mt-4 flex items-center justify-between">
+              <span className="text-[12px] font-medium text-white/45">你可能还想看</span>
+              <Button onClick={() => void openEndCard(true)} disabled={endBusy}
+                className="hg-endcard-more flex items-center gap-1 pressable">
+                <IRefresh size={12} />换一批
+              </Button>
+            </div>
+
             {endBusy ? (
-              <div className="mt-4 flex items-center justify-center py-6"><Loader label="正在找同类剧" /></div>
+              <div className="mt-3 flex items-center justify-center py-5"><Loader label="正在找同类剧" /></div>
             ) : (endRecs && endRecs.length > 0) ? (
-              <div className="mt-4 grid grid-cols-3 gap-2">
+              /* 不足 3 部时左对齐换行，不留空位；卡片宽 = 1/3 - gap */
+              <div className="mt-2 flex flex-wrap items-start" style={{ gap: 8 }}>
                 {endRecs.slice(0, 3).map((v) => (
                   <Button key={v.id} card aria-label={`看《${v.title}》`} onClick={() => openRecommended(v.id)}
-                    className="hg-reccard text-left min-w-0">
+                    className="hg-reccard text-left min-w-0"
+                    style={{ width: "calc((100% - 16px) / 3)" }}>
                     <span className="relative block w-full overflow-hidden rounded-lg" style={{ paddingTop: "133.3333%" }}>
+                      <span className="hg-reccard-fallback" aria-hidden="true">{(v.title || "").trim().slice(0, 1)}</span>
                       <Img src={v.cover} alt="" />
                     </span>
                     <span className="mt-1 block text-[12px] leading-[1.35] text-white/90 clamp-2">{v.title}</span>
@@ -2287,24 +2298,13 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                 ))}
               </div>
             ) : (
-              <p className="mt-4 text-[12px] text-white/45">暂时没有更多同类剧</p>
+              <p className="mt-3 text-[12px] text-white/45">暂时没有更多同类剧</p>
             )}
 
-            <div className="mt-4 flex gap-2">
-              <Button onClick={() => { setSeriesEnded(false); setEndRecs(null); pickEp(1); }}
-                className="hg-endcard-main flex-1 pressable">重新看第 1 集</Button>
-              <Button onClick={() => void openEndCard(true)}
-                className="hg-endcard-ghost flex-1 pressable">换一部</Button>
-            </div>
+            {/* 主行动单独一行：全宽 44 高、r12、品牌渐变 + 1px 白内描边 */}
+            <Button onClick={() => { setSeriesEnded(false); setEndRecs(null); pickEp(1); }}
+              className="hg-endcard-main mt-4 w-full pressable">重新看第 1 集</Button>
           </div>
-        </div>
-      )}
-
-      {/* 播放器底部压光（唯一一层）：从屏幕最底边往上 280px，一条线性渐变盖住
-          安全区 + 进度条 + 控件区，中途没有任何容器级背景/blur 形成色带。 */}
-      {!isDesktop && !fs && !clean && (
-        <div aria-hidden="true" className="hg-scrim-bottom z-10">
-          <span className="hg-scrim-dither" aria-hidden="true" />
         </div>
       )}
 
