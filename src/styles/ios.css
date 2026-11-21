@@ -618,3 +618,84 @@ html[data-fx="low"] .plat-android .a-page-in,
 html[data-fx="low"] .plat-ios .a-page-in,
 html[data-fx="low"] .plat-android .a-page-out,
 html[data-fx="low"] .plat-ios .a-page-out { animation: none; }
+
+
+/* ==========================================================================
+   动效总收口（motion v2）：所有"有动画设计的地方"统一到 --dur-* / --ease-*，
+   只动 transform / opacity / 颜色；不改布局尺寸、不改配色。
+   位置 | 触发 | 时长曲线 见 v3.0.6 报告第二十三节。
+   ========================================================================== */
+
+/* 1. 路由返回：当前页下移 8px + 淡出，下层页从 .985/.96 回正（双层交叉，无白闪） */
+@keyframes hg-page-under-in { from { opacity: .96; transform: scale(.985); } to { opacity: 1; transform: none; } }
+.plat-android .a-page-under, .plat-ios .a-page-under { animation: hg-page-under-in 180ms var(--ease-out) both; }
+
+/* View Transition 可用时由它接管：旧帧下移淡出、新帧回正（同样是 150/180ms） */
+@keyframes hg-vt-old-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translate3d(0, 8px, 0); } }
+@keyframes hg-vt-new-in { from { opacity: .96; transform: scale(.985); } to { opacity: 1; transform: none; } }
+::view-transition-old(root) { animation: hg-vt-old-out 150ms var(--ease-in) both; }
+::view-transition-new(root) { animation: hg-vt-new-in 180ms var(--ease-out) both; }
+
+/* 2. 首屏进场：Hero → 榜单 → 卡片依次 40ms，最多 6 个（原 30ms） */
+.hg-stagger > * { animation: hg-rise 220ms var(--ease-out) both; }
+.hg-stagger > *:nth-child(2) { animation-delay: 40ms; }
+.hg-stagger > *:nth-child(3) { animation-delay: 80ms; }
+.hg-stagger > *:nth-child(4) { animation-delay: 120ms; }
+.hg-stagger > *:nth-child(5) { animation-delay: 160ms; }
+.hg-stagger > *:nth-child(6) { animation-delay: 200ms; }
+.hg-stagger > *:nth-child(n+7) { animation-delay: 200ms; }
+
+/* 3. 图片：占位→图像 200ms 淡入（原来 300ms）；失败占位同样淡入，不二次闪 */
+.ios-image img { transition-duration: var(--dur-2); transition-timing-function: var(--ease-out); }
+.ios-image-error { animation: hg-fade-in var(--dur-2) var(--ease-out); }
+
+/* 5. 按压反馈：scale(.96) + 轻微提亮，120ms；只作用在 transform/filter，不影响滚动 */
+.pressable:active:not(:disabled),
+.player-control:active:not(:disabled) {
+  scale: .96;
+  filter: brightness(1.06);
+  transition: scale var(--dur-1) var(--ease-out), filter var(--dur-1) var(--ease-out);
+}
+
+/* 6. 面板 / Sheet：进 220ms、出 180ms，遮罩 160ms */
+.ios-overlay-sheet.is-open .ios-dialog { animation-duration: 220ms; animation-timing-function: var(--ease-out); }
+.ios-overlay.is-open .ios-dialog { animation-duration: 220ms; animation-timing-function: var(--ease-out); }
+.ios-overlay.is-closing .ios-dialog,
+.ios-overlay-sheet.is-closing .ios-dialog { animation-duration: 180ms; animation-timing-function: var(--ease-in); }
+.ios-overlay-backdrop.ios-button { transition: opacity 160ms var(--ease-out); }
+
+/* 7. toast：滑入 200ms / 淡出 160ms，多条堆叠位移过渡 */
+.a-toast { animation-duration: var(--dur-2); animation-timing-function: var(--ease-out); transition: transform var(--dur-2) var(--ease-out), opacity 160ms var(--ease-out); }
+
+/* 8. 开关滑块 160ms + 轨道颜色同步（覆盖旧的 280ms 弹簧） */
+.ios-switch-thumb { transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out), border-color 160ms var(--ease-out); }
+.ios-switch-track { transition: background-color 160ms var(--ease-out), border-color 160ms var(--ease-out); }
+
+/* 9. tab 指示条：分段控件是共享滑块，220ms FLIP；页面 tab 的下划线用 220ms 淡入+缩放跟随 */
+.ios-segmented-indicator { transition: transform 220ms var(--ease-out), width 220ms var(--ease-out); }
+.hg-tab-ul::after { transition: opacity 220ms var(--ease-out), transform 220ms var(--ease-out); }
+
+/* 10. 播放器：控件层淡入 160 / 淡出 120（useFadeMount），切集画面 160 淡入，缓冲层淡入 200 */
+.hg-ep-fade, .hg-player-stage-swap { animation: hg-crossfade-in 160ms var(--ease-out); }
+.hg-player-buffer { animation: hg-fade-in var(--dur-2) var(--ease-out); }
+
+/* 11. 数字：等宽 + 变化时 120ms 透明度闪（不做滚动数字） */
+.hg-detail-counts, .hg-ep-cell, .hg-profile-sec-count, .tabular-nums { font-variant-numeric: tabular-nums; }
+@keyframes hg-num-flash { 0% { opacity: .45; } 100% { opacity: 1; } }
+.hg-num-flash { animation: hg-num-flash var(--dur-1) var(--ease-out); }
+
+/* 14. 空态：淡入 200ms */
+.ios-empty { animation: hg-fade-in var(--dur-2) var(--ease-out); }
+
+/* 降级：减少动效 / 低端机 —— 新增的这几条也归零 */
+@media (prefers-reduced-motion: reduce) {
+  .plat-android .a-page-under, .plat-ios .a-page-under,
+  .hg-stagger > *, .ios-image-error, .ios-empty, .hg-ep-fade,
+  .hg-player-stage-swap, .hg-player-buffer, .hg-num-flash,
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none !important; }
+  .pressable:active:not(:disabled), .player-control:active:not(:disabled) { scale: 1; filter: none; }
+  .ios-image img { transition: none !important; }
+}
+html[data-fx="low"] .a-page-under,
+html[data-fx="low"] .hg-stagger > *,
+html[data-fx="low"] .ios-empty { animation: none; }

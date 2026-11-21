@@ -57,6 +57,23 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
       .catch(() => { if (my === seq.current) setRelated([]); });
   }, [id, lineEpoch]);
 
+  /* 数据实时性（用户反馈「视频数据没有实时更新」）：详情页挂着时
+     · 页面重新可见（切回前台/从播放器返回）静默刷新一次；
+     · 每 60s 静默刷新一次点赞/收藏/集数等计数（直接打接口，绕过缓存，不闪骨架）。
+     失败静默，不打扰用户。 */
+  useEffect(() => {
+    let alive = true;
+    const refresh = () => {
+      api.video(id)
+        .then(res => { if (alive && res) setDetail(res); })
+        .catch(() => { /* 静默 */ });
+    };
+    const onVisible = () => { if (document.visibilityState === "visible") refresh(); };
+    document.addEventListener("visibilitychange", onVisible);
+    const timer = window.setInterval(() => { if (document.visibilityState === "visible") refresh(); }, 60_000);
+    return () => { alive = false; document.removeEventListener("visibilitychange", onVisible); window.clearInterval(timer); };
+  }, [id, lineEpoch]);
+
   const episodes = useMemo(
     () => (detail?.episodes ?? []).slice().sort((a, b) => a.ep_num - b.ep_num),
     [detail],

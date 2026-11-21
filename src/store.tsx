@@ -7,6 +7,7 @@ import type { AccentScheme } from "./accent";
 import { FALLBACK_SCHEME } from "./accent";
 import { readAmbient } from "./useAccent";
 import { pickGuestData, useAccountData, type GuestData } from "./accountData";
+import { popWithTransition } from "./pageTransition";
 
 export type Platform = "android" | "ios" | "windows" | "macos" | "linux";
 export type Tab = "home" | "posts" | "category" | "profile";
@@ -192,6 +193,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [p, setP] = useState<Persist>(loadPersist);
   const [tab, setTabRaw] = useState<Tab>("home");
   const [stack, setStack] = useState<Page[]>([]);
+  const stackRef = useRef<Page[]>(stack);
+  stackRef.current = stack;
   // Guest library writes must not roll back sound, quality, gestures or search preferences.
   const account = useAccountData(
     pickGuestData(p),
@@ -381,7 +384,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return [...s, { ...pg, key: `p${++seq}` } as Page];
     });
   }, []);
-  const pop = useCallback(() => setStack((s) => s.slice(0, -1)), []);
+  /* 返回/退出动画：真正出栈由 pageTransition 在动画结束后执行（减少动效/低端机直接切） */
+  const popping = useRef(false);
+  const pop = useCallback(() => {
+    if (popping.current) return;
+    const top = stackRef.current[stackRef.current.length - 1];
+    if (!top) return;
+    popping.current = true;
+    void popWithTransition(() => setStack((s) => s.slice(0, -1)), top.kind === "feed")
+      .finally(() => { popping.current = false; });
+  }, []);
 
   const addSearch = useCallback((q: string) => {
     const t = q.trim();
