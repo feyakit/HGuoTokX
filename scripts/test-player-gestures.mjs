@@ -22,7 +22,7 @@ try {
   const G = await vite.ssrLoadModule("/src/playerGestures.ts");
   const {
     GESTURE, lockAxis, seekSecondsPer100px, seekDeltaSeconds, canSeek, snapSeek,
-    doubleTapSeek, isEdgeBackStart, isDoubleTap, rotationLocked, episodeIntent, judgeGesture,
+    doubleTapSeek, doubleTapAction, tapZone, isEdgeBackStart, isDoubleTap, rotationLocked, episodeIntent, judgeGesture,
     tapVerdict,
   } = G;
 
@@ -32,7 +32,7 @@ try {
     assert.equal(GESTURE.axisRatio, 1.4);
     assert.equal(GESTURE.edgeBack, 24);
     assert.equal(GESTURE.doubleTapMs, 280);
-    assert.equal(GESTURE.doubleTapSeek, 10);
+    assert.equal(GESTURE.doubleTapSeek, 5);
     assert.equal(GESTURE.minSeekPx, 20);
     assert.equal(GESTURE.tapSlop, 6);
     assert.equal(GESTURE.tapMs, 300);
@@ -129,12 +129,12 @@ try {
   });
 
   console.log("[双击]");
-  check("左半屏 −10s，右半屏 +10s", () => {
-    assert.equal(doubleTapSeek(10, 393), -10);
-    assert.equal(doubleTapSeek(197, 393), 10);
-    /* 正中线归左半边（x < width/2 才回退），边界写死在函数里 */
-    assert.equal(doubleTapSeek(196, 393), -10);
-    assert.equal(doubleTapSeek(392, 393), 10);
+  check("三分法 + 5s：左 −5s / 中 不 seek / 右 +5s", () => {
+    assert.equal(doubleTapSeek(10, 393), -5);
+    assert.equal(doubleTapSeek(392, 393), 5);
+    /* 正中（原先是 +10s）现在是中区：不 seek，走播放/暂停 */
+    assert.equal(doubleTapSeek(197, 393), 0);
+    assert.equal(doubleTapAction(197, 393).kind, "toggle");
   });
   check("窗口 280ms：280 内成立，281 不成立", () => {
     assert.equal(isDoubleTap(1000, 1280), true);
@@ -212,6 +212,39 @@ try {
     assert.equal(r.action.kind, "episode");
     assert.equal(r.action.commit, false);
     assert.equal(r.action.dir, 1);
+  });
+
+  console.log("[双击三分区]");
+  const W = 393;
+  check("zoneSplit 常量 = 1/3", () => {
+    assert.equal(GESTURE.zoneSplit, 1 / 3);
+  });
+  check("x = W/3 - 1 → 左区，双击 −5s", () => {
+    const x = W / 3 - 1;
+    assert.equal(tapZone(x, W), "left");
+    assert.equal(doubleTapAction(x, W).kind, "seek");
+    assert.equal(doubleTapAction(x, W).seconds, -5);
+  });
+  check("x = W/3 → 中区（边界归中），双击 = 播放/暂停", () => {
+    const x = W / 3;
+    assert.equal(tapZone(x, W), "mid");
+    assert.equal(doubleTapAction(x, W).kind, "toggle");
+  });
+  check("x = 2W/3 - 1 → 中区，仍是播放/暂停", () => {
+    const x = (2 * W) / 3 - 1;
+    assert.equal(tapZone(x, W), "mid");
+    assert.equal(doubleTapAction(x, W).kind, "toggle");
+  });
+  check("x = 2W/3 → 右区，双击 +5s", () => {
+    const x = (2 * W) / 3;
+    assert.equal(tapZone(x, W), "right");
+    assert.equal(doubleTapAction(x, W).kind, "seek");
+    assert.equal(doubleTapAction(x, W).seconds, 5);
+  });
+  check("中区双击不出 seek（旧 doubleTapSeek 返回 0）", () => {
+    assert.equal(doubleTapSeek(W / 2, W), 0);
+    assert.equal(doubleTapSeek(10, W), -5);
+    assert.equal(doubleTapSeek(W - 10, W), 5);
   });
 
   console.log(`\nPassed: ${passed} 项手势判定单测`);

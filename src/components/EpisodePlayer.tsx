@@ -24,7 +24,7 @@ import { getHoldZone, stageXY, HOLD_DELAY_MS, HOLD_LOCK_DISTANCE, type HoldZone 
 import { playEnter, playExit, originFromPoint } from "../fsTransition";
 import { useFadeMount } from "../useFadeMount";
 import {
-  GESTURE, canSeek, doubleTapSeek, episodeIntent, isDoubleTap, isEdgeBackStart,
+  GESTURE, canSeek, doubleTapAction, episodeIntent, isDoubleTap, isEdgeBackStart,
   lockAxis, rotationLocked, seekDeltaSeconds, snapSeek, tapVerdict, type Axis,
 } from "../playerGestures";
 import {
@@ -254,7 +254,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   } | null>(null);
   /* 单击 / 双击判定：
      单击 = 两态（控件收起→唤出；可见→暂停/播放）；
-     双击 = 左半屏 −10s / 右半屏 +10s（窗口 280ms，见 playerGestures.isDoubleTap）。 */
+     双击 = 三分法：左 1/3 −5s / 中 1/3 播放暂停 / 右 1/3 +5s（窗口 280ms，见 playerGestures.tapZone）。 */
   const tapRef = useRef<{ lastAt: number; timer: number | null }>({ lastAt: 0, timer: null });
   /* 瞬时的 seek 提示（双击/松手后 800ms 消失）：不新增常驻控件，样式沿用现有胶囊类 */
   const [seekHint, setSeekHint] = useState<{ delta: number; target: number } | null>(null);
@@ -345,7 +345,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     window.clearTimeout(idleTimer.current);
     if (!isDesktop && fs) setIdle(true); else setClean(true);
   }, [isDesktop, fs, setClean]);
-  /* seek 提示气泡：显示 800ms 后自动消失（双击 ±10s / 松手吸附后各用一次） */
+  /* seek 提示气泡：显示 800ms 后自动消失（双击 ±5s / 松手吸附后各用一次；中区双击不出气泡） */
   const flashSeek = useCallback((delta: number, target: number) => {
     window.clearTimeout(seekHintTimer.current);
     setSeekHint({ delta, target });
@@ -1198,7 +1198,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     setEpPreview(null);
     /*
       单击 / 双击语义（重写）：
-        · 双击（280ms 内第二下）：左半屏 −10s、右半屏 +10s，屏上给 800ms 时间气泡；
+        · 双击（280ms 内第二下）：三分法 —— 左 1/3 退 −10s、中 1/3 播放/暂停（不出气泡）、
+          右 1/3 进 +10s，左右区给 800ms 时间气泡；
         · 单击两态：控件收起 → 唤出；控件可见 → 播放/暂停。
       以前双击被拆成两次单击（唤出 + 收起）互相抵消，用户根本感受不到双击。
     */
@@ -1211,7 +1212,15 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       if (isDoubleTap(tapRef.current.lastAt, now)) {
         window.clearTimeout(tapRef.current.timer ?? undefined);
         tapRef.current = { lastAt: 0, timer: null };
-        seekBy(doubleTapSeek(g.x, g.width));
+        const action = doubleTapAction(g.x, g.width);
+        if (action.kind === "toggle") {
+          /* 中区双击：播放/暂停，不出 seek 气泡（避免中间误触跳进度） */
+          videoRef.current?.toggle();
+          showControls();
+          armAutoHide();
+          return;
+        }
+        seekBy(action.seconds);
         showControls();
         return;
       }
