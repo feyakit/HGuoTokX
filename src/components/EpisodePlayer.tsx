@@ -1833,6 +1833,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   measurementKey={measurementKey}
                   /* 竖屏 9:16 片源在竖屏下铺满消黑边；横屏剧无论竖看还是横屏全屏一律 contain 不裁切 */
                   fit={isDesktop ? "contain" : (portraitVideo && !rotated && !vpLandscape) ? "cover" : "contain"}
+                  /* 黑边里要看得见虚化，就不能让 <video> 自己把整块舞台涂黑（bg-black → transparent）。
+                     cover 铺满时保持黑底不变。 */
+                  transparentBg={!isDesktop && letterbox}
                   onClick={() => { if (isDesktop) videoRef.current?.toggle(); }}
                   onTime={onTimeTick}
                   onDuration={onDurationTick}
@@ -2064,7 +2067,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   {/* 剧名只在没有顶部标题时才显示（顶部已有时这里重复，用户实测截图里两处同名）。
                       抖音模式保留 @作者 · 剧名，因为那里没有顶部标题。 */}
                   {(endless || !(mode === "context" && !fs)) && (
-                    <div className="mobile-video-meta-copy relative pb-2 flex items-center gap-2" style={{ paddingRight: 76 }}>
+                    <div className="mobile-video-meta-copy relative pb-2 flex items-center gap-2" data-hg-control="meta-bar" style={{ paddingRight: 76 }}>
                       <p className="flex-1 min-w-0 text-[15px] font-semibold leading-snug hg-ink-2 hg-ov-shadow-strong clamp-2">
                         {endless && meta.author ? `@${meta.author} · ` : ""}{meta.title}
                       </p>
@@ -2086,15 +2089,17 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                         <>
                           {episodes.length > 1 && (
                             <Button aria-label={`选集，当前第 ${curEp} 集，共 ${episodes.length} 集`}
+                              data-hg-control="episodes-entry"
                               onPointerDown={(e) => { e.stopPropagation(); }}
-                              onClick={(e) => { e.stopPropagation(); logLine("[panel] open episodes"); setPanel("episodes"); }}
+                              onClick={(e) => { e.stopPropagation(); logLine(`[panel] open episodes at ${Math.round(e.clientX)},${Math.round(e.clientY)}`); setPanel("episodes"); }}
                               className="min-h-11 flex items-center gap-1 text-[12px] font-medium hg-ink-2 hg-ov-shadow-strong pressable">
                               <IList size={13} />{seriesEnded ? "选集" : `选集 · 第 ${curEp}/${episodes.length} 集`}
                             </Button>
                           )}
                           <Button aria-label="视频详情"
+                            data-hg-control="detail-entry"
                             onPointerDown={(e) => { e.stopPropagation(); }}
-                            onClick={(e) => { e.stopPropagation(); logLine("[panel] open detail"); setPanel("detail"); }}
+                            onClick={(e) => { e.stopPropagation(); logLine(`[panel] open detail at ${Math.round(e.clientX)},${Math.round(e.clientY)}`); setPanel("detail"); }}
                             className="min-h-11 flex items-center gap-0.5 text-[12px] font-medium hg-ink-3 hg-ov-shadow-strong pressable">
                             详情<IChevR size={11} />
                           </Button>

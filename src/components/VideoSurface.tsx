@@ -32,6 +32,8 @@ type Props = {
   muted?: boolean;
   loop?: boolean;
   fit?: "contain" | "cover";
+  /** 背景透明：letterbox 时让视频不要自己把整块舞台涂黑，下面那层虚化才看得见 */
+  transparentBg?: boolean;
   /** 换源后重新套用，避免切集时音量/倍速被浏览器重置 */
   volume?: number;
   rate?: number;
@@ -50,7 +52,7 @@ type Props = {
 /** 只负责「播」：hls.js + video 元素，控制条由外层渲染。 */
 const VideoSurface = forwardRef<VideoHandle, Props>(function VideoSurface(
   { src, poster, autoPlay = true, active = true, measurementKey = src, diagnosticContext = {}, muted = false, loop = false, fit = "contain", volume = 1, rate = 1,
-    onTime, onDuration, onSize, onPlaying, onPause, onWaiting, onEnded, onError, onClick, className = "" },
+    onTime, onDuration, onSize, onPlaying, onPause, onWaiting, onEnded, onError, onClick, className = "", transparentBg = false },
   ref,
 ) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -243,7 +245,7 @@ const VideoSurface = forwardRef<VideoHandle, Props>(function VideoSurface(
       muted={muted}
       loop={loop}
       onClick={onClick}
-      className={`w-full h-full bg-black ${fit === "cover" ? "object-cover" : "object-contain"} ${className}`}
+      className={`w-full h-full ${transparentBg ? "bg-transparent" : "bg-black"} ${fit === "cover" ? "object-cover" : "object-contain"} ${className}`}
       style={{ opacity: ready ? 1 : 0, transition: "opacity .35s" }}
       onLoadedData={(e) => {
         const v = e.target as HTMLVideoElement;
