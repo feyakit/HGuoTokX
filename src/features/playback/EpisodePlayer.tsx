@@ -1704,7 +1704,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     pendingActions.current.add(pendingKey);
     const on = !collected;
     try {
-      await setCollected(kind, curId, on);
+      await setCollected(kind, curId, on, kind === "video" && episodes.length > 0 ? episodes.length : undefined);
       if (actionIsCurrent()) toast(on ? "已收藏" : "已取消收藏", on ? "star" : "info");
     } catch (error) {
       if (actionIsCurrent()) toast(error instanceof Error ? error.message : "收藏失败，请重试", "info");

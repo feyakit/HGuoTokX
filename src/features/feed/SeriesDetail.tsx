@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, cover, fmt } from "../../shared/api/api";
 import { cachedDetailStale, loadDetail } from "../../shared/api/detailFast";
 import { useStore } from "../../shared/model/store";
+import { detailEpisodeCount } from "../../shared/model/favoriteProgress";
 import { ambientStyle, useAccent } from "../../shared/ui/useAccent";
 import { Button } from "../../shared/ui/ios/controls";
 import { Img } from "../../shared/ui/ui";
@@ -108,7 +109,7 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
     if (favBusy) return;
     const next = !faved;
     setFavDelta(d => d + (next ? 1 : -1));
-    void setCollected("video", id, next)
+    void setCollected("video", id, next, detailEpisodeCount(detail))
       .then(() => toast(next ? "已加入收藏" : "已取消收藏", next ? "star" : "info"))
       .catch(e => {
         setFavDelta(d => d + (next ? -1 : 1));

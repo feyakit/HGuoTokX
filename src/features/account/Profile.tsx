@@ -7,6 +7,7 @@ import { useStore } from "../../shared/model/store";
 import { Empty, Img, Modal } from "../../shared/ui/ui";
 import { MediaCard } from "../../shared/ui/cards";
 import { useContentPreferences } from "../../shared/model/contentPreferences";
+import { detailEpisodeCount, formatWatchProgress, unwatchedNewEpisodes } from "../../shared/model/favoriteProgress";
 import { IBack, IBoltF, ICheck, IChevR, IClock, IMenuFollow, IMenuHistory, IMenuLikes, IPlayF, ISettings, IStar } from "../../shared/ui/icons";
 import { useVisibilityRefresh } from "../../shared/lib/dataFreshness";
 import { useLongPress } from "../../shared/lib/useLongPress";
@@ -585,7 +586,7 @@ export function FavoritesPage({ onBack, wide, initialTab = "video" }: { onBack: 
 
 function FavoritesContent({ onBack, wide, initialTab }: { onBack: () => void; wide: boolean; initialTab: "video" | "post" }) {
   const { blockReason } = useContentPreferences();
-  const { user, favs, postFavs, push, setTab, accountSync, syncAccount, setCollected, toast } = useStore();
+  const { user, favs, postFavs, history, favEpCounts, seedFavoriteEpisodes, ackFavoriteEpisodes, push, setTab, accountSync, syncAccount, setCollected, toast } = useStore();
   const [favTab, setFavTab] = useState<"video" | "post">(initialTab);
   const [cache, setCache] = useState<Record<number, Detail>>({});
   const cacheRef = useRef(cache);
@@ -662,6 +663,22 @@ function FavoritesContent({ onBack, wide, initialTab }: { onBack: () => void; wi
       if (mounted.current) setRemoving(false);
     }
   };
+
+  /* 首次拿到收藏详情时补基线（上游 #153）：只补「还没基线」的项，已有的不覆盖。 */
+  useEffect(() => {
+    if (!favs.length) return;
+    const toSeed: Record<number, number> = {};
+    for (const id of favs) {
+      if (favEpCounts[id] !== undefined) continue;
+      const detail = cache[id];
+      if (!detail) continue;
+      const latest = detailEpisodeCount(detail);
+      if (latest <= 0) continue;
+      const unwatched = unwatchedNewEpisodes(detail, history.find(h => h.id === id), undefined);
+      toSeed[id] = Math.max(1, latest - unwatched);
+    }
+    if (Object.keys(toSeed).length > 0) seedFavoriteEpisodes(toSeed);
+  }, [favs, cache, history, favEpCounts, seedFavoriteEpisodes]);
 
   const favoriteStateUnknown = !!user && !accountSync.favoritesKnown && favs.length === 0 && postFavs.length === 0;
   const favoriteSyncFailed = favoriteStateUnknown && !accountSync.busy;
@@ -798,17 +815,28 @@ function FavoritesContent({ onBack, wide, initialTab }: { onBack: () => void; wi
               <div className="flex justify-center py-8"><Loader className="w-7 h-7 spinner" /></div>
             ) : cards.length ? (
               <div className={`ios-media-grid ${wide ? "is-wide" : ""}`}>
-                {cards.map((c) => (
-                  <MediaCard key={c.id} blockedReason={blockReason(c.tags)} title={c.title} cover={c.cover} score={c.score}
-                    badge={c.is_finished ? "已完结" : `${c.episode_count} 集`}
-                    subtitle={c.tags?.slice(0, 2).join(" · ")}
-                    selectionMode={selectionMode} selected={selectedIds.includes(c.id)}
-                    onLongPress={() => beginSelection(c.id)}
-                    onOpen={() => {
-                      if (selectionMode) { toggleSelected(c.id); return; }
-                      push({ kind: "series", id: c.id });
-                    }} />
-                ))}
+                {cards.map((c) => {
+                  const progress = history.find(h => h.id === c.id);
+                  const latestCount = detailEpisodeCount(c);
+                  const unwatched = unwatchedNewEpisodes(c, progress, favEpCounts[c.id]);
+                  return (
+                    <MediaCard key={c.id} blockedReason={blockReason(c.tags)} title={c.title} cover={c.cover} score={c.score}
+                      badge={unwatched > 0 ? `新更 ${unwatched} 集` : (c.is_finished ? "已完结" : `${latestCount || c.episode_count} 集`)}
+                      badgeTone={unwatched > 0 ? "update" : "default"}
+                      subtitle={c.tags?.slice(0, 2).join(" · ")}
+                      progress={formatWatchProgress(progress, latestCount, c.is_finished)}
+                      selectionMode={selectionMode} selected={selectedIds.includes(c.id)}
+                      onLongPress={() => beginSelection(c.id)}
+                      onOpen={() => {
+                        if (selectionMode) { toggleSelected(c.id); return; }
+                        /* 点开就认账：把基线抬到最新，徽标随即消失（不然会一直挂着） */
+                        if (unwatched > 0 && latestCount > 0 && (progress?.ep ?? 0) < (favEpCounts[c.id] ?? latestCount)) {
+                          ackFavoriteEpisodes(c.id, latestCount);
+                        }
+                        push({ kind: "series", id: c.id });
+                      }} />
+                  );
+                })}
               </div>
             ) : failed.length ? (
               <Empty icon={<IStar size={24} />} title="收藏加载失败"

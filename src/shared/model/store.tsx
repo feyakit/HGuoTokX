@@ -149,13 +149,17 @@ type Store = {
   user: User | null; setUser: (u: User | null, origin?: string) => void;
   accountScope: string; accountSync: { busy: boolean; error: string; lastSynced: number; favoritesKnown: boolean };
   syncAccount: () => Promise<void>;
-  setCollected: (kind: "video" | "post", id: number, on: boolean) => Promise<void>;
+  setCollected: (kind: "video" | "post", id: number, on: boolean, knownEpisodes?: number) => Promise<void>;
   setLiked: (kind: "video" | "post", id: number, ep: number, on: boolean) => Promise<void>;
   setFollowing: (id: number, on: boolean) => Promise<void>;
   actionPending: (key: string) => boolean;
   loginOpen: boolean; setLoginOpen: (b: boolean) => void;
   logout: () => Promise<void>;
   likes: number[]; favs: number[]; postFavs: number[]; history: WatchProgress[]; postHistory: number[]; follows: number[];
+  /** 收藏时的集数基线：算「还有几集是新的」，只存本地（见 favoriteProgress.ts） */
+  favEpCounts: Record<number, number>;
+  seedFavoriteEpisodes: (entries: Record<number, number>) => void;
+  ackFavoriteEpisodes: (id: number, knownEpisodes: number) => void;
   isLiked: (id: number, ep?: number, kind?: "video" | "post") => boolean; isFav: (id: number, kind?: "video" | "post") => boolean;
   toggleLikeLocal: (id: number) => boolean;
   toggleFavLocal: (id: number) => boolean;
@@ -464,6 +468,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     user, setUser, loginOpen, setLoginOpen, logout,
     accountScope: account.accountScope, accountSync: account.accountSync, syncAccount: account.syncAccount,
     likes: account.likes, favs: account.favs, postFavs: account.postFavs, history: account.history, postHistory: account.postHistory, follows: account.follows,
+    favEpCounts: account.favEpCounts, seedFavoriteEpisodes: account.seedFavoriteEpisodes, ackFavoriteEpisodes: account.ackFavoriteEpisodes,
     isLiked: account.isLiked, isFav: account.isFav,
     setCollected: account.setCollected, setLiked: account.setLiked, setFollowing: account.setFollowing, actionPending: account.actionPending,
     toggleLikeLocal: account.toggleLikeLocal, toggleFavLocal: account.toggleFavLocal, toggleFollowLocal: account.toggleFollowLocal,

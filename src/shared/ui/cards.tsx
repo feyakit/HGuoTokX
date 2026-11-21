@@ -6,9 +6,9 @@ import { Button } from "./ios/controls";
 import { FilteredContent } from "./FilteredContent";
 import { useLongPress } from "../lib/useLongPress";
 
-export function MediaCard({ title, cover, subtitle, badge, progress, priority = false, onOpen, blockedReason, onLongPress, selectionMode = false, selected = false }: {
+export function MediaCard({ title, cover, subtitle, badge, badgeTone = "default", progress, priority = false, onOpen, blockedReason, onLongPress, selectionMode = false, selected = false }: {
   title: string; cover: string; subtitle?: string; badge?: string; progress?: string; score?: number; priority?: boolean; onOpen: () => void; blockedReason?: string | null;
-  onLongPress?: () => void; selectionMode?: boolean; selected?: boolean;
+  badgeTone?: "default" | "update"; onLongPress?: () => void; selectionMode?: boolean; selected?: boolean;
 }) {
   /* 多选入口（上游 #168）：长按或电脑右键进入，长按余波的那次 click 要吞掉。 */
   const { longPressProps, consumeSuppressedClick } = useLongPress(onLongPress);
@@ -37,7 +37,7 @@ export function MediaCard({ title, cover, subtitle, badge, progress, priority = 
   return <Button onClick={open} className={className} aria-label={ariaLabel} aria-pressed={pressed} {...longPressProps}>
     <span className={`ios-poster-art ${badge ? "has-poster-badge" : ""}`}>
       <Img src={cover} alt="" eager={priority} />
-      {badge && <span className="ios-poster-badge">{badge}</span>}
+      {badge && <span className={`ios-poster-badge${badgeTone === "update" ? " is-update" : ""}`}>{badge}</span>}
       {progress && <span className="ios-poster-progress"><IPlayF size={12} />{progress}</span>}
       <span className="ios-poster-play" aria-hidden="true"><IPlayF size={23} /></span>
       {selection}
