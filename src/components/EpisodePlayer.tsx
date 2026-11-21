@@ -659,6 +659,22 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const actionRail = useFadeMount(!fs && !clean && !isDesktop);
   const landscapeVideo = videoSize.w > 0 && videoSize.h > 0 && videoSize.w > videoSize.h;
   const portraitVideo = videoSize.w > 0 && videoSize.h > 0 && videoSize.w <= videoSize.h;
+  /* 横屏全屏切集时新一段还没有解码帧、横屏舞台尚未旋转；旧逻辑会立刻按竖屏锚点弹一次，
+     等舞台旋转后 ToastHost 又弹一次，看着像弹了两遍（上游 PR #191）。全屏下先把集数提示
+     暂存，等新片真正播起来（尺寸已测到 + playingKey 跟上）再弹一次；竖屏/桌面即时弹。
+     用 ref 暂存而不是闭包里判 fs：手势回调创建时的 fs 可能是旧值。 */
+  const pendingEpisodeToast = useRef<string | null>(null);
+  const queueEpisodeToast = (msg: string) => { pendingEpisodeToast.current = msg; };
+  useEffect(() => {
+    const pending = pendingEpisodeToast.current;
+    if (!pending) return;
+    if (err) { pendingEpisodeToast.current = null; return; }
+    if (!fs || isDesktop) { pendingEpisodeToast.current = null; toast(pending, "info"); return; }
+    /* 等的是「这一段的画面」，不是上一段的：舞台要等自己的尺寸和首帧播放就绪才转。 */
+    if (playingKey !== playKey || videoSize.key !== measurementKey || videoSize.h <= 0) return;
+    pendingEpisodeToast.current = null;
+    toast(pending, "info");
+  }, [err, fs, isDesktop, measurementKey, playKey, playingKey, toast, videoSize]);
   /* 舞台实测尺寸（用于判断是否真的有 letterbox：容器比画面更"方"才会出现上下黑边） */
   const [stageBox, setStageBox] = useState({ w: 0, h: 0 });
   /* 整页 pager 的进度（位移 / 舞台高，0..1）：高度还没量到时退回视频高，再退回 800 */
@@ -1370,7 +1386,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
             setHoldFrame(true);
             setEpSlide({ y: 0, animate: true, ms: GESTURE.episodeReducedMotionMs });
             setEpGhost(null);
-            toast(`第 ${want} 集${total ? ` / ${total}` : ""}`, "info");
+            queueEpisodeToast(`第 ${want} 集${total ? ` / ${total}` : ""}`);
             try { navigator.vibrate?.(12); } catch { /* ignore */ }
             return;
           }
@@ -1382,7 +1398,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
             setEpSlide({ y: 0, animate: true, ms: GESTURE.episodeCommitMs });
             window.setTimeout(() => setEpGhost(null), GESTURE.episodeCommitMs);
           }, GESTURE.episodeCommitMs);
-          toast(`第 ${want} 集${total ? ` / ${total}` : ""}`, "info");
+          queueEpisodeToast(`第 ${want} 集${total ? ` / ${total}` : ""}`);
           try { navigator.vibrate?.(12); } catch { /* ignore */ }
           return;
         }
