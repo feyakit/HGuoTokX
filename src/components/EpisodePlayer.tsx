@@ -885,7 +885,17 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
         if (kind === "video") addHistory(curId, curEp);
       })
       .catch((e) => { if (alive) setErr((e as Error).message || "取播放地址失败"); });
-    return () => { alive = false; };
+    /* 黑屏取证（用户报「某一集黑屏但控件正常」）：起播 3s 后看 videoWidth 与 currentTime。
+       videoWidth===0 → 解码没起来（0 字节 / 4xx / 只有音轨）；currentTime 不动 → 卡首帧。 */
+    const blackProbe = window.setTimeout(() => {
+      const v = videoRef.current?.el();
+      if (!v) return;
+      if (v.videoWidth === 0 || v.currentTime === 0) {
+        const src = v.currentSrc || v.src || "";
+        logLine(`[play] blackframe id=${curId} ep=${curEp} vw=${v.videoWidth} t=${v.currentTime.toFixed(2)} err=${v.error?.code ?? 0} proto=${src.split(":")[0]} len=${src.length}`);
+      }
+    }, 3000);
+    return () => { alive = false; window.clearTimeout(blackProbe); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, curId, curEp, proxyRetry, allowed, permissionKey, playBust, requestPlay]);
 
@@ -1743,7 +1753,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       <div ref={boxRef} onScroll={onScroll}
         className={`absolute inset-y-0 left-0 no-bar ${fs ? "overflow-hidden" : "overflow-y-scroll snap-y snap-mandatory overscroll-y-contain"}`}
         onTouchMove={(e) => { if (gesture.current && gesture.current.mode !== "idle") e.preventDefault(); }}
-        style={{ right: isDesktop && panel ? 372 : 0, transition: "right .3s cubic-bezier(.2,0,0,1)", touchAction: "none", overscrollBehavior: "contain" }}>
+        style={{ right: isDesktop && panel ? 372 : 0, transition: "right .3s cubic-bezier(.2,0,0,1)", overscrollBehavior: "contain" }}>
         {effectiveVideoIds.map((vid, i) => {
           const isActive = i === index;
           const sectionClass = `${fs && !isActive ? "hidden" : "relative w-full h-full"} snap-start snap-always overflow-hidden`;
@@ -2047,12 +2057,16 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                       ) : (
                         <>
                           {episodes.length > 1 && (
-                            <Button aria-label={`选集，当前第 ${curEp} 集，共 ${episodes.length} 集`} onClick={() => setPanel("episodes")}
+                            <Button aria-label={`选集，当前第 ${curEp} 集，共 ${episodes.length} 集`}
+                              onPointerDown={(e) => { e.stopPropagation(); }}
+                              onClick={(e) => { e.stopPropagation(); logLine("[panel] open episodes"); setPanel("episodes"); }}
                               className="min-h-11 flex items-center gap-1 text-[12px] font-medium hg-ink-2 hg-ov-shadow-strong pressable">
                               <IList size={13} />{seriesEnded ? "选集" : `选集 · 第 ${curEp}/${episodes.length} 集`}
                             </Button>
                           )}
-                          <Button aria-label="视频详情" onClick={() => setPanel("detail")}
+                          <Button aria-label="视频详情"
+                            onPointerDown={(e) => { e.stopPropagation(); }}
+                            onClick={(e) => { e.stopPropagation(); logLine("[panel] open detail"); setPanel("detail"); }}
                             className="min-h-11 flex items-center gap-0.5 text-[12px] font-medium hg-ink-3 hg-ov-shadow-strong pressable">
                             详情<IChevR size={11} />
                           </Button>
