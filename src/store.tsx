@@ -7,6 +7,7 @@ import type { AccentScheme } from "./accent";
 import { FALLBACK_SCHEME } from "./accent";
 import { readAmbient } from "./useAccent";
 import { pickGuestData, useAccountData, type GuestData } from "./accountData";
+import { popWithTransition } from "./pageTransition";
 
 export type Platform = "android" | "ios" | "windows" | "macos" | "linux";
 export type Tab = "home" | "posts" | "category" | "profile";
@@ -34,7 +35,8 @@ export type Page =
   | { kind: "favorites"; key: string; initialTab?: "video" | "post" }
   | { kind: "channel"; key: string; cate: string; name: string }
   | { kind: "ranks"; key: string }
-  | { kind: "settings"; key: string; section?: "内容偏好" }
+  | { kind: "settings"; key: string }
+  | { kind: "settings-tags"; key: string }
   | { kind: "posts"; key: string }
   | { kind: "post"; key: string; id: number }
   | { kind: "topics"; key: string }
@@ -52,7 +54,8 @@ export type PageInput =
   | { kind: "favorites"; initialTab?: "video" | "post" }
   | { kind: "channel"; cate: string; name: string }
   | { kind: "ranks" }
-  | { kind: "settings"; section?: "内容偏好" }
+  | { kind: "settings" }
+  | { kind: "settings-tags" }
   | { kind: "posts" }
   | { kind: "post"; id: number }
   | { kind: "topics" }
@@ -86,6 +89,8 @@ type Persist = GuestData & {
 };
 
 const LS = STORAGE_KEYS.app;
+/* 「我的」里给本机游客数据标来源用 */
+const GUEST_KEPT_KEY = "hguox_guest_kept_v1";
 const DEFAULTS: Persist = {
   likes: [], favs: [], postFavs: [], history: [], follows: [],
   muted: true, muteOnStartup: true, volume: 0.7, searchHist: [], swipeEp: true, preferHevc: true,
@@ -169,6 +174,15 @@ type Store = {
   lineEpoch: number;
   /** 当前封面取色（全站 accent 的唯一来源） */
   accent: AccentScheme; setAccent: (a: AccentScheme) => void;
+  /** 游客本机数据合并提示：非空表示要问用户 */
+  mergeOffer: { favs: number; history: number } | null;
+  beginGuestMerge: () => void;
+  /** 本机（游客）数据快照：用于「我的」里显示未同步的本地记录 */
+  guestSnapshot: () => GuestData;
+  acceptMerge: (onProgress?: (done: number, total: number) => void) => Promise<{ okFavs: number; failFavs: number; okHistory: number; failHistory: number }>;
+  declineMerge: () => void;
+  /** 用户选了「暂不同步」：本机数据保留，「我的」里标注来源 */
+  guestKept: boolean;
 };
 
 const Ctx = createContext<Store>(null as unknown as Store);
@@ -179,6 +193,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [p, setP] = useState<Persist>(loadPersist);
   const [tab, setTabRaw] = useState<Tab>("home");
   const [stack, setStack] = useState<Page[]>([]);
+  const stackRef = useRef<Page[]>(stack);
+  stackRef.current = stack;
   // Guest library writes must not roll back sound, quality, gestures or search preferences.
   const account = useAccountData(
     pickGuestData(p),
@@ -197,11 +213,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [cliRelaxed, setCliRelaxed] = useState(false);
   const [strictSecurityReady, setStrictSecurityReady] = useState(false);
   const [securityPending, setSecurityPending] = useState(false);
+  /* 游客本机数据 → 登录后合并提示（非阻断；选「暂不同步」后本地原样保留） */
+  const [mergeOffer, setMergeOffer] = useState<{ favs: number; history: number } | null>(null);
+  const [guestKept, setGuestKeptState] = useState<boolean>(() => {
+    try { return localStorage.getItem(GUEST_KEPT_KEY) === "1"; } catch { return false; }
+  });
+  const setGuestKept = useCallback((kept: boolean) => {
+    setGuestKeptState(kept);
+    try { kept ? localStorage.setItem(GUEST_KEPT_KEY, "1") : localStorage.removeItem(GUEST_KEPT_KEY); } catch { /* ignore */ }
+  }, []);
   const toastSeq = useRef(0);
 
   useEffect(() => {
     try { localStorage.setItem(LS, JSON.stringify(p)); } catch { /* ignore */ }
   }, [p]);
+
+  /** 登录成功后调用：本机（游客）有收藏/观看就发一条合并提示（非阻断） */
+  const beginGuestMerge = useCallback(() => {
+    const snap = accountRef.current.guestSnapshot();
+    const favs = snap.favs.filter((id) => Number.isSafeInteger(id) && id > 0).length;
+    const history = snap.history.filter((row) => Number.isSafeInteger(row.id) && row.id > 0).length;
+    if (!favs && !history) { setMergeOffer(null); return; }
+    setMergeOffer({ favs, history });
+  }, []);
+  const declineMerge = useCallback(() => {
+    setMergeOffer(null);
+    /* 本地数据原样保留，并在「我的」标注来源 */
+    setGuestKept(true);
+  }, [setGuestKept]);
 
   useEffect(() => {
     let request = 0;
@@ -250,6 +289,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setToasts((t) => [...t.slice(-2), { id, msg, icon }]);
     window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 2200);
   }, []);
+  const acceptMerge = useCallback(async (onProgress?: (done: number, total: number) => void) => {
+    const snap = accountRef.current.guestSnapshot();
+    setMergeOffer(null);
+    const result = await accountRef.current.mergeGuest(
+      { favs: snap.favs.filter((id) => Number.isSafeInteger(id) && id > 0), history: snap.history.filter((row) => Number.isSafeInteger(row.id) && row.id > 0) },
+      onProgress,
+    );
+    const ok = result.okFavs + result.okHistory;
+    const fail = result.failFavs + result.failHistory;
+    setGuestKept(fail > 0);
+    toast(fail > 0 ? `已同步 ${ok} 项，失败 ${fail} 项（失败的仍留在本机）` : `已同步 ${ok} 项到账号`, fail > 0 ? "info" : "ok");
+    return result;
+  }, [setGuestKept, toast]);
   /** 自动选线切换成功后由 `autoLine.ts` 派发，这里只负责显示 */
   useEffect(() => {
     const onLine = (e: Event) => {
@@ -327,12 +379,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (pg.kind === "topic" && top.kind === "topic" && top.slug === pg.slug) return s;
         if (pg.kind === "tag" && top.kind === "tag" && top.tag === pg.tag) return s;
         if (pg.kind === "channel" && top.kind === "channel" && top.cate === pg.cate) return s;
-        if (pg.kind === "tags" || pg.kind === "ranks" || pg.kind === "history" || pg.kind === "favorites" || pg.kind === "settings") return s;
+        if (pg.kind === "tags" || pg.kind === "ranks" || pg.kind === "history" || pg.kind === "favorites" || pg.kind === "settings" || pg.kind === "settings-tags") return s;
       }
       return [...s, { ...pg, key: `p${++seq}` } as Page];
     });
   }, []);
-  const pop = useCallback(() => setStack((s) => s.slice(0, -1)), []);
+  /* 返回/退出动画：真正出栈由 pageTransition 在动画结束后执行（减少动效/低端机直接切） */
+  const popping = useRef(false);
+  const pop = useCallback(() => {
+    if (popping.current) return;
+    const top = stackRef.current[stackRef.current.length - 1];
+    if (!top) return;
+    popping.current = true;
+    void popWithTransition(() => setStack((s) => s.slice(0, -1)), top.kind === "feed")
+      .finally(() => { popping.current = false; });
+  }, []);
 
   const addSearch = useCallback((q: string) => {
     const t = q.trim();
@@ -395,7 +456,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity,
     accent, setAccent: setAccentState,
     toasts, toast, lineEpoch,
+    mergeOffer, beginGuestMerge, acceptMerge, declineMerge, guestKept,
+    guestSnapshot: () => accountRef.current.guestSnapshot(),
   }), [tab, setTab, stack, push, pop, user, loginOpen, logout,
+    mergeOffer, beginGuestMerge, acceptMerge, declineMerge, guestKept,
     p, account,
     setMuted, setMuteOnStartup, setSwipeEp, setPreferHevc, setVolume, addSearch, clearSearchHist, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity,
     accent, setAccentState,

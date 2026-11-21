@@ -4,6 +4,7 @@
 @source "../index.html";
 @import "./styles/ios.css";
 @import "./styles/shelf.css";
+@import "./styles/pull-refresh.css";
 
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
@@ -96,7 +97,10 @@ button { cursor: pointer; font-family: inherit; }
 .a-rise { animation: kf-rise .34s cubic-bezier(.22,1,.36,1) both; }
 @keyframes kf-scale-in { from{opacity:0;transform:scale(.95)} to{opacity:1;transform:scale(1)} }
 @keyframes kf-page-in { from{opacity:0;transform:translate3d(28px,0,0)} to{opacity:1;transform:translate3d(0,0,0)} }
-.a-page-in { animation: kf-page-in .28s cubic-bezier(.22,1,.36,1) both; }
+/* 注意不能 both/forwards：动画结束保留 transform:translate3d(0,0,0) 也会建立包含块，
+   于是页面里的 position:fixed 全屏层改成相对这个祖先定位（真机横屏全屏只占半屏的根因之一）。
+   首尾帧都是 0 位移，不保留最终帧视觉上完全一样。 */
+.a-page-in { animation: kf-page-in .28s cubic-bezier(.22,1,.36,1); }
 @keyframes kf-page-out { from{opacity:1;transform:translate3d(0,0,0)} to{opacity:0;transform:translate3d(24px,0,0)} }
 .a-page-out { animation: kf-page-out .2s cubic-bezier(.4,0,1,1) both; }
 @keyframes kf-win-in { from{opacity:0;transform:translate3d(0,10px,0) scale(.992)} to{opacity:1;transform:translate3d(0,0,0) scale(1)} }
@@ -420,7 +424,7 @@ input[type="range"].hg-range::-webkit-slider-thumb { -webkit-appearance: none; w
 /* 说明：WebView2 里 overflow:hidden 裁视频层不做抗锯齿，必须用 clip-path + 独立合成层 */
 .player-surface {
   border-radius: 12px;
-  background: #15181d;
+  background: #000000;
   isolation: isolate;
   overflow: hidden;
   clip-path: inset(0 round 12px);
@@ -437,7 +441,8 @@ input[type="range"].hg-range::-webkit-slider-thumb { -webkit-appearance: none; w
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.055);
 }
 .player-surface .player-root,
-.player-root { background: #15181d; }
+/* 播放器页固定纯黑（用户：只有播放页去掉取色/氛围，背景纯黑） */
+.player-root { background: #000000; }
 
 /* —— 播放页氛围底：非视频区（信箱区/上下条/桌面周边）用当前剧封面的取色 ——
    --deep 是封面主色压到 L=.12 的暗版，--ambient 是钳制过的原强调色，都由 ambientStyle() 挂在
@@ -448,7 +453,6 @@ input[type="range"].hg-range::-webkit-slider-thumb { -webkit-appearance: none; w
   inset: 0;
   pointer-events: none;
   background-color: var(--deep, #05060a);
-  /* 顶部与底部叠加主取色与辅取色径向光晕，适度压暗以衬托视频主体而不吞没色彩 */
   background-image:
     radial-gradient(85% 42% at 50% 0%, var(--ambient, #7C5CFF) 0%, rgba(0, 0, 0, 0) 72%),
     radial-gradient(85% 42% at 50% 100%, var(--accent-2, var(--ambient, #3B82F6)) 0%, rgba(0, 0, 0, 0) 72%),
@@ -461,13 +465,21 @@ input[type="range"].hg-range::-webkit-slider-thumb { -webkit-appearance: none; w
       rgba(0, 0, 0, .18) 100%);
 }
 .hg-player-ambient[data-ambient="fallback"] .hg-player-ambient-layer { display: none; }
+/* 播放页固定纯黑（用户：只有播放页去取色）："none" 下整块与任何残留氛围层都必须是纯黑 */
+.hg-player-ambient[data-ambient="none"],
+.hg-player-ambient[data-ambient="none"] .hg-player-ambient-layer { background: #000000; background-image: none; }
+/* 播放页里的封面占位/错误块也用纯黑：原来取 --p-s2 的深灰，在信箱区看得见（"上边不黑"的一部分） */
+.player-root .ios-image,
+.player-root .ios-image-error { background-color: #000000; }
 
 /* —— 移动端沉浸全屏：固定铺满视口，不受外层滚动容器影响 —— */
 .fs-immersive {
   position: fixed;
   inset: 0;
-  width: 100vw; height: 100vh;
-  width: 100dvw; height: 100dvh;
+  /* 用 --vp-w/--vp-h（window.innerWidth/Height 的真实像素）：iOS 在原生全屏/旋转期间
+     会把 100vw/100dvh 按旋转前的竖屏视口解析，导致全屏层只有半屏宽。 */
+  width: var(--vp-w, 100vw); height: var(--vp-h, 100vh);
+  width: var(--vp-w, 100dvw); height: var(--vp-h, 100dvh);
   z-index: 45;
   background: #000;
   overflow: hidden;
@@ -477,8 +489,10 @@ input[type="range"].hg-range::-webkit-slider-thumb { -webkit-appearance: none; w
 .fs-landscape {
   position: fixed;
   top: 50%; left: 50%; right: auto; bottom: auto;
-  width: 100vh; height: 100vw;
-  width: 100dvh; height: 100dvw;
+  /* 伪横屏是「把竖屏视口转 90° 用」：宽=视口高，高=视口宽，必须成对交换，
+     否则系统真转横后会出现「宽按竖屏算」的半月形黑边（真机 46% 宽度那次）。 */
+  width: var(--vp-h, 100vh); height: var(--vp-w, 100vw);
+  width: var(--vp-h, 100dvh); height: var(--vp-w, 100dvw);
   transform: translate(-50%, -50%) rotate(90deg);
   transform-origin: center center;
   z-index: 45;
@@ -594,3 +608,19 @@ input[type="range"].hg-range::-webkit-slider-thumb { -webkit-appearance: none; w
 /* 只有一条流时画质是「静态信息」不是按钮：压一点不透明度、不要手型光标，
    视觉尺寸与倍速胶囊完全一致（都是 h-8 / text-[12px]）。 */
 .hg-quality-fixed { opacity: 0.72; cursor: default; }
+
+
+/* ============ 动效常量（v3.0.6 移动端体验批次） ============
+   新增过渡只用这四个；已有规则保持不动（避免一次改全站手感）。 */
+:root {
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 280ms;
+  --ease-out: cubic-bezier(.2,.8,.2,1);
+  --ease-in: cubic-bezier(.4,0,1,1);
+}
+/* 骨架 → 内容交叉淡入：只切一次，不闪两下 */
+@keyframes hg-crossfade-in { from { opacity: 0; } to { opacity: 1; } }
+.hg-crossfade { animation: hg-crossfade-in var(--dur-1) var(--ease-out); }
+/* 长列表滚动：iOS 惯性（老写法，新内核忽略也不报错） */
+.scroll-y { -webkit-overflow-scrolling: touch; }

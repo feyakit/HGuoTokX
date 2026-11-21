@@ -522,12 +522,35 @@ pub fn set_text_interaction(app: tauri::AppHandle, enabled: bool) -> Result<(), 
 
 #[cfg(target_os = "ios")]
 fn request_ios_orientation(landscape: bool) {
+    /* iOS 16+ 的正确转屏姿势：拿前台活跃的 UIWindowScene，调
+       -[UIWindowScene requestGeometryUpdateWithPreferences:errorHandler:]。
+       参数用 +[UIWindowSceneGeometryPreferencesIOS preferencesWithInterfaceOrientations:]。
+
+       ⚠️ 这里**故意不做**旧系统的 KVC 兜底（`UIDevice setValue:forKey:@"orientation"` +
+       `attemptRotationToDeviceOrientation`）：
+         · 那条路在 iOS 16+ 会抛 NSInternalInconsistencyException
+           （"Supported orientations has gone out of sync..."）；
+         · Rust 侧接不住 ObjC 异常，异常会直接把进程带走（和安卓 SIGABRT 同类事故）。
+       旧系统拿不到 UIWindowSceneGeometryPreferencesIOS 时直接返回，前端继续用
+       `.fs-landscape` 的 CSS 伪横屏 —— 宁可画面靠 CSS 转，也不能崩。
+
+       另外：Info.plist 的 UISupportedInterfaceOrientations 必须包含横屏，
+       否则系统会拒绝几何更新（控制台报 "Supported orientations has gone out of sync"）。
+       见 `src-tauri/Info.ios.plist`（被 Tauri 合并进工程，CI 也生效）。 */
     use std::ffi::{c_char, c_void};
     extern "C" {
         fn objc_getClass(name: *const c_char) -> *mut c_void;
         fn sel_registerName(name: *const c_char) -> *mut c_void;
         fn objc_msgSend();
     }
+
+    /* UIInterfaceOrientationMask：Portrait = 1<<1 = 2；LandscapeLeft = 1<<3 = 8；
+       LandscapeRight = 1<<4 = 16；UIInterfaceOrientationMaskLandscape = 8|16 = 24。
+       这里横屏用 24（两个方向都允许），避免只因某个方向在 plist 里被允许而请求落空。 */
+    const MASK_PORTRAIT: usize = 2;
+    const MASK_LANDSCAPE: usize = 24;
+    const ACTIVE_FOREGROUND: usize = 0; // UIApplicationStateActive / UIScene.ActivationState.foregroundActive
+
     unsafe {
         let msg0: unsafe extern "C" fn(*mut c_void, *mut c_void) -> *mut c_void =
             std::mem::transmute(objc_msgSend as *const ());
@@ -535,80 +558,70 @@ fn request_ios_orientation(landscape: bool) {
             std::mem::transmute(objc_msgSend as *const ());
         let msg1_usize: unsafe extern "C" fn(*mut c_void, *mut c_void, usize) -> *mut c_void =
             std::mem::transmute(objc_msgSend as *const ());
-        let msg2_ptr: unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void) =
+        let msg1_bool: unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void) -> bool =
             std::mem::transmute(objc_msgSend as *const ());
-        let msg1_void: unsafe extern "C" fn(*mut c_void, *mut c_void) =
+        let msg2_void: unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void) =
             std::mem::transmute(objc_msgSend as *const ());
 
-        // iOS 16+ UIWindowScene.requestGeometryUpdateWithPreferences:errorHandler:
-        // UIInterfaceOrientationMaskPortrait = 1 << 1 = 2
-        // UIInterfaceOrientationMaskLandscapeRight = 1 << 3 = 8
-        let mask: usize = if landscape { 8 } else { 2 };
         let prefs_cls = objc_getClass(b"UIWindowSceneGeometryPreferencesIOS\0".as_ptr() as *const c_char);
         let app_cls = objc_getClass(b"UIApplication\0".as_ptr() as *const c_char);
-        if !prefs_cls.is_null() && !app_cls.is_null() {
-            let sel_alloc = sel_registerName(b"alloc\0".as_ptr() as *const c_char);
-            let sel_init = sel_registerName(b"initWithInterfaceOrientations:\0".as_ptr() as *const c_char);
-            let raw_prefs = msg0(prefs_cls, sel_alloc);
-            let prefs = if !raw_prefs.is_null() {
-                msg1_usize(raw_prefs, sel_init, mask)
-            } else {
-                std::ptr::null_mut()
-            };
-
-            let sel_shared = sel_registerName(b"sharedApplication\0".as_ptr() as *const c_char);
-            let app = msg0(app_cls, sel_shared);
-            if !app.is_null() && !prefs.is_null() {
-                let sel_scenes = sel_registerName(b"connectedScenes\0".as_ptr() as *const c_char);
-                let scenes_set = msg0(app, sel_scenes);
-                if !scenes_set.is_null() {
-                    let sel_all = sel_registerName(b"allObjects\0".as_ptr() as *const c_char);
-                    let arr = msg0(scenes_set, sel_all);
-                    if !arr.is_null() {
-                        let sel_count = sel_registerName(b"count\0".as_ptr() as *const c_char);
-                        let sel_at = sel_registerName(b"objectAtIndex:\0".as_ptr() as *const c_char);
-                        let sel_req = sel_registerName(
-                            b"requestGeometryUpdateWithPreferences:errorHandler:\0".as_ptr() as *const c_char,
-                        );
-                        let sel_responds = sel_registerName(b"respondsToSelector:\0".as_ptr() as *const c_char);
-                        let msg_responds: unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void) -> bool =
-                            std::mem::transmute(objc_msgSend as *const ());
-                        let count = msg0_usize(arr, sel_count);
-                        for i in 0..count {
-                            let scene = msg1_usize(arr, sel_at, i);
-                            if !scene.is_null() && msg_responds(scene, sel_responds, sel_req) {
-                                msg2_ptr(scene, sel_req, prefs, std::ptr::null_mut());
-                            }
-                        }
-                    }
-                }
-            }
+        /* iOS < 16 没有这个类：直接放弃，交给 CSS 伪横屏（不调会抛异常的旧 API） */
+        if prefs_cls.is_null() || app_cls.is_null() {
+            return;
         }
 
-        // Fallback: UIDevice setValue:forKey:@"orientation" + attemptRotationToDeviceOrientation
-        let dev_cls = objc_getClass(b"UIDevice\0".as_ptr() as *const c_char);
-        let num_cls = objc_getClass(b"NSNumber\0".as_ptr() as *const c_char);
-        let str_cls = objc_getClass(b"NSString\0".as_ptr() as *const c_char);
-        let vc_cls = objc_getClass(b"UIViewController\0".as_ptr() as *const c_char);
-        if !dev_cls.is_null() && !num_cls.is_null() && !str_cls.is_null() {
-            let sel_cur = sel_registerName(b"currentDevice\0".as_ptr() as *const c_char);
-            let dev = msg0(dev_cls, sel_cur);
-            let sel_num = sel_registerName(b"numberWithInteger:\0".as_ptr() as *const c_char);
-            let orient_val: usize = if landscape { 3 } else { 1 };
-            let num = msg1_usize(num_cls, sel_num, orient_val);
-            let sel_str = sel_registerName(b"stringWithUTF8String:\0".as_ptr() as *const c_char);
-            let msg_str: unsafe extern "C" fn(*mut c_void, *mut c_void, *const c_char) -> *mut c_void =
-                std::mem::transmute(objc_msgSend as *const ());
-            let key = msg_str(str_cls, sel_str, b"orientation\0".as_ptr() as *const c_char);
-            if !dev.is_null() && !num.is_null() && !key.is_null() {
-                let sel_set_val = sel_registerName(b"setValue:forKey:\0".as_ptr() as *const c_char);
-                msg2_ptr(dev, sel_set_val, num, key);
+        let sel_prefs = sel_registerName(b"preferencesWithInterfaceOrientations:\0".as_ptr() as *const c_char);
+        let responds = sel_registerName(b"respondsToSelector:\0".as_ptr() as *const c_char);
+        if !msg1_bool(prefs_cls, responds, sel_prefs) {
+            return;
+        }
+        let mask = if landscape { MASK_LANDSCAPE } else { MASK_PORTRAIT };
+        let prefs = msg1_usize(prefs_cls, sel_prefs, mask);
+        if prefs.is_null() {
+            return;
+        }
+
+        let app = msg0(app_cls, sel_registerName(b"sharedApplication\0".as_ptr() as *const c_char));
+        if app.is_null() {
+            return;
+        }
+        let scenes_set = msg0(app, sel_registerName(b"connectedScenes\0".as_ptr() as *const c_char));
+        if scenes_set.is_null() {
+            return;
+        }
+        let arr = msg0(scenes_set, sel_registerName(b"allObjects\0".as_ptr() as *const c_char));
+        if arr.is_null() {
+            return;
+        }
+
+        let sel_count = sel_registerName(b"count\0".as_ptr() as *const c_char);
+        let sel_at = sel_registerName(b"objectAtIndex:\0".as_ptr() as *const c_char);
+        let sel_state = sel_registerName(b"activationState\0".as_ptr() as *const c_char);
+        let sel_req =
+            sel_registerName(b"requestGeometryUpdateWithPreferences:errorHandler:\0".as_ptr() as *const c_char);
+        let count = msg0_usize(arr, sel_count);
+
+        /* 优先前台活跃的那个 scene（多窗口/iPad 场景下不一定只有一个） */
+        let mut target: *mut c_void = std::ptr::null_mut();
+        for i in 0..count {
+            let scene = msg1_usize(arr, sel_at, i);
+            if scene.is_null() || !msg1_bool(scene, responds, sel_req) {
+                continue;
             }
-            if !vc_cls.is_null() {
-                let sel_attempt = sel_registerName(b"attemptRotationToDeviceOrientation\0".as_ptr() as *const c_char);
-                msg1_void(vc_cls, sel_attempt);
+            if msg0_usize(scene, sel_state) == ACTIVE_FOREGROUND {
+                target = scene;
+                break;
+            }
+            if target.is_null() {
+                target = scene;
             }
         }
+        if target.is_null() {
+            return;
+        }
+        /* errorHandler 传 NULL：失败只会在系统日志里留一行，不会抛异常、不会崩，
+           前端继续走 .fs-landscape 的 CSS 伪横屏。 */
+        msg2_void(target, sel_req, prefs, std::ptr::null_mut());
     }
 }
 

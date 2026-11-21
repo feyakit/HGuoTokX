@@ -157,8 +157,9 @@
    只在「横屏 + 视口高 ≤560」生效，竖屏(393/411dp)、平板、桌面窗口零影响。
    底栏不遮内容这一项不必改：导航栏实高 90px（12+66+12），页面已预留 110px+sab。 */
 @media (orientation: landscape) and (max-height: 560px) {
-  .plat-android .win-main,
-  .plat-ios .win-main { width: 100%; max-width: 440px; margin-inline: auto; }
+  /* 只在「tab 页」上限宽：栈页（详情/播放器）必须铺满，否则全屏层被压在手机宽度里 */
+  .plat-android .win-main[data-stack="0"],
+  .plat-ios .win-main[data-stack="0"] { width: 100%; max-width: 440px; margin-inline: auto; }
 }
 .win-titlebar { height:44px; background:var(--p-canvas); }
 .win-wordmark { font-size:14px; letter-spacing:-.3px; }
@@ -237,7 +238,8 @@
 .ios-mobile-nav-item:not(:disabled):active { scale:.9; }
 .win-nav-item.is-selected { animation:ios-select .36s var(--ios-spring); }
 .ios-tab-active { animation:ios-tab-in .32s var(--ios-spring); }
-.a-page-in,.win-page-in { animation:ios-page-in .38s var(--ios-spring) both; }
+/* 不加 both/forwards：残留的 transform 会为 position:fixed 建立包含块（见 index.css 注释） */
+.a-page-in,.win-page-in { animation:ios-page-in .38s var(--ios-spring); }
 .ios-overlay.is-open .ios-dialog { animation:ios-dialog-in .32s var(--ios-spring) both; }
 .ios-overlay-sheet.is-open .ios-dialog { animation:ios-sheet-in .38s var(--ios-spring) both; }
 .ios-overlay.is-closing .ios-dialog { opacity:0; scale:.98; translate:0 8px; transition:opacity .15s,scale .15s,translate .15s; }
@@ -335,7 +337,7 @@ body { background:var(--motion-paper); }
 @keyframes motion-sheet-in { from{opacity:0;transform:translate3d(0,28px,0)} to{opacity:1;transform:translate3d(0,0,0)} }
 @keyframes motion-dialog-out { from{opacity:1;transform:none} to{opacity:0;transform:translate3d(0,8px,0) scale(.985)} }
 .a-rise { animation:motion-rise .3s var(--motion-spring) both; }
-.a-page-in,.win-page-in { animation:motion-page-in .28s var(--motion-spring) both; }
+.a-page-in,.win-page-in { animation:motion-page-in .28s var(--motion-spring); }
 .ios-tab-active { animation:motion-tab-in .26s var(--motion-spring) both; }
 .a-toast { animation:motion-dialog-in .26s var(--motion-spring) both; }
 
@@ -438,55 +440,39 @@ body { background:var(--motion-paper); }
   .ios-category-links .ios-collection-subtitle { grid-column:1 / -1; grid-row:2; min-width:0; margin-top:0; line-height:1.5; overflow-wrap:anywhere; }
 }
 .ios-page-body { scrollbar-gutter:stable; }
-/* Settings uses one width from its persistent back action through all groups.
-   Hidden panels stay mounted to retain drafts without leaving tabbable controls. */
-.ios-settings-column { width:100%; max-width:720px; margin-inline:auto; }
-.ios-settings-content { padding-bottom:calc(40px + var(--sab,0px)); }
-.ios-settings-header { overflow-y:hidden; scrollbar-gutter:stable; scrollbar-width:thin; padding-block:calc(var(--sat,0px) + 12px) 12px; }
-.ios-settings-header::-webkit-scrollbar { width:5px; }
-.ios-settings-section { margin-block:0 12px; }
-/* Heading, summary, controls and reveal share one clipped glass surface. */
-.ios-settings-frame { isolation:isolate; }
-.ios-settings-frame>h2 { margin:0; }
-.ios-settings-frame>h2:not(:last-child) { border-bottom:0; }
-.ios-settings-frame[data-open=true]>h2 { border-bottom:1px solid var(--ios-edge); }
-.ios-settings-frame>.ios-settings-panel { min-height:0; }
-.ios-settings-fields>div,.ios-settings-fields>button { min-height:78px; }
-.ios-settings-fields>:not(:last-child) { border-bottom:1px solid var(--ios-edge); }
-.ios-settings-trigger.ios-button { display:flex; align-items:center; gap:12px; width:100%; min-block-size:76px; padding:14px 18px; text-align:left; color:var(--p-on); scroll-margin-block:12px; border-radius:0; }
-.ios-settings-trigger.ios-button:focus-visible { outline-offset:-4px; border-radius:22px; }
-.ios-settings-section .ios-settings-trigger.ios-button:not(:disabled):active { scale:1; background:var(--p-hover); }
-.ios-settings-heading { display:flex; flex:1; min-width:0; flex-direction:column; gap:4px; }
-.ios-settings-title { font-size:16px; line-height:1.5; font-weight:700; overflow-wrap:anywhere; }
-.ios-settings-summary { font-size:12px; line-height:1.5; font-weight:400; color:var(--p-mut); overflow-wrap:anywhere; }
-.ios-settings-badge { flex:none; max-width:136px; padding:3px 9px; border-radius:999px; background:rgba(255,255,255,.07); border:1px solid var(--ios-edge); color:var(--p-mut); font-size:11.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.ios-settings-overview { margin-top:14px; padding:12px 14px; border-radius:18px; background:rgba(255,255,255,.05); border:1px solid var(--ios-edge); display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; }
-.ios-settings-overview-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-width:0; }
-.ios-settings-overview-chip { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:999px; background:rgba(124,92,255,.14); border:1px solid rgba(124,92,255,.28); color:#D8CCFF; font-size:12px; font-weight:600; max-width:180px; }
-.ios-settings-overview-chip>span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.ios-settings-quick-jumps { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
-.ios-button.ios-settings-jump-btn { min-height:30px; height:30px; padding:0 11px; border-radius:999px; background:rgba(255,255,255,.08); border:1px solid var(--ios-edge); color:var(--p-on); font-size:12px; font-weight:600; }
-.ios-settings-chevron { flex:none; transition:transform .24s var(--motion-spring-soft); }
-.ios-settings-trigger[aria-expanded=true] .ios-settings-chevron { transform:rotate(90deg); }
-.ios-settings-panel[hidden] { display:none; }
-.ios-settings-panel { position:relative; }
-.ios-settings-frame::after {
-  content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:0;
-  background:
-    radial-gradient(120% 140% at 50% -10%, color-mix(in srgb, var(--p-primary) 34%, transparent), transparent 58%),
-    radial-gradient(90% 90% at 50% 50%, var(--p-glow), transparent 70%);
-  opacity:0;
-}
-.ios-settings-frame[data-open=true]::after { animation:ios-settings-glow .55s ease-out; }
-.ios-settings-panel:not([hidden]) { animation:settings-panel-in .22s ease-out; }
-.ios-settings-log-path { padding-inline:18px; }
-.ios-settings-log-path>summary { min-block-size:44px; }
-@keyframes settings-panel-in { from { opacity:.6; translate:0 -4px; } to { opacity:1; translate:0 0; } }
-@keyframes ios-settings-glow { 0% { opacity:0; } 45% { opacity:1; } 100% { opacity:0; } }
-@media(prefers-reduced-motion:reduce) {
-  .ios-settings-panel:not([hidden]),.ios-settings-frame[data-open=true]::after { animation:none; }
-  .ios-settings-chevron { transition:none; }
-}
+/* Settings：从返回按钮到最后一组统一一条 720px 栏宽。
+   七组平铺、不折叠——组标题在卡外，行右侧只有三种形态：开关 / 当前值+› / 仅›。 */
+.hg-set-column { width:100%; max-width:720px; margin-inline:auto; padding:0 14px calc(40px + var(--sab,0px)); }
+.hg-set-header { display:flex; align-items:center; padding:calc(var(--sat,0px) + 8px) 14px 4px; }
+.hg-set-status { margin:8px 0 0; padding:0 4px; font-size:12px; line-height:1.5; color:#8A8AA3;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+.hg-set-group { margin-top:24px; }
+.hg-set-group-title { margin:0 0 8px; padding:0 4px; font-size:12px; font-weight:600; letter-spacing:.02em; color:#8A8AA3; }
+.hg-set-card { background:var(--p-s1); border:1px solid rgba(255,255,255,.10); border-radius:20px; overflow:hidden;
+  box-shadow:0 2px 8px rgba(0,0,0,.18); }
+
+.hg-set-row { position:relative; display:flex; align-items:center; gap:12px; width:100%;
+  min-height:56px; padding:10px 16px; }
+.ios-button.hg-set-row { min-block-size:56px; border:0; border-radius:0; background:none; text-align:left; color:var(--p-on); }
+.ios-button.hg-set-row:active { background:rgba(255,255,255,.05); }
+.ios-button.hg-set-row:focus-visible { outline-offset:-4px; border-radius:12px; }
+.hg-set-row + .hg-set-row::before { content:""; position:absolute; left:56px; right:0; top:0; height:1px;
+  background:rgba(255,255,255,.08); }
+.hg-set-row-copy { flex:1; min-width:0; display:flex; flex-direction:column; }
+.hg-set-row-title { font-size:15px; font-weight:500; line-height:1.3; color:var(--p-on); overflow-wrap:anywhere; }
+.hg-set-row-sub { margin-top:3px; font-size:12px; line-height:1.35; color:#9CA3AF;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.hg-set-row-value { flex:none; max-width:40%; font-size:12.5px; color:#9CA3AF;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.hg-set-row-icon { flex:none; display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px;
+  border-radius:8px; background:rgba(255,255,255,.07); color:#C9C9D1; }
+.hg-set-row-chev { flex:none; color:#8A8AA3; }
+.hg-set-row.is-danger .hg-set-row-title, .hg-set-row.is-danger .hg-set-row-chev { color:var(--p-danger); }
+.hg-set-row.is-danger .hg-set-row-icon { background:rgba(255,142,149,.14); color:var(--p-danger); }
+.hg-set-log-path { padding:0 16px; border-top:1px solid rgba(255,255,255,.08); }
+.hg-set-log-path>summary { min-block-size:44px; display:flex; align-items:center; cursor:pointer; font-size:12px; color:#9CA3AF; }
+.hg-set-log-path>p { margin:0 0 12px; font-size:12px; line-height:1.5; color:#8A8AA3; word-break:break-all; }
 .ios-search-hot-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:8px; }
 .ios-search-hot-item.ios-button { display:flex; align-items:center; gap:12px; width:100%; min-height:60px; padding:10px 12px; text-align:left; background:var(--p-s3); }
 .ios-search-hot-rank { flex-shrink:0; min-width:24px; font-size:15px; font-weight:750; font-variant-numeric:tabular-nums; }
@@ -543,3 +529,173 @@ body { background:var(--motion-paper); }
   .ios-mobile-nav .hg-drop>.ios-liquid-fill,.ios-segmented-indicator { background:Highlight; }
   .ios-mobile-nav .ios-mobile-nav-item[aria-current=page],.ios-mobile-nav[data-over-video=true] .ios-mobile-nav-item[aria-current=page],.ios-segmented-items>[aria-pressed=true] { color:HighlightText!important; }
 }
+
+
+/* ============ 移动端体验层（v3.0.6 第三批） ============
+   页面转场 / 点击反馈 / 面板时长。桌面壳不参与（只在 plat-android / plat-ios 下生效）。 */
+@keyframes hg-page-forward { from { opacity: 0; transform: translate3d(0, 8px, 0); } to { opacity: 1; transform: none; } }
+@keyframes hg-page-back { from { opacity: 1; transform: none; } to { opacity: 0; transform: translate3d(0, 8px, 0); } }
+
+.plat-android .a-page-in,
+.plat-ios .a-page-in { animation: hg-page-forward 180ms var(--ease-out); }
+.plat-android .a-page-out,
+.plat-ios .a-page-out { animation: hg-page-back var(--dur-1) var(--ease-in) both; }
+
+/* 点击反馈：
+   · 按钮/胶囊按下 98%（覆盖旧的 transform:none，这是用户要的"有反馈"）
+   · 卡片与列表行给一层底色高亮（抖音也有），只用 :active，不挂 JS，不影响滚动 */
+.pressable:active:not(:disabled) { transform: scale(.98); transition: transform var(--dur-1) var(--ease-out); }
+.hg-wide-card:active,
+.hg-tl-card:active,
+.hg-poster:active,
+.hg-profile-guest:active { background-color: rgba(255, 255, 255, .06); transition: background-color var(--dur-1) linear; }
+.ios-button[data-card]:active { background-color: rgba(255, 255, 255, .07); }
+
+/* 面板/抽屉：进出统一 220ms（遮罩 160ms），与 .ios-overlay 的既有 keyframes 合并 */
+.ios-overlay.is-open .ios-dialog { animation-duration: var(--dur-2); animation-timing-function: var(--ease-out); }
+.ios-overlay-backdrop { transition: opacity 160ms var(--ease-out); }
+
+
+/* ============ 状态变化动画统一层（v3.0.6 第三批·全量盘点） ============
+   只动 transform / opacity / 颜色类可合成属性；不改布局尺寸、不改配色。
+   过渡关掉时（reduced-motion / data-fx=low）见文件末尾的降级块。 */
+@keyframes hg-fade-in { from { opacity: 0; transform: translate3d(0, 6px, 0); } to { opacity: 1; transform: none; } }
+@keyframes hg-fade-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translate3d(0, 6px, 0); } }
+.hg-fade-in { animation: hg-fade-in 160ms var(--ease-out) both; }
+/* 淡出期间不接点击：卸载前那 120ms 不能挡住下面的控件 */
+.hg-fade-out { animation: hg-fade-out 120ms var(--ease-in) both; pointer-events: none; }
+
+/* toast：滑入 200ms（原来 260ms），退出由挂载层直接移除 */
+.a-toast { animation-duration: var(--dur-2); animation-timing-function: var(--ease-out); }
+
+/* 设置开关：滑块 160ms --ease-out，轨道颜色同步 */
+.ios-switch-thumb { transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out); }
+.ios-switch-track { transition: background-color 160ms var(--ease-out), border-color 160ms var(--ease-out); }
+
+/* 登录/表单错误行：淡入 + 高度展开（原来一出现就把按钮顶下去） */
+@keyframes hg-error-in { from { opacity: 0; max-block-size: 0; transform: translate3d(0, -4px, 0); } to { opacity: 1; max-block-size: 120px; transform: none; } }
+.ios-field-error { animation: hg-error-in 160ms var(--ease-out); overflow: hidden; }
+
+/* 详情页简介展开/折叠：高度过渡（不是一帧跳完） */
+.hg-detail-desc { transition: max-block-size var(--dur-2) var(--ease-out), opacity var(--dur-2) linear; max-block-size: 4.65em; overflow: hidden; }
+.hg-detail-desc.is-open { max-block-size: 60em; }
+
+/* 计数文字：固定数字宽度，避免 9→10 时整行抖动 */
+.hg-detail-counts, .hg-ep-cell, .tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* 列表追加：新卡片淡入 + 上移 12px，前 6 个错位 30ms */
+@keyframes hg-rise { from { opacity: 0; transform: translate3d(0, 12px, 0); } to { opacity: 1; transform: none; } }
+.hg-stagger > * { animation: hg-rise 200ms var(--ease-out) both; }
+.hg-stagger > *:nth-child(2) { animation-delay: 30ms; }
+.hg-stagger > *:nth-child(3) { animation-delay: 60ms; }
+.hg-stagger > *:nth-child(4) { animation-delay: 90ms; }
+.hg-stagger > *:nth-child(5) { animation-delay: 120ms; }
+.hg-stagger > *:nth-child(6) { animation-delay: 150ms; }
+
+/* 选集面板切换正序/倒序：整格淡入一次，不逐格闪 */
+.hg-ep-grid { animation: hg-crossfade-in 160ms var(--ease-out); }
+
+/* 点赞/收藏状态切换：心形 1 → 1.15 → 1（240ms），和 .hg-like-bump 同一套 */
+@keyframes hg-like-bump-kf {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+.hg-like-bump { animation: hg-like-bump-kf 240ms var(--ease-out); }
+
+/* 降级：系统开了"减少动态效果"，或低端机（js 打 data-fx="low"）→ 全部直接切 */
+@media (prefers-reduced-motion: reduce) {
+  .plat-android .a-page-in, .plat-ios .a-page-in,
+  .plat-android .a-page-out, .plat-ios .a-page-out,
+  .hg-crossfade, .ios-overlay.is-open .ios-dialog { animation: none !important; }
+  .pressable:active:not(:disabled) { transform: none; }
+  .hg-fade-in, .hg-fade-out, .ios-field-error, .hg-ep-grid, .hg-stagger > *,
+  .hg-like-bump, .a-toast, .ios-switch-thumb, .ios-switch-track, .hg-detail-desc {
+    animation: none !important; transition: none !important;
+  }
+}
+html[data-fx="low"] .plat-android .a-page-in,
+html[data-fx="low"] .plat-ios .a-page-in,
+html[data-fx="low"] .plat-android .a-page-out,
+html[data-fx="low"] .plat-ios .a-page-out { animation: none; }
+
+
+/* ==========================================================================
+   动效总收口（motion v2）：所有"有动画设计的地方"统一到 --dur-* / --ease-*，
+   只动 transform / opacity / 颜色；不改布局尺寸、不改配色。
+   位置 | 触发 | 时长曲线 见 v3.0.6 报告第二十三节。
+   ========================================================================== */
+
+/* 1. 路由返回：当前页下移 8px + 淡出，下层页从 .985/.96 回正（双层交叉，无白闪） */
+@keyframes hg-page-under-in { from { opacity: .96; transform: scale(.985); } to { opacity: 1; transform: none; } }
+.plat-android .a-page-under, .plat-ios .a-page-under { animation: hg-page-under-in 180ms var(--ease-out) both; }
+
+/* View Transition 可用时由它接管：旧帧下移淡出、新帧回正（同样是 150/180ms） */
+@keyframes hg-vt-old-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translate3d(0, 8px, 0); } }
+@keyframes hg-vt-new-in { from { opacity: .96; transform: scale(.985); } to { opacity: 1; transform: none; } }
+::view-transition-old(root) { animation: hg-vt-old-out 150ms var(--ease-in) both; }
+::view-transition-new(root) { animation: hg-vt-new-in 180ms var(--ease-out) both; }
+
+/* 2. 首屏进场：Hero → 榜单 → 卡片依次 40ms，最多 6 个（原 30ms） */
+.hg-stagger > * { animation: hg-rise 220ms var(--ease-out) both; }
+.hg-stagger > *:nth-child(2) { animation-delay: 40ms; }
+.hg-stagger > *:nth-child(3) { animation-delay: 80ms; }
+.hg-stagger > *:nth-child(4) { animation-delay: 120ms; }
+.hg-stagger > *:nth-child(5) { animation-delay: 160ms; }
+.hg-stagger > *:nth-child(6) { animation-delay: 200ms; }
+.hg-stagger > *:nth-child(n+7) { animation-delay: 200ms; }
+
+/* 3. 图片：占位→图像 200ms 淡入（原来 300ms）；失败占位同样淡入，不二次闪 */
+.ios-image img { transition-duration: var(--dur-2); transition-timing-function: var(--ease-out); }
+.ios-image-error { animation: hg-fade-in var(--dur-2) var(--ease-out); }
+
+/* 5. 按压反馈：scale(.96) + 轻微提亮，120ms；只作用在 transform/filter，不影响滚动 */
+.pressable:active:not(:disabled),
+.player-control:active:not(:disabled) {
+  scale: .96;
+  filter: brightness(1.06);
+  transition: scale var(--dur-1) var(--ease-out), filter var(--dur-1) var(--ease-out);
+}
+
+/* 6. 面板 / Sheet：进 220ms、出 180ms，遮罩 160ms */
+.ios-overlay-sheet.is-open .ios-dialog { animation-duration: 220ms; animation-timing-function: var(--ease-out); }
+.ios-overlay.is-open .ios-dialog { animation-duration: 220ms; animation-timing-function: var(--ease-out); }
+.ios-overlay.is-closing .ios-dialog,
+.ios-overlay-sheet.is-closing .ios-dialog { animation-duration: 180ms; animation-timing-function: var(--ease-in); }
+.ios-overlay-backdrop.ios-button { transition: opacity 160ms var(--ease-out); }
+
+/* 7. toast：滑入 200ms / 淡出 160ms，多条堆叠位移过渡 */
+.a-toast { animation-duration: var(--dur-2); animation-timing-function: var(--ease-out); transition: transform var(--dur-2) var(--ease-out), opacity 160ms var(--ease-out); }
+
+/* 8. 开关滑块 160ms + 轨道颜色同步（覆盖旧的 280ms 弹簧） */
+.ios-switch-thumb { transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out), border-color 160ms var(--ease-out); }
+.ios-switch-track { transition: background-color 160ms var(--ease-out), border-color 160ms var(--ease-out); }
+
+/* 9. tab 指示条：分段控件是共享滑块，220ms FLIP；页面 tab 的下划线用 220ms 淡入+缩放跟随 */
+.ios-segmented-indicator { transition: transform 220ms var(--ease-out), width 220ms var(--ease-out); }
+.hg-tab-ul::after { transition: opacity 220ms var(--ease-out), transform 220ms var(--ease-out); }
+
+/* 10. 播放器：控件层淡入 160 / 淡出 120（useFadeMount），切集画面 160 淡入，缓冲层淡入 200 */
+.hg-ep-fade, .hg-player-stage-swap { animation: hg-crossfade-in 160ms var(--ease-out); }
+.hg-player-buffer { animation: hg-fade-in var(--dur-2) var(--ease-out); }
+
+/* 11. 数字：等宽 + 变化时 120ms 透明度闪（不做滚动数字） */
+.hg-detail-counts, .hg-ep-cell, .hg-profile-sec-count, .tabular-nums { font-variant-numeric: tabular-nums; }
+@keyframes hg-num-flash { 0% { opacity: .45; } 100% { opacity: 1; } }
+.hg-num-flash { animation: hg-num-flash var(--dur-1) var(--ease-out); }
+
+/* 14. 空态：淡入 200ms */
+.ios-empty { animation: hg-fade-in var(--dur-2) var(--ease-out); }
+
+/* 降级：减少动效 / 低端机 —— 新增的这几条也归零 */
+@media (prefers-reduced-motion: reduce) {
+  .plat-android .a-page-under, .plat-ios .a-page-under,
+  .hg-stagger > *, .ios-image-error, .ios-empty, .hg-ep-fade,
+  .hg-player-stage-swap, .hg-player-buffer, .hg-num-flash,
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none !important; }
+  .pressable:active:not(:disabled), .player-control:active:not(:disabled) { scale: 1; filter: none; }
+  .ios-image img { transition: none !important; }
+}
+html[data-fx="low"] .a-page-under,
+html[data-fx="low"] .hg-stagger > *,
+html[data-fx="low"] .ios-empty { animation: none; }

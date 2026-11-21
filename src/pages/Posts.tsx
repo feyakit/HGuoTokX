@@ -14,6 +14,8 @@ import { FilteredContent } from "../components/FilteredContent";
 import { TagBlockMenu } from "../components/TagBlockMenu";
 import { useContentPreferences } from "../contentPreferences";
 import { postHot } from "../postData";
+import { useForegroundRefresh, useVisibilityRefresh } from "../dataFreshness";
+import { PullIndicator, usePullToRefresh } from "../usePullToRefresh";
 
 /* ================= 吃瓜列表 ================= */
 /** 列表接口（/api/posts）只给标题/封面/热度；作者与点赞/评论数只在详情接口里。
@@ -63,7 +65,7 @@ const formatDateGroup = (key: string): string => {
   return mm && dd ? `${+mm}月${+dd}日` : key;
 };
 
-export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; wide?: boolean; embedded?: boolean }) {
+export function PostsPage({ onBack, embedded = false, active = true }: { onBack?: () => void; wide?: boolean; embedded?: boolean; active?: boolean }) {
   const { push, toast, isLiked, setLiked, actionPending, user, setLoginOpen, lineEpoch } = useStore();
   const { preferences } = useContentPreferences();
   const filtering = !preferences.paused && (preferences.blockedTags.length > 0 || preferences.hideUntagged);
@@ -79,41 +81,44 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
   const [err, setErr] = useState("");
   const busy = useRef(false);
   const lastEpoch = useRef(lineEpoch);
+  const lastAt = useRef(0);
   const sentinel = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const loadMore = async (reset = false) => {
-    if (busy.current) return;
+  /* `opts.force` 绕过 api 读缓存；`opts.silent` 不闪骨架、不弹错（回前台 / 重进 tab 用） */
+  const loadMore = async (reset = false, opts?: { force?: boolean; silent?: boolean }) => {
+    const force = opts?.force === true;
+    const silent = opts?.silent === true;
+    if (busy.current && !force) return;
     const next = reset ? 1 : page + 1;
     if (!reset && next > pages) return;
     busy.current = true;
-    setLoading(true);
-    setErr("");
+    if (!silent) setLoading(true);
+    if (!silent) setErr("");
     try {
       const fallbackRoute = BLOG_CATEGORIES.find((c) => c.route === cate)?.fallbackRoute;
       let res;
       if (sort === "latest") {
         try {
-          res = await api.blogPosts(cate, next);
+          res = await api.blogPosts(cate, next, force);
         } catch {
           res = fallbackRoute
-            ? await api.postCategory(fallbackRoute, next, 20, sort)
-            : await api.posts(next, 20, sort);
+            ? await api.postCategory(fallbackRoute, next, 20, sort, force)
+            : await api.posts(next, 20, sort, force);
         }
       } else {
         res = fallbackRoute
-          ? await api.postCategory(fallbackRoute, next, 20, sort)
-          : await api.posts(next, 20, sort);
+          ? await api.postCategory(fallbackRoute, next, 20, sort, force)
+          : await api.posts(next, 20, sort, force);
       }
       setItems((prev) => {
         const base = reset ? [] : prev;
-        const seenId = new Set(base.map((x) => x.id));
-        const seenTitle = new Set(base.map((x) => (x.title || "").trim()));
+        /* 只按 id 去重：旧代码还按标题去重，站点上同题不同帖（或标题带空白差异）会被整条滤掉，
+           分页时看着像"新内容没进来"（要求 D）。 */
+        const seen = new Set(base.map((x) => x.id));
         const added = (res?.items || []).filter((x) => {
-          const t = (x.title || "").trim();
-          if (seenId.has(x.id) || (t && seenTitle.has(t))) return false;
-          seenId.add(x.id);
-          if (t) seenTitle.add(t);
+          if (seen.has(x.id)) return false;
+          seen.add(x.id);
           return true;
         });
         return [...base, ...added];
@@ -121,15 +126,18 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
       setPage(next);
       setPages(res?.pagination?.pages || next);
       setErr("");
+      lastAt.current = Date.now();
     } catch (e) {
-      setErr((e as Error).message || "吃瓜内容加载失败");
+      if (!silent) setErr((e as Error).message || "吃瓜内容加载失败");
+      if (silent) throw e;
     } finally {
       busy.current = false;
       setLoading(false);
     }
   };
 
-  /* 换排序、分类或切换线路：清空列表重新拉 */
+  /* 换排序、分类或切换线路：清空列表重新拉。
+     必须 force：旧代码这里吃 60s 读缓存，切到「最热」看到的还是「最新」那批（要求 D）。 */
   useEffect(() => {
     if (lastEpoch.current !== lineEpoch) {
       lastEpoch.current = lineEpoch;
@@ -140,9 +148,37 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
     setPage(0);
     setPages(1);
     scrollRef.current?.scrollTo(0, 0);
-    void loadMore(true);
+    void loadMore(true, { force: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sort, cate, lineEpoch]);
+
+  /* 返回再进 / 切回吃瓜 tab：5s 内复用现成列表，超过就静默重拉（不闪骨架，失败保留旧列表） */
+  const firstRun = useRef(true);
+  useEffect(() => {
+    if (firstRun.current) { firstRun.current = false; return; }
+    if (!active) return;
+    if (Date.now() - lastAt.current < 5_000) return;
+    void loadMore(true, { force: true, silent: true }).catch(() => { /* 静默失败 */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
+
+  const pull = usePullToRefresh({
+    ref: scrollRef,
+    onRefresh: () => loadMore(true, { force: true, silent: true }),
+    enabled: isMobile,
+    onDone: ok => toast(ok ? "已同步官网" : "同步失败，稍后再试", ok ? "ok" : "info"),
+  });
+
+  /* 前台每 5 分钟静默刷新当前参数（全部/黑料/剧评 × 最新/最热） */
+  useForegroundRefresh(() => { void loadMore(true, { force: true, silent: true }).catch(() => { /* 静默 */ }); },
+    { enabled: active });
+
+  /* 回前台：距上次拉取 > 30s 静默重拉当前参数 */
+  useVisibilityRefresh(() => { void loadMore(true, { force: true, silent: true }).catch(() => { /* 静默 */ }); }, {
+    enabled: active,
+    lastAt: () => lastAt.current,
+    busy: loading || pull.refreshing,
+  });
 
   /* 补详情：3 路并发，顺序按列表顺序；失败就只显示列表字段，不阻塞也不重试打扰 */
   useEffect(() => {
@@ -388,6 +424,7 @@ export function PostsPage({ onBack, embedded = false }: { onBack?: () => void; w
       <div ref={scrollRef} aria-busy={loading} className="flex-1 scroll-y hg-page-x relative z-10"
         style={{ paddingBottom: "calc(110px + var(--sab, 0px))" }}
         onScroll={checkScrollBottom}>
+        <PullIndicator pull={pull.pull} refreshing={pull.refreshing} progress={pull.progress} />
         {items.length ? (
           <FilteredContent items={items} scopeKey={`posts-${sort}-${cate}`}>
             {renderFeed}

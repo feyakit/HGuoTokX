@@ -2,7 +2,7 @@ import { Button, SegmentedControl } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { prefetchDetails } from "../detailFast";
-import { api, fmt } from "../api";
+import { api, fmt, isMobile } from "../api";
 import type { VideoCard } from "../types";
 import { useStore } from "../store";
 import { Masonry } from "../components/cards";
@@ -11,6 +11,8 @@ import { InplaceSearch } from "../components/InplaceSearch";
 import { Empty, Img } from "../components/ui";
 import { IBack, IClapper, IClose, IGrid, IRefresh, ISearch, ISparkF, IStarsF } from "../icons";
 import { TagsSection, TopicsSection } from "./Discover";
+import { FRESH_GAP_MS, useApiRefresh, useForegroundRefresh, useFreshness, useVisibilityRefresh } from "../dataFreshness";
+import { PullIndicator, usePullToRefresh } from "../usePullToRefresh";
 
 export const CHANNELS = [
   { cate: "ai-duanju", name: "AI成人短剧", desc: "高能反转 · 一口气看完" },
@@ -81,7 +83,8 @@ const isNew = (v: VideoCard) => {
 
 /* ================= 分类（片库：2×2 Bento 玻璃磁贴 + 紧凑内联筛选） ================= */
 export default function Category({ wide, active }: { wide: boolean; active: boolean }) {
-  const { push, lineEpoch } = useStore();
+  const { push, toast, lineEpoch } = useStore();
+  const fresh = useFreshness();
   const [view, setView] = useState<CategoryView>("");
   /* 频道筛选行右缘可见性：只剩 3 个 chip，通常放得下；一旦放不下（大字体/窄屏）
      就在右缘做渐隐提示，而不是把最后一个 chip 硬裁成「精选推…」（报告 v3.0.5-02）。 */
@@ -103,18 +106,20 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
   const isCollectionView = view === "topics" || view === "tags";
   const subKey = view === "" ? allSort : view === "original" ? origCate : chanSort;
 
-  const load = useCallback(async (p: number) => {
-    if (isCollectionView || loadingRef.current) return;
+  const load = useCallback(async (p: number, opts?: { force?: boolean; silent?: boolean }) => {
+    const force = opts?.force === true;
+    const silent = opts?.silent === true;
+    if (isCollectionView || (loadingRef.current && !force)) return;
     loadingRef.current = true;
-    setLoading(true);
-    setErr("");
+    if (!silent) setLoading(true);
+    if (!silent) setErr("");
     const my = ++seq.current;
     try {
       const res = view === "original"
-        ? await api.originalVideos(origCate, p, 24, originalSort(origCate))
+        ? await api.originalVideos(origCate, p, 24, originalSort(origCate), force)
         : view === "ai-duanju" || view === "ai-manju"
-          ? await api.category(view, p, 24, chanSort)
-          : await api.feed(p, 24, allSort === "new" ? "new" : undefined);
+          ? await api.category(view, p, 24, chanSort, force)
+          : await api.feed(p, 24, allSort === "new" ? "new" : undefined, force);
       if (my !== seq.current) return;
       const rows = (res?.items ?? []).filter(v => v && v.cover);
       const pages = Math.max(1, res?.pagination?.pages || 1);
@@ -122,29 +127,68 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
       if (p === 1) prefetchDetails(rows.slice(0, 4).map(v => v.id));
       setPage(p);
       setDone(!rows.length || p >= pages);
+      fresh.mark();
     } catch (e) {
-      if (my === seq.current) setErr((e as Error)?.message || "加载失败");
+      if (my === seq.current && !silent) setErr((e as Error)?.message || "加载失败");
+      if (silent) throw e;
     } finally {
       if (my === seq.current) {
         setLoading(false);
         loadingRef.current = false;
       }
     }
-  }, [view, allSort, chanSort, origCate, isCollectionView]);
+  }, [view, allSort, chanSort, origCate, isCollectionView, fresh]);
 
   useEffect(() => {
     if (!active || isCollectionView) return;
     const key = `${view}|${subKey}|${lineEpoch}`;
-    if (loadedKey.current === key) return;
+    const same = loadedKey.current === key;
+    /* 30s 内切回同一个筛选不重拉；超过 30s / 换筛选 / 换线路 → force 重拉（旧代码一个 key 只拉一次） */
+    if (same && (fresh.lastAt() === 0 || !fresh.olderThan(FRESH_GAP_MS))) return;
     loadedKey.current = key;
     seq.current++;
     loadingRef.current = false;
-    setItems([]);
-    setDone(false);
-    scrollRef.current?.scrollTo(0, 0);
-    void load(1);
+    if (!same) {
+      setItems([]);
+      setDone(false);
+      scrollRef.current?.scrollTo(0, 0);
+      void load(1);
+    } else {
+      void load(1, { force: true, silent: true }).catch(() => { /* 静默失败：保留旧列表 */ });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, view, subKey, lineEpoch, isCollectionView]);
+
+  const pull = usePullToRefresh({
+    ref: scrollRef,
+    onRefresh: async () => { await load(1, { force: true, silent: true }); },
+    enabled: isMobile && !isCollectionView,
+    onDone: ok => toast(ok ? "已同步官网" : "同步失败，稍后再试", ok ? "ok" : "info"),
+  });
+
+  /* 前台每 5 分钟静默刷新当前筛选 */
+  useForegroundRefresh(() => { void load(1, { force: true, silent: true }).catch(() => { /* 静默 */ }); },
+    { enabled: active && !isCollectionView });
+
+  useVisibilityRefresh(() => { void load(1, { force: true, silent: true }).catch(() => { /* 静默 */ }); }, {
+    enabled: active && !isCollectionView,
+    lastAt: fresh.lastAt,
+    busy: pull.refreshing,
+  });
+
+  /* 命中缓存后 api 层补的那次真实请求回来时，列表原地换新 */
+  useApiRefresh<{ items: VideoCard[] }>(
+    view === "original" ? "api_original_videos" : view === "" ? "api_feed" : "api_category",
+    view === "original"
+      ? { cate: origCate, page: 1, size: 24, sort: originalSort(origCate) }
+      : view === ""
+        ? { page: 1, size: 24, sort: allSort === "new" ? "new" : null }
+        : { cate: view, page: 1, size: 24, sort: chanSort },
+    res => {
+      const rows = (res?.items ?? []).filter(v => v && v.cover);
+      if (rows.length) setItems(rows);
+    },
+  );
 
   useEffect(() => {
     const el = sortsRef.current;
@@ -194,6 +238,8 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
           const el = e.currentTarget;
           if (el.scrollHeight - el.scrollTop - el.clientHeight < 360) void load(page + 1);
         }}>
+
+        <PullIndicator pull={pull.pull} refreshing={pull.refreshing} progress={pull.progress} />
 
         {/* 2×2 Bento 玻璃色彩磁贴阵：替代旧版 6 连胶囊墙，再次点击即可回到全部片库 */}
         <div className="hg-bento-grid" role="tablist" aria-label="频道板块">
@@ -268,7 +314,8 @@ export default function Category({ wide, active }: { wide: boolean; active: bool
               <Empty icon={<IGrid size={26} />} title="暂无相关内容" sub="换个板块或排序试试" />
             )}
 
-            <div className="hg-grid-c3 mt-3">
+            {/* hg-stagger：追加/换批时新卡片淡入 + 上移，前 6 个错位 30ms（CSS 控制，不挂 JS） */}
+            <div className="hg-grid-c3 mt-3 hg-stagger">
               {items.map(v => (
                 <Button key={v.id} className="hg-poster is-c3" onClick={() => push({ kind: "series", id: v.id })}>
                   <span className="hg-poster-art">

@@ -10,6 +10,10 @@ import { initAutoLine } from "./autoLine";
 import { APP_VERSION, LOCAL, logLine, platform, webviewVersion } from "./api";
 import { mseHlsSupported } from "./mediaProbe";
 import { installLayoutDiagnostics } from "./layoutDiagnostics";
+import { installViewportVars } from "./viewport";
+import { installFxLevel } from "./fx";
+installFxLevel();
+installViewportVars();
 installPlaybackPageEvents();
 void initPlaybackLog();
 /* 环境指纹：写进始终记录的 debug.log。用户复制诊断时不用再自报版本、平台、内核版本 */

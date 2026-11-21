@@ -1,13 +1,14 @@
 import { Button, SegmentedControl } from "../components/ios/controls";
 import { Loader } from "../components/ios/effects";
-import { useEffect, useRef, useState } from "react";
-import { api, APP_VERSION, fmtTime, platform } from "../api";
+import { useEffect, useRef, useState, useMemo } from "react";
+import { api, fmtTime } from "../api";
 import type { Detail, Post } from "../types";
 import { useStore } from "../store";
 import { Empty, Img, Modal } from "../components/ui";
 import { MediaCard } from "../components/cards";
 import { useContentPreferences } from "../contentPreferences";
-import { IBack, IBoltF, IChevR, IClock, ILogout, IMenuFollow, IMenuHistory, IMenuLikes, IPlayF, ISettings, IStar } from "../icons";
+import { IBack, IBoltF, IChevR, IClock, IMenuFollow, IMenuHistory, IMenuLikes, IPlayF, ISettings, IStar } from "../icons";
+import { useVisibilityRefresh } from "../dataFreshness";
 
 function GuestCatAvatar() {
   return (
@@ -37,17 +38,23 @@ export default function Profile({ wide }: { wide: boolean }) {
 }
 
 function ProfileContent({ wide: _wide }: { wide: boolean }) {
-  const { user, setLoginOpen, logout, history, postHistory, favs, postFavs, follows, push, accountSync, syncAccount } = useStore();
-  const [logoutOpen, setLogoutOpen] = useState(false);
-  const [logoutBusy, setLogoutBusy] = useState(false);
-  const [logoutError, setLogoutError] = useState("");
+  const { user, setLoginOpen, history, postHistory, favs, postFavs, follows, push, accountSync, syncAccount, guestKept, guestSnapshot } = useStore();
   const [recentDetails, setRecentDetails] = useState<Record<number, Detail>>({});
   const [recentFailed, setRecentFailed] = useState<Record<number, boolean>>({});
   const recentDetailsRef = useRef(recentDetails);
   recentDetailsRef.current = recentDetails;
-  const logoutPending = useRef(false);
-  const mounted = useRef(true);
-  const recentIdsKey = history.slice(0, 8).map((h) => h.id).join(",");
+  /* 选过「暂不同步」：账号里没有的本机记录也照常显示，并标「本机」来源 */
+  const localRows = useMemo(() => {
+    if (!guestKept) return [];
+    const known = new Set(history.map((h) => h.id));
+    return guestSnapshot().history.filter((h) => Number.isSafeInteger(h.id) && h.id > 0 && !known.has(h.id));
+  }, [guestKept, guestSnapshot, history]);
+  const recentRows = useMemo(() => {
+    const rows = [...history];
+    for (const row of localRows) if (!rows.some((h) => h.id === row.id)) rows.push(row);
+    return rows.slice(0, 8);
+  }, [history, localRows]);
+  const recentIdsKey = recentRows.map((h) => h.id).join(",");
   useEffect(() => {
     const ids = recentIdsKey ? recentIdsKey.split(",").map(Number).filter(Boolean) : [];
     const missing = ids.filter((id) => !recentDetailsRef.current[id]);
@@ -68,7 +75,6 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
   }, [recentIdsKey]);
   const [stats, setStats] = useState<{ followers: number; post_count: number; video_count: number } | null>(null);
 
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => {
     if (!user?.id) { setStats(null); return; }
     let alive = true;
@@ -77,22 +83,6 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
     }).catch(() => {});
     return () => { alive = false; };
   }, [user?.id]);
-
-  const confirmLogout = async () => {
-    if (logoutPending.current) return;
-    logoutPending.current = true;
-    setLogoutBusy(true);
-    setLogoutError("");
-    try {
-      await logout();
-      if (mounted.current) setLogoutOpen(false);
-    } catch (error) {
-      if (mounted.current) setLogoutError(error instanceof Error ? error.message : "退出失败，请重试");
-    } finally {
-      logoutPending.current = false;
-      if (mounted.current) setLogoutBusy(false);
-    }
-  };
 
   return (
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
@@ -185,6 +175,9 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
             <span className="hg-profile-sec-title">
               <IMenuHistory size={16} strokeWidth={1.85} />
               <span>最近观看</span>
+              {guestKept && recentRows.length > 0 && (
+                <span className="hg-profile-sec-src" title="用户选择暂不同步，这份记录只在本机">本机记录</span>
+              )}
               {(history.length + postHistory.length) > 0 && (
                 <span className="hg-profile-sec-count">{history.length + postHistory.length}</span>
               )}
@@ -194,9 +187,9 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
             </Button>
           </div>
 
-          {history.length > 0 ? (
+          {recentRows.length > 0 ? (
             <div className="hg-recent-rail">
-              {history.slice(0, 8).map((h) => {
+              {recentRows.map((h) => {
                 const detail = recentDetails[h.id];
                 const pct = h.dur && h.t ? Math.min(100, Math.max(4, Math.round((h.t / h.dur) * 100))) : 0;
                 return (
@@ -224,6 +217,9 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
                     <div className="hg-recent-title">{detail?.title || (recentFailed[h.id] ? `短剧 #${h.id}` : "加载中…")}</div>
                     <div className="hg-recent-sub">
                       {h.t > 3 ? `续播 ${fmtTime(h.t)}` : "刚看过"}
+                      {localRows.some((row) => row.id === h.id) && (
+                        <span className="hg-recent-src" title="只有本机有这条记录（未同步到账号）"> · 本机</span>
+                      )}
                     </div>
                   </Button>
                 );
@@ -239,32 +235,9 @@ function ProfileContent({ wide: _wide }: { wide: boolean }) {
           )}
         </section>
 
-        {user && (
-          <div className="hg-menu hg-menu-danger">
-            <Button className="hg-menu-row" onClick={() => { setLogoutError(""); setLogoutOpen(true); }}>
-              <span className="hg-menu-icon"><ILogout size={19} strokeWidth={1.75} /></span>
-              <span className="hg-menu-label">退出登录</span>
-              <IChevR size={14} className="hg-menu-chevron" />
-            </Button>
-          </div>
-        )}
-
-        <div className="text-center text-[12px] text-dim mt-6 mb-6 pb-2">HGuoX {APP_VERSION} · {platform === "android" ? "Android" : platform === "ios" ? "iOS" : platform === "macos" ? "macOS" : platform === "linux" ? "Linux" : "Windows"} 客户端</div>
+        {/* 退出登录已搬到「设置 → 账号」，版本号只在「设置 → 关于」显示一次 */}
       </div>
 
-      <Modal open={logoutOpen} onClose={() => { if (!logoutPending.current) setLogoutOpen(false); }} label="退出登录">
-        <div className="p-5">
-          <h2 className="text-[18px] font-bold">退出登录</h2>
-          <p className="mt-2 text-[14px] text-mut">退出当前账户？账号数据和本机进度会保留，退出后显示游客的本机记录。</p>
-          {logoutError && <p role="alert" className="mt-3 text-[13px] text-danger">{logoutError}</p>}
-          <div className="mt-4 flex gap-3">
-            <Button variant="secondary" disabled={logoutBusy} onClick={() => setLogoutOpen(false)} className="flex-1">取消</Button>
-            <Button variant="danger" disabled={logoutBusy} onClick={() => void confirmLogout()} className="flex-1 rounded-(--r-ctl) px-3">
-              {logoutBusy ? "正在退出…" : "确认退出"}
-            </Button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 }
@@ -277,7 +250,7 @@ export function HistoryPage({ onBack, wide }: { onBack: () => void; wide: boolea
 
 function HistoryContent({ onBack, wide: _wide }: { onBack: () => void; wide: boolean }) {
   const { blockReason } = useContentPreferences();
-  const { user, history, postHistory, clearHistory, push, setTab } = useStore();
+  const { user, history, postHistory, clearHistory, push, setTab, syncAccount, toast } = useStore();
   const [histTab, setHistTab] = useState<"video" | "post">(() => (history.length === 0 && postHistory.length > 0 ? "post" : "video"));
   const [cache, setCache] = useState<Record<number, Detail>>({});
   const cacheRef = useRef(cache);
@@ -370,6 +343,38 @@ function HistoryContent({ onBack, wide: _wide }: { onBack: () => void; wide: boo
       if (mounted.current) setClearBusy(false);
     }
   };
+
+  /* 观看历史不做下拉（规格：改静默刷新）。
+     · 回到前台 → 静默同步账号侧记录（本地记录本身是实时的，不用等）；
+     · 同步后把已上屏的卡片按 force 重拉一次（绕过 api 读缓存），失败的单条保留旧卡；
+     · 清空按钮 / 弹层状态一律不动（clearOpen、clearBusy 不参与刷新）。 */
+  const syncing = useRef(false);
+  const lastSync = useRef(0);
+  const refreshHistory = async () => {
+      if (syncing.current) return;
+      syncing.current = true;
+      await syncAccount().catch(() => { /* 未登录 / 离线：只用本地数据 */ });
+      const videoIds = visibleIds;
+      const postIds = visiblePostIds;
+      if (!videoIds.length && !postIds.length) return;
+      const [vres, pres] = await Promise.all([
+        Promise.allSettled(videoIds.map(id => api.video(id, true))),
+        Promise.allSettled(postIds.map(id => api.post(id, true))),
+      ]);
+      const nextCache: Record<number, Detail> = {};
+      const nextPostCache: Record<number, Post> = {};
+      let okCount = 0;
+      vres.forEach((r, i) => { if (r.status === "fulfilled" && r.value) { nextCache[videoIds[i]] = r.value; okCount += 1; } });
+      pres.forEach((r, i) => { if (r.status === "fulfilled" && r.value) { nextPostCache[postIds[i]] = r.value; okCount += 1; } });
+      if (mounted.current && Object.keys(nextCache).length) setCache(prev => ({ ...prev, ...nextCache }));
+      if (mounted.current && Object.keys(nextPostCache).length) setPostCache(prev => ({ ...prev, ...nextPostCache }));
+      lastSync.current = Date.now();
+      if (!okCount) throw new Error("历史同步失败");
+  };
+  useVisibilityRefresh(() => { void refreshHistory().catch(() => { /* 静默 */ }).finally(() => { syncing.current = false; }); }, {
+    enabled: true,
+    lastAt: () => lastSync.current,
+  });
 
   const totalCount = history.length + postHistory.length;
 

@@ -4,6 +4,7 @@
 use dom_query::Document;
 use serde_json::{json, Value};
 use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 use std::time::{Duration, Instant};
 
@@ -14,22 +15,110 @@ const PUBLISH_PAGES: [&str; 2] = [
     "https://huangguoai.pages.dev/",
     "https://huang-guo.pages.dev/",
 ];
+/// 发布页域名本身，绝不能再拼子域当镜像用。
+const PUBLISHER_HOSTS: [&str; 4] = [
+    "huangguoai.pages.dev",
+    "huang-guo.pages.dev",
+    "huangguoai.com",
+    "huangguoai.ai",
+];
 const MIRROR_MAX: usize = 60;
 const PUBLISH_ARRAY_MAX: usize = 256;
 const RECOMMENDED_MAX: usize = 20;
-const PAGE_TIMEOUT: Duration = Duration::from_secs(6);
+/// 国内实测：唯一可用的发布页 page+publish.js 耗时 2.1–7.2s（10 轮里 1 轮 >6s），
+/// 6 秒预算会周期性把整份镜像列表判死，所以放到 12 秒。
+const PAGE_TIMEOUT: Duration = Duration::from_secs(12);
 const MAX_PUBLISH_BYTES: usize = 512 * 1024;
 const AUTO_PROBE_PATH: &str = "/api/videos?page=1&size=1";
-const AUTO_PROBE_TIMEOUT: Duration = Duration::from_secs(3);
+/// 国内实测镜像探活 1.13–2.75s，3 秒预算最慢一条已用掉 92%。
+const AUTO_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
 const AUTO_MIRROR_MAX: usize = 10;
 const MIRROR_CACHE_TTL: Duration = Duration::from_secs(300);
 const MAIN_HEAD_START: Duration = Duration::from_millis(1000);
 const SETTLE_GRACE: Duration = Duration::from_millis(350);
+/// 第一个发布页成功后，再给另一页这么久补齐列表（另一页常常是被污染的，别等它）。
+const MIRROR_GRACE: Duration = Duration::from_millis(2000);
+/// 发布页候选少于这个数就用内置种子补位（种子同样要真探活，不通不入选中）。
+const SEED_MIN: usize = 3;
+/// 内置兜底：已知可用族的前缀。上游换族会失效，所以只当「发布页拉不到」时的最后一道兜底，
+/// 且**不授予凭据信任**（不进 `TRUSTED_MIRRORS`）。
+const SEED_MIRRORS: [&str; 6] = [
+    "https://thu.dvygahpw.cc",
+    "https://pku.dvygahpw.cc",
+    "https://zju.dvygahpw.cc",
+    "https://thu.zuxszoix.cc",
+    "https://pku.zuxszoix.cc",
+    "https://sysu.zuxszoix.cc",
+];
+const MIRROR_CACHE_FILE: &str = "lines-cache.json";
 
 /// Only origins actually parsed from a trusted publisher can enter this set.
 /// Loading line.json, displaying the current line and probing a host never add trust.
 static TRUSTED_MIRRORS: RwLock<Vec<String>> = RwLock::new(Vec::new());
+/// 落盘缓存里的 origin：只允许「自动切线切过去（游客浏览）」，**不授予**登录凭据信任。
+static CACHED_MIRRORS: RwLock<Vec<String>> = RwLock::new(Vec::new());
 static MIRRORS_CACHE: RwLock<Option<(Instant, Value)>> = RwLock::new(None);
+/// 应用数据目录，由 [`bind`] 在启动时绑定；落盘列表写这里。
+static CACHE_DIR: RwLock<Option<PathBuf>> = RwLock::new(None);
+
+pub fn bind(dir: &Path) {
+    if let Ok(mut slot) = CACHE_DIR.write() {
+        *slot = Some(dir.to_path_buf());
+    }
+}
+
+fn cache_path() -> Option<PathBuf> {
+    CACHE_DIR
+        .read()
+        .ok()
+        .and_then(|dir| dir.as_ref().map(|dir| dir.join(MIRROR_CACHE_FILE)))
+}
+
+/// 把发布页解析出的列表落盘：下次发布页整晚拉不到时，仍有候选可探活。
+fn save_mirrors_cache(items: &[Value]) {
+    let Some(path) = cache_path() else { return };
+    let saved_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_secs())
+        .unwrap_or(0);
+    if let Ok(text) = serde_json::to_string(&json!({ "saved_at": saved_at, "items": items })) {
+        let _ = std::fs::write(path, text);
+    }
+}
+
+/// 读回上一次成功的列表，标记 `stale`。**不调用 [`remember_published`]**：
+/// 磁盘上的东西不是发布页说的，不能给登录凭据信任。
+fn load_mirrors_cache() -> Option<Value> {
+    let text = std::fs::read_to_string(cache_path()?).ok()?;
+    let value: Value = serde_json::from_str(&text).ok()?;
+    let items: Vec<Value> = value
+        .get("items")?
+        .as_array()?
+        .iter()
+        .filter(|item| {
+            item.get("url")
+                .and_then(Value::as_str)
+                .is_some_and(|url| crate::net::normalize_base(url).is_some())
+        })
+        .take(MIRROR_MAX)
+        .cloned()
+        .collect();
+    if items.is_empty() {
+        return None;
+    }
+    let recommended = items.iter().take(RECOMMENDED_MAX).cloned().collect::<Vec<_>>();
+    remember_cached(&items);
+    Some(json!({
+        "source": "cache",
+        "script": "",
+        "items": items,
+        "recommended_source": "cache",
+        "recommended": recommended,
+        "errors": [],
+        "stale": true,
+        "saved_at": value.get("saved_at").and_then(Value::as_u64).unwrap_or(0),
+    }))
+}
 
 fn remember_published(items: &[Value]) {
     let mut known = TRUSTED_MIRRORS
@@ -55,6 +144,33 @@ pub fn is_trusted_mirror(origin: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// 落盘缓存里的 origin：可以自动切过去（游客浏览），但登录凭据信任仍只看
+/// [`is_trusted_mirror`] / 固定线路 / 用户自定义线路。
+pub fn is_cached_mirror(origin: &str) -> bool {
+    CACHED_MIRRORS
+        .read()
+        .map(|known| known.iter().any(|value| value == origin))
+        .unwrap_or(false)
+}
+
+fn remember_cached(items: &[Value]) {
+    let mut known = CACHED_MIRRORS
+        .write()
+        .unwrap_or_else(|error| error.into_inner());
+    known.clear();
+    for origin in items
+        .iter()
+        .filter_map(|item| item.get("url").and_then(Value::as_str))
+    {
+        if known.len() >= 256 {
+            break;
+        }
+        if !known.iter().any(|value| value == origin) {
+            known.push(origin.to_owned());
+        }
+    }
+}
+
 pub fn fixed() -> Value {
     json!(FIXED
         .iter()
@@ -73,19 +189,67 @@ struct PublishedPage {
 }
 
 /// Independent concurrent deadlines preserve either publisher's successful list.
+///
+/// 先到先用：任一页成功即可出列表，另一页只再等 [`MIRROR_GRACE`]。
+/// 国内实测 `huangguoai.pages.dev` 被 DNS 污染（解析到 Facebook 段）会一直挂到超时，
+/// 旧实现 `join` 死等两页，成功也要白等一整份 `PAGE_TIMEOUT`。
+/// 两页都失败时退回磁盘上最后一次成功的列表（标 `stale`），不让自动选线变成零候选。
 pub async fn mirrors() -> Result<Value, String> {
-    let (first, second) = tokio::join!(
-        mirrors_from_page(PUBLISH_PAGES[0]),
-        mirrors_from_page(PUBLISH_PAGES[1])
-    );
-    let result = merge_publishers([first, second], &crate::net::base())?;
+    let mut result = match publish_lists().await {
+        Ok(value) => value,
+        Err(error) => match load_mirrors_cache() {
+            Some(mut cached) => {
+                cached["errors"] = json!([error]);
+                cached
+            }
+            None => return Err(error),
+        },
+    };
+    let stale = result.get("stale").and_then(Value::as_bool) == Some(true);
     if let Some(items) = result.get("items").and_then(Value::as_array) {
-        remember_published(items);
+        if !stale {
+            // 只有真从发布页解析出来的 origin 才进信任集合。
+            remember_published(items);
+            save_mirrors_cache(items);
+        }
     }
-    if let Ok(mut cache) = MIRRORS_CACHE.write() {
-        *cache = Some((Instant::now(), result.clone()));
+    result["stale"] = json!(stale);
+    // 落盘兜底的结果不进内存缓存：发布页一恢复就立刻重试，别被 5 分钟 TTL 拖住。
+    if !stale {
+        if let Ok(mut cache) = MIRRORS_CACHE.write() {
+            *cache = Some((Instant::now(), result.clone()));
+        }
     }
     Ok(result)
+}
+
+/// 两个发布页并发拉取，第一个成功后再给另一页 `MIRROR_GRACE` 补齐。
+async fn publish_lists() -> Result<Value, String> {
+    let first = mirrors_from_page(PUBLISH_PAGES[0]);
+    let second = mirrors_from_page(PUBLISH_PAGES[1]);
+    tokio::pin!(first, second);
+    let mut done: [Option<Result<PublishedPage, String>>; 2] = [None, None];
+    let mut grace: Option<tokio::time::Instant> = None;
+    while done[0].is_none() || done[1].is_none() {
+        let deadline =
+            grace.unwrap_or_else(|| tokio::time::Instant::now() + PAGE_TIMEOUT + Duration::from_secs(1));
+        tokio::select! {
+            result = &mut first, if done[0].is_none() => done[0] = Some(result),
+            result = &mut second, if done[1].is_none() => done[1] = Some(result),
+            _ = tokio::time::sleep_until(deadline) => break,
+        }
+        if grace.is_none() && done.iter().flatten().any(|result| result.is_ok()) {
+            grace = Some(tokio::time::Instant::now() + MIRROR_GRACE);
+        }
+    }
+    fn missing() -> Result<PublishedPage, String> {
+        Err("地址发布页未返回".to_owned())
+    }
+    let [first, second] = done;
+    merge_publishers(
+        [first.unwrap_or_else(missing), second.unwrap_or_else(missing)],
+        &crate::net::base(),
+    )
 }
 
 /// Auto-pick uses a short-lived in-memory cache so repeated failovers avoid
@@ -177,11 +341,17 @@ async fn mirrors_from_page(page: &str) -> Result<PublishedPage, String> {
         })
     })
     .await
-    .map_err(|_| "获取地址发布页超时（8 秒）".to_owned())?
+    .map_err(|_| "获取地址发布页超时（12 秒）".to_owned())?
 }
 
 fn parse_mirrors(js: &str) -> Result<Vec<Value>, String> {
-    let domains = js_array(js, "urls")?.unwrap_or_default();
+    let mut domains = js_array(js, "urls")?.unwrap_or_default();
+    if domains.is_empty() {
+        /* 发布脚本换写法（只给 `newestUrls` 里的完整 https://host，或整段没有 `urls` 数组）时，
+           退回到「扫描所有字符串字面量里的域名」，别只认一种格式就把整份列表判死。
+           仍然只做静态扫描，从不执行远端 JS。 */
+        domains = scan_published_hosts(js)?;
+    }
     let subs = js_array(js, "subdomains")?.unwrap_or_default();
     if domains.is_empty() {
         return Err("发布脚本中没有找到镜像域名".into());
@@ -190,10 +360,11 @@ fn parse_mirrors(js: &str) -> Result<Vec<Value>, String> {
     let mut seen = HashSet::new();
     'domains: for domain in domains {
         let domain = domain.trim().trim_end_matches('/').to_ascii_lowercase();
-        if !valid_dns_name(&domain) {
+        if !valid_dns_name(&domain) || PUBLISHER_HOSTS.contains(&domain.as_str()) {
             continue;
         }
-        let hosts: Vec<_> = if subs.is_empty() {
+        // 已经是三级以上主机名时不再拼子域，避免 thu.thu.xxx.cc 这种废候选。
+        let hosts: Vec<_> = if subs.is_empty() || domain.split('.').count() >= 3 {
             vec![domain]
         } else {
             subs.iter()
@@ -204,7 +375,7 @@ fn parse_mirrors(js: &str) -> Result<Vec<Value>, String> {
                 .collect()
         };
         for host in hosts {
-            if !valid_dns_name(&host) || !seen.insert(host.clone()) {
+            if !valid_dns_name(&host) || PUBLISHER_HOSTS.contains(&host.as_str()) || !seen.insert(host.clone()) {
                 continue;
             }
             let Some(origin) = crate::net::normalize_base(&format!("https://{host}")) else {
@@ -221,6 +392,48 @@ fn parse_mirrors(js: &str) -> Result<Vec<Value>, String> {
     } else {
         Ok(items)
     }
+}
+
+/// 静态扫描发布脚本里的字符串字面量，挑出「裸域名」或「完整 https://host」。
+/// 发布页域名本身（pages.dev / huangguoai.com / .ai）会被剔除，免得拼出子域垃圾。
+fn scan_published_hosts(js: &str) -> Result<Vec<String>, String> {
+    let mut hosts = Vec::new();
+    let mut seen = HashSet::new();
+    for token in js_tokens(js)? {
+        let JsToken::Quoted(raw) = token else { continue };
+        let Ok(value) = js_string(raw) else { continue };
+        let value = value.trim();
+        if value.is_empty() || value.contains('@') || value.chars().any(char::is_control) {
+            continue;
+        }
+        // 只认两种写法：完整 `https?://host`，或发布页那种带尾斜杠的站根 `xxx.cc/`。
+        // 裸 `bad.example` 这种太含糊（注释/字符串/函数体里到处都是），一律不认。
+        let rest = if let Some(rest) = value
+            .strip_prefix("https://")
+            .or_else(|| value.strip_prefix("http://"))
+        {
+            rest.trim_end_matches('/')
+        } else if let Some(rest) = value.strip_suffix('/') {
+            rest
+        } else {
+            continue;
+        };
+        // 带路径、端口、查询的一律不要：只接受裸 origin。
+        if rest.contains('/') || rest.contains(':') || rest.contains('?') || rest.contains('#') {
+            continue;
+        }
+        let host = rest.to_ascii_lowercase();
+        if !valid_dns_name(&host) || PUBLISHER_HOSTS.contains(&host.as_str()) {
+            continue;
+        }
+        if seen.insert(host.clone()) {
+            hosts.push(host);
+        }
+        if hosts.len() >= PUBLISH_ARRAY_MAX {
+            break;
+        }
+    }
+    Ok(hosts)
 }
 
 fn valid_dns_label(value: &str) -> bool {
@@ -248,7 +461,9 @@ fn valid_dns_name(value: &str) -> bool {
 /// Bounded decoded body; the publisher's outer deadline also covers a slow body.
 async fn get_text(raw: &str) -> Result<String, String> {
     let target = url::Url::parse(raw).map_err(|_| "发布地址无效")?;
-    let mut response = crate::net::get(
+    // 发布页域名在国内会被 DNS 污染成公网 Facebook 段（不是 127.0.0.1，所以旧的
+    // 「私网才回退 DoH」逻辑救不到），这里直接走加密 DoH 解析。
+    let mut response = crate::net::get_public_dns(
         raw,
         PAGE_TIMEOUT,
         Some("text/html,application/javascript"),
@@ -684,16 +899,16 @@ fn auto_candidates(items: &[Value], current: &str, trusted: impl Fn(&str) -> boo
 fn pick_from_hits(hits: &[Hit]) -> Value {
     /* 自定义线路只在「别的线路都不通」时才算赢家：它可能有自己的登录体系，
        自动切过去会清会话（见 api::line_auto 的 rebase 规则），交给用户手动选更稳。
-       `(tier=="custom", ms)` 让非自定义线路永远排在前面，同 tier 内仍按延迟取最快。 */
+       内置种子排在有发布页背书的镜像之后、自定义线路之前。
+       `(tier=="custom", tier=="seed", ms)` 让非自定义线路永远排在前面，同 tier 内仍按延迟取最快。 */
     let winner = hits
         .iter()
         .filter(|hit| hit.ok)
-        .min_by_key(|hit| (hit.tier == "custom", hit.ms));
+        .min_by_key(|hit| (hit.tier == "custom", hit.tier == "seed", hit.ms));
     let candidates: Vec<_> = hits.iter().map(Hit::json).collect();
     match winner {
         Some(hit) => json!({ "base": hit.url, "tier": hit.tier, "ms": hit.ms,
-            "reason": match hit.tier { "main" => "main-ok", "custom" => "custom-ok", _ => "mirror-ok" },
-            "candidates": candidates }),
+            "reason": match hit.tier { "main" => "main-ok", "custom" => "custom-ok", "seed" => "seed-ok", _ => "mirror-ok" }, "candidates": candidates }),
         None => {
             json!({ "base": "", "tier": "none", "ms": 0, "reason": "all-down", "candidates": candidates })
         }
@@ -755,14 +970,36 @@ pub async fn auto_pick() -> Value {
     if let Some(origin) = custom_candidate(&crate::net::base()) {
         set.spawn(async move { Some(probe_hit("custom", &origin).await) });
     }
+    let mut published = 0usize;
     if let Ok(listing) = &listing {
         let items = listing
             .get("items")
             .and_then(Value::as_array)
             .map(Vec::as_slice)
             .unwrap_or(&[]);
-        for origin in auto_candidates(items, &crate::net::base(), is_trusted_mirror) {
+        // 落盘兜底的列表不是发布页说的：只当探活候选，不授予凭据信任。
+        let stale = listing.get("stale").and_then(Value::as_bool) == Some(true);
+        let cached: HashSet<String> = if stale {
+            items
+                .iter()
+                .filter_map(|item| item.get("url").and_then(Value::as_str).map(str::to_owned))
+                .collect()
+        } else {
+            HashSet::new()
+        };
+        let candidates = auto_candidates(items, &crate::net::base(), |origin| {
+            is_trusted_mirror(origin) || cached.contains(origin)
+        });
+        published = candidates.len();
+        for origin in candidates {
             set.spawn(async move { Some(probe_hit("mirror", &origin).await) });
+        }
+    }
+    /* 发布页拿不到（`listing` 是 Err）或候选太少时，用内置种子兜底。
+       种子同样逐条真探活，不通就不会被选中；也绝不进信任集合。 */
+    if published < SEED_MIN {
+        for origin in SEED_MIRRORS {
+            set.spawn(async move { Some(probe_hit("seed", origin).await) });
         }
     }
 
@@ -1029,5 +1266,67 @@ mod tests {
         });
         assert_eq!(candidates, ["https://published.example"]);
         assert!(auto_candidates(&[], "https://restored.example", |_| true).is_empty());
+    }
+
+    /// 上游 2026-11-20 换了域名族（dvygahpw.cc / zuxszoix.cc），格式仍是 urls+subdomains。
+    #[test]
+    fn current_publisher_format_yields_one_host_per_subdomain() {
+        let js = r#"
+var subdomains = ['thu','pku','fdu'];
+var urls=[
+	'dvygahpw.cc/',
+	'zuxszoix.cc/',
+];
+var otherUrls = ['https://huangguoai.pages.dev','https://huang-guo.pages.dev'];
+var foreverUrls = ['https://huangguoai.com','https://huangguoai.ai'];
+"#;
+        let items = parse_mirrors(js).unwrap();
+        assert_eq!(
+            origins(&items),
+            [
+                "https://thu.dvygahpw.cc",
+                "https://pku.dvygahpw.cc",
+                "https://fdu.dvygahpw.cc",
+                "https://thu.zuxszoix.cc",
+                "https://pku.zuxszoix.cc",
+                "https://fdu.zuxszoix.cc",
+            ]
+        );
+    }
+
+    /// 换写法（只有完整 https://host，没有 urls 数组）也要能解析；发布页域名不能变成镜像。
+    #[test]
+    fn script_without_urls_array_falls_back_to_static_host_scan() {
+        let js = r#"
+var newestUrls = ['https://thu.dvygahpw.cc','https://pku.zuxszoix.cc','newfamily.cc/'];
+var otherUrls = ['https://huangguoai.pages.dev','https://huangguoai.com','https://huangguoai.ai'];
+var emails = ['huangguoaiai@gmail.com'];
+"#;
+        let items = parse_mirrors(js).unwrap();
+        assert_eq!(
+            origins(&items),
+            [
+                "https://thu.dvygahpw.cc",
+                "https://pku.zuxszoix.cc",
+                "https://newfamily.cc"
+            ]
+        );
+    }
+
+    /// 落盘兜底：读回来标 stale，且**不**授予凭据信任。
+    #[test]
+    fn persisted_mirror_cache_is_stale_and_never_trusted() {
+        let dir = std::env::temp_dir().join(format!("hguox-lines-cache-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        bind(&dir);
+        let items = [json!({"url": "https://cached.example", "host": "cached.example"})];
+        save_mirrors_cache(&items);
+        let cached = load_mirrors_cache().unwrap();
+        assert_eq!(cached["stale"], json!(true));
+        assert_eq!(origins(cached["items"].as_array().unwrap()), ["https://cached.example"]);
+        // 落盘缓存可以「切过去」，但绝不进登录凭据信任集合。
+        assert!(is_cached_mirror("https://cached.example"));
+        assert!(!is_trusted_mirror("https://cached.example"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

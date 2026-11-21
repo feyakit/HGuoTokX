@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, cover, fmt } from "../api";
-import { cachedDetail, loadDetail } from "../detailFast";
+import { cachedDetailStale, loadDetail } from "../detailFast";
 import { useStore } from "../store";
 import { ambientStyle, useAccent } from "../useAccent";
 import { Button } from "../components/ios/controls";
@@ -13,7 +13,8 @@ import type { Detail, VideoCard } from "../types";
    下面依次是 #标签小签、简介、选集（5 列 56×56）、相关推荐；顶部悬浮返回 + 收藏按钮，底部智能续播主 CTA。 */
 export default function SeriesDetail({ id, onBack }: { id: number; onBack: () => void }) {
   const { push, lineEpoch, history, isFav, setCollected, actionPending, toast } = useStore();
-  const [detail, setDetail] = useState<Detail | null>(() => cachedDetail(id));
+  /* SWR：先同步读缓存（含上次启动落盘的），有就立刻上屏，再静默刷新 */
+  const [detail, setDetail] = useState<Detail | null>(() => cachedDetailStale(id)?.data ?? null);
   const [related, setRelated] = useState<VideoCard[]>([]);
   const [err, setErr] = useState("");
   const [favDelta, setFavDelta] = useState(0);
@@ -51,9 +52,31 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
     loadDetail(id)
       .then(res => { if (my === seq.current) setDetail(res); })
       .catch(e => { if (my === seq.current) setErr((e as Error)?.message || "加载失败"); });
+    /* 进页 SWR：缓存先上屏，同时补一次真实请求（force 绕过 5min 读缓存 + 磁盘缓存），
+       回来就静默换新，失败不打扰。 */
+    api.video(id, true)
+      .then(res => { if (my === seq.current && res) setDetail(res); })
+      .catch(() => { /* 静默 */ });
     api.related(id)
       .then(res => { if (my === seq.current) setRelated((res?.items ?? []).filter(v => v && v.cover)); })
       .catch(() => { if (my === seq.current) setRelated([]); });
+  }, [id, lineEpoch]);
+
+  /* 数据实时性（用户反馈「视频数据没有实时更新」）：详情页挂着时
+     · 页面重新可见（切回前台/从播放器返回）静默刷新一次；
+     · 每 60s 静默刷新一次点赞/收藏/集数等计数（直接打接口，绕过缓存，不闪骨架）。
+     失败静默，不打扰用户。 */
+  useEffect(() => {
+    let alive = true;
+    const refresh = () => {
+      api.video(id, true)
+        .then(res => { if (alive && res) setDetail(res); })
+        .catch(() => { /* 静默 */ });
+    };
+    const onVisible = () => { if (document.visibilityState === "visible") refresh(); };
+    document.addEventListener("visibilitychange", onVisible);
+    const timer = window.setInterval(() => { if (document.visibilityState === "visible") refresh(); }, 60_000);
+    return () => { alive = false; document.removeEventListener("visibilitychange", onVisible); window.clearInterval(timer); };
   }, [id, lineEpoch]);
 
   const episodes = useMemo(

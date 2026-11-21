@@ -26,8 +26,10 @@ export const GESTURE = {
   edgeBackCommit: 72,
   /** 双击窗口（ms） */
   doubleTapMs: 280,
-  /** 双击 seek 步长（秒） */
-  doubleTapSeek: 10,
+  /** 双击 seek 步长（秒）：用户定 5s（原 10s 太跳） */
+  doubleTapSeek: 5,
+  /** 双击分区比例：左 1/3 快退、中 1/3 播放/暂停、右 1/3 快进 */
+  zoneSplit: 1 / 3,
   /** 短滑不 seek 的最小位移（px） */
   minSeekPx: 20,
   /** 换集提交门槛：拖过屏高的 40% 才切 */
@@ -96,9 +98,32 @@ export function snapSeek(seconds: number, total: number): number {
 }
 
 /** 双击：左半屏 −10s，右半屏 +10s */
+export type TapZone = "left" | "mid" | "right";
+
+/**
+ * 双击三分区：左 1/3 快退、中 1/3 播放/暂停、右 1/3 快进。
+ * 中区留白是为了让「中间点两下」不会莫名跳进度（原来左右对半分，半屏都能 seek，区域太大）。
+ */
+export function tapZone(x: number, stageWidth: number): TapZone {
+  const width = Number.isFinite(stageWidth) && stageWidth > 0 ? stageWidth : 0;
+  if (!width) return "mid";
+  const split = width * GESTURE.zoneSplit;
+  if (x < split) return "left";
+  if (x >= width - split) return "right";
+  return "mid";
+}
+
+/** 双击动作：左右区返回 seek 秒数（负=快退），中区返回 null 表示「切换播放/暂停」 */
+export function doubleTapAction(x: number, stageWidth: number): { kind: "seek"; seconds: number } | { kind: "toggle" } {
+  const zone = tapZone(x, stageWidth);
+  if (zone === "mid") return { kind: "toggle" };
+  return { kind: "seek", seconds: zone === "left" ? -GESTURE.doubleTapSeek : GESTURE.doubleTapSeek };
+}
+
+/** 兼容旧调用：中区返回 0（调用方据此不出 seek） */
 export function doubleTapSeek(x: number, stageWidth: number): number {
-  const half = (Number.isFinite(stageWidth) ? stageWidth : 0) / 2;
-  return x < half ? -GESTURE.doubleTapSeek : GESTURE.doubleTapSeek;
+  const action = doubleTapAction(x, stageWidth);
+  return action.kind === "seek" ? action.seconds : 0;
 }
 
 /** 是否从左缘返回区起手（按舞台内坐标，非屏幕坐标） */
@@ -160,6 +185,8 @@ export function judgeGesture(input: {
   total: number;
   axis?: Axis;
   held?: boolean;
+  /** 全屏/沉浸态：左缘返回不启用（否则从左侧起手 seek 会直接退全屏）。缺省 false，向后兼容。 */
+  fullscreen?: boolean;
 }): { axis: Axis; action: GestureAction } {
   const axis = input.axis && input.axis !== "none"
     ? input.axis
@@ -169,7 +196,7 @@ export function judgeGesture(input: {
   if (axis === "none") return { axis, action: { kind: "none" } };
 
   if (axis === "x") {
-    if (isEdgeBackStart(input.startX) && input.dx > 0) {
+    if (!input.fullscreen && isEdgeBackStart(input.startX) && input.dx > 0) {
       return {
         axis,
         action: input.dx >= GESTURE.edgeBackCommit ? { kind: "edge-back" } : { kind: "none" },

@@ -1,5 +1,6 @@
 import { useCallback, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { registerOverlayBack } from "./back";
+import { isMobile } from "./api";
 
 type Activity = {
   play: (source: string, automatic?: boolean) => void;
@@ -61,6 +62,12 @@ export function useInlinePlayerFullscreen({ active, src, videoRef, activity }: O
     };
     void (async () => {
       try {
+        /* 移动端（iOS WKWebView / 安卓 WebView）**一律不走** HTML5 原生全屏：
+           · iOS 会弹系统提示 "… is in full screen. Swipe down to exit."（用户会当成报错）；
+           · iOS 的原生全屏容器拿的是竖屏宽度，横过来画面只占左半边、右边纯黑。
+           直接走已有的 CSS 全屏（position:fixed + inset:0），铺满且无系统提示。
+           系统层面的方向由 set_orientation（iOS 16+ UIWindowScene 几何更新）负责。 */
+        if (isMobile) { useFallback(); return; }
         if (typeof target.requestFullscreen !== "function") { useFallback(); return; }
         await target.requestFullscreen();
         if (!current()) {
@@ -114,8 +121,15 @@ export function useInlinePlayerFullscreen({ active, src, videoRef, activity }: O
       else host.style.removeProperty(name);
     }
     Object.assign(host.style, expanded
-      ? { position: "fixed", inset: "0", width: "100%", height: "100dvh", zIndex: "90", background: "#000", overflow: "hidden" }
+      ? { position: "fixed", inset: "0", zIndex: "90", background: "#000", overflow: "hidden" }
       : { position: "relative", inset: "", width: "100%", height: "100%", zIndex: "", background: "", overflow: "" });
+    if (expanded) {
+      /* 先写老单位再写新单位：不支持 dvh 的内核会忽略第二行，仍然拿到 100vh。 */
+      /* 用真实像素变量（见 src/viewport.ts）：iOS 旋转后 100vw/100dvh 可能仍是竖屏值，
+         那样全屏层只有半屏宽（真机 46% 那次）。变量由 resize/orientationchange 实时更新。 */
+      host.style.width = "var(--vp-w, 100vw)";
+      host.style.height = "var(--vp-h, 100vh)";
+    }
     if (host.parentNode === destination) return;
     const video = videoRef.current;
     const playing = !!video && !video.paused && latest.current.activity.isPlayWanted();

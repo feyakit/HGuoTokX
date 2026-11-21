@@ -33,7 +33,7 @@ function loginErrorMessage(error: unknown): string {
 }
 
 export default function LoginModal() {
-  const { loginOpen, setLoginOpen, setUser, toast, accountScope, lineEpoch } = useStore();
+  const { loginOpen, setLoginOpen, setUser, toast, accountScope, lineEpoch, beginGuestMerge } = useStore();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -117,6 +117,8 @@ export default function LoginModal() {
       }
       logLine(`[login] 成功：${result?.user?.nickname || account}`);
       setUser(result.user as User, result.origin); setPassword(""); setLoginOpen(false);
+      /* 登录后问一句：本机（游客）的收藏/观看要不要同步到账号 */
+      beginGuestMerge();
       toast(mode === "login" ? `欢迎回来，${result.user?.nickname || username}` : "注册成功", "ok");
     } catch (error) {
       logLine(`[login] 失败：${(error as Error)?.message || String(error)}`.slice(0, 160));

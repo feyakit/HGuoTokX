@@ -21,15 +21,24 @@ import VideoDetailsPanel from "./VideoDetailsPanel";
 import { PreferenceStorageNotice } from "./PreferenceStorageNotice";
 import LineQuickSwitch from "./LineQuickSwitch";
 import { getHoldZone, stageXY, HOLD_DELAY_MS, HOLD_LOCK_DISTANCE, type HoldZone } from "../mobileHold";
+import { playEnter, playExit, originFromPoint } from "../fsTransition";
+import { useFadeMount } from "../useFadeMount";
 import {
-  GESTURE, canSeek, doubleTapSeek, episodeIntent, isDoubleTap, isEdgeBackStart,
+  GESTURE, canSeek, doubleTapAction, episodeIntent, isDoubleTap, isEdgeBackStart,
   lockAxis, rotationLocked, seekDeltaSeconds, snapSeek, tapVerdict, type Axis,
 } from "../playerGestures";
 import {
   IBack, IBoltF, IChevR, IChevronDown, IChevronUp, IClose, ICommentF, ICompress, IExpand, IFileText, IGlobe, IHeart, IHeartF, IMore,
   IList, ILockF, IPauseF, IPlayF, ISearch, IStar, IStarF, IVertSwap, IVol, IVolMute,
 } from "../icons";
-import { ambientStyle, useAccent } from "../useAccent";
+import { ambientStyle } from "../useAccent";
+import type { AccentScheme } from "../accent";
+
+/* 播放器页固定纯黑：**不跟随封面取色**（用户：只有播放页去掉取色，其他页保留）。
+   data-ambient 会是 fallback，氛围层与雾面都不渲染；控件强调色仍是品牌紫。 */
+const PLAYER_SCHEME: AccentScheme = {
+  accent: "#7C5CFF", second: "#3B82F6", deep: "#000000", tag: "#26263A", source: "fallback", luma: 0,
+};
 
 /* 系统方向请求的唯一出口。
    安卓：Rust 把请求转给 Kotlin 插件 OrientationPlugin（activity.requestedOrientation），
@@ -100,8 +109,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     }
     return request;
   }, [accountScope, store.lineEpoch]);
-  const requestPlay = useCallback((id: number, episode: number) => {
+  /* 播放地址永不缓存：force=true 时先丢掉在途/已完成的那条，重新问服务器。
+     CDN token 会过期，"复用上次的地址"就是用户看到 403 / 卡首帧的原因。 */
+  const requestPlay = useCallback((id: number, episode: number, force = false) => {
     const key = `${accountScope}:${store.lineEpoch}:${id}:${episode}`;
+    if (force) playRequests.current.delete(key);
     let request = playRequests.current.get(key);
     if (!request) {
       request = api.play(id, episode).finally(() => {
@@ -154,6 +166,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const [hevcUrls, setHevcUrls] = useState<Record<string, string>>({});
   const [playingKey, setPlayingKey] = useState("");
   const [proxyRetry, setProxyRetry] = useState(0);
+  /* 播放地址重取：每个 playKey 只自动重试一次，避免坏源无限循环 */
+  const [playBust, setPlayBust] = useState(0);
+  const playRetried = useRef<Record<string, boolean>>({});
   const [relatedByVideo, setRelatedByVideo] = useState<Record<string, VideoCard[]>>({});
 
   const playbackClock = useMemo(() => createPlaybackClock(), []);
@@ -245,7 +260,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   } | null>(null);
   /* 单击 / 双击判定：
      单击 = 两态（控件收起→唤出；可见→暂停/播放）；
-     双击 = 左半屏 −10s / 右半屏 +10s（窗口 280ms，见 playerGestures.isDoubleTap）。 */
+     双击 = 三分法：左 1/3 −5s / 中 1/3 播放暂停 / 右 1/3 +5s（窗口 280ms，见 playerGestures.tapZone）。 */
   const tapRef = useRef<{ lastAt: number; timer: number | null }>({ lastAt: 0, timer: null });
   /* 瞬时的 seek 提示（双击/松手后 800ms 消失）：不新增常驻控件，样式沿用现有胶囊类 */
   const [seekHint, setSeekHint] = useState<{ delta: number; target: number } | null>(null);
@@ -336,7 +351,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     window.clearTimeout(idleTimer.current);
     if (!isDesktop && fs) setIdle(true); else setClean(true);
   }, [isDesktop, fs, setClean]);
-  /* seek 提示气泡：显示 800ms 后自动消失（双击 ±10s / 松手吸附后各用一次） */
+  /* seek 提示气泡：显示 800ms 后自动消失（双击 ±5s / 松手吸附后各用一次；中区双击不出气泡） */
   const flashSeek = useCallback((delta: number, target: number) => {
     window.clearTimeout(seekHintTimer.current);
     setSeekHint({ delta, target });
@@ -546,7 +561,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
 
   const posterUrl = cover(meta.cover, 900);
   /* 封面色链路：这一屏的主视觉决定了全站强调色（换剧才换色） */
-  const accentScheme = useAccent(curId, posterUrl || undefined);
+  const accentScheme = PLAYER_SCHEME;
   const setAccent = useStore().setAccent;
   useEffect(() => { setAccent(accentScheme); }, [accentScheme, setAccent]);
   const articleHtml = kind === "post" && !post?.video_url ? (post?.content || "") : "";
@@ -560,6 +575,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
      避免旋转动画期间手指还按在屏幕上被误判成 seek / 换集。 */
   useEffect(() => { rotatedAtRef.current = Date.now(); }, [rotated, vpLandscape]);
 
+  /* 控件层显隐动画（淡出 120ms 后才卸载） */
+  const cinemaBar = useFadeMount(!fs && !clean && !isDesktop);
+  const actionRail = useFadeMount(!fs && !clean && !isDesktop);
   const landscapeVideo = videoSize.w > 0 && videoSize.h > 0 && videoSize.w > videoSize.h;
   const portraitVideo = videoSize.w > 0 && videoSize.h > 0 && videoSize.w <= videoSize.h;
   const ambientCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -747,12 +765,12 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, curId, kind, allowed, panel, relatedKey, relatedByVideo]);
 
-  /* 拉播放地址 */
+  /* 拉播放地址：每次进集/回到前台播放都重新问一次（api_play 不缓存，见 api.ts 的 CACHE_TTL）。
+     playBust 由「403/404 自动重取一次」推进。 */
   useEffect(() => {
     if (!active || !curId || !allowed) return;
-    if (playUrls[playKey]) return;
     let alive = true;
-    requestPlay(curId, curEp)
+    requestPlay(curId, curEp, true)
       .then((info) => {
         if (!alive || !isCurrentPlayback()) return;
         const streamUrl = info?.streams?.main || info?.video_url;
@@ -782,7 +800,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       .catch((e) => { if (alive) setErr((e as Error).message || "取播放地址失败"); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, curId, curEp, proxyRetry, allowed, permissionKey, requestPlay]);
+  }, [active, curId, curEp, proxyRetry, allowed, permissionKey, playBust, requestPlay]);
 
   /* 当前集拿到地址后再预取下一集，避免首帧加载期间争抢网络。 */
   useEffect(() => {
@@ -987,9 +1005,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     const zone = getHoldZone(e.clientX - rect.left, e.clientY - rect.top, rect.width, rect.height);
     try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
     armAutoHide();
-    /* 左缘返回：只按竖屏（未伪横屏）下的屏幕左缘判 —— 伪横屏是旋转过的舞台，
-       "左缘"在屏幕上不是左边，干脆不启用边缘返回，免得旋转状态下误退页。 */
-    const edgeStart = !rotated && isEdgeBackStart(e.clientX - rect.left);
+    /* 左缘返回：只在**非全屏的竖屏播放页**启用。
+       - 伪横屏（rotated）是旋转过的舞台，"左缘"在屏幕上不是左边；
+       - 真横屏全屏（vpLandscape）与全屏（fs）里左缘右滑必须留给 seek，
+         否则从左侧起手想快退会直接退出全屏。 */
+    const edgeStart = !rotated && !fs && !vpLandscape && isEdgeBackStart(e.clientX - rect.left);
     const g = {
       x: sx, y: sy, startY: sy, t: Date.now(), base: videoRef.current?.el()?.currentTime ?? playbackClock.getSnapshot(), width,
       stageH,
@@ -1184,7 +1204,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     setEpPreview(null);
     /*
       单击 / 双击语义（重写）：
-        · 双击（280ms 内第二下）：左半屏 −10s、右半屏 +10s，屏上给 800ms 时间气泡；
+        · 双击（280ms 内第二下）：三分法 —— 左 1/3 退 −10s、中 1/3 播放/暂停（不出气泡）、
+          右 1/3 进 +10s，左右区给 800ms 时间气泡；
         · 单击两态：控件收起 → 唤出；控件可见 → 播放/暂停。
       以前双击被拆成两次单击（唤出 + 收起）互相抵消，用户根本感受不到双击。
     */
@@ -1197,7 +1218,15 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       if (isDoubleTap(tapRef.current.lastAt, now)) {
         window.clearTimeout(tapRef.current.timer ?? undefined);
         tapRef.current = { lastAt: 0, timer: null };
-        seekBy(doubleTapSeek(g.x, g.width));
+        const action = doubleTapAction(g.x, g.width);
+        if (action.kind === "toggle") {
+          /* 中区双击：播放/暂停，不出 seek 气泡（避免中间误触跳进度） */
+          videoRef.current?.toggle();
+          showControls();
+          armAutoHide();
+          return;
+        }
+        seekBy(action.seconds);
         showControls();
         return;
       }
@@ -1258,6 +1287,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
      系统方向由 Kotlin 插件真转（安卓）；转不过去时 .fs-landscape 的 CSS 旋转仍兜底
      （注释见 index.css），所以两条路互不依赖。 */
   const enterFs = useCallback((landscape = true) => {
+    /* FLIP：切换前记下播放器当前几何，切换后用 WAAPI 从旧几何补间到满屏。
+       会请求系统转屏时（移动端）只淡入 —— 旋转由系统做，再叠缩放会打架。 */
+    const root = (boxRef.current?.closest(".hg-player-ui") as HTMLElement | null) ?? null;
+    const fromRect = root ? root.getBoundingClientRect() : null;
+    const willRotate = !isDesktop && landscape;
     /* 先把当前可见项锁定下来，再收起滚动容器：否则进入全屏后 scrollTop 归零，
        还在 150ms 防抖里的 index 会被 resolveSwipe(0) 改回第一屏（「全屏后变成另一个视频」）。 */
     const el = boxRef.current;
@@ -1272,6 +1306,10 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     setFsLandscape(landscape);
     showControls();
     keepAlive();
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (root) root.style.transformOrigin = originFromPoint(root);
+      playEnter(root, fromRect ? { left: fromRect.left, top: fromRect.top, width: fromRect.width, height: fromRect.height } : null, !willRotate);
+    }));
     if (!isDesktop) {
       /* 只做两件事：系统转屏（安卓 JNI setRequestedOrientation）+ CSS 舞台。
          这里**不能再调 requestFullscreen / orientation.lock** —— 安卓 WebView 收到全屏请求会走
@@ -1285,17 +1323,23 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
 
   /* 退出全屏：再点一次回到竖屏（并解除系统方向锁/全屏） */
   const exitFs = useCallback(() => {
+    const root = (boxRef.current?.closest(".hg-player-ui") as HTMLElement | null) ?? null;
+    const fromRect = root ? root.getBoundingClientRect() : null;
+    const wasFs = fs;
     setClean(false);
     setFs(false);
     setFsLandscape(false);
     showControls();
     keepAlive();
+    if (wasFs) requestAnimationFrame(() => requestAnimationFrame(() => {
+      playExit(root, fromRect ? { left: fromRect.left, top: fromRect.top, width: fromRect.width, height: fromRect.height } : null, true);
+    }));
     if (!isDesktop) {
       requestOrientation(false);
       try { screen.orientation?.unlock?.(); } catch { /* ignore */ }
       try { if (document.fullscreenElement) void document.exitFullscreen?.()?.catch(() => {}); } catch { /* ignore */ }
     }
-  }, [isDesktop, keepAlive, setClean, setFs, showControls]);
+  }, [isDesktop, keepAlive, setClean, setFs, showControls, fs]);
 
   useEffect(() => {
     if (isDesktop || !fs) return undefined;
@@ -1562,9 +1606,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   return (
     <div
       className={`hg-player-ui hg-player-ambient ${rotated ? "fs-landscape" : (!isDesktop && fs ? "fs-immersive" : "absolute inset-0")} overflow-hidden bg-black player-root ${controlsLocked ? "is-locked" : ""} ${isDesktop ? "player-surface" : ""} ${theater ? "is-theater" : ""} ${isDesktop && idle ? "is-idle" : ""}`}
-      data-ambient={accentScheme.source}
+      /* 播放页固定纯黑：不挂取色（用户：只有播放页去取色）。"none" 只为样式兜底，不再有渐变层。 */
+      data-ambient="none"
       data-player-mode={endless ? "feed" : "cinema"}
-      style={ambientStyle(accentScheme)}
       data-clean={clean}
       /* W20 对账用：当前第几条 / 当前剧 id / 已装载条数（滚动与追加是否错位一眼可见） */
       data-binge={endless ? "true" : undefined}
@@ -1576,39 +1620,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       onFocusCapture={() => { if (active && isDesktop) wake(); }}
       onPointerMove={() => { if (isDesktop) wake(); }}>
       <div className="absolute inset-0" inert={controlsLocked}>
-      {/* 封面取色氛围底：颜色来自当前剧封面（根节点上 ambientStyle 挂的 --deep / --ambient）。
-          视频是不透明元素、盖在它上面，所以这层只在视频以外的信箱区/上下条可见，
-          不给 video 加任何滤镜。取色失败时 data-ambient="fallback" → 这一层不渲染，回纯黑。 */}
-      <div aria-hidden="true" className="hg-player-ambient-layer" />
-      {/* 氛围背景：起播前由增强版封面毛玻璃垫底，起播后由实时视频流光接管 */}
-      {!isDesktop && posterUrl && (
-        <div className="absolute inset-0 pointer-events-none"
-          style={{
-            transform: "scale(1.16)",
-            filter: "blur(42px) saturate(1.45) brightness(0.62)",
-            opacity: ambientLive ? 0.15 : 0.45,
-            transition: "opacity 0.5s ease",
-          }}>
-          <Image src={posterUrl} alt="" className="w-full h-full object-cover" />
-        </div>
-      )}
-      {!isDesktop && (
-        <canvas
-          ref={ambientCanvasRef}
-          width={32}
-          height={18}
-          aria-hidden="true"
-          className="absolute inset-0 w-full h-full pointer-events-none"
-          style={{
-            objectFit: "cover",
-            transform: "scale(1.18)",
-            filter: "blur(46px) saturate(1.55) brightness(0.64)",
-            opacity: ambientLive ? 0.72 : 0,
-            transition: "opacity 0.5s ease",
-          }}
-        />
-      )}
-
+      {/* 播放页固定纯黑：原来的三层上色（取色径向层 / 毛玻璃封面底 / 视频流光 canvas）
+          全部移除。它们只在信箱区与上下条可见 —— 正是"上边不黑、下边黑"的来源。
+          白字可读性由控件自身那两条压光负责（顶部 96px / 底部 116px）。 */}
       <div ref={boxRef} onScroll={onScroll}
         className={`absolute inset-y-0 left-0 no-bar ${fs ? "overflow-hidden" : "overflow-y-scroll snap-y snap-mandatory overscroll-y-contain"}`}
         style={{ right: isDesktop && panel ? 372 : 0, transition: "right .3s cubic-bezier(.2,0,0,1)" }}>
@@ -1664,6 +1678,17 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   }}
                   onError={(m) => {
                     if (!isCurrentPlayback()) return;
+                    /* CDN token 过期会表现为 403/404/410 或 hls 的 networkError：
+                       自动重取一次播放地址再重试，不把这条错误丢给用户。 */
+                    if ((/\b(403|404|410)\b/.test(m) || /networkError/i.test(m)) && !playRetried.current[playKey]) {
+                      playRetried.current[playKey] = true;
+                      setPlayUrls((prev) => { const next = { ...prev }; delete next[playKey]; return next; });
+                      setHevcUrls((prev) => { const next = { ...prev }; delete next[playKey]; return next; });
+                      setErr(""); setWaiting(true);
+                      setPlayBust((n) => n + 1);
+                      toast("播放地址已刷新，正在重试", "info");
+                      return;
+                    }
                     setErr(m); setWaiting(false);
                     if (useHevc) {
                       const v = videoRef.current?.el();
@@ -1739,8 +1764,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
               )}
               {/* 右侧操作栏（移动端）：点赞 / 收藏 / 评论 / 全屏
                   颜色写死不跟主题走：浅色主题下这些字必须仍是白色 */}
-              {!fs && !clean && !isDesktop && (
-                <div className={`mobile-video-action-rail absolute right-3 z-20 flex flex-col items-center ${vpLandscape ? "gap-1.5" : "gap-3"}`}
+              {actionRail.mounted && (
+                <div className={`mobile-video-action-rail absolute right-3 z-20 flex flex-col items-center ${actionRail.cls} ${vpLandscape ? "gap-1.5" : "gap-3"}`}
                   style={{ bottom: vpLandscape ? "calc(var(--sab, 0px) + 12px)" : `calc(var(--sab, 0px) + ${bottomInset + 178}px)` }}>
                   {kind === "video" && (
                     <Button key={`like-${likeBump}`} onClick={() => void onLike()} disabled={likePending} aria-busy={likePending}
@@ -1836,9 +1861,10 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
               </div>
               )}
 
-              {/* 移动端：统一以剧场模式为基准的底部控台（抖音模式同步支持线路/全屏/倍速/进度条，且「看全集」直达剧场续播） */}
-              {!fs && !clean && !isDesktop && (
-                <div className="hg-cinema-bottom absolute inset-x-0 z-20" data-hg-control="bar"
+              {/* 移动端：统一以剧场模式为基准的底部控台（抖音模式同步支持线路/全屏/倍速/进度条，且「看全集」直达剧场续播）
+                  显隐走 useFadeMount：淡入 160ms / 淡出 120ms + 6px 位移，不再整块硬闪。 */}
+              {cinemaBar.mounted && (
+                <div className={`hg-cinema-bottom absolute inset-x-0 z-20 ${cinemaBar.cls}`} data-hg-control="bar"
                   style={{
                     bottom: `calc(var(--sab, 0px) + ${bottomInset + 14}px)`,
                     paddingRight: vpLandscape ? 64 : undefined,

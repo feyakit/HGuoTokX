@@ -9,6 +9,7 @@ import { addPluginListener, invoke } from "@tauri-apps/api/core";
 import { runBack } from "./back";
 import Home from "./pages/Home";
 import LoginModal from "./components/LoginModal";
+import GuestMergePrompt from "./components/GuestMergePrompt";
 import { ToastHost } from "./components/ui";
 import { DesktopRail, DesktopTitleBar } from "./components/DesktopChrome";
 import ResizeHandles from "./components/ResizeHandles";
@@ -29,6 +30,7 @@ const Profile = lazy(() => import("./pages/Profile"));
 const HistoryPage = lazy(() => import("./pages/Profile").then(module => ({ default: module.HistoryPage })));
 const FavoritesPage = lazy(() => import("./pages/Profile").then(module => ({ default: module.FavoritesPage })));
 const SettingsPage = lazy(() => import("./pages/Settings"));
+const SettingsTagsPage = lazy(() => import("./pages/SettingsTags"));
 const PostsPage = lazy(() => import("./pages/Posts").then(module => ({ default: module.PostsPage })));
 const PostDetail = lazy(() => import("./pages/Posts").then(module => ({ default: module.PostDetail })));
 const TopicsPage = lazy(() => import("./pages/Discover").then(module => ({ default: module.TopicsPage })));
@@ -94,7 +96,8 @@ function StackPageContent({ page, onBack, wide, top, bottomInset }: {
   if (page.kind === "favorites") return <FavoritesPage onBack={onBack} wide={wide} initialTab={page.initialTab} />;
   if (page.kind === "channel") return <ChannelPage cate={page.cate} name={page.name} onBack={onBack} wide={wide} />;
   if (page.kind === "ranks") return <RankPage onBack={onBack} wide={wide} />;
-  if (page.kind === "settings") return <SettingsPage onBack={onBack} wide={wide} initialSection={page.section} />;
+  if (page.kind === "settings") return <SettingsPage onBack={onBack} wide={wide} />;
+  if (page.kind === "settings-tags") return <SettingsTagsPage onBack={onBack} />;
   if (page.kind === "posts") return <PostsPage onBack={onBack} wide={wide} />;
   if (page.kind === "post") return <PostDetail id={page.id} onBack={onBack} active={top} />;
   if (page.kind === "topics") return <TopicsPage onBack={onBack} wide={wide} />;
@@ -119,7 +122,7 @@ function MainTabs({ wide, pageActive, bottomInset }: { wide: boolean; pageActive
   // First visits mount on demand; subsequent switches preserve queries, scroll and playback state.
   return <>
     <div className={visible("home")} inert={!pageActive || tab !== "home"} aria-hidden={!pageActive || tab !== "home"}>{mounted("home") && <Home active={pageActive && tab === "home"} bottomInset={bottomInset} />}</div>
-    <div className={visible("posts")} inert={!pageActive || tab !== "posts"} aria-hidden={!pageActive || tab !== "posts"}>{mounted("posts") && <Suspense fallback={<PageLoading />}><PostsPage wide={wide} embedded /></Suspense>}</div>
+    <div className={visible("posts")} inert={!pageActive || tab !== "posts"} aria-hidden={!pageActive || tab !== "posts"}>{mounted("posts") && <Suspense fallback={<PageLoading />}><PostsPage wide={wide} embedded active={pageActive && tab === "posts"} /></Suspense>}</div>
     <div className={visible("category")} inert={!pageActive || tab !== "category"} aria-hidden={!pageActive || tab !== "category"}>{mounted("category") && <Suspense fallback={<PageLoading />}><Category wide={wide} active={pageActive && tab === "category"} /></Suspense>}</div>
     <div className={visible("profile")} inert={!pageActive || tab !== "profile"} aria-hidden={!pageActive || tab !== "profile"}>{mounted("profile") && <Suspense fallback={<PageLoading />}><Profile wide={wide} /></Suspense>}</div>
   </>;
@@ -166,7 +169,9 @@ function AppBody() {
   return (
     <div className={`absolute inset-0 flex bg-canvas plat-${platform}`}>
       {!isMobile && <DesktopRail collapsed={collapsed} />}
-      <div ref={mainRef} className="relative flex-1 min-w-0 overflow-hidden win-main">
+      {/* data-stack=1 表示正在看栈页（详情/播放器）：横屏的 440 限宽不能套在播放器上，
+          否则全屏层会被压成手机宽度、右边留黑（真机 iOS 横屏只占左半边）。 */}
+      <div ref={mainRef} data-stack={stack.length ? "1" : "0"} className="relative flex-1 min-w-0 overflow-hidden win-main">
         <MainTabs wide={wide} pageActive={pageActive} bottomInset={bottomInset} />
 
         {stack.map((p, i) => (
@@ -390,6 +395,7 @@ export default function App() {
     <>
       {isMobile ? <MobileShell /> : <DesktopShell />}
       <LoginModal />
+      <GuestMergePrompt />
       <ToastHost />
     </>
   );

@@ -8,7 +8,7 @@ type Result = {
   page: number; pages: number; total: number | null;
 };
 type Request = { keyword: string; kind: SearchKind; page: number };
-const CACHE_TTL = 60_000;
+const CACHE_TTL = 5_000;
 const CACHE_LIMIT = 8;
 const CACHE_ITEMS = 200;
 
@@ -82,10 +82,16 @@ export function useSearchResults(scope?: "original") {
     void run({ keyword: data.keyword, kind: data.kind, page: data.page + 1 });
   };
   const retry = () => { if (!busy.current && attempt.current) void run(attempt.current); };
+  /** 下拉刷新：重跑当前关键词的第一页（不吃 useSearchResults 自己的 5s 缓存） */
+  const refresh = () => {
+    const latest = attempt.current;
+    if (!latest) return Promise.resolve();
+    return run({ ...latest, page: 1 });
+  };
   const clear = () => {
     sequence.current++;
     busy.current = false; attempt.current = null;
     publish(null); setRequest(null); setLoading(false); setError(null);
   };
-  return { result, request, loading, error, search, loadMore, retry, clear };
+  return { result, request, loading, error, search, loadMore, retry, refresh, clear };
 }

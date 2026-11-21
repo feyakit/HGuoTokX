@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "test:playback": "node scripts/test-playback.mjs",
     "test:api-loading": "node scripts/test-api-loading.mjs",
+    "test:data-freshness": "node scripts/test-data-freshness.mjs",
     "test:channel-pagination": "node scripts/test-channel-pagination.mjs",
     "test:topic-pagination": "node scripts/test-topic-pagination.mjs",
     "test:post-hot": "node scripts/test-post-detail-hot.mjs",

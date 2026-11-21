@@ -291,12 +291,20 @@
   box-shadow: inset 0 0 0 2px #8B9AF9;
 }
 
-/* 主 CTA（规范 2.3）：332×41.7 全圆、14/600、固定品牌主色、距底 32 */
+/* 主 CTA（v3.0.6 品牌统一）：高 44 / 圆角 12 / 13·600 / 品牌渐变 + 内描边 + 紫光。
+   改前是「纯色 var(--p-primary) + 全圆角 + 14/600」，与「抖音模式」胶囊不同源。 */
 .hg-cta {
   display: flex; align-items: center; justify-content: center; gap: 6px;
-  width: 100%; height: 41.7px; border: 0; border-radius: 999px; padding: 0 24px;
-  background: var(--p-primary); color: var(--p-on-primary);
-  font-size: 14px; font-weight: 600;
+  width: 100%; height: var(--btn-h); border: 0; border-radius: var(--btn-r); padding: 0 20px;
+  background: var(--btn-grad); color: #fff;
+  box-shadow: var(--btn-ring), var(--btn-glow);
+  font-size: var(--btn-fs); font-weight: var(--btn-fw); line-height: 1;
+  transition: var(--btn-press);
+}
+.hg-cta:active { transform: scale(.96); filter: brightness(1.08); }
+@media (prefers-reduced-motion: reduce) {
+  .hg-cta { transition: none; }
+  .hg-cta:active { transform: none; }
 }
 .hg-detail-cta-wrap {
   padding: 10px var(--space-page) calc(32px + var(--sab, 0px));
@@ -532,10 +540,16 @@
 
 .hg-post-feed { display: block; }
 .ios-button.hg-post-cta {
-  flex: none; height: 32px; min-block-size: 0; min-inline-size: 0;
-  padding: 0 18px; border-radius: 999px; border: 0;
-  background: #7C5CFF; color: #fff; font-size: 13px; font-weight: 600;
+  position: relative;
+  flex: none; height: var(--btn-h-sm); min-block-size: 0; min-inline-size: 0;
+  padding: 0 16px; border-radius: var(--btn-r-pill); border: 0;
+  background: var(--btn-grad); color: #fff;
+  box-shadow: var(--btn-ring);
+  font-size: var(--btn-fs); font-weight: var(--btn-fw); line-height: 1;
+  transition: var(--btn-press);
 }
+.ios-button.hg-post-cta::after { content: ""; position: absolute; inset: -6px; }
+.ios-button.hg-post-cta:active { transform: scale(.96); filter: brightness(1.08); }
 .hg-post-card {
   display: block; width: 100%; text-align: left;
   margin-top: 20px; padding: 0; border: 0; background: transparent; cursor: pointer;
@@ -785,12 +799,14 @@
 .hg-profile-stat-lbl { font-size: 12px; line-height: 1.2; color: #9CA3AF; }
 .ios-button.hg-profile-login-cta {
   display: flex; align-items: center; justify-content: center;
-  width: 100%; height: 48px; margin-top: 18px;
-  border-radius: 999px; border: 0;
-  background: linear-gradient(135deg, #FF7A59 0%, #7C5CFF 100%);
-  box-shadow: 0 8px 24px rgba(124, 92, 255, .28);
-  color: #fff; font-size: 15px; font-weight: 700;
+  width: 100%; height: var(--btn-h); margin-top: 18px;
+  border-radius: var(--btn-r); border: 0;
+  background: var(--btn-grad);
+  box-shadow: var(--btn-ring), var(--btn-glow);
+  color: #fff; font-size: var(--btn-fs); font-weight: var(--btn-fw); line-height: 1;
+  transition: var(--btn-press);
 }
+.ios-button.hg-profile-login-cta:active { transform: scale(.96); filter: brightness(1.08); }
 .hg-profile-recent {
   margin-top: 16px;
 }
@@ -1200,7 +1216,9 @@
 .ios-button.hg-ed-tab[aria-selected="true"] {
   font-size: clamp(17px, 4.8vw, 20px); font-weight: 800; letter-spacing: -0.3px; color: #fff;
 }
-.ios-button.hg-ed-tab[aria-selected="true"]::after {
+/* 选中态下划线：用 ::before 而不是 ::after —— ::after 让给「热区外扩」，
+   两者都是 bottom:0 的 3px 条，视觉不变。 */
+.ios-button.hg-ed-tab[aria-selected="true"]::before {
   content: ""; position: absolute; left: 2px; right: 2px; bottom: 0;
   height: 3px; border-radius: 999px;
   background: linear-gradient(90deg, #FFB347 0%, #FF6B57 48%, #7C5CFF 100%);
@@ -1227,21 +1245,38 @@
 }
 .hg-sub-titles { flex: 1; min-width: 0; }
 
-/* 「抖音模式」入口：顶栏最右的胶囊（高 28 / 圆角 8 / 字 12）。
-   视觉高度按规格，热区用 ::after 外扩 8px，手指不必精准点中那 28px。 */
+/* 本页顶栏高度钉在原值（sat + 6 + 44 + 6 = sat + 56）：抖音模式胶囊从 44 收到 32 之后，
+   顶栏会按最高的子项（搜索 36）塌成 72，导致搜索/字标/tab 上移 4px、下方内容上移 8px。
+   只在首页加这一条，别动吃瓜等共用 .hg-editorial-bar 的页面。 */
+.hg-home-page .hg-editorial-bar { min-height: calc(var(--sat, 0px) + 56px); }
+
+/* 「抖音模式」入口：顶栏最右的品牌强调胶囊（高 32 / 全圆角 / 字 13-600）。
+   本体 32 高，热区用 ::after 外扩 6px 撑到 44，手指不必精准点中那 32px。
+   按下态用 transform/filter：ios.css 里有 0,5,0 的 `.ios-button…:active{scale}` 规则，
+   走 `scale` 属性会被它压掉，改 `transform` 就不在同一个属性上打架。
+   与搜索按钮的间距由 header 的 gap（clamp 6~10）决定，这里补差值把它钉在 8px。 */
 .ios-button.hg-binge-pill {
   position: relative;
-  flex: none; min-height: 44px; min-block-size: 44px; min-inline-size: 44px;
-  padding: 0 clamp(8px, 2.6vw, 12px); border-radius: 12px;
-  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  flex: none;
+  height: 32px; min-height: 0; min-block-size: 0; min-inline-size: 0;
+  margin-inline-end: calc(8px - clamp(6px, 2vw, 10px));
+  padding: 0 12px; border: 0; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
   white-space: nowrap;
-  font-size: clamp(11px, 3.1vw, 12px); font-weight: 600; line-height: 1;
-  background: rgba(255, 255, 255, 0.10);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 13px; font-weight: 600; line-height: 1;
+  background: linear-gradient(135deg, #7C5CFF 0%, #5B6BFF 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
   color: #fff;
+  transition: transform 120ms var(--motion-spring), filter 120ms var(--motion-spring);
 }
-.ios-button.hg-binge-pill::after { content: ""; position: absolute; inset: -8px -4px; }
-.ios-button.hg-binge-pill:active { background: rgba(255, 255, 255, 0.16); }
+.ios-button.hg-binge-pill::after { content: ""; position: absolute; inset: -6px; }
+.ios-button.hg-binge-pill:active { transform: scale(.96); filter: brightness(1.08); }
+.ios-button.hg-binge-pill:focus-visible { outline: 2px solid rgba(255, 255, 255, .85); outline-offset: 2px; }
+.ios-button.hg-binge-pill > svg { display: block; flex: none; }
+@media (prefers-reduced-motion: reduce) {
+  .ios-button.hg-binge-pill { transition: none; }
+  .ios-button.hg-binge-pill:active { transform: none; }
+}
 
 
 .hg-sub-title {
@@ -1263,13 +1298,17 @@
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .ios-button.hg-quick-action {
-  flex: none; height: 32px; min-block-size: 0; min-inline-size: 0;
-  padding: 0 12px; border-radius: 10px;
+  position: relative;
+  flex: none; height: var(--btn-h-sm); min-block-size: 0; min-inline-size: 0;
+  padding: 0 14px; border-radius: var(--btn-r-pill);
   display: inline-flex; align-items: center; gap: 5px;
-  background: linear-gradient(135deg, rgba(255, 107, 87, 0.22), rgba(124, 92, 255, 0.30));
-  border: 1px solid rgba(155, 123, 255, 0.38);
-  color: #fff; font-size: 12px; font-weight: 700; white-space: nowrap;
+  background: var(--btn-grad);
+  border: 0; box-shadow: var(--btn-ring);
+  color: #fff; font-size: var(--btn-fs); font-weight: var(--btn-fw); line-height: 1; white-space: nowrap;
+  transition: var(--btn-press);
 }
+.ios-button.hg-quick-action::after { content: ""; position: absolute; inset: -6px; }
+.ios-button.hg-quick-action:active { transform: scale(.96); filter: brightness(1.08); }
 
 /* 3. 一体式极光玻璃轨道滑块（替代二级胶囊栏：榜单 / 收藏 / 搜索 / 标签页 / 频道页） */
 .ios-segmented.hg-seg-track {
@@ -1389,13 +1428,21 @@
   font-size: 12px; color: rgba(255, 255, 255, 0.72);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* Hero 播放：它是 <span role="button">，不命中 .ios-button 的任何规则，
+   所以按下态必须自己写（改前 38 高 / 12 圆角 / 橘→紫渐变，且按下零反馈）。 */
 .hg-spotlight-cta {
-  flex: none; height: 38px; padding: 0 16px; border-radius: 12px;
+  position: relative;
+  flex: none; height: var(--btn-h); padding: 0 16px; border-radius: var(--btn-r);
   display: inline-flex; align-items: center; gap: 6px;
-  background: linear-gradient(135deg, #FF7A59 0%, #7C5CFF 100%);
-  color: #fff; font-size: 13px; font-weight: 700;
-  box-shadow: 0 6px 18px rgba(124, 92, 255, 0.42);
-  transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.2s ease;
+  background: var(--btn-grad);
+  color: #fff; font-size: var(--btn-fs); font-weight: var(--btn-fw); line-height: 1;
+  box-shadow: var(--btn-ring), 0 6px 18px rgba(124, 92, 255, 0.42);
+  transition: var(--btn-press);
+}
+.hg-spotlight-cta:active { transform: scale(.96); filter: brightness(1.08); }
+@media (prefers-reduced-motion: reduce) {
+  .hg-spotlight-cta { transition: none; }
+  .hg-spotlight-cta:active { transform: none; }
 }
 .hg-spotlight-bars {
   display: flex; align-items: center; gap: 0; margin-top: 0; justify-content: center;
@@ -1867,16 +1914,26 @@
   border: 1px solid rgba(255, 255, 255, 0.10);
 }
 
+/* 详情收藏：未收藏 = Secondary 玻璃；已收藏 = 品牌紫选中态。
+   改前「已收藏」是琥珀 #FBBF24 —— 那是「评分/榜单」的金色语义，用在状态切换上会让人以为
+   收藏是另一种功能。状态只换「底 + 环 + 字」，不换色系。热区 40 → 44 由 ::after 补。 */
 .ios-button.hg-detail-fav {
   position: absolute; right: var(--space-page); top: calc(var(--sat, 0px) + 12px); z-index: 40;
-  height: 40px; min-block-size: 0; min-inline-size: 0; padding: 0 14px; border-radius: 999px;
+  height: 40px; min-block-size: 0; min-inline-size: 0; padding: 0 14px; border-radius: var(--btn-r-pill);
   display: inline-flex; align-items: center; gap: 6px;
-  background: rgba(22, 30, 64, 0.58); border: 1px solid rgba(255, 255, 255, 0.15); color: #fff;
-  font-size: 13px; font-weight: 600;
+  background: rgba(255, 255, 255, 0.07); border: 0;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  color: #EDEDF2;
+  font-size: var(--btn-fs); font-weight: var(--btn-fw); line-height: 1;
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  transition: var(--btn-press), background-color .16s ease, box-shadow .16s ease;
 }
+.ios-button.hg-detail-fav::after { content: ""; position: absolute; inset: -2px; }
+.ios-button.hg-detail-fav:active { transform: scale(.96); filter: brightness(1.08); }
 .ios-button.hg-detail-fav.is-on {
-  background: rgba(251, 191, 36, 0.24); border-color: rgba(251, 191, 36, 0.55); color: #FCD34D;
+  background: rgba(124, 92, 255, 0.20);
+  box-shadow: inset 0 0 0 1px rgba(155, 123, 255, 0.55);
+  color: #D8CDFF;
 }
 
 .hg-aurora-progress {
@@ -1895,18 +1952,19 @@
 .hg-section-actions {
   display: inline-flex; align-items: center; gap: 10px;
 }
+/* 换一批：次级行动（不是主行动），归 Secondary —— 玻璃底 + 内描边 + 圆角 12 */
 .ios-button.hg-shuffle-btn {
   min-block-size: 44px; min-inline-size: 44px;
-  min-height: 44px; padding: 0 12px; border-radius: 11px;
+  height: 44px; padding: 0 14px; border-radius: var(--btn-r);
   display: inline-flex; align-items: center; justify-content: center; gap: 5px;
-  background: rgba(124, 92, 255, 0.14);
-  border: 1px solid rgba(155, 123, 255, 0.30);
-  color: #E2DCFF; font-size: 12px; font-weight: 600;
+  background: rgba(255, 255, 255, 0.07);
+  border: 0; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  color: #EDEDF2; font-size: var(--btn-fs); font-weight: var(--btn-fw); line-height: 1;
   white-space: nowrap;
+  transition: var(--btn-press);
 }
 .ios-button.hg-shuffle-btn:active {
-  transform: scale(0.96);
-  background: rgba(124, 92, 255, 0.24);
+  transform: scale(0.96); filter: brightness(1.15);
 }
 .ios-button.hg-shuffle-btn[aria-busy="true"] svg {
   animation: hg-spin 0.75s linear infinite;
@@ -1919,3 +1977,148 @@
 .hg-eps-scroll { min-width: 0; overflow-x: auto; }
 .hg-eps-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; width: 100%; min-width: 0; }
 .hg-eps-grid > .ios-button { min-inline-size: 0; }
+
+/* ==================================================================
+   按钮品牌统一（v3.0.6）—— 全站唯一基准 = 首页「抖音模式」胶囊
+   ------------------------------------------------------------------
+   基准规格（.hg-binge-pill，shelf.css 上方）：
+     高 32 / 全圆角 / 13·600 / linear-gradient(135deg,#7C5CFF,#5B6BFF)
+     / inset 0 0 0 1px rgba(255,255,255,.18) / 按下 scale(.96)+brightness(1.08)
+     / ::after{inset:-6px} 把热区撑到 44
+   本节做三件事：
+     ① 把这套值收成 token，一处改全站跟着变；
+     ② 视觉高不足 44 的控件用 ::after 外扩热区（视觉不变大，不动布局）；
+     ③ 补按下态——只写 transform/filter，不写 scale：
+        ios.css 里 `.ios-button:active{scale:.965}` 是 0,5,0，写 scale 会被它压掉。
+   老内核（Chrome 87）：本节只用 hex / rgba / linear-gradient，无 color-mix 等。
+   ================================================================== */
+:root {
+  --btn-brand-1: #7C5CFF;
+  --btn-brand-2: #5B6BFF;
+  --btn-grad: linear-gradient(135deg, #7C5CFF 0%, #5B6BFF 100%);
+  --btn-ring: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  --btn-glow: 0 8px 24px rgba(124, 92, 255, 0.28);
+  --btn-h: 44px;        /* 主 CTA */
+  --btn-h-sm: 32px;     /* 胶囊 */
+  --btn-r: 12px;        /* 矩形 CTA */
+  --btn-r-pill: 999px;  /* 胶囊 */
+  --btn-fs: 13px;
+  --btn-fw: 600;
+  --btn-press: transform 120ms var(--motion-spring), filter 120ms var(--motion-spring);
+}
+
+/* ---------- ① 主行动：登录弹窗「登录」（.ios-button-primary 是纯色，这里覆盖成渐变） ---------- */
+.ios-button.ios-auth-submit {
+  height: 44px;
+  border-radius: var(--btn-r);
+  background: var(--btn-grad);
+  color: #fff;
+  box-shadow: var(--btn-ring), var(--btn-glow);
+  font-size: var(--btn-fs);
+  font-weight: var(--btn-fw);
+  line-height: 1;
+  transition: var(--btn-press);
+}
+.ios-button.ios-auth-submit:active { transform: scale(.96); filter: brightness(1.08); }
+
+/* ---------- ② 圆形图标按钮：视觉 36 不动，热区 ::after 外扩到 44 ---------- */
+.ios-button.hg-sub-btn { position: relative; }
+.ios-button.hg-sub-btn::after { content: ""; position: absolute; inset: -4px; }
+.ios-button.hg-detail-back { position: absolute; }
+.ios-button.hg-detail-back::after { content: ""; position: absolute; inset: -2px; }
+
+/* ---------- ③ Chip / 标签：热区补到 44（只上下扩，横向不抢邻项） ----------
+   注意 `.hg-tag-pill` 原规则里 `min-height:30` 后面紧跟 `min-block-size:0`，
+   同一个属性后者赢，所以实测只有内容高 26 —— 这里两个都写 32 才立得住。 */
+.ios-button.hg-tag-pill {
+  position: relative;
+  min-height: 32px; min-block-size: 32px;
+}
+.ios-button.hg-tag-pill::after { content: ""; position: absolute; inset: -6px 0; }
+/* 帖子统计是裸 <button>（没有 .ios-button），选择器不能带 .ios-button 前缀 */
+.hg-post-stat { position: relative; }
+.hg-post-stat::after { content: ""; position: absolute; inset: -9px -3px; }
+.hg-tl-author { position: relative; }
+.hg-tl-author::after { content: ""; position: absolute; inset: -13px 0; }
+
+/* ---------- ④ 顶栏频道 tab：视觉高 35/30 不动，::after 外扩到 44。
+   关键：外层 .hg-ed-tabs 是 overflow-x:auto，overflow 会把纵向也裁掉（伪元素伸出去就点不到）。
+   解法是给容器加 padding-block:5px + margin-block:-5px —— 外框尺寸完全不变（不撑高顶栏），
+   但 5px 的 padding 让伪元素落在「padding box」里，不再被裁。
+   横向各扩 4px：相邻 tab 的 gap 是 12.5px，不会互相盖住。 ---------- */
+.hg-ed-tabs { padding: 8px 4px; margin: -8px -4px; }
+.ios-button.hg-ed-tab { position: relative; }
+/* 未选中的 tab 只有 30 高：上下各 7px 才到 44（35 高的选中项会到 49，更大不是问题）。 */
+.ios-button.hg-ed-tab::after { content: ""; position: absolute; inset: -8px -4px; }
+
+/* ---------- ⑤ 排序 chip 统一到 32 高（吃瓜 26 / 分类 44 两种尺寸合成一种），热区 44 ---------- */
+.ios-button.hg-sort-pill {
+  min-height: 32px; padding: 0 12px;
+  font-size: var(--btn-fs); font-weight: var(--btn-fw);
+}
+.ios-button.hg-sort-pill::after { content: ""; position: absolute; inset: -6px 0; }
+.ios-button.hg-sort-pill[aria-selected="true"] {
+  background: rgba(124, 92, 255, 0.18);
+  color: #D8CDFF;
+  box-shadow: inset 0 0 0 1px rgba(155, 123, 255, 0.55);
+}
+.ios-button.hg-inline-sort {
+  height: 32px; min-height: 32px; min-block-size: 0; min-inline-size: 0;
+  padding: 0 clamp(8px, 2.8vw, 12px);
+  border-radius: var(--btn-r-pill);
+  font-size: var(--btn-fs); font-weight: var(--btn-fw);
+  position: relative;
+}
+.ios-button.hg-inline-sort::after { content: ""; position: absolute; inset: -6px 0; }
+.ios-button.hg-inline-sort[aria-selected="true"] {
+  background: rgba(124, 92, 255, 0.18); color: #D8CDFF;
+  box-shadow: inset 0 0 0 1px rgba(155, 123, 255, 0.55);
+  font-weight: var(--btn-fw);
+}
+
+/* ---------- ⑥ 「更多 ›」是文字链接，不该只有 scale：补一点亮度反馈 ---------- */
+.ios-button.hg-section-more:active { filter: brightness(1.25); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ios-button.ios-auth-submit { transition: none; }
+  .ios-button.ios-auth-submit:active { transform: none; }
+}
+/* 海报卡：进了 card 白名单后（见 controls.tsx），按下态会变成「白 7% 铺满整卡」，
+   卡名区也会发白。改成只压封面。 */
+.ios-button.hg-poster:active { background-color: transparent; }
+.ios-button.hg-poster:active .hg-poster-art { opacity: 0.82; }
+
+/* ==================================================================
+   卡片圆角三档（v3.0.6）—— 原来的六档（14/15/16/18/20/22）收敛成三档
+     大容器 / 大卡 / 浮层  → 20   （Hero 轮播、专题头图、详情宽幅区）
+     普通卡片 / 列表行     → 16   （宽画幅卡、榜单行、继续观看、专题小卡、
+                                   板块瓦片、历史卡、快捷入口、旧海报卡、吃瓜行）
+     小 chip / 标签 / 缩略图 → 10 / 999（保持不变：封面角、选集格、缩略图、胶囊）
+   为什么不一刀切：20 和 16 是「层级差」，全站一个值会让大卡和小卡分不出主次。
+   选择器同时写 `.hg-x` 与 `.ios-button.hg-x`：这些类里一半是 <Button card>（0,2,0），
+   只写单类会被原规则压掉。
+   ================================================================== */
+:root { --r-card: 16px; --r-panel: 20px; }
+
+/* —— 20：大容器 / 大卡 —— */
+.hg-spotlight, .ios-button.hg-spotlight,
+.hg-hero, .ios-button.hg-hero,
+.hg-topic-hero,
+.hg-detail-hero { border-radius: var(--r-panel); }
+
+/* —— 16：普通卡片与列表行 —— */
+.hg-wide-card, .ios-button.hg-wide-card,
+.hg-rank-row-v2, .ios-button.hg-rank-row-v2,
+.hg-recent-card, .ios-button.hg-recent-card,
+.hg-topic-mini, .ios-button.hg-topic-mini,
+.hg-bento-tile, .ios-button.hg-bento-tile,
+.hg-hist-card, .ios-button.hg-hist-card,
+.hg-quick-card, .ios-button.hg-quick-card,
+.hg-topic-card-v2,
+.hg-creator-card,
+.hg-tl-card, .hg-tl-card.is-hero,
+.hg-post-card,
+.hg-podium-card, .ios-button.hg-podium-card,
+.hg-premiere-card,
+.ios-search-hot-item, .ios-button.ios-search-hot-item,
+.ios-poster { border-radius: var(--r-card); }

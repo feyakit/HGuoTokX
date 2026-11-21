@@ -5,6 +5,23 @@
   <!-- Tauri merges this into the generated app before every iOS build.
        iOS 17+ applies ATS to IP addresses; only the native media loopback
        transport needs an HTTP exception. Earlier iOS versions allow IPs. -->
+  <!-- 全屏要真转横屏就必须在这里声明：只写 Portrait 时，iOS 会拒绝
+       requestGeometryUpdate（控制台报 "Supported orientations has gone out of sync"），
+       用户看到的就是"全屏报错/不转"。Tauri 每次 iOS 构建都会把这个文件合并进工程，
+       所以放在仓库里 CI 也生效（gen/apple 是生成目录，不靠它）。 -->
+  <key>UISupportedInterfaceOrientations</key>
+  <array>
+    <string>UIInterfaceOrientationPortrait</string>
+    <string>UIInterfaceOrientationLandscapeLeft</string>
+    <string>UIInterfaceOrientationLandscapeRight</string>
+  </array>
+  <key>UISupportedInterfaceOrientations~ipad</key>
+  <array>
+    <string>UIInterfaceOrientationPortrait</string>
+    <string>UIInterfaceOrientationPortraitUpsideDown</string>
+    <string>UIInterfaceOrientationLandscapeLeft</string>
+    <string>UIInterfaceOrientationLandscapeRight</string>
+  </array>
   <key>NSAppTransportSecurity</key>
   <dict>
     <key>NSExceptionDomains</key>
