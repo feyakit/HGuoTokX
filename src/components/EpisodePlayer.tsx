@@ -905,10 +905,15 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
         if (kind === "video") addHistory(curId, curEp);
       })
       .catch((e) => { if (alive) setErr((e as Error).message || "取播放地址失败"); });
-    /* 黑屏取证与自愈（用户报「某一集黑屏但控件正常」）：起播 2.5s 后看 videoWidth 与 currentTime。
-       videoWidth===0 且时间在走 → 只有音轨或硬解失败（如 HEVC），自动切回标准流或重取一次地址。 */
-    const blackProbe = window.setTimeout(() => {
-      if (!alive) return;
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, curId, curEp, proxyRetry, allowed, permissionKey, playBust, requestPlay]);
+
+  /* 黑屏取证与自愈（用户报「某一集黑屏但控件正常」）：拿到 playUrl 起播 2.5s 后看 videoWidth 与 currentTime。
+     videoWidth===0 且时间在走 → 只有音轨或硬解失败（如 HEVC），自动切回标准流或重取一次地址。 */
+  useEffect(() => {
+    if (!active || !playUrl) return undefined;
+    const timer = window.setTimeout(() => {
       const v = videoRef.current?.el();
       if (!v) return;
       if (v.videoWidth === 0 || v.currentTime === 0) {
@@ -926,9 +931,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
         }
       }
     }, 2500);
-    return () => { alive = false; window.clearTimeout(blackProbe); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, curId, curEp, proxyRetry, allowed, permissionKey, playBust, requestPlay]);
+    return () => window.clearTimeout(timer);
+  }, [active, playKey, playUrl, useHevc, curId, curEp, toast]);
 
   /* 当前集拿到地址后再预取下一集，避免首帧加载期间争抢网络。 */
   useEffect(() => {
