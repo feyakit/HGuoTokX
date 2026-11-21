@@ -1,11 +1,17 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-hg-launching>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0A0B14" />
     <title>HGuoX · 短剧</title>
-    <style>html,body{background:#0A0B14}</style>
+    <!-- 启动锁（上游 0a66791 的做法）：React 挂载前到动画期间都保持品牌底色。
+         浅色主题的用户在 React 起来之前会看到一帧白底 + 深色动画，闪一下很明显；
+         这里用 html[data-hg-launching] 把底色钉住，动画结束由 LaunchAnimation 摘掉。 -->
+    <style>
+      html,body{margin:0;background:#0A0B14}
+      html[data-hg-launching],html[data-hg-launching] body{background-color:#0A0B14!important}
+    </style>
   </head>
   <body>
     <div id="root"></div>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { startTransition, useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { addPluginListener } from "@tauri-apps/api/core";
 import { platform } from "../../shared/api/api";
 import { holdBackForStartup } from "../../shared/lib/back";
@@ -6,6 +6,12 @@ import "../../styles/launch.css";
 
 // One reveal per WebView lifetime, including StrictMode and subsequent App remounts.
 let launchCompleted = false;
+
+/** 动画收尾时摘掉 index.html 的启动锁：底色不再被 !important 钉住，主题色交回应用。
+ *  （上游 0a66791 的 releaseLaunchSurface；我们从 HTML 起步就是品牌深色，所以只需解锁，不用改色。） */
+function releaseLaunchSurface() {
+  document.documentElement.removeAttribute("data-hg-launching");
+}
 export const LAUNCH_DURATION = 2200;
 
 /** Exact public/logo.svg geometry, split into independent spring-animated strokes. */
@@ -107,10 +113,31 @@ export function LaunchAnimation({ onFinish }: { onFinish: () => void }) {
  * 不再出现「动画结束 → 空白 500ms → 才出第一张卡」。动画时长、样式、节奏一个像素没动。 */
 export default function StartupGate({ children }: { children: ReactNode }) {
   const [finished, setFinished] = useState(() => launchCompleted);
-  const finish = useCallback(() => { launchCompleted = true; setFinished(true); }, []);
+  /* 两阶段挂载（上游 0a66791）：首帧只提交动画本身，让它先独占合成线程；
+     下一帧再把 App 挂上来（startTransition 让这次大渲染可被打断）。
+     以前是同一帧里既挂动画又挂整棵树，首帧要等首页首次渲染跑完才开始动。 */
+  const [mountChildren, setMountChildren] = useState(() => launchCompleted);
+  const finish = useCallback(() => {
+    launchCompleted = true;
+    releaseLaunchSurface();
+    setMountChildren(true);
+    setFinished(true);
+  }, []);
   /* 动画期间 App 已经挂在下面（3.0.7 起就是这结构），返回键必须先归动画：
      遮罩卸载时自动释放；StrictMode 下靠幂等释放保证计数正确。 */
   useEffect(() => (!finished ? holdBackForStartup() : undefined), [finished]);
-  if (!finished) return <><LaunchAnimation onFinish={finish} />{children}</>;
+
+  /* 第二帧才挂 App：requestAnimationFrame 保证动画这一帧已经提交。 */
+  useEffect(() => {
+    if (finished || mountChildren) return;
+    const frame = window.requestAnimationFrame(() => {
+      startTransition(() => setMountChildren(true));
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [finished, mountChildren]);
+
+  /* 已经播过的会话（launchCompleted）直接是完成态，但 HTML 上的启动锁要顺手摘掉。 */
+  useEffect(() => { if (finished) releaseLaunchSurface(); }, [finished]);
+  if (!finished) return <><LaunchAnimation onFinish={finish} />{mountChildren && children}</>;
   return children;
 }

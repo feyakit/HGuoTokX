@@ -20,6 +20,7 @@
     "test:keyboard-sheet": "node scripts/test-keyboard-sheet.mjs",
     "test:safe-area": "node scripts/test-safe-area.mjs",
     "test:startup-back": "node scripts/test-startup-back.mjs",
+    "test:startup-lock": "node scripts/test-startup-lock.mjs",
     "test:mobile-layout": "node scripts/test-mobile-layout.mjs",
     "test:ios-ui": "node scripts/test-ios-ui.mjs",
     "test:ios-icons": "node scripts/test-ios-icons.mjs",
