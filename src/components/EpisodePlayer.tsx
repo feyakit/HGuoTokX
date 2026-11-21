@@ -85,7 +85,7 @@ export type EpisodePlayerProps = {
 
 export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mode, kind = "video", active, bottomInset, onBack, onNearEnd, onActiveIndex, endless = false, onBlocked, startEp, startTime, onDislike }: EpisodePlayerProps) {
   const store = useStore();
-  const { isLiked, isFav, setLiked, setCollected, setFollowing, actionPending, accountScope, muted, setMuted, volume, setVolume, toast, addHistory, user, setLoginOpen, swipeEp, setSwipeEp, preferHevc, setPreferHevc } = store;
+  const { isLiked, isFav, setLiked, setCollected, setFollowing, actionPending, accountScope, muted, setMuted, volume, setVolume, toast, addHistory, user, setLoginOpen, swipeEp, setSwipeEp, preferHevc, setPreferHevc, ambientGlow } = store;
   const isDesktop = !isMobile;
   const contentPreferences = useContentPreferences();
   const { preferences, revision, blockReason } = contentPreferences;
@@ -678,19 +678,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     setStageBox({ w: el.clientWidth, h: el.clientHeight });
     return () => ro.disconnect();
   }, []);
-  const letterbox = useMemo(() => {
-    if (!videoSize.w || !videoSize.h || !stageBox.w || !stageBox.h) return false;
-    /* 竖版源在"竖屏舞台"里走 cover 铺满 → 根本不留黑边，不需要虚化。
-       但同样是竖版源进横屏全屏（rotated 伪横屏 / vpLandscape 真横屏）时是 contain，
-       左右会出现很宽的黑边，那种情况要铺虚化。 */
-    if (portraitVideo && !rotated && !vpLandscape) return false;
-    const containerRatio = stageBox.w / stageBox.h;
-    const videoRatio = videoSize.w / videoSize.h;
-    /* contain 下只要画面比例与容器差 > 2%，就一定有黑边：
-       画面更宽 → 上下黑边（letterbox）；画面更窄 → 左右黑边（pillarbox）。
-       两种都铺同一层全幅虚化垫底，黑边里看到的就是画面配色而不是纯黑。 */
-    return Math.abs(videoRatio - containerRatio) / containerRatio > 0.02;
-  }, [videoSize.w, videoSize.h, stageBox.w, stageBox.h, portraitVideo, rotated, vpLandscape]);
+
   /* 竖屏快捷胶囊：仅双指放大后显示「还原」按钮，横屏视频不再在竖屏下弹「铺满」裁切提示 */
   const capsuleOn = !fs && !clean && !isDesktop && zoom.s > 1.05;
 
@@ -1890,33 +1878,15 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                     ? "none"
                     : `transform ${(epSlide.ms ?? GESTURE.episodeReboundMs)}ms ${EPISODE_EASE}`,
                 }}>
-                {/* 横版片源在竖屏（含竖屏全屏 fs-immersive）是 contain，上下留黑边 ——
-                    那条"分割线"就是画面底边。垫一层同一张封面的虚化放大 + 上下 56px 渐隐。
-                    现在用**实测**判断：只有"容器比画面更方"（真会留黑边）才渲染，
-                    不再用 !portraitVideo 这种静态条件（元数据没到时会误判）。
-                    全屏/横行（vpLandscape / rotated）本来铺满，自然不满足条件。 */}
-                {/* 只保留虚化垫底：虚化本身就是渐变过渡，额外再叠 56px 黑渐隐会盖住画面
-                    （这两层以前挂在视频包裹层上，父级高度=视频高 221，上下各吃 56px，
-                    16:9 视频看起来就只剩一条窄带 —— P0）。 */}
-                {!isDesktop && letterbox && (
-                  /* 虚化垫底用 poster 直接做 background-image：
-                     不再嵌 <Img>，从根上避开 .ios-image 的黑底 / shimmer / 错误态
-                     （那些在加载慢或失败时会把整条信箱区变成纯黑）。 */
-                  <div
-                    aria-hidden="true"
-                    className="hg-lb-blur"
-                    style={posterUrl ? { backgroundImage: `url("${posterUrl}")` } : undefined}
-                  />
-                )}
                 <VideoSurface ref={videoRef} src={playUrl} poster={posterUrl} autoPlay active={active && !tagMenu && !showHoldGuide} muted={muted}
                   diagnosticContext={{ active: active && !tagMenu && !showHoldGuide, view: mode, kind, video_id: curId, episode: curEp }}
                   volume={volume} rate={effRate}
                   measurementKey={measurementKey}
                   /* 竖屏 9:16 片源在竖屏下铺满消黑边；横屏剧无论竖看还是横屏全屏一律 contain 不裁切 */
                   fit={isDesktop ? "contain" : (portraitVideo && !rotated && !vpLandscape) ? "cover" : "contain"}
-                  /* 黑边里要看得见虚化，就不能让 <video> 自己把整块舞台涂黑（bg-black → transparent）。
-                     cover 铺满时保持黑底不变。 */
-                  transparentBg={!isDesktop && letterbox}
+                  /* 黑边里的观感交给微光效果（上游 PR #192 移植）：从当前画面采样色晕铺在黑边，
+                     我们原来那套「封面虚化 hg-lb-blur」已删除，避免两套并存。 */
+                  ambientGlow={ambientGlow}
                   onClick={() => { if (isDesktop) videoRef.current?.toggle(); }}
                   onTime={onTimeTick}
                   onDuration={onDurationTick}

@@ -14,7 +14,7 @@ import { useContentPreferences } from "../contentPreferences";
 import { copyPlaybackLog, initPlaybackLog, setPlaybackLog, tracePlayback, usePlaybackLog } from "../playbackDiagnostics";
 import { formatNetDiag, shortVerdict } from "../netDiagReport";
 import { copyText } from "../clipboard";
-import { IBack, IBoltF, IBroom, IClapper, IFileText, IInfo, ILockF, IList, ILink, ILogout, IRefresh, ISparkF, IVolMute } from "../icons";
+import { IBack, IBoltF, IBroom, IClapper, IFileText, IInfo, ILockF, IList, ILink, ILogout, IRefresh, ISparkF, ISun, IVolMute } from "../icons";
 
 /* 设置页：7 组平铺（播放 / 内容偏好 / 网络 / 本地数据 / 播放诊断 / 账号 / 关于）
  *
@@ -24,7 +24,7 @@ import { IBack, IBoltF, IBroom, IClapper, IFileText, IInfo, ILockF, IList, ILink
  *
  * 入口：Windows 侧栏「设置」、Android / iOS「我的」右上角齿轮 */
 export default function Settings({ onBack }: { onBack: () => void; wide: boolean }) {
-  const { user, logout, muteOnStartup, setMuteOnStartup, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity, toast, push } = useStore();
+  const { user, logout, muteOnStartup, setMuteOnStartup, ambientGlow, setAmbientGlow, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity, toast, push } = useStore();
   const { preferences: contentPrefs } = useContentPreferences();
   const [about, setAbout] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
@@ -155,6 +155,8 @@ export default function Settings({ onBack }: { onBack: () => void; wide: boolean
                     .finally(() => setAutoLineBusy(false));
                 },
               }} />
+            <SettingsRow icon={<ISun size={16} />} title="微光效果" sub="画面颜色会轻微扩散到黑边，关闭可省电"
+              right={{ kind: "switch", on: ambientGlow, onChange: setAmbientGlow, label: "微光效果" }} />
           </SettingsGroup>
 
           <SettingsGroup title="内容偏好">

@@ -12,6 +12,7 @@ import { usePlaybackActivity } from "../usePlaybackActivity";
 import { useProxyPlaybackRecovery } from "../useProxyPlaybackRecovery";
 import { createHlsRecovery, type HlsRecovery } from "../hlsRecovery";
 import { useSeekInput } from "../useSeekInput";
+import AmbientGlow from "./AmbientGlow";
 import PlaybackLock from "./PlaybackLock";
 import { useInlinePlayerFullscreen } from "../useInlinePlayerFullscreen";
 import "../styles/post-player.css";
@@ -29,13 +30,15 @@ type Props = {
   onTogglePlay?: (playing: boolean) => void;
   onToggleMute?: () => void;
   controls?: boolean;
+  /** 微光效果：从当前画面采样色晕铺到黑边（上游 PR #192） */
+  ambientGlow?: boolean;
   className?: string;
   diagnosticContext?: Record<string, unknown>;
 };
 
 export default function Player({
   src, poster, autoPlay, active = true, muted = false, loop = false, onEnded, onPlaying,
-  onTogglePlay, onToggleMute, controls = true, className = "", diagnosticContext = {},
+  onTogglePlay, onToggleMute, controls = true, ambientGlow = false, className = "", diagnosticContext = {},
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const latestSource = useRef(src); latestSource.current = src;
@@ -209,6 +212,7 @@ export default function Player({
     {createPortal(<div ref={wrapRef} className="post-player relative bg-black overflow-hidden"
       data-playing={playing} data-fullscreen={full} data-fullscreen-fallback={fallback}>
       <div className="absolute inset-0" inert={controlsLocked}>
+      {ambientGlow && <AmbientGlow videoRef={videoRef} active={active} />}
       <video
         ref={videoRef}
         poster={poster}
@@ -216,7 +220,7 @@ export default function Player({
         preload="auto"
         muted={muted}
         loop={loop}
-        className="w-full h-full object-contain bg-black"
+        className={`w-full h-full object-contain ${ambientGlow ? "relative z-[1] bg-transparent" : "bg-black"}`}
         onClick={toggle}
         onPlay={() => { if (activity.isActive()) { setPlaying(true); onTogglePlay?.(true); } }}
         onPause={() => { setPlaying(false); onTogglePlay?.(false); }}

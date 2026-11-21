@@ -88,6 +88,8 @@ type Persist = GuestData & {
   swipeEp: boolean;
   /** 优先高清：有 HEVC 就用 HEVC，播不了自动回退标准 */
   preferHevc: boolean;
+  /** 微光效果：从当前画面采样色晕铺到视频黑边（上游 PR #192），默认开 */
+  ambientGlow: boolean;
 };
 
 const LS = STORAGE_KEYS.app;
@@ -95,7 +97,7 @@ const LS = STORAGE_KEYS.app;
 const GUEST_KEPT_KEY = "hguox_guest_kept_v1";
 const DEFAULTS: Persist = {
   likes: [], favs: [], postFavs: [], history: [], follows: [],
-  muted: true, muteOnStartup: true, volume: 0.7, searchHist: [], swipeEp: true, preferHevc: true,
+  muted: true, muteOnStartup: true, volume: 0.7, searchHist: [], swipeEp: true, preferHevc: true, ambientGlow: true,
 };
 
 /** 旧版本 history 是 number[]，读出来时升级成带进度的结构 */
@@ -132,7 +134,9 @@ function loadPersist(): Persist {
         localStorage.setItem(STORAGE_KEYS.swipeEp, "1");
       }
     } catch { /* ignore */ }
-    return { ...p, swipeEp, muteOnStartup, muted: muteOnStartup || p.muted === true, history: normalizeHistory(p.history) };
+    /* 旧配置没有这个概念，按「默认开」处理（只有显式 false 才关） */
+    const ambientGlow = p.ambientGlow !== false;
+    return { ...p, swipeEp, muteOnStartup, muted: muteOnStartup || p.muted === true, ambientGlow, history: normalizeHistory(p.history) };
   } catch {
     return DEFAULTS;
   }
@@ -168,6 +172,7 @@ type Store = {
   muteOnStartup: boolean; setMuteOnStartup: (on: boolean) => void;
   swipeEp: boolean; setSwipeEp: (on: boolean) => void;
   preferHevc: boolean; setPreferHevc: (on: boolean) => void;
+  ambientGlow: boolean; setAmbientGlow: (on: boolean) => void;
   volume: number; setVolume: (v: number) => void;
   searchHist: string[]; addSearch: (q: string) => void; clearSearchHist: () => void;
   strictSecurity: boolean; strictSecurityReady: boolean; securityPending: boolean; cliRelaxed: boolean; setStrictSecurity: (on: boolean) => Promise<void>;
@@ -445,6 +450,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setPreferHevc = useCallback((on: boolean) => {
     setP((s) => ({ ...s, preferHevc: on }));
   }, []);
+  const setAmbientGlow = useCallback((on: boolean) => {
+    setP((s) => ({ ...s, ambientGlow: on }));
+  }, []);
   const setVolume = useCallback((v: number) => {
     const volume = Math.max(0, Math.min(1, v));
     setP((s) => ({ ...s, volume, muted: volume === 0 }));
@@ -464,6 +472,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     muteOnStartup: p.muteOnStartup, setMuteOnStartup,
     swipeEp: p.swipeEp, setSwipeEp,
     preferHevc: p.preferHevc, setPreferHevc,
+    ambientGlow: p.ambientGlow, setAmbientGlow,
     searchHist: p.searchHist, addSearch, clearSearchHist,
     strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity,
     accent, setAccent: setAccentState,
@@ -473,7 +482,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }), [tab, setTab, stack, push, pop, user, loginOpen, logout,
     mergeOffer, beginGuestMerge, acceptMerge, declineMerge, guestKept,
     p, account,
-    setMuted, setMuteOnStartup, setSwipeEp, setPreferHevc, setVolume, addSearch, clearSearchHist, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity,
+    setMuted, setMuteOnStartup, setSwipeEp, setPreferHevc, setAmbientGlow, setVolume, addSearch, clearSearchHist, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity,
     accent, setAccentState,
     toasts, toast, lineEpoch, theater, setTheater, fs, setFs, clean, setClean]);
 

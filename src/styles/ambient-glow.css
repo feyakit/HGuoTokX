@@ -1,0 +1,37 @@
+/* 微光效果（上游 PR #192）：32×18 采样当前画面 → 模糊/降亮 → 铺到视频黑边。
+   只做静态 filter（blur/saturate/brightness），不用动画/backdrop-filter，
+   老 WebView 与 WKWebView 都能吃住。 */
+.hg-ambient-glow {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: #000;
+}
+
+.hg-ambient-glow-canvas {
+  position: absolute;
+  top: -12%;
+  left: -12%;
+  width: 124%;
+  height: 124%;
+  filter: blur(44px) saturate(1.2) brightness(.78);
+  opacity: .45;
+  transform: scale(1.05);
+  transform-origin: center;
+}
+
+/* 暗角：让色晕往四角收，黑边不至于糊成一片亮 */
+.hg-ambient-glow::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: radial-gradient(ellipse at 50% 50%, transparent 50%, rgb(4 6 10 / .32) 100%);
+}

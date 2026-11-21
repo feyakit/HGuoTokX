@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useImperativeHandle, useRef, forwardRef, useState } from "react";
 import Hls from "hls.js";
+import AmbientGlow from "./AmbientGlow";
 import { platform } from "../api";
 import { connectNativeMedia, playbackSource } from "../mediaTransport";
 import { mediaErrorMessage } from "../mediaErrors";
@@ -32,8 +33,10 @@ type Props = {
   muted?: boolean;
   loop?: boolean;
   fit?: "contain" | "cover";
-  /** 背景透明：letterbox 时让视频不要自己把整块舞台涂黑，下面那层虚化才看得见 */
+  /** 背景透明：letterbox 时让视频不要自己把整块舞台涂黑，下面的层才看得见 */
   transparentBg?: boolean;
+  /** 微光效果：从当前画面采样色晕铺在黑边（上游 PR #192），需要可读的播放源 */
+  ambientGlow?: boolean;
   /** 换源后重新套用，避免切集时音量/倍速被浏览器重置 */
   volume?: number;
   rate?: number;
@@ -52,7 +55,7 @@ type Props = {
 /** 只负责「播」：hls.js + video 元素，控制条由外层渲染。 */
 const VideoSurface = forwardRef<VideoHandle, Props>(function VideoSurface(
   { src, poster, autoPlay = true, active = true, measurementKey = src, diagnosticContext = {}, muted = false, loop = false, fit = "contain", volume = 1, rate = 1,
-    onTime, onDuration, onSize, onPlaying, onPause, onWaiting, onEnded, onError, onClick, className = "", transparentBg = false },
+    onTime, onDuration, onSize, onPlaying, onPause, onWaiting, onEnded, onError, onClick, className = "", transparentBg = false, ambientGlow = false },
   ref,
 ) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -237,10 +240,15 @@ const VideoSurface = forwardRef<VideoHandle, Props>(function VideoSurface(
   };
 
   return (
+    <div className="relative isolate h-full w-full">
+      {ambientGlow && <AmbientGlow videoRef={videoRef} active={active} />}
     <video
       ref={videoRef}
       poster={poster}
       playsInline
+      /* 微光要读画面像素：iOS 走原生 HLS 时 src 是我们自己的媒体代理（回 Origin 的 ACAO），
+         加 anonymous 后 canvas 才不被污染；hls.js(MSE blob) 路径下这个属性无副作用。 */
+      crossOrigin={ambientGlow && platform === "ios" ? "anonymous" : undefined}
       preload="auto"
       muted={muted}
       loop={loop}
@@ -248,8 +256,8 @@ const VideoSurface = forwardRef<VideoHandle, Props>(function VideoSurface(
       /* 注意：项目里并没有 .bg-black 这个工具类（构建产物里查不到），
          <video> 的黑底是浏览器默认样式。所以这里必须用内联样式显式改掉，
          否则 letterbox 下视频会自己把整块舞台涂黑，把下面的虚化盖死。 */
-      style={{ opacity: ready ? 1 : 0, transition: "opacity .35s", ...(transparentBg ? { backgroundColor: "transparent" } : null) }}
-      className={`w-full h-full ${transparentBg ? "hg-video-transparent" : ""} ${fit === "cover" ? "object-cover" : "object-contain"} ${className}`}
+      style={{ opacity: ready ? 1 : 0, transition: "opacity .35s", ...(transparentBg || ambientGlow ? { backgroundColor: "transparent" } : null) }}
+      className={`relative z-[1] w-full h-full ${transparentBg || ambientGlow ? "hg-video-transparent" : ""} ${fit === "cover" ? "object-cover" : "object-contain"} ${className}`}
       onLoadedData={(e) => {
         const v = e.target as HTMLVideoElement;
         setReady(true);
@@ -283,6 +291,7 @@ const VideoSurface = forwardRef<VideoHandle, Props>(function VideoSurface(
       onEnded={() => { if (activity.isActive()) onEnded?.(); }}
       onError={handleVideoError}
     />
+    </div>
   );
 });
 

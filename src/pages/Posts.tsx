@@ -465,7 +465,7 @@ const HIDDEN_POST_TAG = "\u9ec4\u679c";
 
 /* ================= 吃瓜详情（网页式浏览） ================= */
 export function PostDetail({ id, onBack, active = true }: { id: number; onBack: () => void; active?: boolean }) {
-  const { toast, strictSecurity, muted, setMuted, push, user, setLoginOpen, isLiked, isFav, setLiked, setCollected, actionPending, addPostHistory, lineEpoch, accountScope } = useStore();
+  const { toast, strictSecurity, muted, setMuted, push, user, setLoginOpen, isLiked, isFav, setLiked, setCollected, actionPending, addPostHistory, lineEpoch, accountScope, ambientGlow } = useStore();
   const { preferences, blockReason } = useContentPreferences();
   const filtering = !preferences.paused && (preferences.blockedTags.length > 0 || preferences.hideUntagged);
   const [post, setPost] = useState<(Post & { content?: string; video_url?: string }) | null>(null);
@@ -615,7 +615,7 @@ export function PostDetail({ id, onBack, active = true }: { id: number; onBack: 
           <>
             <div data-post-media className="relative w-full bg-black mx-auto" style={{ height: isMobile ? "min(48vh, 420px)" : "min(60vh, 640px)" }}>
               {play && src ? (
-                <Player src={src} poster={cover(currentPost.cover)} autoPlay active={active && !tagMenu && !commentOpen} controls muted={muted}
+                <Player src={src} poster={cover(currentPost.cover)} autoPlay active={active && !tagMenu && !commentOpen} controls muted={muted} ambientGlow={ambientGlow}
                   onToggleMute={() => setMuted((m) => !m)} diagnosticContext={{ video_id: id, active: active && !tagMenu && !commentOpen }} className="w-full h-full"
                   onEnded={() => {
                     /* 多段吃瓜视频：播完自动接下一段 */
