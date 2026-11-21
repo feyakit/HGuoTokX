@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, cover, fmt } from "../../shared/api/api";
 import { cachedDetailStale, loadDetail } from "../../shared/api/detailFast";
 import { useStore } from "../../shared/model/store";
-import { detailEpisodeCount } from "../../shared/model/favoriteProgress";
+import { detailEpisodeCount, resolveResumeTarget } from "../../shared/model/favoriteProgress";
 import { ambientStyle, useAccent } from "../../shared/ui/useAccent";
 import { Button } from "../../shared/ui/ios/controls";
 import { Img } from "../../shared/ui/ui";
@@ -90,6 +90,9 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
     [history, id],
   );
 
+  /* 智能续播（上游 #153 第二步，按我们的取向：仍进详情页，只把主按钮改成正确的起点）：
+     上次那集看完 → 下一集从头；没看完 → 原集原时间；没看过 → 第 1 集。 */
+  const resume = resolveResumeTarget(detail ?? undefined, savedProg);
   const faved = isFav(id, "video");
   const favBusy = actionPending(`collect:video:${id}`);
 
@@ -256,9 +259,11 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
       {/* 底部智能续播主 CTA */}
       {detail && (
         <div className="shrink-0 hg-detail-cta-wrap">
-          <Button card className="hg-cta" onClick={() => savedProg ? openPlayer(savedProg.ep, savedProg.t) : openPlayer(1)}>
+          <Button card className="hg-cta" onClick={() => openPlayer(resume.startEp, resume.startTime)}>
             <IPlayF size={16} />
-            <span>{savedProg ? `继续播放 · 第 ${savedProg.ep} 集` : "立即播放"}</span>
+            <span>{!resume.startEp ? "立即播放"
+              : resume.startTime ? `继续播放 · 第 ${resume.startEp} 集`
+              : savedProg ? `继续看第 ${resume.startEp} 集` : "立即播放"}</span>
           </Button>
         </div>
       )}
