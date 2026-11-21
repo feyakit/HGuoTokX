@@ -142,7 +142,7 @@ function ImageLoad({ url, alt, className, eager, raw, loadingIndicator }: {
       {!ok && !err && !LOADED_IMAGES.has(url) && <div className="absolute inset-0 shimmer hg-shimmer-dark" />}
       {loadingIndicator && !ok && <div className="absolute inset-0 grid place-items-center"><Loader label="封面加载中" /></div>}
       {err && !loadingIndicator && <div className="ios-image-error" role="img" aria-label={alt || "封面暂不可用"}>HG</div>}
-      {url && !err && <Image src={retryUrl} alt={alt} loading={eager || platform === "ios" ? "eager" : "lazy"} decoding="async"
+      {url && !err && <Image src={retryUrl} alt={alt} loading={eager ? "eager" : "lazy"} decoding="async"
         onLoad={() => { LOADED_IMAGES.add(url); setOk(true); setErr(false); }}
         onError={() => {
           /* 真机上偶发失败（代理抖动/断流）：记一条，滚动中"闪"能据此定位是解码还是重挂载 */
@@ -151,8 +151,8 @@ function ImageLoad({ url, alt, className, eager, raw, loadingIndicator }: {
              不允许"占位动画又回来"造成滚动中的亮块 */
           if (!raw && attempt < 2) setAttempt(attempt + 1); else setErr(true);
         }}
-        /* 淡入只做一次；iOS WKWebView 下自定义滚动容器内不做 opacity-0→1 过渡，避免图片卡住或闪烁 */
-        className={`absolute inset-0 w-full h-full object-cover ${ok || platform === "ios" ? "opacity-100 hg-img-ready" : "opacity-0 transition-opacity duration-300"}`} draggable={false} />}
+        /* 淡入只做一次：加载完就不再带 transition，避免任何后续 className 变化重播淡入（滚动中会看成"闪"） */
+        className={`absolute inset-0 w-full h-full object-cover ${ok ? "opacity-100 hg-img-ready" : "opacity-0 transition-opacity duration-300"}`} draggable={false} />}
     </div>
   );
 }
