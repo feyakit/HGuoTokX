@@ -816,6 +816,3 @@ html.is-scrolling .shimmer,
 html.is-scrolling .hg-stagger > *,
 html.is-scrolling .hg-crossfade,
 html.is-scrolling .ios-image-error { animation: none !important; }
-/* 滚动中的卡片不再叠 backdrop-filter（iOS 每帧重算 → 掉帧/闪） */
-html.is-scrolling .backdrop-blur-md,
-html.is-scrolling .backdrop-blur-sm { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
