@@ -235,6 +235,15 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   /* —— 移动端手势 —— */
   const [holdSpeed, setHoldSpeed] = useState(false);
   const [speedLock, setSpeedLock] = useState(false);
+  /* 锁定 2x 后允许提示条短暂出现 600ms（用户主动操作），之后跟着控件一起隐藏 */
+  const [speedTagBrief, setSpeedTagBrief] = useState(false);
+  const speedTagTimer = useRef<number | undefined>(undefined);
+  const flashSpeedTag = useCallback(() => {
+    setSpeedTagBrief(true);
+    window.clearTimeout(speedTagTimer.current);
+    speedTagTimer.current = window.setTimeout(() => setSpeedTagBrief(false), 600);
+  }, []);
+  useEffect(() => () => window.clearTimeout(speedTagTimer.current), []);
   const [lockArmed, setLockArmed] = useState(false);
   const holdRef = useRef(false);
   const lockArmedRef = useRef(false);
@@ -490,16 +499,28 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   useEffect(() => { videoRef.current?.trace("page.active", { active, view: mode, video_id: curId, episode: curEp }); }, [active, mode, curId, curEp]);
   const episodes = detail?.episodes || [];
   /* 上滑换集的预览文案：只用现有集数，不造数据 */
+  /* 上一/下一部剧（按当前刷剧列表边界判）；没有就返回 null */
+  const dramaNeighbor = useCallback((dir: 1 | -1): { id: number; title: string } | null => {
+    const nextIdx = index + dir;
+    if (nextIdx < 0 || nextIdx >= effectiveVideoIds.length) return null;
+    const id = effectiveVideoIds[nextIdx];
+    const title = (details[id]?.title || "").trim();
+    return { id, title };
+  }, [index, effectiveVideoIds, details]);
+
   const episodeLabel = useCallback((dir: 1 | -1) => {
     const ep = epMap[curId] || 1;
     const want = dir === 1 ? ep + 1 : ep - 1;
     if (!episodes.some((row) => row.ep_num === want)) {
+      /* 没有下一/上一集：先看有没有下一/上一部剧，有就写剧名（松手真的会切过去） */
+      const nb = dramaNeighbor(dir);
+      if (nb) return `${dir === 1 ? "下一部" : "上一部"} · ${nb.title ? `《${nb.title}》` : "换一部"}`;
       return dir === 1 ? "已经是最后一集" : "已经是第一集";
     }
     return `${
       dir === 1 ? "下一集" : "上一集"
     } · 第${want}集${episodes.length ? ` / 共 ${episodes.length} 集` : ""}`;
-  }, [curId, epMap, episodes]);
+  }, [curId, epMap, episodes, dramaNeighbor]);
   const post = posts[curId];
 
   /* 观看进度：onTime 里每 5 秒落一次；退出播放页时再用 liveRef 兜一次 */
@@ -1115,9 +1136,13 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       /* 速度辅助：短促一划也能切（普通上滑往往只有 20–30% 屏高） */
       const dt = Math.max(1, Date.now() - g.t);
       const intent = episodeIntent(pdy, g.stageH, (pdy / dt) * 1000);
-      /* 跟手：内容直接跟着手指走（transform，不重排），上下限各半屏 */
+      /* 跟手：内容直接跟着手指走（transform，不重排），上下限各半屏。
+         到了列表头尾按 dy×0.35 衰减 —— 拉得动一点但拉不走，比硬停更像手感。 */
+      const dragDir: 1 | -1 = pdy <= 0 ? 1 : -1;
+      const atEdge = !dramaNeighbor(dragDir) && !episodes.some((row) => row.ep_num === (epMap[curId] || 1) + dragDir);
       const limit = g.stageH * 0.5;
-      setEpSlide({ y: Math.max(-limit, Math.min(limit, pdy)), animate: false });
+      const visual = atEdge ? pdy * 0.35 : pdy;
+      setEpSlide({ y: Math.max(-limit, Math.min(limit, visual)), animate: false });
       setEpPreview(intent.preview ? { dir: intent.dir, label: episodeLabel(intent.dir) } : null);
     }
   };
@@ -1147,6 +1172,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       setHoldSpeed(false);
       if (!cancelled && wasLockArmed) {
         setSpeedLock(true);
+        flashSpeedTag();
         toast("已锁定 2.0x 倍速 · 点顶部标签解除", "info");
       }
       lockArmedRef.current = false;
@@ -1210,15 +1236,23 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
           try { navigator.vibrate?.(12); } catch { /* ignore */ }
           return;
         }
-        if (swipeEp) { setEpSlide({ y: 0, animate: false }); go(dir); return; }
+        if (swipeEp) {
+          const nb = dramaNeighbor(dir);
+          if (nb) { setEpSlide({ y: 0, animate: false }); go(dir); return; }
+          /* 到列表头尾：回弹 + 轻微震动，不切、也不装作切了 */
+          setEpSlide({ y: 0, animate: true });
+          setEpPreview(null);
+          try { navigator.vibrate?.(8); } catch { /* ignore */ }
+          return;
+        }
       }
     }
     setEpSlide({ y: 0, animate: true });
     setEpPreview(null);
     /*
       单击 / 双击语义（重写）：
-        · 双击（280ms 内第二下）：三分法 —— 左 1/3 退 −10s、中 1/3 播放/暂停（不出气泡）、
-          右 1/3 进 +10s，左右区给 800ms 时间气泡；
+        · 双击（280ms 内第二下）：三分法 —— 左 1/3 退 −5s、中 1/3 播放/暂停（不出气泡）、
+          右 1/3 进 +5s，左右区给 800ms 时间气泡；
         · 单击两态：控件收起 → 唤出；控件可见 → 播放/暂停。
       以前双击被拆成两次单击（唤出 + 收起）互相抵消，用户根本感受不到双击。
     */
@@ -1986,7 +2020,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                             aria-label={`画质：${preferHevc ? "高清优先" : "标准画质"}，点击切换`}
                             title="在高清流 / 标准流之间切换"
                             onClick={switchQuality}
-                            className="hg-ctrl hg-quality-chip hg-chip hg-ink-2 pressable">
+                            className="hg-ctrl hg-quality-chip pressable">
                             {preferHevc ? "高清" : "标准"}
                           </Button>
                         )}
@@ -2174,7 +2208,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       )}
 
       {/* 移动端：倍速状态 / 锁定提示 */}
-      {!isDesktop && (holdSpeed || speedLock || rate !== 1) && (!fs || !idle) && (
+      {/* 倍速提示条：必须跟控件一起隐藏（原来只看 rate/speedLock，控件收起后它还浮在画面上）。
+          例外：刚锁定 2x 的 600ms 内允许出现，用户此刻正在主动操作。 */}
+      {!isDesktop && (holdSpeed || speedLock || rate !== 1) && (!clean || holdSpeed || speedTagBrief) && (!fs || !idle) && (
         <Button
           onClick={() => {
             if (speedLock) { setSpeedLock(false); toast("已解除倍速锁定", "info"); }

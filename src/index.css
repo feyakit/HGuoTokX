@@ -596,8 +596,11 @@ input[type="range"].hg-range::-webkit-slider-thumb { -webkit-appearance: none; w
 /* 右下角控制组统一度量：13/600、行高 18、水平 padding 10、视觉高 26、热区 44 */
 .hg-ctrl {
   position: relative; display: inline-flex; align-items: center; justify-content: center;
-  gap: 4px; height: 24px; min-height: 0; min-block-size: 0; padding: 0 8px; border-radius: 999px;
+  gap: 4px; height: 24px; min-height: 0; min-block-size: 0; padding: 0 8px; border-radius: 8px;
   font-size: 12px; font-weight: 600; line-height: 16px; white-space: nowrap;
+  /* 三件套共用同一层半透明底（用户：倍速也要有底层色，不能光一个数字） */
+  background-color: rgba(0, 0, 0, .38);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
 }
 /* 热区补到 44（视觉仍是 26），上下各外扩 9px，不影响布局 */
 .hg-ctrl::after { content: ""; position: absolute; left: -8px; right: -8px; top: 50%; height: 44px; transform: translateY(-50%); }
@@ -605,10 +608,10 @@ input[type="range"].hg-range::-webkit-slider-thumb { -webkit-appearance: none; w
 /* .ios-button:not(...):not(...):not(...) 是 44 最小尺寸的来源（specificity 0,4,0），
    这里用同等偏高的选择器压回去，视觉高 24、热区仍由 ::after 补到 44 */
 .hg-cinema-bottom .ios-button.hg-ctrl.hg-ctrl.hg-ctrl,
-.hg-ctrl.hg-ctrl.hg-ctrl { height: 24px; min-height: 0; min-block-size: 0; min-inline-size: 0; }
+.hg-ctrl.hg-ctrl.hg-ctrl { height: 24px; min-height: 0; min-block-size: 0; min-inline-size: 0; border-radius: 8px; }
 .hg-ctrl.is-off { opacity: .38; }
 /* 倍速：纯文字（无胶囊底/边框），按下 scale(.96) 120ms；锁定 2x 时右上角挂小角标 */
-.hg-speed-btn { background: none; border: 0; box-shadow: none; letter-spacing: .2px; }
+.hg-speed-btn { border: 0; box-shadow: none; letter-spacing: .2px; }
 .hg-speed-btn:active:not(:disabled) { scale: .96; transition: scale 120ms var(--ease-out, cubic-bezier(.2,.8,.2,1)); }
 .hg-speed-lock {
   position: absolute; top: -4px; right: -10px; padding: 0 4px; border-radius: 999px;
