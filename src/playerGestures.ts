@@ -32,8 +32,12 @@ export const GESTURE = {
   zoneSplit: 1 / 3,
   /** 短滑不 seek 的最小位移（px） */
   minSeekPx: 20,
-  /** 换集提交门槛：拖过屏高的 40% 才切 */
-  episodeSwitch: 0.4,
+  /** 换集提交门槛：拖过屏高的 25% 就切（原来 40%，普通上滑只有 20–30% → 全部回弹） */
+  episodeSwitch: 0.25,
+  /** 换集辅助判定：手势速度超过这个值（px/s）也算提交（短促一划即可，和首页切 tab 一致） */
+  episodeVelocity: 600,
+  /** 速度辅助的最小位移（px）：低于它即使很快也不切，避免 120px 轻甩误切 */
+  episodeVelocityMinPx: 160,
   /** 换集预览门槛：拖过屏高的 70% 才露预览 */
   episodePreview: 0.7,
   /** 松手吸附到整 5 秒 */
@@ -126,6 +130,19 @@ export function doubleTapSeek(x: number, stageWidth: number): number {
   return action.kind === "seek" ? action.seconds : 0;
 }
 
+/**
+ * 双击/按钮的**相对 seek**：base ± delta，夹在 [0, total]，保留 0.1s 精度。
+ * **不吸附**整 5s —— 吸附会让「退 5s」实际退 7.4s（12.4 → 7.4 → 吸附到 5）。
+ * 吸附只留给横滑拖动（那里要整 5s 好对齐）。
+ */
+export function relativeSeek(base: number, delta: number, total = 0): number {
+  const from = Number.isFinite(base) ? base : 0;
+  const upper = total > 0 ? total : from + delta;
+  const raw = Math.max(0, Math.min(upper, from + delta));
+  /* +1e-6 抵消 7.35−5=2.3499999 这类浮点误差，保证「保留 0.1s」是四舍五入而不是被抹掉 */
+  return Math.round(raw * 10 + 1e-6) / 10;
+}
+
 /** 是否从左缘返回区起手（按舞台内坐标，非屏幕坐标） */
 export function isEdgeBackStart(localX: number): boolean {
   return localX <= GESTURE.edgeBack;
@@ -160,13 +177,16 @@ export function rotationLocked(changedAt: number, now: number): boolean {
 export function episodeIntent(
   dy: number,
   stageHeight: number,
+  velocity = 0,
 ): { dir: 1 | -1; commit: boolean; preview: boolean } {
   const dir: 1 | -1 = dy <= 0 ? 1 : -1;
   const height = Number.isFinite(stageHeight) && stageHeight > 0 ? stageHeight : 0;
   const ratio = height ? Math.abs(dy) / height : 0;
+  /* 两种提交方式：拖过 25% 屏高，或者速度够快（≥600px/s）且确实动了（>12px，避免抖一下就切） */
+  const fast = Math.abs(velocity) >= GESTURE.episodeVelocity && Math.abs(dy) >= GESTURE.episodeVelocityMinPx;
   return {
     dir,
-    commit: ratio >= GESTURE.episodeSwitch,
+    commit: ratio >= GESTURE.episodeSwitch || fast,
     preview: ratio >= GESTURE.episodePreview,
   };
 }

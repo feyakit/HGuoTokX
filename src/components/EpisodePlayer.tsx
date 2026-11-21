@@ -25,7 +25,7 @@ import { playEnter, playExit, originFromPoint } from "../fsTransition";
 import { useFadeMount } from "../useFadeMount";
 import {
   GESTURE, canSeek, doubleTapAction, episodeIntent, isDoubleTap, isEdgeBackStart,
-  lockAxis, rotationLocked, seekDeltaSeconds, snapSeek, tapVerdict, type Axis,
+  lockAxis, relativeSeek, rotationLocked, seekDeltaSeconds, snapSeek, tapVerdict, type Axis,
 } from "../playerGestures";
 import {
   IBack, IBoltF, IChevR, IChevronDown, IChevronUp, IClose, ICommentF, ICompress, IExpand, IFileText, IGlobe, IHeart, IHeartF, IMore,
@@ -263,7 +263,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
      双击 = 三分法：左 1/3 −5s / 中 1/3 播放暂停 / 右 1/3 +5s（窗口 280ms，见 playerGestures.tapZone）。 */
   const tapRef = useRef<{ lastAt: number; timer: number | null }>({ lastAt: 0, timer: null });
   /* 瞬时的 seek 提示（双击/松手后 800ms 消失）：不新增常驻控件，样式沿用现有胶囊类 */
-  const [seekHint, setSeekHint] = useState<{ delta: number; target: number } | null>(null);
+  const [seekHint, setSeekHint] = useState<{ delta: number; target: number; side: "left" | "right" } | null>(null);
   const seekHintTimer = useRef<number | undefined>(undefined);
   /* 上滑换集预览（拖过 60% 屏高才出）：只显示现有集数，不造数据 */
   const [epPreview, setEpPreview] = useState<{ dir: 1 | -1; label: string } | null>(null);
@@ -354,15 +354,20 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   /* seek 提示气泡：显示 800ms 后自动消失（双击 ±5s / 松手吸附后各用一次；中区双击不出气泡） */
   const flashSeek = useCallback((delta: number, target: number) => {
     window.clearTimeout(seekHintTimer.current);
-    setSeekHint({ delta, target });
+    /* 气泡跟随点击侧：快退在左 1/3 中心、快进在右 1/3 中心，垂直放屏高 25%，
+       不再居中压在中央播放/暂停按钮上（连续双击只刷新内容，不叠出多个）。 */
+    setSeekHint({ delta, target, side: delta < 0 ? "left" : "right" });
     seekHintTimer.current = window.setTimeout(() => setSeekHint(null), GESTURE.seekBubbleMs) as unknown as number;
   }, []);
   /* 相对当前位置跳 seconds 秒（双击用；松手用 scrubTarget，走另一条） */
+  /* 相对 seek（双击 ±5s / 上一下一集按钮都用它）：
+     **不做整 5s 吸附** —— 原来 snapSeek 会把 12.4−5=7.4 吸到 5，实际退了 7.4s，
+     用户量到的就是 4s/6s 这种怪值。吸附只保留给横滑拖动（那里要整 5s 好对齐）。 */
   const seekBy = useCallback((seconds: number) => {
     const el = videoRef.current?.el();
     const total = duration || liveRef.current.dur || 0;
     const base = el && Number.isFinite(el.currentTime) ? el.currentTime : playbackClock.getSnapshot();
-    const target = snapSeek(Math.max(0, Math.min(total > 0 ? total : base + seconds, base + seconds)), total);
+    const target = relativeSeek(base, seconds, total);
     videoRef.current?.seek(target, "double_tap");
     flashSeek(target - base, target);
   }, [duration, flashSeek]);
@@ -1010,6 +1015,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
        - 真横屏全屏（vpLandscape）与全屏（fs）里左缘右滑必须留给 seek，
          否则从左侧起手想快退会直接退出全屏。 */
     const edgeStart = !rotated && !fs && !vpLandscape && isEdgeBackStart(e.clientX - rect.left);
+    /* 残留缩放会把竖滑换集直接关掉（zoom.s > 1.05 的门槛）：非捏合态下起手先归位 */
+    if (!zoom.g && zoom.s > 1.05) setZoom({ s: 1, x: 0, y: 0, g: false });
     const g = {
       x: sx, y: sy, startY: sy, t: Date.now(), base: videoRef.current?.el()?.currentTime ?? playbackClock.getSnapshot(), width,
       stageH,
@@ -1089,6 +1096,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
         }
       } else {
         g.mode = "pan";
+        /* 真机取证：竖滑换集不生效时，看这一行就知道被哪个条件挡了 */
+        logLine(`[gesture] pan start fs=${fs} endless=${endless} swipeEp=${swipeEp} eps=${episodes.length} zoom=${zoom.s.toFixed(2)}`);
       }
       return;
     }
@@ -1103,7 +1112,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       setScrub({ pct: (target / total) * 100, target });
     } else if (g.mode === "pan" && !fs && !endless && swipeEp && episodes.length > 1 && zoom.s <= 1.05) {
       const pdy = msy - g.startY;
-      const intent = episodeIntent(pdy, g.stageH);
+      /* 速度辅助：短促一划也能切（普通上滑往往只有 20–30% 屏高） */
+      const dt = Math.max(1, Date.now() - g.t);
+      const intent = episodeIntent(pdy, g.stageH, (pdy / dt) * 1000);
       /* 跟手：内容直接跟着手指走（transform，不重排），上下限各半屏 */
       const limit = g.stageH * 0.5;
       setEpSlide({ y: Math.max(-limit, Math.min(limit, pdy)), animate: false });
@@ -1177,9 +1188,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     if (!cancelled && !fs && e && g.mode === "pan") {
       const [ux2, uy2] = stageXY(rotated, e.clientX, e.clientY);
       const dy = uy2 - g.startY;
-      const intent = episodeIntent(dy, g.stageH);
+      const dtUp = Math.max(1, Date.now() - g.t);
+      const intent = episodeIntent(dy, g.stageH, (dy / dtUp) * 1000);
       if (intent.commit) {
         const dir = intent.dir;
+        logLine(`[gesture] episode commit dir=${dir} dy=${Math.round(dy)} dt=${Date.now() - g.t}ms`);
         const ep = epMap[curId] || 1;
         const total = episodes.length;
         const want = dir === 1 ? (total === 0 || ep < total ? ep + 1 : 0) : (ep > 1 ? ep - 1 : 0);
@@ -1957,60 +1970,64 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                     </div>
                     {/* 底部渐变保护层 */}
                     <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0"
-                      style={{ height: 196, background: "linear-gradient(to top, rgba(0,0,0,.72) 0%, rgba(0,0,0,.5) 45%, rgba(0,0,0,0) 100%)", zIndex: 0 }} />
+                      style={{ height: 180, background: "linear-gradient(to top, rgba(0,0,0,.62) 0%, rgba(0,0,0,.34) 45%, rgba(0,0,0,0) 100%)", zIndex: 0 }} />
                     {/* 剧场控制行：时间 + 快捷倍速 + 下一集 */}
                     <div className="mx-4 mt-2 flex items-center gap-2.5 relative z-10">
                       <span className="hg-video-time">
                         <PlaybackTime clock={playbackClock} /> <span className="opacity-60">/ {fmtTime(duration || 0)}</span>
                       </span>
-                      <div className="ml-auto flex items-center gap-1.5">
-                        {/* 画质胶囊：直接用 preferHevc（存储键不变；设置页的入口已按"没有实效的功能不要"删除），
-                            点一下在「高清优先 / 标准画质」之间切换并落盘。
-                            以前竖屏底栏只有 时间 / 倍速 / 下一集，画质入口只藏在三级设置里
-                            （报告 v3.0.5：播放器无画质胶囊）。class 与旁边倍速胶囊逐字对齐，
-                            视觉尺寸天然一致；热区由 .hg-quality-chip::after 上下各撑 6px。 */}
-                        {qualitySwitchable ? (
+                      {/* 右下角控制组：统一 13/600、行高 18、水平 padding 10、间距 8（gap），
+                          热区统一 44 高（::after 撑，视觉高 26）；画质不可切时整块不渲染，
+                          靠 gap 而不是 margin，所以不会留空隙。 */}
+                      <div className="ml-auto flex items-center" style={{ gap: 6 }}>
+                        {qualitySwitchable && (
                           <Button
                             type="button"
                             aria-label={`画质：${preferHevc ? "高清优先" : "标准画质"}，点击切换`}
                             title="在高清流 / 标准流之间切换"
                             onClick={switchQuality}
-                            className="hg-quality-chip h-8 px-2.5 rounded-full text-[12px] font-semibold flex items-center gap-1 hg-chip hg-ink-2 pressable">
+                            className="hg-ctrl hg-quality-chip hg-chip hg-ink-2 pressable">
                             {preferHevc ? "高清" : "标准"}
                           </Button>
-                        ) : (
-                          /* 不可切时不渲染成按钮：disabled 的 button 在安卓 WebView 上不吞 pointer
-                             事件，指头一落就冒泡到播放器舞台 → 控制条收起、胶囊看起来「消失了」。
-                             这里用静态 span，自己吞掉按下/点击，点不动也不会连累控制条。 */
-                          <span
-                            data-hg-control="quality"
-                            aria-label="画质：标准（本集无独立高清流，不可切换）"
-                            title="本集没有独立的高清流，自动使用标准画质"
-                            onPointerDown={(e) => { e.stopPropagation(); }}
-                            onPointerUp={(e) => { e.stopPropagation(); }}
-                            onClick={(e) => { e.stopPropagation(); }}
-                            className="hg-quality-chip hg-quality-fixed h-8 px-2.5 rounded-full text-[12px] font-semibold flex items-center gap-1 hg-chip hg-ink-2">
-                            标准
-                          </span>
                         )}
+                        {/* 倍速：纯数字，无胶囊底、无图标（用户：去掉胶囊保留数字）。
+                            点击循环 1 / 1.25 / 1.5 / 2；长按锁定 2x 时数字右上挂「2x 中」小角标。 */}
                         <Button
                           type="button"
-                          aria-label={`倍速 ${effRate}x`}
+                          aria-label={`倍速 ${effRate}x${speedLock ? "（已锁定）" : ""}`}
                           onClick={() => {
                             if (speedLock) { setSpeedLock(false); return; }
                             const seq = [1, 1.25, 1.5, 2];
                             const idx = seq.indexOf(rate);
                             setRate(seq[(idx + 1) % seq.length]);
                           }}
-                          className={`h-8 px-2.5 rounded-full text-[12px] font-bold flex items-center gap-1 pressable ${effRate !== 1 ? "bg-primary text-on-primary" : "hg-chip hg-ink-2"}`}>
-                          <IBoltF size={11} />{effRate}x
+                          className="hg-ctrl hg-speed-btn text-white pressable">
+                          {effRate}x
+                          {speedLock && <span className="hg-speed-lock" aria-hidden="true">2x 中</span>}
                         </Button>
-                        {!endless && curEp < episodes.length && (
+                        {!endless && (
                           <Button
                             type="button"
-                            aria-label={`下一集 第${curEp + 1}集`}
-                            onClick={() => pickEp(curEp + 1)}
-                            className="h-8 px-2.5 rounded-full text-[12px] font-semibold hg-chip hg-ink-2 flex items-center gap-1 pressable">
+                            aria-label="上一集"
+                            onClick={() => {
+                              if (curEp <= 1) { toast("已经是第一集", "info"); return; }
+                              pickEp(curEp - 1);
+                            }}
+                            aria-disabled={curEp <= 1}
+                            className={`hg-ctrl hg-ep-nav text-white pressable ${curEp <= 1 ? "is-off" : ""}`}>
+                            上一集
+                          </Button>
+                        )}
+                        {!endless && (
+                          <Button
+                            type="button"
+                            aria-label={curEp < episodes.length ? `下一集 第${curEp + 1}集` : "下一集"}
+                            onClick={() => {
+                              if (curEp >= episodes.length) { toast("已经是最后一集", "info"); return; }
+                              pickEp(curEp + 1);
+                            }}
+                            aria-disabled={curEp >= episodes.length}
+                            className={`hg-ctrl hg-ep-nav text-white pressable ${curEp >= episodes.length ? "is-off" : ""}`}>
                             下一集
                           </Button>
                         )}
@@ -2057,12 +2074,22 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
 
               {/* 双击 / 松手 seek 的瞬时提示（800ms 自动消失） */}
               {!isDesktop && seekHint && (
-                <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
-                  <div className="hg-chip hg-ink px-4 py-2 rounded-full flex items-center gap-2 backdrop-blur-md elev-2">
-                    <span className="text-[15px] font-bold tabular-nums">
+                <div
+                  className="absolute z-30 flex pointer-events-none"
+                  style={{
+                    top: "25%",
+                    transform: "translateY(-50%)",
+                    /* 左右各留 16px 安全边；右侧有快捷栏时再向内让 56px（栏宽 + 间距） */
+                    ...(seekHint.side === "left"
+                      ? { left: 16, width: "calc(33.333% - 32px)", justifyContent: "center" }
+                      : { right: actionRail.mounted && !fs ? 72 : 16, width: "calc(33.333% - 32px)", justifyContent: "center" }),
+                  }}
+                >
+                  <div className="hg-chip hg-ink px-3 py-2 rounded-full flex items-center gap-2 backdrop-blur-md elev-2 max-w-full">
+                    <span className="text-[15px] font-bold tabular-nums whitespace-nowrap">
                       {seekHint.delta >= 0 ? "+" : "−"}{Math.abs(Math.round(seekHint.delta))}s
                     </span>
-                    <span className="text-[12px] hg-ink-4 tabular-nums">{fmtTime(seekHint.target)}</span>
+                    <span className="text-[12px] hg-ink-4 tabular-nums whitespace-nowrap">{fmtTime(seekHint.target)}</span>
                   </div>
                 </div>
               )}
@@ -2172,9 +2199,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       {!isDesktop && fs && !idle && (
         <>
           <div className="absolute inset-x-0 top-0 z-30 pointer-events-none"
-            style={{ height: 96, background: "linear-gradient(180deg, rgba(0,0,0,.72) 0%, rgba(0,0,0,0) 100%)" }} />
+            style={{ height: 140, background: "linear-gradient(180deg, rgba(0,0,0,.55) 0%, rgba(0,0,0,0) 100%)" }} />
           <div className="absolute inset-x-0 bottom-0 z-30 pointer-events-none"
-            style={{ height: 116, background: "linear-gradient(0deg, rgba(0,0,0,.78) 0%, rgba(0,0,0,0) 100%)" }} />
+            style={{ height: 180, background: "linear-gradient(to top, rgba(0,0,0,.62) 0%, rgba(0,0,0,.34) 45%, rgba(0,0,0,0) 100%)" }} />
 
           {/* 全屏顶部：返回退出全屏 + 剧名 + 集数 */}
           <div className="absolute inset-x-0 z-40 flex items-center gap-2.5 px-4"

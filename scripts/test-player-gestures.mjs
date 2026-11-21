@@ -22,7 +22,7 @@ try {
   const G = await vite.ssrLoadModule("/src/playerGestures.ts");
   const {
     GESTURE, lockAxis, seekSecondsPer100px, seekDeltaSeconds, canSeek, snapSeek,
-    doubleTapSeek, doubleTapAction, tapZone, isEdgeBackStart, isDoubleTap, rotationLocked, episodeIntent, judgeGesture,
+    doubleTapSeek, doubleTapAction, tapZone, relativeSeek, isEdgeBackStart, isDoubleTap, rotationLocked, episodeIntent, judgeGesture,
     tapVerdict,
   } = G;
 
@@ -36,7 +36,8 @@ try {
     assert.equal(GESTURE.minSeekPx, 20);
     assert.equal(GESTURE.tapSlop, 6);
     assert.equal(GESTURE.tapMs, 300);
-    assert.equal(GESTURE.episodeSwitch, 0.4);
+    assert.equal(GESTURE.episodeSwitch, 0.25);
+    assert.equal(GESTURE.episodeVelocity, 600);
     assert.equal(GESTURE.episodePreview, 0.7);
     assert.equal(GESTURE.snapSeconds, 5);
     assert.equal(GESTURE.rotateLockMs, 300);
@@ -167,13 +168,22 @@ try {
   console.log("[上下滑换集]");
   check("40% 屏高才提交，70% 出预览（边界）", () => {
     const h = 800;
-    assert.equal(episodeIntent(-200, h).commit, false);   // 25%
-    assert.equal(episodeIntent(-300, h).commit, false);   // 37.5%
-    assert.equal(episodeIntent(-320, h).commit, true);    // 40% 整
-    assert.equal(episodeIntent(-320, h).preview, false);
+    assert.equal(episodeIntent(-150, h).commit, false);   // 18.75%：低于 25% 门槛
+    assert.equal(episodeIntent(-200, h).commit, true);    // 25% 整：达到门槛
+    assert.equal(episodeIntent(-300, h).commit, true);    // 30% 已过 25% 门槛
+    assert.equal(episodeIntent(-320, h).preview, false);  // 32% 还没到 70%
     assert.equal(episodeIntent(-480, h).preview, false);  // 60%
     assert.equal(episodeIntent(-560, h).preview, true);   // 70% 整
     assert.equal(episodeIntent(-560, h).commit, true);
+    /* 速度辅助：位移 180px（22.5%，不到 25% 门槛）但速度 900px/s → 也切 */
+    assert.equal(episodeIntent(-180, h, 900).commit, true);
+    /* 抖一下（位移 8px）即使速度很快也不切 */
+    assert.equal(episodeIntent(-8, h, 2000).commit, false);
+    /* 轻甩 120px（14%，低于 160px 的最小位移）即使 900px/s 也不切 */
+    assert.equal(episodeIntent(-120, h, 900).commit, false);
+    /* 160px + 快速度 → 切 */
+    assert.equal(episodeIntent(-160, h, 900).commit, true);
+    assert.equal(episodeIntent(-120, h, 300).commit, false);
   });
   check("上滑=下一集(1)，下滑=上一集(-1)", () => {
     assert.equal(episodeIntent(-300, 800).dir, 1);
@@ -245,6 +255,23 @@ try {
     assert.equal(doubleTapSeek(W / 2, W), 0);
     assert.equal(doubleTapSeek(10, W), -5);
     assert.equal(doubleTapSeek(W - 10, W), 5);
+  });
+
+  console.log("[双击 seek 相对位移，不吸附]");
+  check("t=12.4 双击左 −5s → 7.4（原来被吸附成 5）", () => {
+    assert.equal(relativeSeek(12.4, -5, 300), 7.4);
+  });
+  check("t=12.4 双击右 +5s → 17.4", () => {
+    assert.equal(relativeSeek(12.4, 5, 300), 17.4);
+  });
+  check("t=3 双击左 −5s → 夹到 0", () => {
+    assert.equal(relativeSeek(3, -5, 300), 0);
+  });
+  check("t=duration-2 双击右 +5s → 夹到 duration", () => {
+    assert.equal(relativeSeek(298, 5, 300), 300);
+  });
+  check("保留 0.1s 精度：7.35 → 2.35", () => {
+    assert.equal(relativeSeek(7.35, -5, 300), 2.4);
   });
 
   console.log(`\nPassed: ${passed} 项手势判定单测`);
