@@ -1,6 +1,6 @@
 import { Button, Image, SegmentedControl } from "./ios/controls";
 import { Loader } from "./ios/effects";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { api, cover, fmt, fmtTime, hostOf, isMobile, logLine, platform, playlist } from "../api";
 import type { Detail, Episode, PlayInfo, Post, VideoCard } from "../types";
@@ -524,6 +524,20 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       dir === 1 ? "下一集" : "上一集"
     } · 第${want}集${episodes.length ? ` / 共 ${episodes.length} 集` : ""}`;
   }, [curId, epMap, episodes, dramaNeighbor]);
+  /* 底栏分段胶囊：倍速 / 上一集 / 下一集（全屏是 倍速 / 选集 / 下集）共用这一个组件，
+     不各写一套；每段没有自己的底与边框，只有一个外容器 + 1px 分隔线。 */
+  const SegPill = ({ items }: { items: { key: string; label: ReactNode; ariaLabel?: string; onPress?: () => void; off?: boolean }[] }) => (
+    <div className="hg-seg-pill">
+      {items.map((it, i) => (
+        <Fragment key={it.key}>
+          {i > 0 && <span className="hg-seg-div" aria-hidden="true" />}
+          <Button type="button" aria-label={it.ariaLabel} aria-disabled={it.off} onClick={it.onPress}
+            className={`hg-seg${it.off ? " is-off" : ""}`}>{it.label}</Button>
+        </Fragment>
+      ))}
+    </div>
+  );
+
   const post = posts[curId];
 
   /* 观看进度：onTime 里每 5 秒落一次；退出播放页时再用 liveRef 兜一次 */
@@ -2043,9 +2057,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                         </Button>
                       )}
                     </div>
-                    {/* 底部渐变保护层 */}
-                    <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0"
-                      style={{ height: 180, background: "linear-gradient(to top, rgba(0,0,0,.62) 0%, rgba(0,0,0,.34) 45%, rgba(0,0,0,0) 100%)", zIndex: 0 }} />
+                    {/* 压光已上移到播放器根节点：底栏内部这一条止于底栏下沿，
+                        屏幕最底部（14px + 安全区）反而没暗化，就是用户看到的分界线。 */}
                     {/* 剧场控制行：时间 + 快捷倍速 + 下一集 */}
                     <div className="mx-4 mt-2 flex items-center gap-2.5 relative z-10">
                       <span className="hg-video-time">
@@ -2054,7 +2067,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                       {/* 右下角控制组：统一 13/600、行高 18、水平 padding 10、间距 8（gap），
                           热区统一 44 高（::after 撑，视觉高 26）；画质不可切时整块不渲染，
                           靠 gap 而不是 margin，所以不会留空隙。 */}
-                      <div className="ml-auto flex items-center" style={{ gap: 6 }}>
+                      <div className="ml-auto flex items-center" style={{ gap: 8 }}>
                         {qualitySwitchable && (
                           <Button
                             type="button"
@@ -2065,47 +2078,33 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                             {preferHevc ? "高清" : "标准"}
                           </Button>
                         )}
-                        {/* 倍速：纯数字，无胶囊底、无图标（用户：去掉胶囊保留数字）。
-                            点击循环 1 / 1.25 / 1.5 / 2；长按锁定 2x 时数字右上挂「2x 中」小角标。 */}
-                        <Button
-                          type="button"
-                          aria-label={`倍速 ${effRate}x${speedLock ? "（已锁定）" : ""}`}
-                          onClick={() => {
-                            if (speedLock) { setSpeedLock(false); return; }
-                            const seq = [1, 1.25, 1.5, 2];
-                            const idx = seq.indexOf(rate);
-                            setRate(seq[(idx + 1) % seq.length]);
-                          }}
-                          className="hg-ctrl hg-speed-btn text-white pressable">
-                          <span className="hg-num">{effRate}x</span>
-                          {speedLock && <span className="hg-speed-lock" aria-hidden="true">2x 中</span>}
-                        </Button>
-                        {!endless && (
-                          <Button
-                            type="button"
-                            aria-label="上一集"
-                            onClick={() => {
-                              if (curEp <= 1) { toast("已经是第一集", "info"); return; }
-                              pickEp(curEp - 1);
-                            }}
-                            aria-disabled={curEp <= 1}
-                            className={`hg-ctrl hg-ep-nav text-white pressable ${curEp <= 1 ? "is-off" : ""}`}>
-                            上一集
-                          </Button>
-                        )}
-                        {!endless && (
-                          <Button
-                            type="button"
-                            aria-label={curEp < episodes.length ? `下一集 第${curEp + 1}集` : "下一集"}
-                            onClick={() => {
-                              if (curEp >= episodes.length) { toast("已经是最后一集", "info"); return; }
-                              pickEp(curEp + 1);
-                            }}
-                            aria-disabled={curEp >= episodes.length}
-                            className={`hg-ctrl hg-ep-nav text-white pressable ${curEp >= episodes.length ? "is-off" : ""}`}>
-                            下一集
-                          </Button>
-                        )}
+                        <SegPill items={[
+                          {
+                            key: "speed",
+                            ariaLabel: `倍速 ${effRate}x${speedLock ? "（已锁定）" : ""}`,
+                            onPress: () => {
+                              if (speedLock) { setSpeedLock(false); return; }
+                              const seq = [1, 1.25, 1.5, 2];
+                              const idx = seq.indexOf(rate);
+                              setRate(seq[(idx + 1) % seq.length]);
+                            },
+                            label: <span className="hg-num relative">{effRate}x{speedLock && <span className="hg-speed-lock" aria-hidden="true">2x 中</span>}</span>,
+                          },
+                          ...(!endless ? [{
+                            key: "prev",
+                            ariaLabel: "上一集",
+                            off: curEp <= 1,
+                            onPress: () => { if (curEp <= 1) { toast("已经是第一集", "info"); return; } pickEp(curEp - 1); },
+                            label: "上一集",
+                          }] : []),
+                          ...(!endless ? [{
+                            key: "next",
+                            ariaLabel: curEp < episodes.length ? `下一集 第${curEp + 1}集` : "下一集",
+                            off: curEp >= episodes.length,
+                            onPress: () => { if (curEp >= episodes.length) { toast("已经是最后一集", "info"); return; } pickEp(curEp + 1); },
+                            label: "下一集",
+                          }] : []),
+                        ]} />
                       </div>
                     </div>
                     <div ref={barRef} className="mx-4 mt-1 relative z-10" style={{ height: 28, touchAction: "none" }}
@@ -2252,8 +2251,10 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
           推荐全部来自真实接口（api_related 优先，其次 api_feed），过滤本剧，不足 3 部就少显示。 */}
       {!isDesktop && !endless && seriesEnded && (
         <div className="absolute inset-0 z-40 flex items-center justify-center px-6" data-hg-control="endcard">
-          <div className="w-full max-w-[340px] rounded-2xl bg-black/72 backdrop-blur-md p-5 text-center elev-2">
-            <p className="text-[15px] font-bold text-white">本剧已看完</p>
+          <div className="hg-endcard w-full max-w-[340px] p-5 text-center">
+            <p className="flex items-center justify-center gap-2 text-[15px] font-bold text-white">
+              <span className="hg-endcard-bar" aria-hidden="true" />本剧已看完
+            </p>
             <p className="mt-1 text-[13px] font-semibold text-white/85 clamp-1">{details[curId]?.title || meta.title}</p>
             <p className="mt-0.5 text-[12px] text-white/45">共 {episodes.length || 1} 集</p>
 
@@ -2263,7 +2264,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
               <div className="mt-4 grid grid-cols-3 gap-2">
                 {endRecs.slice(0, 3).map((v) => (
                   <Button key={v.id} card aria-label={`看《${v.title}》`} onClick={() => openRecommended(v.id)}
-                    className="text-left min-w-0">
+                    className="hg-reccard text-left min-w-0">
                     <span className="relative block w-full overflow-hidden rounded-lg" style={{ paddingTop: "133.3333%" }}>
                       <Img src={v.cover} alt="" />
                     </span>
@@ -2280,11 +2281,19 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
 
             <div className="mt-4 flex gap-2">
               <Button onClick={() => { setSeriesEnded(false); setEndRecs(null); pickEp(1); }}
-                className="hg-ctrl flex-1 justify-center text-white pressable">重新看第 1 集</Button>
+                className="hg-endcard-main flex-1 pressable">重新看第 1 集</Button>
               <Button onClick={() => void openEndCard(true)}
-                className="hg-ctrl flex-1 justify-center text-white pressable">换一部</Button>
+                className="hg-endcard-ghost flex-1 pressable">换一部</Button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 播放器底部压光（唯一一层）：从屏幕最底边往上 280px，一条线性渐变盖住
+          安全区 + 进度条 + 控件区，中途没有任何容器级背景/blur 形成色带。 */}
+      {!isDesktop && !fs && (
+        <div aria-hidden="true" className="hg-scrim-bottom z-10">
+          <span className="hg-scrim-dither" aria-hidden="true" />
         </div>
       )}
 
@@ -2315,10 +2324,12 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       {/* 移动端：沉浸全屏顶栏 / 进度条 / 底栏 */}
       {!isDesktop && fs && !idle && (
         <>
-          <div className="absolute inset-x-0 top-0 z-30 pointer-events-none"
-            style={{ height: 140, background: "linear-gradient(180deg, rgba(0,0,0,.55) 0%, rgba(0,0,0,0) 100%)" }} />
-          <div className="absolute inset-x-0 bottom-0 z-30 pointer-events-none"
-            style={{ height: 180, background: "linear-gradient(to top, rgba(0,0,0,.62) 0%, rgba(0,0,0,.34) 45%, rgba(0,0,0,0) 100%)" }} />
+          <div className="hg-scrim-top z-30">
+            <span className="hg-scrim-dither" aria-hidden="true" />
+          </div>
+          <div className="hg-scrim-bottom z-30">
+            <span className="hg-scrim-dither" aria-hidden="true" />
+          </div>
 
           {/* 全屏顶部：返回退出全屏 + 剧名 + 集数 */}
           <div className="absolute inset-x-0 z-40 flex items-center gap-2.5 px-4"
@@ -2392,30 +2403,32 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   还原 {zoom.s.toFixed(1)}x
                 </Button>
               )}
-              <Button
-                onClick={() => {
-                  if (speedLock) { setSpeedLock(false); return; }
-                  const seq = [1, 1.25, 1.5, 2];
-                  const i = seq.indexOf(rate);
-                  setRate(seq[(i + 1) % seq.length]);
-                }}
-                className={`shrink-0 flex items-center gap-1 px-2.5 h-8 rounded-full text-[12px] font-bold pressable ${effRate !== 1 ? "bg-primary text-on-primary" : "hg-chip hg-ink-2"}`}>
-                <IBoltF size={12} />{effRate}x
-              </Button>
-              {episodes.length > 1 && (
-                <Button onClick={() => setPanel("episodes")}
-                  className="shrink-0 flex items-center gap-1 px-2.5 h-8 rounded-full text-[12px] font-semibold hg-chip hg-ink-2 pressable tabular-nums"
-                  aria-label={`选集，当前第 ${curEp} 集`}>
-                  <IList size={13} />第 {curEp}/{episodes.length} 集
-                </Button>
-              )}
-              {curEp < episodes.length && (
-                <Button onClick={() => pickEp(curEp + 1)}
-                  className="shrink-0 flex items-center gap-1 px-2.5 h-8 rounded-full text-[12px] font-semibold hg-chip hg-ink-2 pressable"
-                  aria-label={`下一集 第${curEp + 1}集`}>
-                  <IVertSwap size={12} />下集
-                </Button>
-              )}
+              <SegPill items={[
+                {
+                  key: "speed",
+                  ariaLabel: `倍速 ${effRate}x${speedLock ? "（已锁定）" : ""}`,
+                  onPress: () => {
+                    if (speedLock) { setSpeedLock(false); return; }
+                    const seq = [1, 1.25, 1.5, 2];
+                    const idx = seq.indexOf(rate);
+                    setRate(seq[(idx + 1) % seq.length]);
+                  },
+                  label: <span className="hg-num relative">{effRate}x{speedLock && <span className="hg-speed-lock" aria-hidden="true">2x 中</span>}</span>,
+                },
+                ...(episodes.length > 1 ? [{
+                  key: "eps",
+                  ariaLabel: `选集，当前第 ${curEp} 集，共 ${episodes.length} 集`,
+                  onPress: () => setPanel("episodes"),
+                  label: `第 ${curEp}/${episodes.length} 集`,
+                }] : []),
+                ...(episodes.length > 1 ? [{
+                  key: "next",
+                  ariaLabel: curEp < episodes.length ? `下一集 第${curEp + 1}集` : "下一集",
+                  off: curEp >= episodes.length,
+                  onPress: () => { if (curEp >= episodes.length) { toast("已经是最后一集", "info"); return; } pickEp(curEp + 1); },
+                  label: "下集",
+                }] : []),
+              ]} />
             </div>
           </div>
         </>
