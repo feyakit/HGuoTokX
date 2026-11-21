@@ -2120,5 +2120,5 @@
 .hg-post-card,
 .hg-podium-card, .ios-button.hg-podium-card,
 .hg-premiere-card,
-.hg-search-hot-item, .ios-button.hg-search-hot-item,
+.ios-search-hot-item, .ios-button.ios-search-hot-item,
 .ios-poster { border-radius: var(--r-card); }
