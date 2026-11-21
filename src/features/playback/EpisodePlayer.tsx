@@ -85,7 +85,7 @@ export type EpisodePlayerProps = {
 
 export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mode, kind = "video", active, bottomInset, onBack, onNearEnd, onActiveIndex, endless = false, onBlocked, startEp, startTime, onDislike }: EpisodePlayerProps) {
   const store = useStore();
-  const { isLiked, isFav, setLiked, setCollected, setFollowing, actionPending, accountScope, muted, setMuted, volume, setVolume, toast, addHistory, user, setLoginOpen, swipeEp, setSwipeEp, preferHevc, setPreferHevc, ambientGlow } = store;
+  const { isLiked, isFav, setLiked, setCollected, setFollowing, actionPending, accountScope, muted, setMuted, volume, setVolume, toast, addHistory, user, setLoginOpen, swipeEp, setSwipeEp, preferHevc, setPreferHevc, ambientGlow, balanceVolume } = store;
   const isDesktop = !isMobile;
   const contentPreferences = useContentPreferences();
   const { preferences, revision, blockReason } = contentPreferences;
@@ -1892,7 +1892,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   fit={isDesktop ? "contain" : (portraitVideo && !rotated && !vpLandscape) ? "cover" : "contain"}
                   /* 黑边里的观感交给微光效果（上游 PR #192 移植）：从当前画面采样色晕铺在黑边，
                      我们原来那套「封面虚化 hg-lb-blur」已删除，避免两套并存。 */
-                  ambientGlow={ambientGlow}
+                  ambientGlow={ambientGlow} balanceVolume={!isDesktop && balanceVolume}
                   onClick={() => { if (isDesktop) videoRef.current?.toggle(); }}
                   onTime={onTimeTick}
                   onDuration={onDurationTick}

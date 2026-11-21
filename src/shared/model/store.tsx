@@ -90,6 +90,8 @@ type Persist = GuestData & {
   preferHevc: boolean;
   /** 微光效果：从当前画面采样色晕铺到视频黑边（上游 PR #192），默认开 */
   ambientGlow: boolean;
+  /** 平衡音量（POC）：默认关闭，只在移动端出现设置项 */
+  balanceVolume: boolean;
 };
 
 const LS = STORAGE_KEYS.app;
@@ -97,7 +99,7 @@ const LS = STORAGE_KEYS.app;
 const GUEST_KEPT_KEY = "hguox_guest_kept_v1";
 const DEFAULTS: Persist = {
   likes: [], favs: [], postFavs: [], history: [], follows: [],
-  muted: true, muteOnStartup: true, volume: 0.7, searchHist: [], swipeEp: true, preferHevc: true, ambientGlow: true,
+  muted: true, muteOnStartup: true, volume: 0.7, searchHist: [], swipeEp: true, preferHevc: true, ambientGlow: true, balanceVolume: false,
 };
 
 /** 旧版本 history 是 number[]，读出来时升级成带进度的结构 */
@@ -136,7 +138,8 @@ function loadPersist(): Persist {
     } catch { /* ignore */ }
     /* 旧配置没有这个概念，按「默认开」处理（只有显式 false 才关） */
     const ambientGlow = p.ambientGlow !== false;
-    return { ...p, swipeEp, muteOnStartup, muted: muteOnStartup || p.muted === true, ambientGlow, history: normalizeHistory(p.history) };
+    const balanceVolume = p.balanceVolume === true;
+    return { ...p, swipeEp, muteOnStartup, muted: muteOnStartup || p.muted === true, ambientGlow, balanceVolume, history: normalizeHistory(p.history) };
   } catch {
     return DEFAULTS;
   }
@@ -177,6 +180,7 @@ type Store = {
   swipeEp: boolean; setSwipeEp: (on: boolean) => void;
   preferHevc: boolean; setPreferHevc: (on: boolean) => void;
   ambientGlow: boolean; setAmbientGlow: (on: boolean) => void;
+  balanceVolume: boolean; setBalanceVolume: (on: boolean) => void;
   volume: number; setVolume: (v: number) => void;
   searchHist: string[]; addSearch: (q: string) => void; clearSearchHist: () => void;
   strictSecurity: boolean; strictSecurityReady: boolean; securityPending: boolean; cliRelaxed: boolean; setStrictSecurity: (on: boolean) => Promise<void>;
@@ -457,6 +461,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setAmbientGlow = useCallback((on: boolean) => {
     setP((s) => ({ ...s, ambientGlow: on }));
   }, []);
+  const setBalanceVolume = useCallback((on: boolean) => {
+    setP((s) => ({ ...s, balanceVolume: on }));
+  }, []);
   const setVolume = useCallback((v: number) => {
     const volume = Math.max(0, Math.min(1, v));
     setP((s) => ({ ...s, volume, muted: volume === 0 }));
@@ -478,6 +485,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     swipeEp: p.swipeEp, setSwipeEp,
     preferHevc: p.preferHevc, setPreferHevc,
     ambientGlow: p.ambientGlow, setAmbientGlow,
+    balanceVolume: p.balanceVolume, setBalanceVolume,
     searchHist: p.searchHist, addSearch, clearSearchHist,
     strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity,
     accent, setAccent: setAccentState,

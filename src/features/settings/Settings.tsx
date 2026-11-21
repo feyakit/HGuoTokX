@@ -1,6 +1,7 @@
 import { Button, Surface, TextArea } from "../../shared/ui/ios/controls";
 import { useEffect, useRef, useState } from "react";
-import { api, APP_VERSION, hostOf, logLine, type UpdateInfo } from "../../shared/api/api";
+import { api, APP_VERSION, hostOf, isMobile, logLine, type UpdateInfo } from "../../shared/api/api";
+import { isBalanceVolumeSupported } from "../playback/balanceVolume";
 import { useStore } from "../../shared/model/store";
 import { middleEllipsis } from "../../shared/lib/textFit";
 import { Modal } from "../../shared/ui/ui";
@@ -14,7 +15,7 @@ import { useContentPreferences } from "../../shared/model/contentPreferences";
 import { copyPlaybackLog, initPlaybackLog, setPlaybackLog, tracePlayback, usePlaybackLog } from "../../shared/diagnostics/playbackDiagnostics";
 import { formatNetDiag, shortVerdict } from "../../shared/diagnostics/netDiagReport";
 import { copyText } from "../../shared/lib/clipboard";
-import { IBack, IBoltF, IBroom, IClapper, IFileText, IInfo, ILockF, IList, ILink, ILogout, IRefresh, ISparkF, ISun, IVolMute } from "../../shared/ui/icons";
+import { IBack, IBoltF, IBroom, IClapper, IFileText, IInfo, ILockF, IList, ILink, ILogout, IRefresh, ISparkF, ISun, IVolMute, IVol } from "../../shared/ui/icons";
 
 /* 设置页：7 组平铺（播放 / 内容偏好 / 网络 / 本地数据 / 播放诊断 / 账号 / 关于）
  *
@@ -24,7 +25,7 @@ import { IBack, IBoltF, IBroom, IClapper, IFileText, IInfo, ILockF, IList, ILink
  *
  * 入口：Windows 侧栏「设置」、Android / iOS「我的」右上角齿轮 */
 export default function Settings({ onBack }: { onBack: () => void; wide: boolean }) {
-  const { user, logout, muteOnStartup, setMuteOnStartup, ambientGlow, setAmbientGlow, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity, toast, push } = useStore();
+  const { user, logout, muteOnStartup, setMuteOnStartup, ambientGlow, setAmbientGlow, balanceVolume, setBalanceVolume, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity, toast, push } = useStore();
   const { preferences: contentPrefs } = useContentPreferences();
   const [about, setAbout] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
@@ -157,6 +158,11 @@ export default function Settings({ onBack }: { onBack: () => void; wide: boolean
               }} />
             <SettingsRow icon={<ISun size={16} />} title="微光效果" sub="画面颜色会轻微扩散到黑边，关闭可省电"
               right={{ kind: "switch", on: ambientGlow, onChange: setAmbientGlow, label: "微光效果" }} />
+            {/* 平衡音量（POC，默认关）：只在移动端且内核支持 MSE + Web Audio 时出现 */}
+            {isMobile && isBalanceVolumeSupported() && (
+              <SettingsRow icon={<IVol size={16} />} title="平衡音量" sub="自动压低突然变大的音效，让台词更稳；音乐和现场内容可能被轻微压缩"
+                right={{ kind: "switch", on: balanceVolume, onChange: setBalanceVolume, label: "平衡音量" }} />
+            )}
           </SettingsGroup>
 
           <SettingsGroup title="内容偏好">

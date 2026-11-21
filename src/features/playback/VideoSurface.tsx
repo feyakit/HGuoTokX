@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useImperativeHandle, useRef, forwardRef, useState } from "react";
 import Hls from "hls.js";
 import AmbientGlow from "./AmbientGlow";
+import { setBalanceVolume } from "./balanceVolume";
 import { platform } from "../../shared/api/api";
 import { connectNativeMedia, playbackSource } from "./mediaTransport";
 import { mediaErrorMessage } from "./mediaErrors";
@@ -37,6 +38,8 @@ type Props = {
   transparentBg?: boolean;
   /** 微光效果：从当前画面采样色晕铺在黑边（上游 PR #192），需要可读的播放源 */
   ambientGlow?: boolean;
+  /** 平衡音量（POC，默认关）：把音频接进 Web Audio 做响度归一，见 balanceVolume.ts */
+  balanceVolume?: boolean;
   /** 换源后重新套用，避免切集时音量/倍速被浏览器重置 */
   volume?: number;
   rate?: number;
@@ -55,7 +58,7 @@ type Props = {
 /** 只负责「播」：hls.js + video 元素，控制条由外层渲染。 */
 const VideoSurface = forwardRef<VideoHandle, Props>(function VideoSurface(
   { src, poster, autoPlay = true, active = true, measurementKey = src, diagnosticContext = {}, muted = false, loop = false, fit = "contain", volume = 1, rate = 1,
-    onTime, onDuration, onSize, onPlaying, onPause, onWaiting, onEnded, onError, onClick, className = "", transparentBg = false, ambientGlow = false },
+    onTime, onDuration, onSize, onPlaying, onPause, onWaiting, onEnded, onError, onClick, className = "", transparentBg = false, ambientGlow = false, balanceVolume = false },
   ref,
 ) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -233,6 +236,13 @@ const VideoSurface = forwardRef<VideoHandle, Props>(function VideoSurface(
     v.muted = muted;
     v.playbackRate = rate;
   };
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    setBalanceVolume(video, balanceVolume && active);
+    return () => setBalanceVolume(video, false);
+  }, [balanceVolume, active]);
 
   const handleVideoError = () => {
     if (hlsRef.current) return;
