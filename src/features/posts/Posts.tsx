@@ -450,7 +450,7 @@ export function PostsPage({ onBack, embedded = false, active = true }: { onBack?
       </div>
       <Sheet open={!!commentTarget} onClose={() => setCommentTarget(null)}>
         {commentTarget && (
-          <div className="flex flex-col" style={{ height: "72vh" }}>
+          <div className="flex flex-col" style={{ height: "72dvh" }}>
             <CommentsPanel videoId={commentTarget.id} ep={0} total={commentTarget.total} kind="post" onClose={() => setCommentTarget(null)} />
           </div>
         )}
@@ -724,7 +724,7 @@ export function PostDetail({ id, onBack, active = true }: { id: number; onBack: 
       })()}
 
       <Sheet open={active && commentOpen} onClose={() => setCommentOpen(false)}>
-        <div className="flex flex-col" style={{ height: "72vh" }}>
+        <div className="flex flex-col" style={{ height: "72dvh" }}>
           <CommentsPanel videoId={id} ep={0} total={currentPost?.counts?.comment ?? 0} kind="post" onClose={() => setCommentOpen(false)} />
         </div>
       </Sheet>

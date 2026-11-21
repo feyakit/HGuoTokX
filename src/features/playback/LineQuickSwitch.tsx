@@ -107,7 +107,7 @@ export default function LineQuickSwitch({ open, onClose }: { open: boolean; onCl
 
   return (
     <Sheet open={open} onClose={onClose} label="切换线路">
-      <div className="flex flex-col" style={{ maxHeight: "60vh" }}>
+      <div className="flex flex-col" style={{ maxHeight: "60dvh" }}>
         <div className="shrink-0 flex items-center gap-2 px-4 pt-3 pb-2">
           <div className="flex-1 min-w-0">
             <div className="text-[15px] font-bold text-on leading-tight">切换线路</div>

@@ -2565,14 +2565,14 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
         <>
           {/* 评论：移动端底部弹层（右侧操作栏「评论」入口） */}
           <Sheet open={active && panel === "comments"} onClose={() => setPanel(null)}>
-            <div className="flex flex-col" style={{ height: "72vh" }}>
+            <div className="flex flex-col" style={{ height: "72dvh" }}>
               <CommentsPanel videoId={curId} ep={curEp} total={meta.comment} kind={kind} onClose={() => setPanel(null)} />
             </div>
           </Sheet>
 
           {/* 吃瓜图文正文 */}
           <Sheet open={active && panel === "article"} onClose={() => setPanel(null)}>
-            <div className="flex flex-col" style={{ height: "78vh" }}>
+            <div className="flex flex-col" style={{ height: "78dvh" }}>
               <ArticlePanel title={meta.title} html={articleHtml} cover={meta.cover} hot={post?.hot} onClose={() => setPanel(null)} />
             </div>
           </Sheet>

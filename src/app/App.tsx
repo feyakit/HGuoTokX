@@ -76,30 +76,33 @@ function StackPage(props: Parameters<typeof StackPageContent>[0]) {
   return <Suspense fallback={<PageLoading />}><StackPageContent {...props} /></Suspense>;
 }
 
-function StackPageContent({ page, onBack, wide, top, bottomInset }: {
-  page: Page; onBack: () => void; wide: boolean; top: boolean; bottomInset: number;
+function StackPageContent({ page, onBack, wide, top, bottomInset, loginOpen }: {
+  page: Page; onBack: () => void; wide: boolean; top: boolean; bottomInset: number; loginOpen: boolean;
 }) {
+  /* 登录框是浮在最上面的模态：它开着的时候播放页不能再算 active，
+     否则底下的视频还在抢音频焦点/字幕层（上游 496b6ff）。 */
+  const pageActive = top && !loginOpen;
   if (page.kind === "feed") {
     if (page.endless) {
       return (
-        <EndlessFeed title={page.title} active={top} bottomInset={bottomInset} onBack={onBack} />
+        <EndlessFeed title={page.title} active={pageActive} bottomInset={bottomInset} onBack={onBack} />
       );
     }
     return (
       <Feed videoIds={page.videoIds} startIndex={page.index} title={page.title} kind={page.feedKind || "video"}
         startEp={page.startEp} startTime={page.startTime}
-        mode="context" active={top} bottomInset={bottomInset} onBack={onBack} />
+        mode="context" active={pageActive} bottomInset={bottomInset} onBack={onBack} />
     );
   }
-  if (page.kind === "search") return <Search active={top} wide={wide} initialTab={page.initialTab} onBack={onBack} />;
+  if (page.kind === "search") return <Search active={pageActive} wide={wide} initialTab={page.initialTab} onBack={onBack} />;
   if (page.kind === "history") return <HistoryPage onBack={onBack} wide={wide} />;
-  if (page.kind === "favorites") return <FavoritesPage onBack={onBack} wide={wide} initialTab={page.initialTab} active={top} />;
+  if (page.kind === "favorites") return <FavoritesPage onBack={onBack} wide={wide} initialTab={page.initialTab} active={pageActive} />;
   if (page.kind === "channel") return <ChannelPage cate={page.cate} name={page.name} onBack={onBack} wide={wide} />;
   if (page.kind === "ranks") return <RankPage onBack={onBack} wide={wide} />;
   if (page.kind === "settings") return <SettingsPage onBack={onBack} wide={wide} />;
   if (page.kind === "settings-tags") return <SettingsTagsPage onBack={onBack} />;
   if (page.kind === "posts") return <PostsPage onBack={onBack} wide={wide} />;
-  if (page.kind === "post") return <PostDetail id={page.id} onBack={onBack} active={top} />;
+  if (page.kind === "post") return <PostDetail id={page.id} onBack={onBack} active={pageActive} />;
   if (page.kind === "topics") return <TopicsPage onBack={onBack} wide={wide} />;
   if (page.kind === "topic") return <TopicPage slug={page.slug} name={page.name} onBack={onBack} wide={wide} />;
   if (page.kind === "series") return <SeriesDetail id={page.id} onBack={onBack} />;
@@ -129,7 +132,7 @@ function MainTabs({ wide, pageActive, bottomInset }: { wide: boolean; pageActive
 }
 
 function AppBody() {
-  const { platform, setTab, stack, pop, push, loginOpen, setLoginOpen, fs, clean } = useStore();
+  const { platform, setTab, stack, pop, push, loginOpen, setLoginOpen, fs, setFs, clean } = useStore();
   const mainRef = useRef<HTMLDivElement>(null);
   const [wide, setWide] = useState(!isMobile);
   const [collapsed] = useState(false);
@@ -152,7 +155,13 @@ function AppBody() {
         return;
       }
       if (loginOpen) { if (e.key === "Escape") setLoginOpen(false); return; }
-      if (e.key === "Escape") { if (stack.length) pop(); return; }
+      /* Esc 与安卓返回键同序：先退沉浸全屏（并把方向还原交给播放器），再退栈。 */
+      if (e.key === "Escape") {
+        if (fs) { setFs(false); return; }
+        if (document.fullscreenElement) { document.exitFullscreen().catch(() => {}); return; }
+        if (stack.length) pop();
+        return;
+      }
       if (e.key === "/") { e.preventDefault(); push({ kind: "search" }); return; }
       if (stack.length === 0 && ["1", "2", "3", "4"].includes(e.key) && !e.repeat) {
         setTab((["home", "posts", "category", "profile"] as Tab[])[Number(e.key) - 1]);
@@ -176,7 +185,7 @@ function AppBody() {
 
         {stack.map((p, i) => (
           <div key={p.key} inert={i !== stack.length - 1 || loginOpen} aria-hidden={i !== stack.length - 1 || loginOpen} className="absolute inset-0 z-30 bg-bg a-page-in" style={{ boxShadow: "-18px 0 40px rgba(0,0,0,.5)" }}>
-            <StackPage page={p} onBack={pop} wide={wide} top={i === stack.length - 1} bottomInset={stackInset} />
+            <StackPage page={p} onBack={pop} wide={wide} top={i === stack.length - 1} bottomInset={stackInset} loginOpen={loginOpen} />
           </div>
         ))}
 
@@ -209,7 +218,7 @@ function DesktopShell() {
 }
 
 function ShellInner({ collapsed, theater }: { collapsed: boolean; theater: boolean }) {
-  const { stack, pop, push, loginOpen, setLoginOpen, setTab, platform } = useStore();
+  const { stack, pop, push, loginOpen, setLoginOpen, setTab, platform, fs, setFs } = useStore();
   const mainRef = useRef<HTMLDivElement>(null);
   const [wide, setWide] = useState(true);
 
@@ -230,7 +239,13 @@ function ShellInner({ collapsed, theater }: { collapsed: boolean; theater: boole
         return;
       }
       if (loginOpen) { if (e.key === "Escape") setLoginOpen(false); return; }
-      if (e.key === "Escape") { if (stack.length) pop(); return; }
+      /* Esc 与安卓返回键同序：先退沉浸全屏（并把方向还原交给播放器），再退栈。 */
+      if (e.key === "Escape") {
+        if (fs) { setFs(false); return; }
+        if (document.fullscreenElement) { document.exitFullscreen().catch(() => {}); return; }
+        if (stack.length) pop();
+        return;
+      }
       if (e.key === "/") { e.preventDefault(); push({ kind: "search" }); return; }
       if (stack.length === 0 && ["1", "2", "3", "4"].includes(e.key) && !e.repeat) {
         setTab((["home", "posts", "category", "profile"] as Tab[])[Number(e.key) - 1]);
@@ -249,7 +264,7 @@ function ShellInner({ collapsed, theater }: { collapsed: boolean; theater: boole
         <MainTabs wide={wide} pageActive={pageActive} bottomInset={14} />
         {stack.map((p, i) => (
           <div key={p.key} inert={i !== stack.length - 1 || loginOpen} aria-hidden={i !== stack.length - 1 || loginOpen} className="absolute inset-0 z-30 bg-bg win-page-in" style={{ boxShadow: "-18px 0 40px rgba(0,0,0,.5)" }}>
-            <StackPage page={p} onBack={pop} wide={wide} top={i === stack.length - 1} bottomInset={14} />
+            <StackPage page={p} onBack={pop} wide={wide} top={i === stack.length - 1} bottomInset={14} loginOpen={loginOpen} />
           </div>
         ))}
       </div>

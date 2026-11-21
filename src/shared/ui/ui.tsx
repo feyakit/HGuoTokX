@@ -65,7 +65,7 @@ export function ToastHost() {
      （上游 PR #200）。 */
   const rotatedHost = typeof document === "undefined" ? null : document.querySelector(".player-root.fs-landscape");
   const content = (
-    <div role="status" aria-live="polite" aria-atomic="true" className="ios-toast-host absolute inset-x-0 z-[80] flex flex-col items-center gap-2 pointer-events-none px-6" style={{ bottom: rotatedHost ? "96px" : "calc(var(--sab, 0px) + 96px)" }}>
+    <div role="status" aria-live="polite" aria-atomic="true" className="ios-toast-host absolute inset-x-0 z-[300] flex flex-col items-center gap-2 pointer-events-none px-6" style={{ bottom: rotatedHost ? "96px" : "calc(var(--sab, 0px) + 96px)" }}>
       {toasts.map((t) =>
         t.line ? (
           <div

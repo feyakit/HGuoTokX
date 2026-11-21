@@ -111,7 +111,7 @@ export default function ProxySettings() {
   };
 
   const disabled = !ready || loading || !!busy;
-  const body = <div className="flex flex-col min-h-0" style={{ maxHeight: isMobile ? "74vh" : "min(78vh, 640px)" }}>
+  const body = <div className="flex flex-col min-h-0" style={{ maxHeight: isMobile ? "74dvh" : "min(78dvh, 640px)" }}>
     <div className="shrink-0 flex items-center gap-3 px-4 pt-3 pb-2">
       <span className="ios-setting-icon" aria-hidden="true"><ILink size={16} /></span>
       <h2 className="flex-1 text-[16px] font-bold text-on">代理访问</h2>

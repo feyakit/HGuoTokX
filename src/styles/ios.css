@@ -86,7 +86,9 @@
 .ios-poster-badge { position:absolute; top:9px; left:9px; max-width:calc(100% - 18px); padding:5px 8px; background:rgb(20 20 25 / .74); color:#fff; border:1px solid rgb(255 255 255 / .22); border-radius:999px; font-size:12px; line-height:1.25;  }
 .ios-poster-progress { position:absolute; inset:auto 0 0; display:flex; align-items:center; gap:4px; padding:24px 12px 11px; background:linear-gradient(transparent,rgb(0 0 0 / .8)); color:#fff; font-size:12px; }
 .ios-poster-play { position:absolute; left:calc(50% - 25px); top:calc(50% - 25px); display:grid; place-items:center; width:50px; height:50px; border-radius:50%; color:#fff; background:rgb(20 20 25 / .6); border:1px solid rgb(255 255 255 / .35);  opacity:0; transition:opacity .16s; }
-.ios-poster:hover .ios-poster-play,.ios-poster:focus-visible .ios-poster-play { opacity:1; }
+.ios-poster:focus-visible .ios-poster-play { opacity:1; }
+/* 触摸设备没有真 hover：`:hover` 会粘在最后点过的卡片上（上游 496b6ff 的 hover gating）。 */
+@media(hover:hover) { .ios-poster:hover .ios-poster-play { opacity:1; } }
 .ios-poster:active .ios-poster-art { opacity:.8; }
 .ios-poster-title { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; margin-top:10px; color:var(--p-on); font-size:15px; line-height:1.4; font-weight:600; letter-spacing:-.2px; }
 .ios-poster-subtitle { color:var(--p-mut); display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; line-height:1.5; margin-top:4px; }
