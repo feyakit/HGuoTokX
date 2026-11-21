@@ -18,6 +18,7 @@ import { useContentPreferences } from "../../shared/model/contentPreferences";
 import { TagBlockMenu } from "../../shared/ui/TagBlockMenu";
 import { markDisliked } from "../feed/feedPrefs";
 import VideoDetailsPanel from "../feed/VideoDetailsPanel";
+import { PanelSwipeArea } from "../feed/PanelSwipeArea";
 import { PreferenceStorageNotice } from "../../shared/ui/PreferenceStorageNotice";
 import LineQuickSwitch from "./LineQuickSwitch";
 import { getHoldZone, stageXY, HOLD_DELAY_MS, type HoldZone } from "../feed/mobileHold";
@@ -82,6 +83,9 @@ export type EpisodePlayerProps = {
   startEp?: number;
   startTime?: number;
 };
+
+/** 详情 / 选集的左右页签顺序：左滑去下一页，右滑回上一页。 */
+const DRAWER_PAGES = ["detail", "episodes"] as const;
 
 export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mode, kind = "video", active, bottomInset, onBack, onNearEnd, onActiveIndex, endless = false, onBlocked, startEp, startTime, onDislike }: EpisodePlayerProps) {
   const store = useStore();
@@ -2626,7 +2630,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                 </Button>
               </div>
 
-              <div className="flex-1 min-h-0">
+              <PanelSwipeArea panel={panel === "episodes" ? "episodes" : "detail"} pages={DRAWER_PAGES}
+                onChange={setPanel} onClose={() => setPanel(null)} className="flex-1 min-h-0">
                 {panel === "episodes" ? (
                   /* 点集后显式收面板（不依赖 pickEp 内部）：面板还开着时视频会在后面起播，用户看不见（P2-2） */
                   <EpisodesPanel bare videoId={curId} episodes={episodes} current={curEp}
@@ -2634,7 +2639,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                 ) : (
                   detailBody()
                 )}
-              </div>
+              </PanelSwipeArea>
             </div>
           </Sheet>
         </>
