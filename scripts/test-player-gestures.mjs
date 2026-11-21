@@ -23,7 +23,7 @@ try {
   const {
     GESTURE, lockAxis, seekSecondsPer100px, seekDeltaSeconds, canSeek, snapSeek,
     doubleTapSeek, doubleTapAction, tapZone, relativeSeek, isEdgeBackStart, isDoubleTap, rotationLocked, episodeIntent, judgeGesture,
-    tapVerdict, episodeDrag, autohideDelayMs, PLAYER_TIMING,
+    tapVerdict, episodeDrag, autohideDelayMs, PLAYER_TIMING, EPISODE_EASE, episodePageProgress,
   } = G;
 
   console.log("[常量]");
@@ -296,8 +296,22 @@ try {
     assert.equal(episodeDrag(-100, false), -85);
     assert.equal(episodeDrag(-100, true), -35);
   });
+  check("整页 pager：300ms 吸附 / 180ms 回弹 / 160ms 文字淡出 / 150ms 无障碍", () => {
+    assert.equal(GESTURE.episodeCommitMs, 300);
+    assert.equal(GESTURE.episodeReboundMs, 180);
+    assert.equal(GESTURE.episodeTitleFadeMs, 160);
+    assert.equal(GESTURE.episodeReducedMotionMs, 150);
+    assert.equal(EPISODE_EASE, "cubic-bezier(.16,1,.3,1)");
+  });
+  check("翻页进度 0..1（位移/舞台高，夹住不溢出）", () => {
+    assert.equal(episodePageProgress(0, 800), 0);
+    assert.equal(episodePageProgress(-200, 800), 0.25);
+    assert.equal(episodePageProgress(400, 800), 0.5);
+    assert.equal(episodePageProgress(-1600, 800), 1);
+    assert.equal(episodePageProgress(-100, 0), 0);
+  });
   check("提交/回弹时长常量", () => {
-    assert.equal(GESTURE.episodeCommitMs, 220);
+    assert.equal(GESTURE.episodeCommitMs, 300);
     assert.equal(GESTURE.episodeReboundMs, 180);
     assert.equal(GESTURE.episodePreview, 0.12);
     assert.equal(GESTURE.episodeSwitch, 0.25);

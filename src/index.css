@@ -827,3 +827,15 @@ html.is-scrolling .ios-image-error { animation: none !important; }
 
 /* 视频本体必须显式定位在虚化层之上（虚化 z-index:0，视频 z-index:1） */
 .player-root video { position: relative; z-index: 1; }
+
+/* ===== 整页 pager：翻页中标题/进度/控件 160ms 淡出，落定后淡入（不跟着整页错位） ===== */
+.hg-cinema-bottom, .mobile-video-meta-copy { transition: opacity 160ms ease-out; }
+[data-ep-moving="true"] .hg-cinema-bottom,
+[data-ep-moving="true"] .mobile-video-meta-copy { opacity: 0; }
+
+/* 换源期间"留住旧帧"：poster 垫在视频下面、控件下，新集首帧就绪后 160ms 淡出 */
+.hg-ep-holdframe {
+  position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background-size: cover; background-position: center; background-repeat: no-repeat;
+  transition: opacity 160ms ease-out;
+}

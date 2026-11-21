@@ -42,8 +42,13 @@ export const GESTURE = {
   episodeDamp: 0.85,
   episodeEdgeDamp: 0.35,
   /** 松手后的动画时长 */
-  episodeCommitMs: 220,
+  /* 整页 pager：松手吸附 300ms，先快后缓（.16,1,.3,1），不要 ease-out 那种"一上来就慢"的手感 */
+  episodeCommitMs: 300,
   episodeReboundMs: 180,
+  /** 标题/进度条在翻页中的淡出淡入 */
+  episodeTitleFadeMs: 160,
+  /** prefers-reduced-motion 下退化成的淡入时长 */
+  episodeReducedMotionMs: 150,
   /** 换集预览门槛：拖过屏高的 70% 才露预览 */
   episodePreview: 0.12,
   /** 松手吸附到整 5 秒 */
@@ -249,6 +254,18 @@ export function judgeGesture(input: {
  * 不要等常规的 3s。任何交互都会重新起算（组件里 showControls/armAutoHide 都走这个函数）。
  */
 export const PLAYER_TIMING = { autohideMs: 3000, autohideFullscreenMs: 1200 } as const;
+
+/** 翻页吸附曲线：先快后缓的减速感（对标抖音/红果的上下翻页） */
+export const EPISODE_EASE = "cubic-bezier(.16,1,.3,1)";
+
+/**
+ * 翻页过程中当前页的形变：位移越大越缩小、越淡（1 → .96 / 1 → .55）。
+ * 返回 0..1 的进度，组件自己乘系数，保持与常量解耦。
+ */
+export function episodePageProgress(dy: number, stageHeight: number): number {
+  if (!stageHeight || !Number.isFinite(stageHeight)) return 0;
+  return Math.min(1, Math.abs(dy) / stageHeight);
+}
 
 export function autohideDelayMs(fullscreen: boolean): number {
   return fullscreen ? PLAYER_TIMING.autohideFullscreenMs : PLAYER_TIMING.autohideMs;

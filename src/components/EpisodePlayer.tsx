@@ -24,7 +24,8 @@ import { getHoldZone, stageXY, HOLD_DELAY_MS, HOLD_LOCK_DISTANCE, type HoldZone 
 import { playEnter, playExit, originFromPoint } from "../fsTransition";
 import { useFadeMount } from "../useFadeMount";
 import {
-  GESTURE, PLAYER_TIMING, autohideDelayMs, canSeek, doubleTapAction, episodeDrag, episodeIntent, isDoubleTap, isEdgeBackStart,
+  GESTURE, PLAYER_TIMING, EPISODE_EASE, autohideDelayMs, canSeek, doubleTapAction, episodeDrag, episodeIntent,
+  episodePageProgress, isDoubleTap, isEdgeBackStart,
   lockAxis, relativeSeek, rotationLocked, seekDeltaSeconds, snapSeek, tapVerdict, type Axis,
 } from "../playerGestures";
 import {
@@ -260,6 +261,21 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const [epSlide, setEpSlide] = useState<{ y: number; animate: boolean; ms?: number }>({ y: 0, animate: false });
   /* 回弹时的轻微缩放：1 → .98 → 1，跟 transform 一起走（不额外叠一层 DOM） */
   const [epScale, setEpScale] = useState(1);
+  /* 翻页时"下一页"的占位页：整页 pager 需要下一屏从 ±100% 进来（不带第二路视频解码，
+     只用深底 + 集数文案，避免换集时多开一路流）。 */
+  const [epGhost, setEpGhost] = useState<{ dir: 1 | -1; label: string } | null>(null);
+  /* 换源期间保留旧帧（poster），等新集首帧就绪再淡出 —— 原来这段会黑闪 */
+  const [holdFrame, setHoldFrame] = useState(false);
+  /* 无障碍：prefers-reduced-motion 下翻页退化成 150ms 淡入，不做整页滑动 */
+  const reducedMotion = useRef(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    reducedMotion.current = mq.matches;
+    const onChange = (event: MediaQueryListEvent) => { reducedMotion.current = event.matches; };
+    mq.addEventListener?.("change", onChange);
+    return () => mq.removeEventListener?.("change", onChange);
+  }, []);
   /* 这次触摸是不是从舞台（视频区）起手的：只有这种才拦 touchmove */
   const stageTouch = useRef(false);
   const epSlideTimer = useRef<number | undefined>(undefined);
@@ -645,6 +661,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const portraitVideo = videoSize.w > 0 && videoSize.h > 0 && videoSize.w <= videoSize.h;
   /* 舞台实测尺寸（用于判断是否真的有 letterbox：容器比画面更"方"才会出现上下黑边） */
   const [stageBox, setStageBox] = useState({ w: 0, h: 0 });
+  /* 整页 pager 的进度（位移 / 舞台高，0..1）：高度还没量到时退回视频高，再退回 800 */
+  const pageStageH = stageBox.h || videoSize.h || 800;
+  const pageProgress = episodePageProgress(epSlide.y, pageStageH);
   useEffect(() => {
     const el = boxRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
@@ -1252,7 +1271,14 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       /* 跟手：0.85 阻尼直接把手指位移变成 translateY（只动 transform，不重排） */
       const visual = episodeDrag(pdy, atEdge);
       setEpSlide({ y: Math.max(-limit, Math.min(limit, visual)), animate: false });
-      setEpPreview(intent.preview ? { dir: intent.dir, label: episodeLabel(intent.dir) } : null);
+      if (intent.preview) {
+        const label = episodeLabel(intent.dir);
+        setEpPreview({ dir: intent.dir, label });
+        setEpGhost({ dir: intent.dir, label });
+      } else {
+        setEpPreview(null);
+        setEpGhost(null);
+      }
     }
   };
 
@@ -1338,12 +1364,23 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
           window.clearTimeout(epSlideTimer.current);
           /* 跟手收尾：先按手指方向把画面整屏滑出（220ms，ease-out-quint），
              换集后从对侧 35% 位置滑回中间 —— 不是原来 ±72px 的硬移。 */
+          if (reducedMotion.current) {
+            /* 无障碍：不整页滑，直接 150ms 淡入到新集 */
+            setEpMap((m) => ({ ...m, [curId]: want }));
+            setHoldFrame(true);
+            setEpSlide({ y: 0, animate: true, ms: GESTURE.episodeReducedMotionMs });
+            setEpGhost(null);
+            toast(`第 ${want} 集${total ? ` / ${total}` : ""}`, "info");
+            try { navigator.vibrate?.(12); } catch { /* ignore */ }
+            return;
+          }
           const out = dir > 0 ? -g.stageH : g.stageH;
           setEpSlide({ y: out, animate: true, ms: GESTURE.episodeCommitMs });
           epSlideTimer.current = window.setTimeout(() => {
             setEpMap((m) => ({ ...m, [curId]: want }));
-            setEpSlide({ y: dir > 0 ? g.stageH * 0.35 : -g.stageH * 0.35, animate: false });
-            requestAnimationFrame(() => setEpSlide({ y: 0, animate: true, ms: GESTURE.episodeCommitMs }));
+            setHoldFrame(true);
+            setEpSlide({ y: 0, animate: true, ms: GESTURE.episodeCommitMs });
+            window.setTimeout(() => setEpGhost(null), GESTURE.episodeCommitMs);
           }, GESTURE.episodeCommitMs);
           toast(`第 ${want} 集${total ? ` / ${total}` : ""}`, "info");
           try { navigator.vibrate?.(12); } catch { /* ignore */ }
@@ -1371,6 +1408,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     }
     reboundSlide();
     setEpPreview(null);
+    setEpGhost(null);
     /*
       单击 / 双击语义（重写）：
         · 双击（280ms 内第二下）：三分法 —— 左 1/3 退 −5s、中 1/3 播放/暂停（不出气泡）、
@@ -1814,9 +1852,37 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
           }
           return (
             <section key={vid} className={sectionClass} inert={!isActive || undefined} aria-hidden={!isActive || undefined}>
+              {/* 整页 pager 的"下一屏"：从 ±100% 随手指一起进入（深底 + 集数，不额外开流） */}
+              {isActive && !isDesktop && epGhost && (
+                <div aria-hidden="true" className="hg-ep-ghost" style={{
+                  position: "absolute", inset: 0, zIndex: 0,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  background: "#05060a",
+                  transform: `translate3d(0, ${(epGhost.dir > 0 ? 1 : -1) * (pageStageH || 800) + epSlide.y}px, 0) scale(.98)`,
+                  transition: epSlide.animate
+                    ? `transform ${epSlide.ms ?? GESTURE.episodeCommitMs}ms ${EPISODE_EASE}`
+                    : "none",
+                }}>
+                  <span className="text-[15px] font-semibold text-white/70">{epGhost.label}</span>
+                </div>
+              )}
               {isActive && playUrl ? (
                 <div ref={holdTargetRef} data-mobile-hold-target={!isDesktop || undefined}
-                  className="absolute inset-0" style={{ touchAction: "none" }}
+                  data-ep-moving={!isDesktop && Math.abs(epSlide.y) > 8 ? "true" : undefined}
+                  className="absolute inset-0"
+                  style={{
+                    touchAction: "none",
+                    /* 整页 pager：位移/缩放/淡出都作用在"视频画面 + 标题 + 进度 + 控件"这一层，
+                       所以翻页是整页一起走，不再只有视频轻推。 */
+                    transform: isDesktop
+                      ? undefined
+                      : `translate3d(0, ${epSlide.y}px, 0) scale(${1 - 0.04 * pageProgress})`,
+                    opacity: isDesktop ? 1 : 1 - 0.45 * pageProgress,
+                    transition: isDesktop || zoom.g || !epSlide.animate
+                      ? "none"
+                      : `transform ${epSlide.ms ?? GESTURE.episodeReboundMs}ms ${EPISODE_EASE}, opacity ${epSlide.ms ?? GESTURE.episodeReboundMs}ms ${EPISODE_EASE}`,
+                    willChange: !isDesktop && Math.abs(epSlide.y) > 0 ? "transform, opacity" : undefined,
+                  }}
                   onPointerDown={onDown} onPointerMove={onMove} onPointerUp={(e) => onUp(false, e)}
                   onPointerCancel={(e) => {
                     /* 真机浏览器接管手势时会发 pointercancel：如果这时已经滑出方向且位移够，
@@ -1833,12 +1899,12 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                      不用负值 —— 负 z-index 在带背景的父级里会被吃掉。 */
                   isolation: "isolate",
                   zIndex: 1,
-                  transform: isDesktop ? undefined : `translate3d(${zoom.x}px, ${zoom.y + epSlide.y}px, 0) scale(${zoom.s * epScale})`,
-                  opacity: isDesktop ? 1 : Math.max(0.55, 1 - Math.abs(epSlide.y) / 140),
+                  transform: isDesktop ? undefined : `translate3d(${zoom.x}px, ${zoom.y}px, 0) scale(${zoom.s * epScale})`,
+                  opacity: 1,
                   transformOrigin: "center center",
                   transition: isDesktop || zoom.g || !epSlide.animate
                     ? "none"
-                    : `transform ${(epSlide.ms ?? GESTURE.episodeReboundMs)}ms cubic-bezier(.22,1,.36,1), opacity ${(epSlide.ms ?? GESTURE.episodeReboundMs)}ms ease-out`,
+                    : `transform ${(epSlide.ms ?? GESTURE.episodeReboundMs)}ms ${EPISODE_EASE}`,
                 }}>
                 {/* 横版片源在竖屏（含竖屏全屏 fs-immersive）是 contain，上下留黑边 ——
                     那条"分割线"就是画面底边。垫一层同一张封面的虚化放大 + 上下 56px 渐隐。
@@ -1877,7 +1943,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                     logLine(`[play] size id=${curId} ep=${curEp} ${w}x${h} fit=${portraitVideo ? "cover" : "contain"}`);
                     return true;
                   }}
-                  onPlaying={() => { if (isCurrentPlayback()) { setPaused(false); setWaiting(false); setErr(""); setSeriesEnded(false); setPlayingKey(playKey); } }}
+                  onPlaying={() => { if (isCurrentPlayback()) { setPaused(false); setWaiting(false); setErr(""); setSeriesEnded(false); setPlayingKey(playKey); setHoldFrame(false); } }}
                   onPause={() => { if (isCurrentPlayback()) setPaused(true); }}
                   onWaiting={() => { if (isCurrentPlayback()) setWaiting(true); }}
                   onEnded={() => {
@@ -1916,6 +1982,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                     <Img src={details[vid]?.cover || posts[vid]?.cover || ""} eager={Math.abs(i - index) <= 1} />}
                   <div className="absolute inset-0" style={{ background: "rgba(0,0,0,.25)" }} />
                 </div>
+              )}
+
+              {/* 换源期间保留旧帧：poster 垫住画布，等新集首帧就绪（onPlaying）再淡出 */}
+              {isActive && !isDesktop && holdFrame && posterUrl && (
+                <div aria-hidden="true" className="hg-ep-holdframe" style={{ backgroundImage: `url("${posterUrl}")` }} />
               )}
 
               {/* 图文帖：没有视频就给个正文入口 */}
