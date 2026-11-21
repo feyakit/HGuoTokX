@@ -152,6 +152,33 @@ try {
   assert.equal(afterSwitch.scrollTop, 0, "换帖子后滚动位置必须归零");
   report.passed.push("post-switch-still-resets");
 
+  // ---- 契约 3（上游 cb83e98）：短暂缓冲不闪转圈，持续缓冲仍显示 ----
+  // 用合成媒体事件驱动，不依赖网络时序：waiting → 150ms 后 playing 是「短缓冲」；
+  // waiting 后一直不放行是「持续缓冲」，必须超过 300ms 去抖窗才显示转圈。
+  await page.waitForFunction(() => document.querySelector("video")?.readyState >= 3, null, { timeout: 30000 });
+  const media = name => page.evaluate(event => document.querySelector("video")?.dispatchEvent(new Event(event)), name);
+  const spinner = () => page.evaluate(() => !!document.querySelector(".post-player .spinner"));
+  const atShort = await mark();
+  await media("waiting");
+  await sleep(150);
+  assert(!(await spinner()), "去抖窗内（150ms）不得显示转圈");
+  await media("playing");
+  await sleep(400);
+  assert(!(await spinner()), "短缓冲结束后不得出现转圈");
+  assert(!(await events()).slice(atShort).some(e => e.type === "spinner.add"), `短暂缓冲不得闪转圈：${JSON.stringify((await events()).slice(atShort))}`);
+  report.passed.push("brief-buffering-no-spinner");
+
+  const atLong = await mark();
+  await media("waiting");
+  await sleep(150);
+  assert(!(await spinner()), "去抖窗内（150ms）不得提前显示转圈");
+  await page.waitForFunction(() => !!document.querySelector(".post-player .spinner"), null, { timeout: 5000 });
+  assert((await events()).slice(atLong).some(e => e.type === "spinner.add"), "持续缓冲必须显示转圈");
+  await media("playing");
+  await sleep(200);
+  assert(!(await spinner()), "恢复播放后转圈必须消失");
+  report.passed.push("sustained-buffering-shows-spinner");
+
   assert.equal(errors.length, 0, `页面脚本错误：${errors.join(" | ")}`);
   assert.equal(report.external.length, 0, `不得访问上游网络：${report.external.join(", ")}`);
   await page.screenshot({ path: join(output, "final.png") });
