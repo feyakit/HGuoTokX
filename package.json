@@ -42,6 +42,7 @@
     "android:dev": "tauri android dev",
     "android:build": "tauri android build",
     "test:player-gestures": "node scripts/test-player-gestures.mjs",
+    "test:balance-volume": "node scripts/test-balance-volume.mjs",
     "test:hidden-hits": "node scripts/test-hidden-hit-targets.mjs"
   },
   "dependencies": {

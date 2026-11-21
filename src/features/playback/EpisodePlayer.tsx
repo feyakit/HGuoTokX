@@ -18,6 +18,7 @@ import { useContentPreferences } from "../../shared/model/contentPreferences";
 import { TagBlockMenu } from "../../shared/ui/TagBlockMenu";
 import { markDisliked } from "../feed/feedPrefs";
 import VideoDetailsPanel from "../feed/VideoDetailsPanel";
+import { PanelSwipeArea } from "../feed/PanelSwipeArea";
 import { PreferenceStorageNotice } from "../../shared/ui/PreferenceStorageNotice";
 import LineQuickSwitch from "./LineQuickSwitch";
 import { getHoldZone, stageXY, HOLD_DELAY_MS, type HoldZone } from "../feed/mobileHold";
@@ -83,9 +84,12 @@ export type EpisodePlayerProps = {
   startTime?: number;
 };
 
+/** 详情 / 选集的左右页签顺序：左滑去下一页，右滑回上一页。 */
+const DRAWER_PAGES = ["detail", "episodes"] as const;
+
 export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mode, kind = "video", active, bottomInset, onBack, onNearEnd, onActiveIndex, endless = false, onBlocked, startEp, startTime, onDislike }: EpisodePlayerProps) {
   const store = useStore();
-  const { isLiked, isFav, setLiked, setCollected, setFollowing, actionPending, accountScope, muted, setMuted, volume, setVolume, toast, addHistory, user, setLoginOpen, swipeEp, setSwipeEp, preferHevc, setPreferHevc, ambientGlow } = store;
+  const { isLiked, isFav, setLiked, setCollected, setFollowing, actionPending, accountScope, muted, setMuted, volume, setVolume, toast, addHistory, user, setLoginOpen, swipeEp, setSwipeEp, preferHevc, setPreferHevc, ambientGlow, balanceVolume } = store;
   const isDesktop = !isMobile;
   const contentPreferences = useContentPreferences();
   const { preferences, revision, blockReason } = contentPreferences;
@@ -248,6 +252,10 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const barRef = useRef<HTMLDivElement>(null);
   const barScrub = useRef(false);
   const [barPct, setBarPct] = useState<number | null>(null);
+  /* 横拖画面（scrub）与直拖底栏（barPct）统一喂同一条底栏进度条：拖动中底栏加粗高亮，
+     不再往屏幕正中压一层遮罩（上游 dbbef9a 的机制；配色仍走我们的品牌紫）。 */
+  const scrubbing = barPct !== null || scrub !== null;
+  const activePct = barPct ?? (scrub ? scrub.pct / 100 : null);
   const [epSlide, setEpSlide] = useState<{ y: number; animate: boolean; ms?: number }>({ y: 0, animate: false });
   /* 回弹时的轻微缩放：1 → .98 → 1，跟 transform 一起走（不额外叠一层 DOM） */
   const [epScale, setEpScale] = useState(1);
@@ -315,7 +323,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const blocked = filtering && tagsReady ? blockReason(currentTags) : null;
   const allowed = !filtering || (tagsReady && !blocked);
   const closePanels = () => { setPanel(null); setTagMenu(false); };
-  const openTagMenu = () => { setPanel(null); setTagMenu(true); };
+  const [tagMenuSeed, setTagMenuSeed] = useState<string[]>([]);
+  const openTagMenu = (seed: string[] = []) => { setTagMenuSeed(seed); setPanel(null); setTagMenu(true); };
   const openTag = (tag: string) => { closePanels(); store.push({ kind: "tag", tag, name: tag }); };
   useEffect(() => { setTagMenu(false); }, [curId, store.lineEpoch, accountScope]);
   useEffect(() => { if (blocked && mode === "home" && active) onBlocked?.(curId); }, [blocked, mode, active, curId, onBlocked]);
@@ -645,7 +654,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   useEffect(() => { rotatedAtRef.current = Date.now(); }, [rotated, vpLandscape]);
 
   /* 控件层显隐动画（淡出 120ms 后才卸载） */
-  const cinemaBar = useFadeMount(!fs && !clean && !isDesktop);
+  /* scrub 期间即使处于净屏/收起态也要把底栏挂出来，否则删掉中央浮层后横拖没有反馈 */
+  const cinemaBar = useFadeMount(!isDesktop && !fs && (scrubbing || !clean));
   const actionRail = useFadeMount(!fs && !clean && !isDesktop);
   const landscapeVideo = videoSize.w > 0 && videoSize.h > 0 && videoSize.w > videoSize.h;
   const portraitVideo = videoSize.w > 0 && videoSize.h > 0 && videoSize.w <= videoSize.h;
@@ -1222,6 +1232,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
           g.mode = "enterSeries";
         } else {
           g.mode = "scrub";
+          showControls();
           videoRef.current?.pause();
         }
       } else {
@@ -1704,7 +1715,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     pendingActions.current.add(pendingKey);
     const on = !collected;
     try {
-      await setCollected(kind, curId, on);
+      await setCollected(kind, curId, on, kind === "video" && episodes.length > 0 ? episodes.length : undefined);
       if (actionIsCurrent()) toast(on ? "已收藏" : "已取消收藏", on ? "star" : "info");
     } catch (error) {
       if (actionIsCurrent()) toast(error instanceof Error ? error.message : "收藏失败，请重试", "info");
@@ -1748,7 +1759,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
 
   const detailBody = (onClose?: () => void) => <VideoDetailsPanel meta={meta} videoId={curId} episodeCount={episodes.length}
     related={related} following={store.follows.includes(meta.authorId)} followPending={followPending}
-    onFollow={() => void onFollow()} onTag={openTag} onClose={onClose} onPreferences={openTagMenu}
+    onFollow={() => void onFollow()} onTag={openTag} onClose={onClose} onPreferences={() => openTagMenu()}
+    onBlockTag={tag => openTagMenu([tag])}
     onAuthor={() => { if (meta.authorId > 0) { closePanels(); store.push({ kind: "user", id: meta.authorId, name: meta.author }); } }}
     onRelated={video => { closePanels(); store.push({ kind: "feed", videoIds: related.map(item => item.id), index: related.findIndex(item => item.id === video.id), title: "相关推荐" }); }} />;
 
@@ -1886,7 +1898,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   fit={isDesktop ? "contain" : (portraitVideo && !rotated && !vpLandscape) ? "cover" : "contain"}
                   /* 黑边里的观感交给微光效果（上游 PR #192 移植）：从当前画面采样色晕铺在黑边，
                      我们原来那套「封面虚化 hg-lb-blur」已删除，避免两套并存。 */
-                  ambientGlow={ambientGlow}
+                  ambientGlow={ambientGlow} balanceVolume={!isDesktop && balanceVolume}
                   onClick={() => { if (isDesktop) videoRef.current?.toggle(); }}
                   onTime={onTimeTick}
                   onDuration={onDurationTick}
@@ -2237,21 +2249,40 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                     </div>
                     <div ref={barRef} className="mx-4 mt-1 relative z-10" style={{ height: 28, touchAction: "none" }}
                       onPointerDown={onBarDown} onPointerMove={onBarMove} onPointerUp={onBarUp} onPointerCancel={onBarUp}>
-                      {/* 轨道 */}
-                      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[3px] rounded-full" style={{ background: "rgba(255,255,255,.24)" }}>
-                        <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} className="h-full rounded-full"
-                          style={{ background: "var(--p-primary, #7C5CFF)", boxShadow: "0 0 8px rgba(124,92,255,.45)", transition: barPct !== null ? "none" : "width .25s linear" }} />
-                      </div>
-                      {/* 进度点 */}
-                      <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} position className="absolute top-1/2 w-[10px] h-[10px] rounded-full bg-white pointer-events-none"
+                      {/* 轨道：静止 3px，拖动中 6px（上游 dbbef9a） */}
+                      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 rounded-full"
                         style={{
+                          height: scrubbing ? 6 : 3,
+                          background: scrubbing ? "rgba(255,255,255,.3)" : "rgba(255,255,255,.24)",
+                          boxShadow: scrubbing ? "0 2px 10px rgba(0,0,0,.48)" : "none",
+                          transition: "height .16s cubic-bezier(.2,0,0,1), background-color .16s ease, box-shadow .16s ease",
+                        }}>
+                        <PlaybackProgress clock={playbackClock} duration={duration} preview={activePct} className="h-full rounded-full"
+                          style={{
+                            background: "var(--p-primary, #7C5CFF)",
+                            boxShadow: scrubbing ? "0 0 12px rgba(124,92,255,.85)" : "0 0 8px rgba(124,92,255,.45)",
+                            transition: scrubbing ? "none" : "width .25s linear, box-shadow .16s ease",
+                          }} />
+                      </div>
+                      {/* 进度点：拖动中 10→14px，保留品牌色描边再加一圈白晕 */}
+                      <PlaybackProgress clock={playbackClock} duration={duration} preview={activePct} position
+                        className="absolute top-1/2 rounded-full bg-white pointer-events-none"
+                        style={{
+                          width: scrubbing ? 14 : 10,
+                          height: scrubbing ? 14 : 10,
                           transform: "translate(-50%, -50%)",
-                          boxShadow: "0 0 0 2px var(--p-primary, #7C5CFF), 0 0 8px rgba(124,92,255,.65)",
-                          transition: barPct !== null ? "none" : "left .25s linear",
+                          boxShadow: scrubbing
+                            ? "0 0 0 2px var(--p-primary, #7C5CFF), 0 0 0 6px rgba(255,255,255,.22), 0 2px 8px rgba(0,0,0,.6)"
+                            : "0 0 0 2px var(--p-primary, #7C5CFF), 0 0 8px rgba(124,92,255,.65)",
+                          transition: scrubbing
+                            ? "width .14s ease, height .14s ease, box-shadow .14s ease"
+                            : "left .25s linear, width .14s ease, height .14s ease, box-shadow .14s ease",
                         }} />
-                      {barPct !== null && (
-                        <div className="absolute left-1/2 -translate-x-1/2 -top-8 px-2.5 py-1 rounded-md hg-chip-strong backdrop-blur-md text-[13px] font-bold tabular-nums whitespace-nowrap">
-                          {fmtTime(barPct * (duration || 0))}
+                      {scrubbing && activePct !== null && (
+                        <div className="absolute left-1/2 -translate-x-1/2 -top-8 px-3 py-1 rounded-full hg-chip-strong backdrop-blur-md text-[13px] font-bold tabular-nums whitespace-nowrap pointer-events-none elev-2"
+                          style={{ boxShadow: "0 4px 16px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.14)" }}>
+                          <span className="text-white">{fmtTime(activePct * (duration || 0))}</span>
+                          <span className="hg-ink-4 font-medium"> / {fmtTime(duration || 0)}</span>
                         </div>
                       )}
                     </div>
@@ -2259,20 +2290,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                 </div>
               )}
 
-
-              {/* 横拖定位浮层 */}
-              {!isDesktop && scrub && (
-                <div className="absolute inset-0 z-30 flex flex-col items-center justify-center pointer-events-none" style={{ background: "rgba(0,0,0,.25)" }}>
-                  <span className="text-[26px] font-bold hg-ink tabular-nums hg-ov-shadow">{fmtTime(scrub.target)}</span>
-                  <span className="text-[12px] hg-ink-4 mt-1 tabular-nums">
-                    / {fmtTime(duration)}
-                    {scrub.target != null && duration ? `　${scrub.target >= 0 ? "+" : "−"}${Math.abs(Math.round(scrub.target - (videoRef.current?.el()?.currentTime ?? 0)))}s` : ""}
-                  </span>
-                  <div className="mt-4 w-[62%] h-[3px] rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,.25)" }}>
-                    <div className="h-full bg-white" style={{ width: `${scrub.pct}%` }} />
-                  </div>
-                </div>
-              )}
 
               {/* 双击 / 松手 seek 的瞬时提示（800ms 自动消失） */}
               {!isDesktop && seekHint && (
@@ -2437,7 +2454,57 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
         </Button>
       )}
 
-      {/* 移动端：沉浸全屏顶栏 / 进度条 / 底栏 */}
+      {/* 移动端全屏进度条：闲置收起时横拖画面也要在底部冒出来（上游 dbbef9a） */}
+      {!isDesktop && fs && (!idle || scrubbing) && (
+        <div
+          className="absolute inset-x-0 z-40 px-4"
+          style={{
+            bottom: rotated ? 52 : "calc(var(--sab, 0px) + 52px)",
+            paddingLeft: rotated ? "calc(var(--sat, 0px) + 16px)" : undefined,
+            paddingRight: rotated ? "calc(var(--sab, 0px) + 16px)" : undefined,
+            height: 28,
+          }}>
+          <div ref={barRef} className="relative h-full" style={{ touchAction: "none" }}
+            onPointerDown={onBarDown} onPointerMove={onBarMove} onPointerUp={onBarUp} onPointerCancel={onBarUp}>
+            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 rounded-full"
+              style={{
+                height: scrubbing ? 7 : 3,
+                background: scrubbing ? "rgba(255,255,255,.32)" : "rgba(255,255,255,.24)",
+                boxShadow: scrubbing ? "0 2px 12px rgba(0,0,0,.5)" : "none",
+                transition: "height .16s cubic-bezier(.2,0,0,1), background-color .16s ease, box-shadow .16s ease",
+              }}>
+              <PlaybackProgress clock={playbackClock} duration={duration} preview={activePct} className="h-full rounded-full"
+                style={{
+                  background: "var(--p-primary, #7C5CFF)",
+                  boxShadow: scrubbing ? "0 0 12px rgba(124,92,255,.85)" : "0 0 8px rgba(124,92,255,.45)",
+                  transition: scrubbing ? "none" : "width .25s linear, box-shadow .16s ease",
+                }} />
+            </div>
+            <PlaybackProgress clock={playbackClock} duration={duration} preview={activePct} position
+              className="absolute top-1/2 rounded-full bg-white pointer-events-none"
+              style={{
+                width: scrubbing ? 15 : 10,
+                height: scrubbing ? 15 : 10,
+                transform: "translate(-50%, -50%)",
+                boxShadow: scrubbing
+                  ? "0 0 0 2px var(--p-primary, #7C5CFF), 0 0 0 7px rgba(255,255,255,.24), 0 2px 8px rgba(0,0,0,.6)"
+                  : "0 0 0 2px var(--p-primary, #7C5CFF), 0 0 8px rgba(124,92,255,.65)",
+                transition: scrubbing
+                  ? "width .14s ease, height .14s ease, box-shadow .14s ease"
+                  : "left .25s linear, width .14s ease, height .14s ease, box-shadow .14s ease",
+              }} />
+            {scrubbing && activePct !== null && (
+              <div className="absolute left-1/2 -translate-x-1/2 -top-8 px-3 py-1 rounded-full hg-chip-strong backdrop-blur-md text-[13px] font-bold tabular-nums whitespace-nowrap pointer-events-none elev-2"
+                style={{ boxShadow: "0 4px 16px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.14)" }}>
+                <span className="text-white">{fmtTime(activePct * (duration || 0))}</span>
+                <span className="hg-ink-4 font-medium"> / {fmtTime(duration || 0)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 移动端：沉浸全屏顶栏 / 底栏 */}
       {!isDesktop && fs && !idle && (
         <>
           <div className="hg-scrim-top z-30">
@@ -2471,35 +2538,6 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
             }}>
             <ICompress size={18} />
           </Button>
-
-          {/* 全屏进度条 */}
-          <div
-            className="absolute inset-x-0 z-40 px-4"
-            style={{
-              bottom: rotated ? 52 : "calc(var(--sab, 0px) + 52px)",
-              paddingLeft: rotated ? "calc(var(--sat, 0px) + 16px)" : undefined,
-              paddingRight: rotated ? "calc(var(--sab, 0px) + 16px)" : undefined,
-              height: 28,
-            }}>
-            <div ref={barRef} className="relative h-full" style={{ touchAction: "none" }}
-              onPointerDown={onBarDown} onPointerMove={onBarMove} onPointerUp={onBarUp} onPointerCancel={onBarUp}>
-              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[3px] rounded-full" style={{ background: "rgba(255,255,255,.24)" }}>
-                <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} className="h-full rounded-full"
-                  style={{ background: "var(--p-primary, #7C5CFF)", boxShadow: "0 0 8px rgba(124,92,255,.45)", transition: barPct !== null ? "none" : "width .25s linear" }} />
-              </div>
-              <PlaybackProgress clock={playbackClock} duration={duration} preview={barPct} position className="absolute top-1/2 w-[10px] h-[10px] rounded-full bg-white pointer-events-none"
-                style={{
-                  transform: "translate(-50%, -50%)",
-                  boxShadow: "0 0 0 2px var(--p-primary, #7C5CFF), 0 0 8px rgba(124,92,255,.65)",
-                  transition: barPct !== null ? "none" : "left .25s linear",
-                }} />
-              {barPct !== null && (
-                <div className="absolute left-1/2 -translate-x-1/2 -top-8 px-2.5 py-1 rounded-md hg-chip-strong backdrop-blur-md text-[13px] font-bold tabular-nums whitespace-nowrap">
-                  {fmtTime(barPct * (duration || 0))}
-                </div>
-              )}
-            </div>
-          </div>
 
           {/* 全屏底栏：当前/总时长 + 缩放还原/倍速/选集/下集 */}
           <div className="absolute inset-x-0 z-40 flex items-center gap-2.5 px-4"
@@ -2594,7 +2632,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                 </Button>
               </div>
 
-              <div className="flex-1 min-h-0">
+              <PanelSwipeArea panel={panel === "episodes" ? "episodes" : "detail"} pages={DRAWER_PAGES}
+                onChange={setPanel} onClose={() => setPanel(null)} className="flex-1 min-h-0">
                 {panel === "episodes" ? (
                   /* 点集后显式收面板（不依赖 pickEp 内部）：面板还开着时视频会在后面起播，用户看不见（P2-2） */
                   <EpisodesPanel bare videoId={curId} episodes={episodes} current={curEp}
@@ -2602,7 +2641,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                 ) : (
                   detailBody()
                 )}
-              </div>
+              </PanelSwipeArea>
             </div>
           </Sheet>
         </>
@@ -2622,7 +2661,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
             className={`hg-chip w-9 h-9 rounded-full flex items-center justify-center pressable elev-1${clean ? " hidden" : ""}`}><ILockF size={17} /></Button>
         </div>
       )}
-      <TagBlockMenu open={active && tagMenu} tags={meta.tags} onClose={() => setTagMenu(false)} />
+      <TagBlockMenu open={active && tagMenu} tags={meta.tags} initialSelected={tagMenuSeed} onClose={() => setTagMenu(false)} />
       {/* 线路面板：播放页内就地弹，不跳设置页 */}
       {!isDesktop && <LineQuickSwitch open={active && lineOpen} onClose={() => setLineOpen(false)} />}
       {/* 控件收起（clean）时的拦截层：这一层的存在保证"点哪里都只会唤出控件"，

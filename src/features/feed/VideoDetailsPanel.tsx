@@ -15,9 +15,11 @@ type VideoMeta = {
 
 /** One details body for the mobile sheet and desktop dock. */
 export default function VideoDetailsPanel({ meta, videoId, episodeCount, related, following, followPending,
-  onFollow, onTag, onAuthor, onRelated, onClose, onPreferences }: {
+  onFollow, onTag, onBlockTag, onAuthor, onRelated, onClose, onPreferences }: {
   meta: VideoMeta; videoId: number; episodeCount: number; related: VideoCard[];
   following: boolean; followPending: boolean; onFollow: () => void; onTag: (tag: string) => void;
+  /** 长按某个标签 → 打开屏蔽菜单并预选它（不传就是纯展示，行为与以前一致） */
+  onBlockTag?: (tag: string) => void;
   onAuthor: () => void; onRelated: (video: VideoCard) => void; onClose?: () => void; onPreferences: () => void;
 }) {
   return <div className="video-details-panel" data-video-details>
@@ -42,7 +44,7 @@ export default function VideoDetailsPanel({ meta, videoId, episodeCount, related
         <div className="video-details-section-heading"><h3>标签 · 点击查看同类</h3>
           <Button className="video-detail-preferences" onClick={onPreferences}>调整内容偏好</Button>
         </div>
-        <ContentTags tags={meta.tags} onOpen={onTag} />
+        <ContentTags tags={meta.tags} onOpen={onTag} onBlock={onBlockTag} />
       </section>
 
       <Surface className="video-details-author">

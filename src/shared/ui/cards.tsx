@@ -1,28 +1,46 @@
 import { fmt } from "../api/api";
 import type { VideoCard } from "../api/types";
-import { IHeartF, IPlayF } from "./icons";
+import { ICheck, IHeartF, IPlayF } from "./icons";
 import { Img } from "./ui";
 import { Button } from "./ios/controls";
 import { FilteredContent } from "./FilteredContent";
+import { useLongPress } from "../lib/useLongPress";
 
-export function MediaCard({ title, cover, subtitle, badge, progress, priority = false, onOpen, blockedReason }: {
+export function MediaCard({ title, cover, subtitle, badge, badgeTone = "default", progress, priority = false, onOpen, blockedReason, onLongPress, selectionMode = false, selected = false }: {
   title: string; cover: string; subtitle?: string; badge?: string; progress?: string; score?: number; priority?: boolean; onOpen: () => void; blockedReason?: string | null;
+  badgeTone?: "default" | "update"; onLongPress?: () => void; selectionMode?: boolean; selected?: boolean;
 }) {
-  if (blockedReason) return <Button onClick={onOpen} className="ios-poster" aria-label="该内容命中屏蔽标签，查看提示">
+  /* 多选入口（上游 #168）：长按或电脑右键进入，长按余波的那次 click 要吞掉。 */
+  const { longPressProps, consumeSuppressedClick } = useLongPress(onLongPress);
+  const open = () => {
+    if (consumeSuppressedClick()) return;
+    onOpen();
+  };
+  const selection = selectionMode
+    ? <span className="ios-poster-select" aria-hidden="true">{selected && <ICheck size={16} strokeWidth={2.4} />}</span>
+    : null;
+  const className = `ios-poster${onLongPress ? " has-long-press" : ""}${selected ? " is-selected" : ""}`;
+  const ariaLabel = selectionMode ? `${selected ? "取消选择" : "选择"}${title}` : title;
+  const pressed = selectionMode ? selected : undefined;
+
+  if (blockedReason) return <Button onClick={open} className={className}
+    aria-label={selectionMode ? ariaLabel : "该内容命中屏蔽标签，查看提示"} aria-pressed={pressed} {...longPressProps}>
     <span className="ios-poster-art flex flex-col items-center justify-center gap-3 px-3 text-center text-mut">
       <span className="text-[14px] font-semibold">该内容命中屏蔽标签</span>
       <span className="text-[12px] break-words">{blockedReason}</span>
       <span className="text-[13px] text-primary">查看提示</span>
+      {selection}
     </span>
     <span className="ios-poster-title">已屏蔽内容</span>
     {progress && <span className="ios-poster-subtitle">{progress}</span>}
   </Button>;
-  return <Button onClick={onOpen} className="ios-poster" aria-label={title}>
+  return <Button onClick={open} className={className} aria-label={ariaLabel} aria-pressed={pressed} {...longPressProps}>
     <span className={`ios-poster-art ${badge ? "has-poster-badge" : ""}`}>
       <Img src={cover} alt="" eager={priority} />
-      {badge && <span className="ios-poster-badge">{badge}</span>}
+      {badge && <span className={`ios-poster-badge${badgeTone === "update" ? " is-update" : ""}`}>{badge}</span>}
       {progress && <span className="ios-poster-progress"><IPlayF size={12} />{progress}</span>}
       <span className="ios-poster-play" aria-hidden="true"><IPlayF size={23} /></span>
+      {selection}
     </span>
     <span className="ios-poster-title">{title}</span>
     {subtitle && <span className="ios-poster-subtitle">{subtitle}</span>}

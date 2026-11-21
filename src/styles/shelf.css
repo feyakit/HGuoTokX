@@ -555,6 +555,10 @@
   margin-top: 20px; padding: 0; border: 0; background: transparent; cursor: pointer;
 }
 .hg-post-card:first-child { margin-top: 8px; }
+/* 收藏页多选（上游 #168）：吃瓜卡没有海报层，选中态用内描边 + 右上角圆圈，标题让出圆圈位置 */
+.hg-post-card.is-selectable { position: relative; }
+.hg-post-card.is-selectable .hg-post-head { padding-right: 34px; }
+.hg-post-card.is-selected { outline: 3px solid var(--p-primary); outline-offset: -3px; }
 .hg-post-head { display: flex; align-items: center; gap: 10px; }
 .hg-post-avatar {
   position: relative; flex: none; width: 47px; height: 47px;

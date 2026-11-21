@@ -6,8 +6,10 @@ import { Button } from "./ios/controls";
 import { Modal, Sheet } from "./ui";
 import "../../styles/content-preferences.css";
 
-export function TagBlockMenu({ open, tags, onClose }: {
+export function TagBlockMenu({ open, tags, onClose, initialSelected }: {
   open: boolean; tags: readonly string[]; onClose: () => void;
+  /** 长按某个标签进来时，把它预选上（用户再按一次「屏蔽」即可） */
+  initialSelected?: readonly string[];
 }) {
   const { preferences, revision, storageError, blockTags, isTagBlocked } = useContentPreferences();
   const [submittedAt, setSubmittedAt] = useState<number | null>(null);
@@ -19,7 +21,10 @@ export function TagBlockMenu({ open, tags, onClose }: {
   const options = names.filter((tag, index) => tag
     && names.findIndex(value => normalizeTag(value) === normalizeTag(tag)) === index);
   const identity = options.join("\u0000");
-  useEffect(() => { setSelected([]); setSubmittedAt(null); setExpanded(false); }, [open, identity]);
+  const seed = (initialSelected ?? []).filter(tag => options.includes(tag));
+  const seedKey = seed.join("\u0000");
+  /* 依赖用 seedKey 而不是数组本身：父组件每次渲染都会给新数组，用数组会把用户的选择刷掉。 */
+  useEffect(() => { setSelected(seed); setSubmittedAt(null); setExpanded(false); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [open, identity, seedKey]);
   useEffect(() => {
     if (submittedAt === null || revision <= submittedAt) return;
     setSubmittedAt(null);
