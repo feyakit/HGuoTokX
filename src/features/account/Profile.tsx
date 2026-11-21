@@ -9,6 +9,7 @@ import { MediaCard } from "../../shared/ui/cards";
 import { useContentPreferences } from "../../shared/model/contentPreferences";
 import { IBack, IBoltF, IChevR, IClock, IMenuFollow, IMenuHistory, IMenuLikes, IPlayF, ISettings, IStar } from "../../shared/ui/icons";
 import { useVisibilityRefresh } from "../../shared/lib/dataFreshness";
+import { useAutoLoadMore } from "./useAutoLoadMore";
 
 function GuestCatAvatar() {
   return (
@@ -283,6 +284,17 @@ function HistoryContent({ onBack, wide: _wide }: { onBack: () => void; wide: boo
   const postFailed = postFailedIds.filter(id => visiblePostIds.includes(id));
   const postIdsKey = visiblePostIds.join(",");
 
+  /* 上游 #169（46e2936）：滚到底自动加批，不再点「加载更多」。
+     历史页两个 tab 共用同一个滚动容器，批次键跟着当前 tab 走。 */
+  const historyHasMore = histTab === "post" ? visiblePostIds.length < postHistory.length : visibleIds.length < ids.length;
+  const { scrollerRef: historyScrollRef, sentinelRef: historySentinelRef, supported: autoLoadSupported } = useAutoLoadMore({
+    hasMore: historyHasMore,
+    busy: histTab === "post" ? postLoading : loading,
+    count: histTab === "post" ? postCards.length : cards.length,
+    resetKey: histTab,
+    onMore: () => setLimits(prev => ({ ...prev, [histTab]: prev[histTab] + 12 })),
+  });
+
   useEffect(() => {
     if (histTab !== "video") return;
     let alive = true;
@@ -408,7 +420,7 @@ function HistoryContent({ onBack, wide: _wide }: { onBack: () => void; wide: boo
         </SegmentedControl>
       </div>
 
-      <div className="flex-1 scroll-y hg-page-x relative z-10" style={{ paddingBottom: "calc(32px + var(--sab, 0px))" }}
+      <div ref={historyScrollRef} className="flex-1 scroll-y hg-page-x relative z-10" style={{ paddingBottom: "calc(32px + var(--sab, 0px))" }}
         aria-busy={histTab === "post" ? postLoading : loading}>
         {histTab === "post" ? (
           <>
@@ -460,10 +472,6 @@ function HistoryContent({ onBack, wide: _wide }: { onBack: () => void; wide: boo
               </div>
             )}
             {postCards.length > 0 && postLoading && <div className="flex justify-center py-3"><Loader label="加载更多内容" /></div>}
-            {visiblePostIds.length < postHistory.length && (
-              <Button card disabled={postLoading} onClick={() => setLimits(prev => ({ ...prev, post: prev.post + 12 }))}
-                className="hg-loadmore">加载更多</Button>
-            )}
           </>
         ) : (
           <>
@@ -541,12 +549,13 @@ function HistoryContent({ onBack, wide: _wide }: { onBack: () => void; wide: boo
               </div>
             )}
             {cards.length > 0 && loading && <div className="flex justify-center py-3"><Loader label="加载更多内容" /></div>}
-            {visibleIds.length < ids.length && (
-              <Button disabled={loading} onClick={() => setLimits(prev => ({ ...prev, video: prev.video + 12 }))}
-                className="hg-loadmore">加载更多</Button>
-            )}
           </>
         )}
+        {historyHasMore && (autoLoadSupported
+          ? <div ref={historySentinelRef} className="h-4" aria-hidden="true" />
+          : <Button card disabled={histTab === "post" ? postLoading : loading}
+              onClick={() => setLimits(prev => ({ ...prev, [histTab]: prev[histTab] + 12 }))}
+              className="hg-loadmore">加载更多</Button>)}
         {clearError && !clearOpen && <p role="alert" className="mt-2 text-[13px] text-danger">{clearError}</p>}
       </div>
 
@@ -599,6 +608,16 @@ function FavoritesContent({ onBack, wide, initialTab }: { onBack: () => void; wi
   const postCards = visiblePostIds.map(id => postCache[id]).filter((p): p is Post => !!p);
   const postFailed = postFailedIds.filter(id => visiblePostIds.includes(id));
   const postIdsKey = visiblePostIds.join(",");
+
+  /* 上游 #169（46e2936）：滚到底自动加批，不再点「加载更多」。 */
+  const favoriteHasMore = favTab === "post" ? visiblePostIds.length < postFavs.length : visibleIds.length < favs.length;
+  const { scrollerRef: favoriteScrollRef, sentinelRef: favoriteSentinelRef, supported: autoLoadSupported } = useAutoLoadMore({
+    hasMore: favoriteHasMore,
+    busy: favTab === "post" ? postLoading : loading,
+    count: favTab === "post" ? postCards.length : cards.length,
+    resetKey: favTab,
+    onMore: () => setLimits(prev => ({ ...prev, [favTab]: prev[favTab] + 12 })),
+  });
 
   const favoriteStateUnknown = !!user && !accountSync.favoritesKnown && favs.length === 0 && postFavs.length === 0;
   const favoriteSyncFailed = favoriteStateUnknown && !accountSync.busy;
@@ -681,7 +700,7 @@ function FavoritesContent({ onBack, wide, initialTab }: { onBack: () => void; wi
         </SegmentedControl>
       </div>
 
-      <div className="flex-1 scroll-y hg-page-x relative z-10" style={{ paddingBottom: "calc(32px + var(--sab, 0px))" }}
+      <div ref={favoriteScrollRef} className="flex-1 scroll-y hg-page-x relative z-10" style={{ paddingBottom: "calc(32px + var(--sab, 0px))" }}
         aria-busy={(favTab === "post" ? postLoading : loading) || syncingFavorites}>
         {favoriteSyncFailed ? (
           <Empty icon={<IStar size={24} />} title="收藏状态未知"
@@ -739,10 +758,6 @@ function FavoritesContent({ onBack, wide, initialTab }: { onBack: () => void; wi
               </div>
             )}
             {postCards.length > 0 && postLoading && <div className="flex justify-center py-3"><Loader label="加载更多内容" /></div>}
-            {visiblePostIds.length < postFavs.length && (
-              <Button card disabled={postLoading} onClick={() => setLimits(prev => ({ ...prev, post: prev.post + 12 }))}
-                className="hg-loadmore">加载更多</Button>
-            )}
           </>
         ) : (
           <>
@@ -772,12 +787,13 @@ function FavoritesContent({ onBack, wide, initialTab }: { onBack: () => void; wi
               </div>
             )}
             {cards.length > 0 && loading && <div className="flex justify-center py-3"><Loader label="加载更多内容" /></div>}
-            {visibleIds.length < favs.length && (
-              <Button card disabled={loading} onClick={() => setLimits(prev => ({ ...prev, video: prev.video + 12 }))}
-                className="hg-loadmore">加载更多</Button>
-            )}
           </>
         )}
+        {favoriteHasMore && (autoLoadSupported
+          ? <div ref={favoriteSentinelRef} className="h-4" aria-hidden="true" />
+          : <Button card disabled={favTab === "post" ? postLoading : loading}
+              onClick={() => setLimits(prev => ({ ...prev, [favTab]: prev[favTab] + 12 }))}
+              className="hg-loadmore">加载更多</Button>)}
       </div>
     </div>
   );
