@@ -10,7 +10,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   children, className = "", type = "button", variant, disabled, card: cardProp, ...props
 }, ref) {
   const intent = variant ?? (/(^|\s)(bg-primary|brand-grad)(\s|$)/.test(className) ? "primary" : "ghost");
-  const card = cardProp === true || (props.style?.paddingTop !== undefined || props.style?.aspectRatio !== undefined) || /(?:ios-poster|ios-row-card|ios-rank-row|ios-account-card|ios-collection-link|ios-topic-card|hg-topic-card-v2|hg-hero|hg-spotlight|hg-pill|hg-rail-card|hg-icon-plain|hg-continue|hg-section-more|hg-searchbar|hg-filter-text|hg-tab|hg-ed-tab|hg-bento-tile|hg-inline-sort|hg-top10-card|hg-wide-card|hg-topic-mini|hg-premiere-card|hg-podium-card|hg-rank-row-v2|hg-hist-card|hg-sub-btn|hg-tag-pill|hg-quick-action|hg-detail-fav|hg-tag-chip|hg-ep-cell|hg-loadmore)/.test(className);
+  const card = cardProp === true || (props.style?.paddingTop !== undefined || props.style?.aspectRatio !== undefined) || /(?:ios-poster|hg-poster|ios-row-card|ios-rank-row|ios-account-card|ios-collection-link|ios-topic-card|hg-topic-card-v2|hg-hero|hg-spotlight|hg-pill|hg-rail-card|hg-icon-plain|hg-continue|hg-section-more|hg-searchbar|hg-filter-text|hg-tab|hg-ed-tab|hg-bento-tile|hg-inline-sort|hg-top10-card|hg-wide-card|hg-topic-mini|hg-premiere-card|hg-podium-card|hg-rank-row-v2|hg-hist-card|hg-sub-btn|hg-tag-pill|hg-quick-action|hg-detail-fav|hg-tag-chip|hg-ep-cell|hg-loadmore)/.test(className);
   return <button {...props} ref={ref} type={type} disabled={disabled}
     data-ui="button" data-variant={intent} data-card={card || undefined}
     className={cn("ios-button", `ios-button-${intent}`, className)}>
