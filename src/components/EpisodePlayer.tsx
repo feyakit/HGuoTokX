@@ -637,34 +637,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   }, []);
   const letterbox = useMemo(() => {
     if (!videoSize.w || !videoSize.h || !stageBox.w || !stageBox.h) return false;
+    if (portraitVideo && !rotated && !vpLandscape) return false;
     const containerRatio = stageBox.w / stageBox.h;
     const videoRatio = videoSize.w / videoSize.h;
-    /* 容器比画面"更方"（比值更大）→ 上下一定留黑边；留 2% 容差避免像素抖动 */
-    return containerRatio > videoRatio * 1.02;
-  }, [videoSize.w, videoSize.h, stageBox.w, stageBox.h]);
-  const ambientCanvasRef = useRef<HTMLCanvasElement>(null);
-  const [ambientLive, setAmbientLive] = useState(false);
-
-  useEffect(() => {
-    setAmbientLive(false);
-    if (isDesktop || !active) return undefined;
-    let alive = true;
-    const paint = () => {
-      if (!alive) return;
-      const v = videoRef.current?.el();
-      const canvas = ambientCanvasRef.current;
-      if (!v || !canvas || v.readyState < 2 || v.videoWidth <= 0) return;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      try {
-        ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
-        setAmbientLive((prev) => (prev ? prev : true));
-      } catch { /* ignore */ }
-    };
-    paint();
-    const timer = window.setInterval(paint, 220);
-    return () => { alive = false; window.clearInterval(timer); };
-  }, [isDesktop, active, playKey, paused]);
+    return videoRatio > containerRatio * 1.02 || containerRatio > videoRatio * 1.02;
+  }, [videoSize.w, videoSize.h, stageBox.w, stageBox.h, portraitVideo, rotated, vpLandscape]);
   /* 竖屏快捷胶囊：仅双指放大后显示「还原」按钮，横屏视频不再在竖屏下弹「铺满」裁切提示 */
   const capsuleOn = !fs && !clean && !isDesktop && zoom.s > 1.05;
 
