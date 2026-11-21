@@ -8,6 +8,8 @@ import { MediaCard, Masonry } from "../components/cards";
 import { FilteredContent } from "../components/FilteredContent";
 import { Empty, Img } from "../components/ui";
 import { useSearchResults } from "../useSearchResults";
+import { useApiRefresh, useForegroundRefresh, useVisibilityRefresh } from "../dataFreshness";
+import { PullIndicator, usePullToRefresh } from "../usePullToRefresh";
 import { SearchTags } from "../components/SearchTags";
 import { IBack, IChevR, IClose, IFireF, IPlayF, IRefresh, ISearch, ITrophy } from "../icons";
 
@@ -22,7 +24,7 @@ export default function Search({
   initialTab?: "video" | "post";
   onBack?: () => void;
 }) {
-  const { push, searchHist, addSearch, clearSearchHist, lineEpoch, accountScope } = useStore();
+  const { push, toast, searchHist, addSearch, clearSearchHist, lineEpoch, accountScope } = useStore();
   const [q, setQ] = useState("");
   const [submitted, setSubmitted] = useState("");
   const [tab, setTab] = useState<"video" | "post">(initialTab);
@@ -47,13 +49,13 @@ export default function Search({
     if (active && !isMobile) inputRef.current?.focus();
   }, [active]);
 
-  const refreshHot = async () => {
+  const refreshHot = async (force = false) => {
     if (hotBusy.current) return;
     hotBusy.current = true;
     setHotLoading(true);
     setHotError(null);
     try {
-      const res = await api.searchHot();
+      const res = await api.searchHot(force);
       setHotVideos(res.items);
       hotLoadedAt.current = Date.now();
     } catch (e) {
@@ -64,8 +66,30 @@ export default function Search({
     }
   };
   useEffect(() => {
-    if (active && Date.now() - hotLoadedAt.current > 60_000) void refreshHot();
+    if (active && Date.now() - hotLoadedAt.current > 30_000) void refreshHot(true);
   }, [active]);
+
+  /* 搜索结果页不做下拉（规格：改静默刷新）。两个触发点：
+     · 结果超过 60s 后重新聚焦搜索框 → 自动重搜当前关键词（保留输入内容与焦点）；
+     · 回前台 / 前台每 5 分钟 → 静默重搜。 */
+  const lastAtRef = useRef(Date.now());
+  useEffect(() => { if (!loading && !hotLoading) lastAtRef.current = Date.now(); }, [loading, hotLoading]);
+  const pullRefresh = async () => {
+    if (submitted) await results.refresh();
+    else await refreshHot(true);
+  };
+  const refocusRefresh = () => {
+    if (!submitted) return;
+    if (Date.now() - lastAtRef.current < 60_000) return;
+    void results.refresh();
+  };
+  /* 前台每 5 分钟静默刷新当前结果（保留输入框内容与焦点，不重放搜索动画） */
+  useForegroundRefresh(() => { void pullRefresh().catch(() => { /* 静默 */ }); }, { enabled: active });
+  useVisibilityRefresh(() => { void pullRefresh().catch(() => { /* 静默 */ }); }, {
+    enabled: active,
+    lastAt: () => Math.max(hotLoadedAt.current, lastAtRef.current),
+    busy: loading,
+  });
 
   const changeTab = (next: "video" | "post") => {
     if (next === tab) return;
@@ -98,7 +122,7 @@ export default function Search({
         <Form className="ios-search-form flex-1 min-w-0 flex items-center gap-2"
           onSubmit={(e) => { e.preventDefault(); (document.activeElement as HTMLElement | null)?.blur(); submit(q); }}>
           <ISearch size={17} className="text-mut shrink-0" />
-          <Input aria-label="搜索短剧、帖子、题材…" ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)}
+          <Input aria-label="搜索短剧、帖子、题材…" ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} onFocus={refocusRefresh}
             placeholder={tab === "post" ? "搜索吃瓜帖子、话题…" : "搜索短剧、帖子、题材…"}
             className="flex-1 min-w-0 bg-transparent text-[14px] text-on placeholder-dim outline-none" />
           {q && <Button aria-label="清空搜索" type="button" onClick={() => { results.clear(); setQ(""); setSubmitted(""); inputRef.current?.focus(); }} className="ios-icon-button ios-search-clear"><IClose size={16} /></Button>}
@@ -239,7 +263,9 @@ function playsValue(v: string): number {
   return unit === "亿" ? n * 1e8 : unit === "w" || unit === "W" ? n * 1e4 : n;
 }
 
-export function RankView({ wide, active = true }: { wide: boolean; active?: boolean }) {
+export function RankView({ wide, active = true, refreshSignal = 0, onRefreshed }: {
+  wide: boolean; active?: boolean; refreshSignal?: number; onRefreshed?: () => void;
+}) {
   const { push, lineEpoch } = useStore();
   type RankKind = typeof RANK_TABS[number]["k"];
   type RankState = { items: RankItem[]; loadedAt: number; loading: boolean; error: string };
@@ -248,10 +274,14 @@ export function RankView({ wide, active = true }: { wide: boolean; active?: bool
   const cache = useRef<Partial<Record<RankKind, RankState>>>({});
   const pending = useRef(new Set<RankKind>());
   const alive = useRef(true);
+  const signal = useRef(refreshSignal);
+  const onRefreshedRef = useRef(onRefreshed);
+  onRefreshedRef.current = onRefreshed;
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => { cache.current = {}; }, [lineEpoch]);
 
-  const load = async (kind: RankKind) => {
+  /* force=true：绕过 api 读缓存，用户点刷新 / 下拉时必须真的出网（旧代码刷新按钮也吃缓存） */
+  const load = async (kind: RankKind, force = false) => {
     if (pending.current.has(kind)) return;
     pending.current.add(kind);
     const previous = cache.current[kind];
@@ -261,7 +291,7 @@ export function RankView({ wide, active = true }: { wide: boolean; active?: bool
     };
     update({ items: previous?.items ?? [], loadedAt: previous?.loadedAt ?? 0, loading: true, error: "" });
     try {
-      const res = await api.rank(kind);
+      const res = await api.rank(kind, force);
       update({ items: res?.items || [], loadedAt: Date.now(), loading: false, error: "" });
     } catch (error) {
       update({
@@ -273,10 +303,33 @@ export function RankView({ wide, active = true }: { wide: boolean; active?: bool
     }
   };
 
+  /* 后台刷新（命中缓存后 api 层补的那一次）回来时原地换新 */
+  useApiRefresh<{ items: RankItem[] }>("api_rank", { kind: tab }, res => {
+    if (!res || !alive.current) return;
+    const next: RankState = { items: res.items || [], loadedAt: Date.now(), loading: false, error: "" };
+    cache.current[tab] = next;
+    setStates(current => ({ ...current, [tab]: next }));
+  });
+
   useEffect(() => {
     if (!active) return;
-    if (!cache.current[tab]?.loadedAt || Date.now() - cache.current[tab]!.loadedAt > 60_000) void load(tab);
-  }, [tab, active, lineEpoch]);
+    /* 外面下拉刷新（首页热榜 tab / 排行榜页）→ 强制重拉当前榜单 */
+    if (signal.current !== refreshSignal) {
+      signal.current = refreshSignal;
+      void load(tab, true).then(() => onRefreshedRef.current?.());
+      return;
+    }
+    /* 回前台 / 重进：30s 内用现成数据，超过就补一次真实请求（不闪骨架） */
+    if (!cache.current[tab]?.loadedAt || Date.now() - cache.current[tab]!.loadedAt > 30_000) void load(tab, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, active, lineEpoch, refreshSignal]);
+
+  useForegroundRefresh(() => { void load(tab, true); }, { enabled: active });
+  useVisibilityRefresh(() => { void load(tab, true); }, {
+    enabled: active,
+    lastAt: () => cache.current[tab]?.loadedAt ?? 0,
+    busy: states[tab]?.loading ?? false,
+  });
 
   const state = states[tab];
   const items = state?.items ?? [];
@@ -297,14 +350,14 @@ export function RankView({ wide, active = true }: { wide: boolean; active?: bool
             <Button key={t.k} aria-pressed={tab === t.k} onClick={() => setTab(t.k)}>{t.label}</Button>
           ))}
         </SegmentedControl>
-        <Button card className="hg-sub-btn" aria-label="刷新榜单" disabled={loading} onClick={() => void load(tab)}>
+        <Button card className="hg-sub-btn" aria-label="刷新榜单" disabled={loading} onClick={() => void load(tab, true)}>
           {loading ? <Loader label="正在更新榜单" className="w-4 h-4" /> : <IRefresh size={15} />}
         </Button>
       </div>
 
       {err && <div role="alert" className="flex flex-wrap items-center gap-2 my-2.5 text-[13px] text-danger">
         <span>榜单加载失败：{err}{items.length > 0 ? "；已保留上次榜单" : ""}</span>
-        <Button onClick={() => void load(tab)} disabled={loading} className="px-3 text-primary">重试</Button>
+        <Button onClick={() => void load(tab, true)} disabled={loading} className="px-3 text-primary">重试</Button>
       </div>}
 
       <section aria-label={meta.label} aria-busy={loading}>
@@ -385,7 +438,23 @@ export function RankView({ wide, active = true }: { wide: boolean; active?: bool
 }
 
 export function RankPage({ onBack, wide }: { onBack: () => void; wide: boolean }) {
-  const { push } = useStore();
+  const { push, toast } = useStore();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [signal, setSignal] = useState(0);
+  const rankDone = useRef<(() => void) | null>(null);
+  const pull = usePullToRefresh({
+    ref: scrollRef,
+    onRefresh: () => new Promise<void>(resolve => {
+      let done = false;
+      const finish = () => { if (!done) { done = true; resolve(); } };
+      rankDone.current = finish;
+      setSignal(n => n + 1);
+      /* 兜底：榜单请求卡住时也要在 6s 内收指示器，不能一直转 */
+      window.setTimeout(finish, 6000);
+    }),
+    enabled: isMobile,
+    onDone: ok => toast(ok ? "已同步官网" : "同步失败，稍后再试", ok ? "ok" : "info"),
+  });
   return (
     <div className="ios-page hg-canvas absolute inset-0 flex flex-col">
       <span className="hg-aura" aria-hidden="true" />
@@ -399,8 +468,9 @@ export function RankPage({ onBack, wide }: { onBack: () => void; wide: boolean }
           <ISearch size={18} />
         </Button>
       </header>
-      <div className="flex-1 scroll-y hg-page-x pt-3 relative z-10" style={{ paddingBottom: "calc(32px + var(--sab, 0px))" }}>
-        <RankView wide={wide} />
+      <div ref={scrollRef} className="flex-1 scroll-y hg-page-x pt-3 relative z-10" style={{ paddingBottom: "calc(32px + var(--sab, 0px))" }}>
+        <PullIndicator pull={pull.pull} refreshing={pull.refreshing} progress={pull.progress} />
+        <RankView wide={wide} refreshSignal={signal} onRefreshed={() => { rankDone.current?.(); rankDone.current = null; }} />
       </div>
     </div>
   );

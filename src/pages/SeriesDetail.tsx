@@ -52,6 +52,11 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
     loadDetail(id)
       .then(res => { if (my === seq.current) setDetail(res); })
       .catch(e => { if (my === seq.current) setErr((e as Error)?.message || "加载失败"); });
+    /* 进页 SWR：缓存先上屏，同时补一次真实请求（force 绕过 5min 读缓存 + 磁盘缓存），
+       回来就静默换新，失败不打扰。 */
+    api.video(id, true)
+      .then(res => { if (my === seq.current && res) setDetail(res); })
+      .catch(() => { /* 静默 */ });
     api.related(id)
       .then(res => { if (my === seq.current) setRelated((res?.items ?? []).filter(v => v && v.cover)); })
       .catch(() => { if (my === seq.current) setRelated([]); });
@@ -64,7 +69,7 @@ export default function SeriesDetail({ id, onBack }: { id: number; onBack: () =>
   useEffect(() => {
     let alive = true;
     const refresh = () => {
-      api.video(id)
+      api.video(id, true)
         .then(res => { if (alive && res) setDetail(res); })
         .catch(() => { /* 静默 */ });
     };

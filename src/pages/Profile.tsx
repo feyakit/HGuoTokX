@@ -8,6 +8,7 @@ import { Empty, Img, Modal } from "../components/ui";
 import { MediaCard } from "../components/cards";
 import { useContentPreferences } from "../contentPreferences";
 import { IBack, IBoltF, IChevR, IClock, IMenuFollow, IMenuHistory, IMenuLikes, IPlayF, ISettings, IStar } from "../icons";
+import { useVisibilityRefresh } from "../dataFreshness";
 
 function GuestCatAvatar() {
   return (
@@ -249,7 +250,7 @@ export function HistoryPage({ onBack, wide }: { onBack: () => void; wide: boolea
 
 function HistoryContent({ onBack, wide: _wide }: { onBack: () => void; wide: boolean }) {
   const { blockReason } = useContentPreferences();
-  const { user, history, postHistory, clearHistory, push, setTab } = useStore();
+  const { user, history, postHistory, clearHistory, push, setTab, syncAccount, toast } = useStore();
   const [histTab, setHistTab] = useState<"video" | "post">(() => (history.length === 0 && postHistory.length > 0 ? "post" : "video"));
   const [cache, setCache] = useState<Record<number, Detail>>({});
   const cacheRef = useRef(cache);
@@ -342,6 +343,38 @@ function HistoryContent({ onBack, wide: _wide }: { onBack: () => void; wide: boo
       if (mounted.current) setClearBusy(false);
     }
   };
+
+  /* 观看历史不做下拉（规格：改静默刷新）。
+     · 回到前台 → 静默同步账号侧记录（本地记录本身是实时的，不用等）；
+     · 同步后把已上屏的卡片按 force 重拉一次（绕过 api 读缓存），失败的单条保留旧卡；
+     · 清空按钮 / 弹层状态一律不动（clearOpen、clearBusy 不参与刷新）。 */
+  const syncing = useRef(false);
+  const lastSync = useRef(0);
+  const refreshHistory = async () => {
+      if (syncing.current) return;
+      syncing.current = true;
+      await syncAccount().catch(() => { /* 未登录 / 离线：只用本地数据 */ });
+      const videoIds = visibleIds;
+      const postIds = visiblePostIds;
+      if (!videoIds.length && !postIds.length) return;
+      const [vres, pres] = await Promise.all([
+        Promise.allSettled(videoIds.map(id => api.video(id, true))),
+        Promise.allSettled(postIds.map(id => api.post(id, true))),
+      ]);
+      const nextCache: Record<number, Detail> = {};
+      const nextPostCache: Record<number, Post> = {};
+      let okCount = 0;
+      vres.forEach((r, i) => { if (r.status === "fulfilled" && r.value) { nextCache[videoIds[i]] = r.value; okCount += 1; } });
+      pres.forEach((r, i) => { if (r.status === "fulfilled" && r.value) { nextPostCache[postIds[i]] = r.value; okCount += 1; } });
+      if (mounted.current && Object.keys(nextCache).length) setCache(prev => ({ ...prev, ...nextCache }));
+      if (mounted.current && Object.keys(nextPostCache).length) setPostCache(prev => ({ ...prev, ...nextPostCache }));
+      lastSync.current = Date.now();
+      if (!okCount) throw new Error("历史同步失败");
+  };
+  useVisibilityRefresh(() => { void refreshHistory().catch(() => { /* 静默 */ }).finally(() => { syncing.current = false; }); }, {
+    enabled: true,
+    lastAt: () => lastSync.current,
+  });
 
   const totalCount = history.length + postHistory.length;
 

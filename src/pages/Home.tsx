@@ -10,6 +10,8 @@ import { Empty, Img } from "../components/ui";
 import { IBoltF, IChevR, IClose, IFireF, IPlayF, IRefresh, ISearch, Logo } from "../icons";
 import { useContentPreferences } from "../contentPreferences";
 import { PreferenceStorageNotice } from "../components/PreferenceStorageNotice";
+import { FRESH_GAP_MS, useApiRefresh, useForegroundRefresh, useFreshness, useVisibilityRefresh } from "../dataFreshness";
+import { PullIndicator, usePullToRefresh } from "../usePullToRefresh";
 
 const RankView = lazy(() => import("./Search").then(m => ({ default: m.RankView })));
 
@@ -114,9 +116,14 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
   const [dismissedContinue, setDismissedContinue] = useState(0);
   const loadingRef = useRef(false);
   const seq = useRef(0);
-  const shelvesKey = useRef("");
-  const topicsKey = useRef("");
+  const shelvesAt = useRef(0);
+  const topicsAt = useRef(0);
   const loadedKey = useRef("");
+  const aliveRef = useRef(true);
+  useEffect(() => { aliveRef.current = true; return () => { aliveRef.current = false; }; }, []);
+  const fresh = useFreshness();
+  const [rankSignal, setRankSignal] = useState(0);
+  const rankDone = useRef<(() => void) | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   /* 左右手势切页：只在移动端、首页 feed tab、没有栈页/登录面板时接管 */
   const swipe = useTabSwipe({
@@ -127,17 +134,21 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
     containerRef: scrollRef,
   });
 
-  const load = useCallback(async (p: number, key: FeedTab, replaceBatch = false) => {
-    if (loadingRef.current) return;
+  /* `opts.force` = 绕过 api 读缓存打真实请求；`opts.silent` = 不闪骨架/不报错（回前台、切回 tab 用）。
+     两个都给 = "后台静默换新"：用户看到的列表不动，数据悄悄变成最新的。 */
+  const load = useCallback(async (p: number, key: FeedTab, replaceBatch = false, opts?: { force?: boolean; silent?: boolean }) => {
+    const silent = opts?.silent === true;
+    const force = opts?.force === true;
+    if (loadingRef.current && !force) return;
     loadingRef.current = true;
-    setLoading(true);
+    if (!silent) setLoading(true);
     if (replaceBatch) setShuffling(true);
-    setError("");
+    if (!silent) setError("");
     const my = ++seq.current;
     try {
       const res = key === "new"
-        ? await api.feed(p, 21, "new")
-        : await api.feed(p, 21);
+        ? await api.feed(p, 21, "new", force)
+        : await api.feed(p, 21, undefined, force);
       if (my !== seq.current) return;
       const rows = (res?.items ?? []).filter(v => v && v.cover);
       const pages = Math.max(1, res?.pagination?.pages || 1);
@@ -148,6 +159,8 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
       setPage(p);
       if (replaceBatch) setSeedPage(p);
       setDone(!rows.length || p >= pages);
+      fresh.mark();
+      if (silent) setError("");
       /* 空闲时预取下一页（滚动到底时命中读缓存，省掉一个来回）：
          首屏 → 第 2 页；每次追加完 → 再下一页。失败无所谓，滚到底还会正常请求。 */
       if (key === "all" && !replaceBatch && p + 1 <= pages) {
@@ -155,7 +168,8 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
         scheduleIdle(() => { void api.feed(next, 21).catch(() => { /* 预取失败无所谓 */ }); }, 1400);
       }
     } catch (e) {
-      if (my === seq.current) setError((e as Error)?.message || "加载失败");
+      if (my === seq.current && !silent) setError((e as Error)?.message || "加载失败");
+      if (silent) throw e;
     } finally {
       if (my === seq.current) {
         setLoading(false);
@@ -163,62 +177,127 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
         loadingRef.current = false;
       }
     }
-  }, []);
+  }, [fresh]);
 
-  /* 推荐页专属异构货架数据（官方口碑推荐榜 + 热播榜 TOP10 + 独家原创宽画幅）：按线路缓存。
+  /* 推荐页专属异构货架数据（官方口碑推荐榜 + 热播榜 TOP10 + 独家原创宽画幅）。
+     每次进页/回前台超过 30s 就重拉（force 绕过缓存），不再是"一个线路只拉一次"。
      精选专题不在这里 —— 它在首屏出来之后再取（见下面那个 effect）。 */
-  useEffect(() => {
-    if (!active || tab !== "all") return;
-    const key = String(lineEpoch);
-    if (shelvesKey.current === key) return;
-    let alive = true;
-    Promise.all([
-      api.rank("recommend").then(r => (r?.items ?? []).filter(x => x && x.cover && x.video_id > 0).slice(0, 12)).catch(() => [] as RankItem[]),
-      api.rank("hot").then(r => (r?.items ?? []).filter(x => x && x.cover && x.video_id > 0).slice(0, 10)).catch(() => [] as RankItem[]),
-      api.originalVideos("all", 1, 10, "new").then(r => (r?.items ?? []).filter(x => x && x.cover && x.id > 0)).catch(() => [] as VideoCard[]),
-    ]).then(([recRanks, hotRanks, origs]) => {
-      if (!alive) return;
-      shelvesKey.current = key;
-      setRecommendRanks(recRanks);
-      setTopRanks(hotRanks);
-      setOriginals(origs);
-    });
-    return () => { alive = false; };
-  }, [active, tab, lineEpoch]);
+  const loadShelves = useCallback(async (force: boolean) => {
+    const [recRanks, hotRanks, origs] = await Promise.all([
+      api.rank("recommend", force).then(r => (r?.items ?? []).filter(x => x && x.cover && x.video_id > 0).slice(0, 12)).catch(() => null),
+      api.rank("hot", force).then(r => (r?.items ?? []).filter(x => x && x.cover && x.video_id > 0).slice(0, 10)).catch(() => null),
+      api.originalVideos("all", 1, 10, "new", force).then(r => (r?.items ?? []).filter(x => x && x.cover && x.id > 0)).catch(() => null),
+    ]);
+    if (!aliveRef.current) return;
+    if (recRanks) setRecommendRanks(recRanks);
+    if (hotRanks) setTopRanks(hotRanks);
+    if (origs) setOriginals(origs);
+    shelvesAt.current = Date.now();
+  }, []);
 
   /* 精选专题：最底部的一个横滑货架，既不参与主推/热榜的错峰去重，也不参与"为你推荐"的过滤，
      所以晚到不会引起任何重排。放到首屏卡片出来之后再空闲时取，首屏少一个并发请求。 */
+  const loadTopics = useCallback(async (force: boolean) => {
+    try {
+      const r = await api.topics(force);
+      if (!aliveRef.current) return;
+      setTopics((r?.items ?? []).filter(x => x && x.cover).slice(0, 8));
+      topicsAt.current = Date.now();
+    } catch { /* 专题拉不到就不显示这一栏，不影响其他内容 */ }
+  }, []);
+
+  /* 切线路：货架/专题的时间戳作废，下一次进页强制重拉 */
+  useEffect(() => { shelvesAt.current = 0; topicsAt.current = 0; }, [lineEpoch]);
+
   useEffect(() => {
-    if (!active || tab !== "all" || !items.length) return undefined;
-    const key = String(lineEpoch);
-    if (topicsKey.current === key) return undefined;
-    let alive = true;
-    const cancel = scheduleIdle(() => {
-      api.topics()
-        .then(r => (r?.items ?? []).filter(x => x && x.cover).slice(0, 8))
-        .then(tps => { if (!alive) return; topicsKey.current = key; setTopics(tps); })
-        .catch(() => { /* 专题拉不到就不显示这一栏，不影响其他内容 */ });
-    }, 1600);
-    return () => { alive = false; cancel(); };
-  }, [active, tab, items.length, lineEpoch]);
+    if (!active || tab !== "all") return;
+    if (shelvesAt.current && Date.now() - shelvesAt.current < FRESH_GAP_MS) return;
+    void loadShelves(shelvesAt.current > 0);
+  }, [active, tab, lineEpoch, loadShelves]);
+
+  useEffect(() => {
+    if (!active || tab !== "all" || !items.length) return;
+    if (topicsAt.current && Date.now() - topicsAt.current < FRESH_GAP_MS) return;
+    void loadTopics(topicsAt.current > 0);
+  }, [active, tab, items.length, lineEpoch, loadTopics]);
+
+  /* 后台刷新（api 层命中缓存后补的那一次）回来时，货架原地换新，不用等用户重进 */
+  useApiRefresh<{ items: RankItem[] }>("api_rank", { kind: "recommend" }, res => {
+    if (!res) return;
+    setRecommendRanks((res.items ?? []).filter(x => x && x.cover && x.video_id > 0).slice(0, 12));
+  });
+  useApiRefresh<{ items: RankItem[] }>("api_rank", { kind: "hot" }, res => {
+    if (!res) return;
+    setTopRanks((res.items ?? []).filter(x => x && x.cover && x.video_id > 0).slice(0, 10));
+  });
+  useApiRefresh<{ items: TopicCard[] }>("api_topics", undefined, res => {
+    if (!res) return;
+    setTopics((res.items ?? []).filter(x => x && x.cover).slice(0, 8));
+  });
 
   useEffect(() => {
     if (!active || tab === "rank") return;
     const key = `${tab}|${lineEpoch}`;
-    if (loadedKey.current === key) return;
+    const same = loadedKey.current === key;
+    /* 30s 内切回同一个 tab 不重拉（省流量）；超过 30s 或者换了 tab/线路就重新取，
+       并且是 force（绕过读缓存）+ silent（不闪骨架）——旧代码这里是"一个 key 只拉一次"，
+       所以重进永远是旧列表。lastAt=0 表示还没成功拉过（StrictMode 二次挂载会走到这里），
+       此时不做静默重拉，交给下面正常加载，否则会盖掉首屏的错误提示。 */
+    if (same && (fresh.lastAt() === 0 || !fresh.olderThan(FRESH_GAP_MS))) return;
     loadedKey.current = key;
     seq.current++;
     loadingRef.current = false;
-    setShuffling(false);
-    setItems([]);
-    setSeedPage(1);
-    setTotalPages(1);
-    setDone(false);
-    setHeroIndex(0);
-    scrollRef.current?.scrollTo(0, 0);
-    void load(1, tab);
+    if (!same) {
+      setShuffling(false);
+      setItems([]);
+      setSeedPage(1);
+      setTotalPages(1);
+      setDone(false);
+      setHeroIndex(0);
+      scrollRef.current?.scrollTo(0, 0);
+      void load(1, tab);
+    } else {
+      void load(1, tab, false, { force: true, silent: true }).catch(() => { /* 静默失败：保留旧列表 */ });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, tab, lineEpoch]);
+
+  /* 下拉刷新 / 回前台静默刷新 的统一入口：一律 force 绕过缓存 */
+  const refreshAll = useCallback(async () => {
+    const jobs: Promise<unknown>[] = [];
+    if (tab === "rank") {
+      /* 热榜分栏的数据在 RankView 里：发信号让它 force 重拉，等它回话（6s 兜底） */
+      jobs.push(new Promise<void>(resolve => {
+        let done = false;
+        const finish = () => { if (!done) { done = true; resolve(); } };
+        rankDone.current = finish;
+        setRankSignal(n => n + 1);
+        window.setTimeout(finish, 6000);
+      }));
+    } else {
+      jobs.push(load(1, tab, false, { force: true, silent: true }));
+      if (tab === "all") jobs.push(loadShelves(true), loadTopics(true));
+    }
+    await Promise.all(jobs);
+    fresh.mark();
+  }, [tab, load, loadShelves, loadTopics, fresh]);
+
+  const pull = usePullToRefresh({
+    ref: scrollRef,
+    onRefresh: refreshAll,
+    enabled: isMobile,
+    onDone: ok => toast(ok ? "已同步官网" : "同步失败，稍后再试", ok ? "ok" : "info"),
+  });
+
+  /* 前台每 5 分钟静默刷新当前 tab（播放页不刷；不可见时跳过） */
+  useForegroundRefresh(() => { if (!pull.refreshing) void refreshAll().catch(() => { /* 静默 */ }); }, { enabled: active });
+
+  /* 回前台：距上次拉取 > 30s 就静默重拉当前页（不闪骨架、失败不提示） */
+  useVisibilityRefresh(() => { void refreshAll().catch(() => { /* 静默 */ }); }, {
+    enabled: active,
+    lastAt: fresh.lastAt,
+    busy: pull.refreshing,
+  });
 
   /* 继续观看：登录且有最近进度时浮现 */
   useEffect(() => {
@@ -446,13 +525,15 @@ export default function Home({ active }: { active: boolean; bottomInset?: number
           const el = e.currentTarget;
           if (el.scrollHeight - el.scrollTop - el.clientHeight < 360) void load(page + 1, tab);
         }}>
+        <PullIndicator pull={pull.pull} refreshing={pull.refreshing} progress={pull.progress} />
         {storageError && <PreferenceStorageNotice />}
 
         {/* ==================== 分栏 ③：热榜（三联领奖台 + 热度条榜单） ==================== */}
         {tab === "rank" ? (
           <div className="pt-1.5">
             <Suspense fallback={<div className="flex justify-center py-10"><Loader className="w-7 h-7 spinner" /></div>}>
-              <RankView wide={false} active={active} />
+              <RankView wide={false} active={active} refreshSignal={rankSignal}
+                onRefreshed={() => { rankDone.current?.(); rankDone.current = null; }} />
             </Suspense>
           </div>
         ) : tab === "new" ? (

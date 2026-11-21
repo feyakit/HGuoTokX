@@ -76,37 +76,43 @@ const failMessage = (msg: string, status?: string) =>
     : msg.length > 140 ? `${msg.slice(0, 140)}…` : msg;
 
 /** 读缓存 TTL（毫秒）。口径按"用户感知的新鲜度"定：
- *  - 首页 feed / 分类 / 榜单 / 专题：60s 级别的目录页，数据本身不会秒变；
+ *  - 首页 feed：15s（短剧站一天更新几十次，30s 会让人看到"昨天那批"）；
+ *  - 分类 / 榜单 / 专题 / 吃瓜列表：30s（目录页，但用户滑动+下拉刷新时不能给他旧页）；
  *  - 详情：5min（剧本信息、集数几乎不变；收藏/点赞数由本地乐观值维护）；
- *  - 播放地址：90s（有过期风险，不放宽）。
- *  没过期直接给；过期但还在 STALE_WINDOW 内先给旧值再后台刷新（见 call()）。
+ *  - 播放地址：**永不缓存**（CDN token 会过期；每次进集都必须重新请求 api_play）。
+ *  没过期直接给；过期但还在 STALE_WINDOW 内先给旧值再后台刷新，刷新结果通过
+ *  `hg:api-data` 事件广播回页面（SWR 真生效，见 call() / publishData()）。
+ *  任何"刷新"入口（下拉、回前台、切 tab）都必须传 force=true 绕过这一层。
+ *
+ *  为什么不在 URL 上拼 cache-buster：实测上游 `cache-control: private, no-store`，
+ *  本来就不允许任何中间层缓存；而给 /api/videos 加任何未知查询参数（_t/t/r/v 都试过）
+ *  会直接 400「请求参数无效」。所以"绕过缓存"只能是应用层语义（force），不能改 URL。
  */
 const CACHE_TTL: Record<string, number> = {
-  api_feed: 30_000,
-  api_category: 60_000,
-  api_original_videos: 60_000,
-  api_tag_videos: 60_000,
-  api_posts: 60_000,
-  api_post_category: 60_000,
-  api_topic: 60_000,
-  api_topics: 60_000,
-  api_rank: 60_000,
-  api_blog_posts: 60_000,
-  api_play: 90_000,
-  api_post_playback: 90_000,
+  api_feed: 15_000,
+  api_category: 30_000,
+  api_original_videos: 30_000,
+  api_tag_videos: 30_000,
+  api_posts: 30_000,
+  api_post_category: 30_000,
+  api_blog_posts: 30_000,
+  api_topic: 30_000,
+  api_topics: 30_000,
+  api_rank: 30_000,
   api_video: 300_000,
   api_post: 180_000,
   api_related: 300_000,
   api_tags: 300_000,
   api_post_categories: 300_000,
-  api_search_hot: 180_000,
+  api_search_hot: 120_000,
 };
 /** 过了 TTL 还能当"垫底数据"用的窗口：先给旧内容，后台静默刷新。
- *  再久就不给了（用户可能已经换线路/内容换季），直接等新数据。 */
-const STALE_WINDOW = 10 * 60_000;
+ *  10min 太长——用户看到的是十分钟前的内容，且旧代码刷新完也不回填界面，
+ *  这就是"重进也不变"的主因。收到 3min 内，且刷新结果会广播回页面。 */
+const STALE_WINDOW = 3 * 60_000;
 /** 缓存条目上限（首页分页 + 详情 + 榜单，200 条足够，超出按插入顺序淘汰最旧的） */
 const CACHE_MAX = 200;
-const READ_CACHE = new Map<string, { value: unknown; expires: number }>();
+const READ_CACHE = new Map<string, { value: unknown; expires: number; at: number }>();
 const INFLIGHT = new Map<string, Promise<unknown>>();
 export const clearApiReadCache = () => {
   READ_CACHE.clear();
@@ -118,6 +124,20 @@ if (typeof window !== "undefined") {
 }
 const cacheKey = (cmd: string, args?: Record<string, unknown>) =>
   `${cmd}:${args ? JSON.stringify(args) : ""}`;
+/** 页面订阅 `hg:api-data` 时要自己算同一个 key，所以把它导出去（别各写一份）。 */
+export const apiCacheKey = (cmd: string, args?: Record<string, unknown>) => cacheKey(cmd, args);
+
+/** 数据新鲜度广播：任何一次真实请求成功后发出，带上缓存 key 与结果。
+ *  页面用 useApiRefresh(cmd, args, cb) 订阅——命中旧缓存后后台刷新拿回来的新数据
+ *  会原地替换界面，而不是等用户"重进一次"才看到（旧代码刷新完结果直接丢掉）。 */
+export const API_DATA_EVENT = "hg:api-data";
+export type ApiDataEvent = { cmd: string; key: string; value: unknown };
+function publishData(cmd: string, key: string, value: unknown) {
+  if (!key || typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(new CustomEvent<ApiDataEvent>(API_DATA_EVENT, { detail: { cmd, key, value } }));
+  } catch { /* 广播失败不影响请求本身 */ }
+}
 
 function remember(key: string, ttl: number, value: unknown) {
   if (!key || !ttl) return;
@@ -125,16 +145,17 @@ function remember(key: string, ttl: number, value: unknown) {
     const oldest = READ_CACHE.keys().next().value;
     if (oldest !== undefined) READ_CACHE.delete(oldest);
   }
-  READ_CACHE.set(key, { value, expires: Date.now() + ttl });
+  READ_CACHE.set(key, { value, expires: Date.now() + ttl, at: Date.now() });
 }
 
-/** 一次真正的请求（含链路异常重试一次），成功后写缓存。 */
+/** 一次真正的请求（含链路异常重试一次），成功后写缓存并广播。 */
 async function request<T>(cmd: string, args: Record<string, unknown> | undefined, key: string, ttl: number): Promise<T> {
   const once = () => invoke(cmd, args) as Promise<T>;
   try {
     const r = await once();
     notifyNet({ ok: true, cmd });
     remember(key, ttl, r);
+    publishData(cmd, key, r);
     return r;
   } catch (e) {
     const msg = typeof e === "string" ? e : "请求失败，请检查网络";
@@ -155,6 +176,7 @@ async function request<T>(cmd: string, args: Record<string, unknown> | undefined
         tracePlayback("api.retry_ok", { cmd });
         notifyNet({ ok: true, cmd });
         remember(key, ttl, r);
+        publishData(cmd, key, r);
         return r;
       } catch (e2) {
         const again = typeof e2 === "string" ? e2 : msg;
@@ -178,18 +200,26 @@ function revalidate(cmd: string, args: Record<string, unknown> | undefined, key:
   void task.then(done, done);
 }
 
-async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+/** `force=true` = 刷新语义：跳过内存缓存与在途合并，直接打一次真实请求并覆盖缓存。
+ *  下拉刷新 / 回前台 / 切 tab 都用它，否则用户"明明刷新了"却还是旧列表。 */
+async function call<T>(cmd: string, args?: Record<string, unknown>, force = false): Promise<T> {
   if (cmd === "line_set" || cmd === "line_custom_set" || cmd === "line_reset" || cmd === "cache_clear") {
     clearApiReadCache();
   }
   const ttl = CACHE_TTL[cmd] ?? 0;
   const key = ttl ? cacheKey(cmd, args) : "";
   /* 1) 缓存命中：没过期直接给；过期但还在 STALE_WINDOW 内 —— 先给旧内容、后台悄悄刷新。
-        这就是"先给缓存后静默刷新"：返回首页/详情不再空屏等网络，下一次进来就是新的。 */
-  if (ttl && key) {
+        这就是"先给缓存后静默刷新"：返回首页/详情不再空屏等网络，刷新结果由
+        publishData 广播回页面，界面自己换新（旧代码刷新完把结果丢了）。 */
+  if (!force && ttl && key) {
     const hit = READ_CACHE.get(key);
     if (hit) {
-      if (hit.expires > Date.now()) return hit.value as T;
+      if (hit.expires > Date.now()) {
+        /* 命中缓存也要补一次真实请求（要求 C）：结果通过 hg:api-data 广播回页面，
+           界面原地换新。3s 内的重复命中不再补，避免同一屏多次渲染打一串请求。 */
+        if (Date.now() - hit.at > 3_000) revalidate(cmd, args, key, ttl);
+        return hit.value as T;
+      }
       if (hit.expires + STALE_WINDOW > Date.now()) {
         revalidate(cmd, args, key, ttl);
         return hit.value as T;
@@ -197,9 +227,11 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> 
       READ_CACHE.delete(key);
     }
   }
+  if (force && key) READ_CACHE.delete(key);
   /* 2) 并发去重：只读命令按 cmd+参数 合并"在途"请求。
-        以前只有配了 TTL 的命令才去重，同一次渲染里两处同时拉同一页会发两遍。 */
-  const dedupeKey = READ_ONLY.has(cmd) ? key || cacheKey(cmd, args) : "";
+        以前只有配了 TTL 的命令才去重，同一次渲染里两处同时拉同一页会发两遍。
+        force 不参与合并：用户主动刷新必须真的出网。 */
+  const dedupeKey = !force && READ_ONLY.has(cmd) ? key || cacheKey(cmd, args) : "";
   if (dedupeKey) {
     const pending = INFLIGHT.get(dedupeKey);
     if (pending) return pending as Promise<T>;
@@ -238,21 +270,22 @@ export const api = {
   accountHistoryRecord: (identity: AccountIdentity, videoId: number, ep: number) => call<unknown>("api_account_history_record", { expectedUserId: identity.expectedUserId, expectedOrigin: identity.expectedOrigin, videoId, ep }),
   accountHistoryDelete: (identity: AccountIdentity, ids: number[]) => call<unknown>("api_account_history_delete", { expectedUserId: identity.expectedUserId, expectedOrigin: identity.expectedOrigin, ids }),
 
-  /** `sort="new"` = 站点「最新上架」（/api/videos?sort=new，实测有效）。 */
-  feed: (page = 1, size = 20, sort?: "new") => call<Paged<VideoCard>>("api_feed", { page, size, sort: sort ?? null }),
-  topics: () => call<{ items: TopicCard[] }>("api_topics"),
-  topic: (slug: string, page = 1, size = 20) => call<TopicDetail>("api_topic", { slug, page, size }),
+  /** `sort="new"` = 站点「最新上架」（/api/videos?sort=new，实测有效）。
+   *  最后一个参数 `force=true` 表示刷新语义（绕过读缓存），下拉刷新/回前台/切 tab 用。 */
+  feed: (page = 1, size = 20, sort?: "new", force = false) => call<Paged<VideoCard>>("api_feed", { page, size, sort: sort ?? null }, force),
+  topics: (force = false) => call<{ items: TopicCard[] }>("api_topics", undefined, force),
+  topic: (slug: string, page = 1, size = 20, force = false) => call<TopicDetail>("api_topic", { slug, page, size }, force),
   tags: () => call<{ categories: TagGroup[] }>("api_tags"),
-  tagVideos: (tag: string, page = 1, size = 20) =>
-    call<Paged<VideoCard>>("api_tag_videos", { tag, page, size }),
+  tagVideos: (tag: string, page = 1, size = 20, force = false) =>
+    call<Paged<VideoCard>>("api_tag_videos", { tag, page, size }, force),
   postTag: (tag: string, page = 1, size = 20) =>
     call<Paged<Post>>("api_post_tag", { tag, page, size }),
-  category: (cate: string, page = 1, size = 20, sort?: string) =>
-    call<Paged<VideoCard>>("api_category", { cate, page, size, sort: sort ?? null }),
-  originalVideos: (cate: string, page = 1, size = 20, sort?: string) =>
-    call<Paged<VideoCard>>("api_original_videos", { cate, page, size, sort: sort ?? null }),
-  rank: (kind: "hot" | "recommend" | "potential") =>
-    call<{ type: string; items: RankItem[] }>("api_rank", { kind }),
+  category: (cate: string, page = 1, size = 20, sort?: string, force = false) =>
+    call<Paged<VideoCard>>("api_category", { cate, page, size, sort: sort ?? null }, force),
+  originalVideos: (cate: string, page = 1, size = 20, sort?: string, force = false) =>
+    call<Paged<VideoCard>>("api_original_videos", { cate, page, size, sort: sort ?? null }, force),
+  rank: (kind: "hot" | "recommend" | "potential", force = false) =>
+    call<{ type: string; items: RankItem[] }>("api_rank", { kind }, force),
   /** 全站搜索。`kind` 省略时后端只搜短剧；吃瓜帖要显式传 "post"（issue #34）。 */
   search: (q: string, page = 1, size = 20, kind?: "video" | "post") =>
     call<{ items: VideoCard[]; pagination: Paged<VideoCard>["pagination"]; keyword: string }>(
@@ -263,16 +296,16 @@ export const api = {
     call<{ items: Post[]; pagination: Paged<Post>["pagination"]; keyword: string }>(
       "api_search", { q, page, size, kind: "post" },
     ),
-  searchHot: () => call<{ items: HotSearchVideo[] }>("api_search_hot"),
-  posts: (page = 1, size = 20, sort?: string) =>
-    call<Paged<Post>>("api_posts", { page, size, sort: sort ?? null }),
-  blogPosts: (cate: "" | "gossip" | "reviews" = "", page = 1) =>
-    call<Paged<Post>>("api_blog_posts", { cate: cate || null, page }),
-  post: (id: number) => call<Post & { content?: string; video_url?: string }>("api_post", { id }),
+  searchHot: (force = false) => call<{ items: HotSearchVideo[] }>("api_search_hot", undefined, force),
+  posts: (page = 1, size = 20, sort?: string, force = false) =>
+    call<Paged<Post>>("api_posts", { page, size, sort: sort ?? null }, force),
+  blogPosts: (cate: "" | "gossip" | "reviews" = "", page = 1, force = false) =>
+    call<Paged<Post>>("api_blog_posts", { cate: cate || null, page }, force),
+  post: (id: number, force = false) => call<Post & { content?: string; video_url?: string }>("api_post", { id }, force),
   /** 吃瓜帖视频：详情里 video_url 恒为空，地址由 playback 接口下发（可能多段）。 */
   postPlayback: (id: number) => call<{ mode?: number; videos?: { index: number; url: string }[] }>("api_post_playback", { id }),
 
-  video: (id: number) => call<Detail>("api_video", { id }),
+  video: (id: number, force = false) => call<Detail>("api_video", { id }, force),
   play: (id: number, ep: number) => call<PlayInfo>("api_play", { id, ep }),
 
   comments: (id: number, ep: number, page = 1, size = 20) =>
@@ -294,9 +327,9 @@ export const api = {
   },
   postComments: (id: number, page: number, size: number) => call<CommentPage>("api_post_comments", { id, page, size }),
   postCategories: () => call<{ items: PostCategory[] }>("api_post_categories"),
-  postCategory: (route: string, page = 1, size = 20, sort?: string) =>
-    call<Paged<Post>>("api_post_category", { route, page, size, sort: sort ?? null }),
-  related: (id: number) => call<{ items: VideoCard[] }>("api_related", { id }),
+  postCategory: (route: string, page = 1, size = 20, sort?: string, force = false) =>
+    call<Paged<Post>>("api_post_category", { route, page, size, sort: sort ?? null }, force),
+  related: (id: number, force = false) => call<{ items: VideoCard[] }>("api_related", { id }, force),
   following: (page = 1, size = 20) => call<Paged<VideoCard>>("api_following", { page, size }),
   user: (id: number) => call<UserProfile>("api_user", { id }),
   userStats: (id: number) => call<{ user_id: number; like_count: number; following: number; followers: number; video_count: number; post_count: number }>("api_user_stats", { id }),

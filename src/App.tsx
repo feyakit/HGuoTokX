@@ -122,7 +122,7 @@ function MainTabs({ wide, pageActive, bottomInset }: { wide: boolean; pageActive
   // First visits mount on demand; subsequent switches preserve queries, scroll and playback state.
   return <>
     <div className={visible("home")} inert={!pageActive || tab !== "home"} aria-hidden={!pageActive || tab !== "home"}>{mounted("home") && <Home active={pageActive && tab === "home"} bottomInset={bottomInset} />}</div>
-    <div className={visible("posts")} inert={!pageActive || tab !== "posts"} aria-hidden={!pageActive || tab !== "posts"}>{mounted("posts") && <Suspense fallback={<PageLoading />}><PostsPage wide={wide} embedded /></Suspense>}</div>
+    <div className={visible("posts")} inert={!pageActive || tab !== "posts"} aria-hidden={!pageActive || tab !== "posts"}>{mounted("posts") && <Suspense fallback={<PageLoading />}><PostsPage wide={wide} embedded active={pageActive && tab === "posts"} /></Suspense>}</div>
     <div className={visible("category")} inert={!pageActive || tab !== "category"} aria-hidden={!pageActive || tab !== "category"}>{mounted("category") && <Suspense fallback={<PageLoading />}><Category wide={wide} active={pageActive && tab === "category"} /></Suspense>}</div>
     <div className={visible("profile")} inert={!pageActive || tab !== "profile"} aria-hidden={!pageActive || tab !== "profile"}>{mounted("profile") && <Suspense fallback={<PageLoading />}><Profile wide={wide} /></Suspense>}</div>
   </>;

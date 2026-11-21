@@ -109,8 +109,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     }
     return request;
   }, [accountScope, store.lineEpoch]);
-  const requestPlay = useCallback((id: number, episode: number) => {
+  /* 播放地址永不缓存：force=true 时先丢掉在途/已完成的那条，重新问服务器。
+     CDN token 会过期，"复用上次的地址"就是用户看到 403 / 卡首帧的原因。 */
+  const requestPlay = useCallback((id: number, episode: number, force = false) => {
     const key = `${accountScope}:${store.lineEpoch}:${id}:${episode}`;
+    if (force) playRequests.current.delete(key);
     let request = playRequests.current.get(key);
     if (!request) {
       request = api.play(id, episode).finally(() => {
@@ -163,6 +166,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const [hevcUrls, setHevcUrls] = useState<Record<string, string>>({});
   const [playingKey, setPlayingKey] = useState("");
   const [proxyRetry, setProxyRetry] = useState(0);
+  /* 播放地址重取：每个 playKey 只自动重试一次，避免坏源无限循环 */
+  const [playBust, setPlayBust] = useState(0);
+  const playRetried = useRef<Record<string, boolean>>({});
   const [relatedByVideo, setRelatedByVideo] = useState<Record<string, VideoCard[]>>({});
 
   const playbackClock = useMemo(() => createPlaybackClock(), []);
@@ -759,12 +765,12 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, curId, kind, allowed, panel, relatedKey, relatedByVideo]);
 
-  /* 拉播放地址 */
+  /* 拉播放地址：每次进集/回到前台播放都重新问一次（api_play 不缓存，见 api.ts 的 CACHE_TTL）。
+     playBust 由「403/404 自动重取一次」推进。 */
   useEffect(() => {
     if (!active || !curId || !allowed) return;
-    if (playUrls[playKey]) return;
     let alive = true;
-    requestPlay(curId, curEp)
+    requestPlay(curId, curEp, true)
       .then((info) => {
         if (!alive || !isCurrentPlayback()) return;
         const streamUrl = info?.streams?.main || info?.video_url;
@@ -794,7 +800,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       .catch((e) => { if (alive) setErr((e as Error).message || "取播放地址失败"); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, curId, curEp, proxyRetry, allowed, permissionKey, requestPlay]);
+  }, [active, curId, curEp, proxyRetry, allowed, permissionKey, playBust, requestPlay]);
 
   /* 当前集拿到地址后再预取下一集，避免首帧加载期间争抢网络。 */
   useEffect(() => {
@@ -1672,6 +1678,17 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   }}
                   onError={(m) => {
                     if (!isCurrentPlayback()) return;
+                    /* CDN token 过期会表现为 403/404/410 或 hls 的 networkError：
+                       自动重取一次播放地址再重试，不把这条错误丢给用户。 */
+                    if ((/\b(403|404|410)\b/.test(m) || /networkError/i.test(m)) && !playRetried.current[playKey]) {
+                      playRetried.current[playKey] = true;
+                      setPlayUrls((prev) => { const next = { ...prev }; delete next[playKey]; return next; });
+                      setHevcUrls((prev) => { const next = { ...prev }; delete next[playKey]; return next; });
+                      setErr(""); setWaiting(true);
+                      setPlayBust((n) => n + 1);
+                      toast("播放地址已刷新，正在重试", "info");
+                      return;
+                    }
                     setErr(m); setWaiting(false);
                     if (useHevc) {
                       const v = videoRef.current?.el();

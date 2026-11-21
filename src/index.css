@@ -4,6 +4,7 @@
 @source "../index.html";
 @import "./styles/ios.css";
 @import "./styles/shelf.css";
+@import "./styles/pull-refresh.css";
 
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
