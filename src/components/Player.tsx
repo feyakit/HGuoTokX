@@ -47,6 +47,22 @@ export default function Player({
   const proxyRecovery = useProxyPlaybackRecovery(videoRef, src, activity, trace);
   const [playing, setPlaying] = useState(false);
   const [waiting, setWaiting] = useState(false);
+  /* 短暂 HLS 缓冲（waiting→playing 几百毫秒内结束）不闪整屏转圈（上游 issue #165，PR #166）：
+     媒体事件进入 waiting 延迟 300ms 再显示；seek/重试是用户动作，立即显示；退出 waiting 立即取消。 */
+  const [showWaiting, setShowWaiting] = useState(false);
+  const waitingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearWaitingTimer = () => { if (waitingTimer.current) { clearTimeout(waitingTimer.current); waitingTimer.current = null; } };
+  const enterWaiting = (delayed: boolean) => {
+    clearWaitingTimer();
+    if (delayed) {
+      waitingTimer.current = setTimeout(() => { waitingTimer.current = null; setShowWaiting(true); }, 300);
+    } else {
+      setShowWaiting(true);
+    }
+    setWaiting(true);
+  };
+  const leaveWaiting = () => { clearWaitingTimer(); setShowWaiting(false); setWaiting(false); };
+  useEffect(() => clearWaitingTimer, []);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [rate, setRate] = useState(1);
@@ -58,7 +74,7 @@ export default function Player({
       const video = videoRef.current;
       if (!video || !activity.isActive()) return;
       requestSeek(target, `legacy_${input}`);
-      setWaiting(true);
+      enterWaiting(false);
       if (hlsRef.current) {
         try { hlsRef.current.startLoad(target); } catch { /* ignore */ }
       }
@@ -72,7 +88,7 @@ export default function Player({
     const video = videoRef.current;
     if (!video || !src) return;
     setErrMsg("");
-    setWaiting(false);
+    leaveWaiting();
     const resume = proxyRecovery.resume();
     const source = playbackSource(src, Hls.isSupported());
     let disconnectNative: (() => void) | undefined;
@@ -114,7 +130,7 @@ export default function Player({
         onFatal: data => {
           const detail = `${data.type}/${data.details}/${data.response?.code ?? ""}/${String(data.reason ?? "").slice(0, 80)}`;
           (window as unknown as { __hlsErr?: string }).__hlsErr = detail;
-          setErrMsg(detail); setWaiting(false); setPlaying(false);
+          setErrMsg(detail); leaveWaiting(); setPlaying(false);
           if (data.type !== Hls.ErrorTypes.NETWORK_ERROR && data.type !== Hls.ErrorTypes.MEDIA_ERROR) {
             hls.destroy(); hlsRef.current = null;
           }
@@ -137,7 +153,7 @@ export default function Player({
       disconnectNative = connectNativeMedia(video, source, {
         isCurrent: () => latestSource.current === src && videoRef.current === video,
         onReady: () => { if (activity.isPlayWanted() && !resume) activity.play("native_autoplay", true); },
-        onError: message => { trace("source.transport_error"); setWaiting(false); setPlaying(false); setErrMsg(message); },
+        onError: message => { trace("source.transport_error"); leaveWaiting(); setPlaying(false); setErrMsg(message); },
       });
     }
 
@@ -174,7 +190,7 @@ export default function Player({
 
   const retry = () => {
     if (!activity.isActive()) return;
-    setErrMsg(""); setWaiting(true); setPlaying(false);
+    setErrMsg(""); enterWaiting(false); setPlaying(false);
     proxyRecovery.retry("manual", true);
   };
 
@@ -204,15 +220,15 @@ export default function Player({
         onClick={toggle}
         onPlay={() => { if (activity.isActive()) { setPlaying(true); onTogglePlay?.(true); } }}
         onPause={() => { setPlaying(false); onTogglePlay?.(false); }}
-        onWaiting={() => setWaiting(true)}
-        onPlaying={() => { if (activity.isActive()) { setWaiting(false); setErrMsg(""); onPlaying?.(); } }}
-        onSeeked={() => setWaiting(false)}
+        onWaiting={() => enterWaiting(true)}
+        onPlaying={() => { if (activity.isActive()) { leaveWaiting(); setErrMsg(""); onPlaying?.(); } }}
+        onSeeked={() => leaveWaiting()}
         onTimeUpdate={(e) => setTime((e.target as HTMLVideoElement).currentTime)}
         onLoadedMetadata={(e) => setDuration((e.target as HTMLVideoElement).duration || 0)}
         onEnded={() => { if (activity.isActive()) onEnded?.(); }}
         onError={() => {
           if (hlsRef.current) return;
-          setWaiting(false);
+          leaveWaiting();
           setPlaying(false);
           setErrMsg(mediaErrorMessage(videoRef.current?.error ?? null));
         }}
@@ -225,7 +241,7 @@ export default function Player({
         </div>
       )}
 
-      {waiting && !errMsg && (
+      {showWaiting && !errMsg && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <Loader className="w-9 h-9 spinner" />
         </div>
