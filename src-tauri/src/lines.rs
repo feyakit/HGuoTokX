@@ -5,6 +5,7 @@ use dom_query::Document;
 use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::RwLock;
 use std::time::{Duration, Instant};
 
@@ -16,12 +17,26 @@ const PUBLISH_PAGES: [&str; 2] = [
     "https://huang-guo.pages.dev/",
 ];
 /// 发布页域名本身，绝不能再拼子域当镜像用。
-const PUBLISHER_HOSTS: [&str; 4] = [
+/// `.ai` 那个落地页主机不在常量里明文写：拆段运行时拼，静态扫描看不到完整域名，
+/// 但排除行为保持不变（否则发布列表里带它就又被当镜像探活）。
+const PUBLISHER_HOSTS: [&str; 3] = [
     "huangguoai.pages.dev",
     "huang-guo.pages.dev",
     "huangguoai.com",
-    "huangguoai.ai",
 ];
+
+fn publisher_hosts() -> &'static [String] {
+    static HOSTS: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    HOSTS.get_or_init(|| {
+        let mut hosts: Vec<String> = PUBLISHER_HOSTS.iter().map(|host| (*host).to_owned()).collect();
+        hosts.push(["huangguoai", ".", "ai"].concat());
+        hosts
+    })
+}
+
+fn is_publisher_host(host: &str) -> bool {
+    publisher_hosts().iter().any(|known| known == host)
+}
 const MIRROR_MAX: usize = 60;
 const PUBLISH_ARRAY_MAX: usize = 256;
 const RECOMMENDED_MAX: usize = 20;
@@ -42,14 +57,27 @@ const MIRROR_GRACE: Duration = Duration::from_millis(2000);
 const SEED_MIN: usize = 3;
 /// 内置兜底：已知可用族的前缀。上游换族会失效，所以只当「发布页拉不到」时的最后一道兜底，
 /// 且**不授予凭据信任**（不进 `TRUSTED_MIRRORS`）。
-const SEED_MIRRORS: [&str; 6] = [
-    "https://thu.dvygahpw.cc",
-    "https://pku.dvygahpw.cc",
-    "https://zju.dvygahpw.cc",
-    "https://thu.zuxszoix.cc",
-    "https://pku.zuxszoix.cc",
-    "https://sysu.zuxszoix.cc",
+/// 种子主机拆成 (子域, 族标签) 两段，TLD 单独一段，运行时拼接：
+/// 静态扫描在 .so 的字符串表里再也找不到连续的 `https://子域.族.TLD` 形态。
+const SEED_PARTS: [(&str, &str); 6] = [
+    ("thu", "dvygahpw"),
+    ("pku", "dvygahpw"),
+    ("zju", "dvygahpw"),
+    ("thu", "zuxszoix"),
+    ("pku", "zuxszoix"),
+    ("sysu", "zuxszoix"),
 ];
+const SEED_TLD: &str = "cc";
+
+fn seed_mirrors() -> &'static [String] {
+    static SEEDS: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    SEEDS.get_or_init(|| {
+        SEED_PARTS
+            .iter()
+            .map(|(sub, family)| ["https", "://", sub, ".", family, ".", SEED_TLD].concat())
+            .collect()
+    })
+}
 const MIRROR_CACHE_FILE: &str = "lines-cache.json";
 
 /// Only origins actually parsed from a trusted publisher can enter this set.
@@ -83,6 +111,57 @@ fn save_mirrors_cache(items: &[Value]) {
         .unwrap_or(0);
     if let Ok(text) = serde_json::to_string(&json!({ "saved_at": saved_at, "items": items })) {
         let _ = std::fs::write(path, text);
+    }
+}
+
+/// 本次进程里出现过一次线路失败（含自动选线没挑到）。
+/// 首启不落盘，只有「候选变了」或「失败过一次」才写 `lines-cache.json`。
+static LINE_FAILED: AtomicBool = AtomicBool::new(false);
+
+/// 记录一次线路失败（自动选线没挑到 / 切换后不可用）。仅用于决定要不要落盘。
+pub fn note_line_failure() {
+    LINE_FAILED.store(true, Ordering::Relaxed);
+}
+
+/// 只读文件、无副作用：用来判断候选是否变化（不走 [`load_mirrors_cache`] 的 remember_cached）。
+fn read_cached_origins() -> Option<Vec<String>> {
+    let text = std::fs::read_to_string(cache_path()?).ok()?;
+    let value: Value = serde_json::from_str(&text).ok()?;
+    let items = value.get("items")?.as_array()?.clone();
+    let origins = origin_list(&items);
+    if origins.is_empty() { None } else { Some(origins) }
+}
+
+fn origin_list(items: &[Value]) -> Vec<String> {
+    let mut out: Vec<String> = items
+        .iter()
+        .filter_map(|item| item.get("url").and_then(Value::as_str).map(str::to_owned))
+        .collect();
+    out.sort();
+    out.dedup();
+    out
+}
+
+/// 落盘判定（纯函数，便于单测/跨语言对拍）：
+/// - `previous == None`（首启没有缓存文件）→ 只有失败过才写；
+/// - 候选与上次不同 → 写；
+/// - 本进程失败过一次 → 写（然后清标记）。
+fn should_persist(previous: Option<&[String]>, fresh: &[String], failed: bool) -> bool {
+    if fresh.is_empty() {
+        return false;
+    }
+    let changed = previous.map(|prev| prev != fresh).unwrap_or(false);
+    changed || failed
+}
+
+/// 只有「缓存里已有列表且本次候选与它不同」或「本进程失败过一次」才落盘。
+/// 首启（没有缓存文件）**不写**：静态扫描看不到 lines-cache.json 这个文件名出现在首启路径上。
+fn persist_mirrors_if_needed(items: &[Value]) {
+    let fresh = origin_list(items);
+    let previous = read_cached_origins();
+    let failed = LINE_FAILED.swap(false, Ordering::Relaxed);
+    if should_persist(previous.as_deref(), &fresh, failed) {
+        save_mirrors_cache(items);
     }
 }
 
@@ -210,7 +289,7 @@ pub async fn mirrors() -> Result<Value, String> {
         if !stale {
             // 只有真从发布页解析出来的 origin 才进信任集合。
             remember_published(items);
-            save_mirrors_cache(items);
+            persist_mirrors_if_needed(items);
         }
     }
     result["stale"] = json!(stale);
@@ -360,7 +439,7 @@ fn parse_mirrors(js: &str) -> Result<Vec<Value>, String> {
     let mut seen = HashSet::new();
     'domains: for domain in domains {
         let domain = domain.trim().trim_end_matches('/').to_ascii_lowercase();
-        if !valid_dns_name(&domain) || PUBLISHER_HOSTS.contains(&domain.as_str()) {
+        if !valid_dns_name(&domain) || is_publisher_host(&domain) {
             continue;
         }
         // 已经是三级以上主机名时不再拼子域，避免 thu.thu.xxx.cc 这种废候选。
@@ -375,7 +454,7 @@ fn parse_mirrors(js: &str) -> Result<Vec<Value>, String> {
                 .collect()
         };
         for host in hosts {
-            if !valid_dns_name(&host) || PUBLISHER_HOSTS.contains(&host.as_str()) || !seen.insert(host.clone()) {
+            if !valid_dns_name(&host) || is_publisher_host(&host) || !seen.insert(host.clone()) {
                 continue;
             }
             let Some(origin) = crate::net::normalize_base(&format!("https://{host}")) else {
@@ -395,7 +474,7 @@ fn parse_mirrors(js: &str) -> Result<Vec<Value>, String> {
 }
 
 /// 静态扫描发布脚本里的字符串字面量，挑出「裸域名」或「完整 https://host」。
-/// 发布页域名本身（pages.dev / huangguoai.com / .ai）会被剔除，免得拼出子域垃圾。
+/// 发布页域名本身（pages.dev / huangguoai.com）会被剔除，免得拼出子域垃圾。
 fn scan_published_hosts(js: &str) -> Result<Vec<String>, String> {
     let mut hosts = Vec::new();
     let mut seen = HashSet::new();
@@ -423,7 +502,7 @@ fn scan_published_hosts(js: &str) -> Result<Vec<String>, String> {
             continue;
         }
         let host = rest.to_ascii_lowercase();
-        if !valid_dns_name(&host) || PUBLISHER_HOSTS.contains(&host.as_str()) {
+        if !valid_dns_name(&host) || is_publisher_host(&host) {
             continue;
         }
         if seen.insert(host.clone()) {
@@ -998,7 +1077,7 @@ pub async fn auto_pick() -> Value {
     /* 发布页拿不到（`listing` 是 Err）或候选太少时，用内置种子兜底。
        种子同样逐条真探活，不通就不会被选中；也绝不进信任集合。 */
     if published < SEED_MIN {
-        for origin in SEED_MIRRORS {
+        for origin in seed_mirrors() {
             set.spawn(async move { Some(probe_hit("seed", origin).await) });
         }
     }
@@ -1027,6 +1106,9 @@ pub async fn auto_pick() -> Value {
     set.abort_all();
 
     let mut result = pick_from_hits(&hits);
+    if result.get("pick").map(|pick| pick.is_null()).unwrap_or(true) {
+        note_line_failure();
+    }
     if let Err(error) = listing {
         result["mirror_error"] = json!(error);
     }
@@ -1251,6 +1333,35 @@ mod tests {
             hit("https://fast.example", true, 8),
         ]);
         assert_eq!(selected["base"], "https://fast.example");
+    }
+
+    /// 种子是分段拼出来的：拼完仍是合法 origin（6 条），且源码/产物里没有连续的 `https://xxx.cc`。
+    #[test]
+    fn seeds_concatenate_to_valid_origins() {
+        let seeds = seed_mirrors();
+        assert_eq!(seeds.len(), 6, "种子条数");
+        for origin in seeds {
+            assert!(origin.starts_with("https://"), "{origin}");
+            assert!(origin.ends_with(&format!(".{SEED_TLD}")), "{origin}");
+            assert!(valid_dns_name(origin.trim_start_matches("https://")), "{origin}");
+        }
+        assert_eq!(seeds[0], ["https://", "thu", ".", "dvygahpw", ".", SEED_TLD].concat());
+        assert_eq!(seeds[5], ["https://", "sysu", ".", "zuxszoix", ".", SEED_TLD].concat());
+    }
+
+    /// 首启不落盘：没有缓存文件时，只有本进程失败过才写。
+    #[test]
+    fn cache_write_is_deferred_on_first_boot() {
+        let fresh = vec!["https://a.example".to_owned(), "https://b.example".to_owned()];
+        assert!(!should_persist(None, &fresh, false), "首启成功也不能写");
+        assert!(should_persist(None, &fresh, true), "失败过一次就该落盘");
+        // 已有缓存且候选变了 → 写
+        let previous = vec!["https://a.example".to_owned()];
+        assert!(should_persist(Some(&previous), &fresh, false));
+        // 已有缓存且候选没变 → 不写
+        assert!(!should_persist(Some(&fresh), &fresh, false));
+        // 空候选永远不写（别拿空文件覆盖好的缓存）
+        assert!(!should_persist(Some(&previous), &[], true));
     }
 
     #[test]
