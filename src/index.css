@@ -789,3 +789,8 @@ html[data-fx="low"] .hg-lb-blur { display: none; }
 .hg-vfade { position: absolute; left: 0; right: 0; height: 56px; pointer-events: none; }
 .hg-vfade-top { top: 0; background: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0) 100%); }
 .hg-vfade-bottom { bottom: 0; background: linear-gradient(to top, #000 0%, rgba(0, 0, 0, 0) 100%); }
+
+/* 图片加载完成后彻底关掉过渡与合成层抖动：滚动中不再变化（吃瓜/列表"闪"的防御） */
+.hg-img-ready { transition: none !important; will-change: auto; }
+/* 图片占位用与页面同色的深底，避免占位→图片之间出现一亮一暗的闪 */
+.ios-image { background-color: #0b0c10; }

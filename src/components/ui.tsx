@@ -1,6 +1,6 @@
 import { Button, Image, Surface } from "./ios/controls";
 import React, { useState } from "react";
-import { cover, platform } from "../api";
+import { cover, logLine, platform } from "../api";
 export { Sheet, Modal } from "./ios/overlays";
 import { useStore } from "../store";
 import { Loader } from "./ios/effects";
@@ -136,10 +136,15 @@ function ImageLoad({ url, alt, className, eager, raw, loadingIndicator }: {
       {!ok && !err && <div className="absolute inset-0 shimmer" />}
       {loadingIndicator && !ok && <div className="absolute inset-0 grid place-items-center"><Loader label="封面加载中" /></div>}
       {err && !loadingIndicator && <div className="ios-image-error" role="img" aria-label={alt || "封面暂不可用"}>HG</div>}
-      {url && <Image src={retryUrl} alt={alt} loading={eager ? "eager" : "lazy"}
+      {url && <Image src={retryUrl} alt={alt} loading={eager ? "eager" : "lazy"} decoding="async"
         onLoad={() => { setOk(true); setErr(false); }}
-        onError={() => { if (!raw && attempt < 2) setAttempt(attempt + 1); else setErr(true); }}
-        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${ok ? "opacity-100" : "opacity-0"}`} draggable={false} />}
+        onError={() => {
+          /* 真机上偶发失败（代理抖动/断流）：记一条，滚动中"闪"能据此定位是解码还是重挂载 */
+          logLine(`[img] error attempt=${attempt} src=${url.slice(0, 80)}`);
+          if (!raw && attempt < 2) setAttempt(attempt + 1); else setErr(true);
+        }}
+        /* 淡入只做一次：加载完就不再带 transition，避免任何后续 className 变化重播淡入（滚动中会看成"闪"） */
+        className={`absolute inset-0 w-full h-full object-cover ${ok ? "opacity-100 hg-img-ready" : "opacity-0 transition-opacity duration-300"}`} draggable={false} />}
     </div>
   );
 }
