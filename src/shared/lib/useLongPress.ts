@@ -23,8 +23,13 @@ export type LongPressProps = {
   onDragStart?: (event: Preventable) => void;
 };
 
+/** 抑制标记的封顶存活时间：长按后若浏览器一直没补 click（例如手势被系统接管），
+ *  800ms 后自动失效——否则「抑制状态」会洩到下一次毫不相关的点击上。 */
+const SUPPRESS_TTL_MS = 800;
+
 export function useLongPress(onLongPress?: () => void) {
   const timer = useRef<number | undefined>(undefined);
+  const suppressTimer = useRef<number | undefined>(undefined);
   const start = useRef<{ x: number; y: number } | null>(null);
   const suppressed = useRef(false);
 
@@ -33,19 +38,34 @@ export function useLongPress(onLongPress?: () => void) {
     timer.current = undefined;
     start.current = null;
   };
-  useEffect(() => clear, []);
+  const clearSuppression = () => {
+    window.clearTimeout(suppressTimer.current);
+    suppressTimer.current = undefined;
+    suppressed.current = false;
+  };
+  useEffect(() => () => { clear(); clearSuppression(); }, []);
 
-  const releaseSuppressed = () => { window.setTimeout(() => { suppressed.current = false; }, 0); };
-  const fire = () => {
+  /* 长按抬手后浏览器会补一个 click：抑制标记只能由「那次 click 自己」消费（consumeSuppressedClick），
+     或用封顶时间兜底。**不能**在 pointerup 里定时清掉——click 比 setTimeout 晚到几毫秒，
+     清了就等于没抑制：收藏多选会「刚选中又被取消」、标签长按会连带打开内容。 */
+  const armSuppression = () => {
     suppressed.current = true;
+    window.clearTimeout(suppressTimer.current);
+    suppressTimer.current = window.setTimeout(() => {
+      suppressed.current = false;
+      suppressTimer.current = undefined;
+    }, SUPPRESS_TTL_MS);
+  };
+  const fire = () => {
     clear();
+    armSuppression();
     onLongPress?.();
   };
 
   const longPressProps: LongPressProps = !onLongPress ? {} : {
     onPointerDown: event => {
       if (event.pointerType === "mouse" && event.button !== 0) return;
-      suppressed.current = false;
+      clearSuppression();
       clear();
       start.current = { x: event.clientX, y: event.clientY };
       timer.current = window.setTimeout(fire, LONG_PRESS_MS);
@@ -54,19 +74,20 @@ export function useLongPress(onLongPress?: () => void) {
       const origin = start.current;
       if (origin && Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > MOVE_TOLERANCE) clear();
     },
-    onPointerUp: () => { clear(); if (suppressed.current) releaseSuppressed(); },
-    onPointerCancel: () => { clear(); suppressed.current = false; },
+    /* 只清「按住计时」，不动抑制标记：余波 click 还在路上。 */
+    onPointerUp: () => clear(),
+    onPointerCancel: () => { clear(); clearSuppression(); },
     onContextMenu: event => {
       event.preventDefault();
-      if (!suppressed.current) { fire(); releaseSuppressed(); }
+      if (!suppressed.current) fire();
     },
     onDragStart: event => event.preventDefault(),
   };
 
-  /** true = 这次 click 是长按的余波，调用方应直接返回。 */
+  /** true = 这次 click 是长按的余波，调用方应直接返回。消费即失效（不用定时器抢先清）。 */
   const consumeSuppressedClick = () => {
     if (!suppressed.current) return false;
-    suppressed.current = false;
+    clearSuppression();
     return true;
   };
 
