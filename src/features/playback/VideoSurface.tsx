@@ -246,9 +246,13 @@ const VideoSurface = forwardRef<VideoHandle, Props>(function VideoSurface(
       ref={videoRef}
       poster={poster}
       playsInline
-      /* 微光要读画面像素：iOS 走原生 HLS 时 src 是我们自己的媒体代理（回 Origin 的 ACAO），
-         加 anonymous 后 canvas 才不被污染；hls.js(MSE blob) 路径下这个属性无副作用。 */
-      crossOrigin={ambientGlow && platform === "ios" ? "anonymous" : undefined}
+      /* 微光要读画面像素：src 是本地媒体代理（LOCAL /hls、/seg），而页面源是
+         http://tauri.localhost（安卓）/tauri://localhost —— **跨源**。不加 crossOrigin，
+         canvas 会被判污染，drawImage 抛 SecurityError，微光静默不生效（安卓上一直是这个状态）。
+         所以只要开微光就加 anonymous：MSE(blob:) 路径这个属性无副作用，
+         本地代理在 lib.rs 会按请求 Origin 回 Access-Control-Allow-Origin（无 Origin 时回 *），
+         /img 不受影响（它走 <img>，本来就有跨源能力）。 */
+      crossOrigin={ambientGlow ? "anonymous" : undefined}
       preload="auto"
       muted={muted}
       loop={loop}

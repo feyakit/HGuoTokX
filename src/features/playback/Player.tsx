@@ -217,6 +217,9 @@ export default function Player({
         ref={videoRef}
         poster={poster}
         playsInline
+        /* 与 VideoSurface 同一条：微光要从画面采样，媒体来自 hg.localhost 而页面在
+           tauri.localhost，跨源必须带 anonymous 才能读像素（安卓上原来漏了）。 */
+        crossOrigin={ambientGlow ? "anonymous" : undefined}
         preload="auto"
         muted={muted}
         loop={loop}
