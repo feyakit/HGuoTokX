@@ -323,7 +323,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const blocked = filtering && tagsReady ? blockReason(currentTags) : null;
   const allowed = !filtering || (tagsReady && !blocked);
   const closePanels = () => { setPanel(null); setTagMenu(false); };
-  const openTagMenu = () => { setPanel(null); setTagMenu(true); };
+  const [tagMenuSeed, setTagMenuSeed] = useState<string[]>([]);
+  const openTagMenu = (seed: string[] = []) => { setTagMenuSeed(seed); setPanel(null); setTagMenu(true); };
   const openTag = (tag: string) => { closePanels(); store.push({ kind: "tag", tag, name: tag }); };
   useEffect(() => { setTagMenu(false); }, [curId, store.lineEpoch, accountScope]);
   useEffect(() => { if (blocked && mode === "home" && active) onBlocked?.(curId); }, [blocked, mode, active, curId, onBlocked]);
@@ -1758,7 +1759,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
 
   const detailBody = (onClose?: () => void) => <VideoDetailsPanel meta={meta} videoId={curId} episodeCount={episodes.length}
     related={related} following={store.follows.includes(meta.authorId)} followPending={followPending}
-    onFollow={() => void onFollow()} onTag={openTag} onClose={onClose} onPreferences={openTagMenu}
+    onFollow={() => void onFollow()} onTag={openTag} onClose={onClose} onPreferences={() => openTagMenu()}
+    onBlockTag={tag => openTagMenu([tag])}
     onAuthor={() => { if (meta.authorId > 0) { closePanels(); store.push({ kind: "user", id: meta.authorId, name: meta.author }); } }}
     onRelated={video => { closePanels(); store.push({ kind: "feed", videoIds: related.map(item => item.id), index: related.findIndex(item => item.id === video.id), title: "相关推荐" }); }} />;
 
@@ -2659,7 +2661,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
             className={`hg-chip w-9 h-9 rounded-full flex items-center justify-center pressable elev-1${clean ? " hidden" : ""}`}><ILockF size={17} /></Button>
         </div>
       )}
-      <TagBlockMenu open={active && tagMenu} tags={meta.tags} onClose={() => setTagMenu(false)} />
+      <TagBlockMenu open={active && tagMenu} tags={meta.tags} initialSelected={tagMenuSeed} onClose={() => setTagMenu(false)} />
       {/* 线路面板：播放页内就地弹，不跳设置页 */}
       {!isDesktop && <LineQuickSwitch open={active && lineOpen} onClose={() => setLineOpen(false)} />}
       {/* 控件收起（clean）时的拦截层：这一层的存在保证"点哪里都只会唤出控件"，
