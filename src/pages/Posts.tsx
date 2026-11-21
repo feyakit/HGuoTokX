@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { api, cover, fmt, isMobile } from "../api";
 import type { Post } from "../types";
 import { useStore } from "../store";
+import { markScrolling } from "../scrollFx";
 import { copyText } from "../clipboard";
 import { Empty, Img, Sheet } from "../components/ui";
 import { CommentsPanel } from "../components/Panels";
@@ -423,7 +424,8 @@ export function PostsPage({ onBack, embedded = false, active = true }: { onBack?
 
       <div ref={scrollRef} aria-busy={loading} className="flex-1 scroll-y hg-page-x relative z-10"
         style={{ paddingBottom: "calc(110px + var(--sab, 0px))" }}
-        onScroll={checkScrollBottom}>
+        onScroll={() => { markScrolling(); checkScrollBottom(); }}
+        onTouchMove={markScrolling}>
         <PullIndicator pull={pull.pull} refreshing={pull.refreshing} progress={pull.progress} />
         {items.length ? (
           <FilteredContent items={items} scopeKey={`posts-${sort}-${cate}`}>

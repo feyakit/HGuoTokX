@@ -790,7 +790,35 @@ html[data-fx="low"] .hg-lb-blur { display: none; }
 .hg-vfade-top { top: 0; background: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0) 100%); }
 .hg-vfade-bottom { bottom: 0; background: linear-gradient(to top, #000 0%, rgba(0, 0, 0, 0) 100%); }
 
+/* iOS（WKWebView）长列表里"滚动时图片空一下"的标准防御：
+   让每张图各自持有一个合成层，WebKit 就不会在滚动/内存压力下把已解码的 backing store 丢掉再重绘成白块。 */
+.ios-image {
+  -webkit-transform: translateZ(0); transform: translateZ(0);
+  -webkit-backface-visibility: hidden; backface-visibility: hidden;
+}
+/* 图片本身只做 object-fit，不叠 filter/mask（会阻止层保留） */
+.ios-image img { -webkit-filter: none; filter: none; }
+
 /* 图片加载完成后彻底关掉过渡与合成层抖动：滚动中不再变化（吃瓜/列表"闪"的防御） */
 .hg-img-ready { transition: none !important; will-change: auto; }
 /* 图片占位用与页面同色的深底，避免占位→图片之间出现一亮一暗的闪 */
 .ios-image { background-color: #0b0c10; }
+
+/* shimmer 在纯黑主题下不能比 #1A1A1E 更亮（原来用 --p-s1/--p-s3 的浅灰，滚动中像闪白块） */
+.hg-shimmer-dark {
+  /* 覆盖 .shimmer 的浅色渐变（--p-s1/--p-s3）：黑主题下最亮也不超过 #1A1A1E */
+  background-color: #141418;
+  background-image: linear-gradient(110deg, #141418 0%, #1a1a1e 50%, #141418 100%);
+  background-size: 200% 100%;
+}
+
+/* ===== 滚动期动效闸门（iOS 整页闪的加固）=====
+   滚动中只保留必要的合成，关掉无限 shimmer 与入场动画；150ms 停手后自动恢复。
+   iOS 上这些动画会让 WebKit 每帧重建层，表现为整页闪一下。 */
+html.is-scrolling .shimmer,
+html.is-scrolling .hg-stagger > *,
+html.is-scrolling .hg-crossfade,
+html.is-scrolling .ios-image-error { animation: none !important; }
+/* 滚动中的卡片不再叠 backdrop-filter（iOS 每帧重算 → 掉帧/闪） */
+html.is-scrolling .backdrop-blur-md,
+html.is-scrolling .backdrop-blur-sm { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }

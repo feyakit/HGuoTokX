@@ -119,13 +119,18 @@ export function Img({ src, alt = "", className = "", eager = false, raw = false,
 }) {
   const url = raw ? src : cover(src);
   // 每个地址独立持有状态，避免换图后的 effect 把缓存命中的 onLoad 重置掉。
-  return <ImageLoad key={url} url={url} alt={alt} className={className} eager={eager} raw={raw} loadingIndicator={loadingIndicator} />;
+  /* key 用稳定的原始 src（不能是可变的派生 url）；同一条目重新渲染不会再挂载新组件 */
+  return <ImageLoad key={src || alt} url={url} alt={alt} className={className} eager={eager} raw={raw} loadingIndicator={loadingIndicator} />;
 }
+
+/* 本进程内已经成功加载过的图：命中就别再放 shimmer、也别再做淡入。
+   滚动中"闪一下白"就是 shimmer 重播造成的，这个集合直接从源头掐掉。 */
+const LOADED_IMAGES = new Set<string>();
 
 function ImageLoad({ url, alt, className, eager, raw, loadingIndicator }: {
   url: string; alt: string; className: string; eager: boolean; raw: boolean; loadingIndicator: boolean;
 }) {
-  const [ok, setOk] = useState(false);
+  const [ok, setOk] = useState(() => !!url && LOADED_IMAGES.has(url));
   const [err, setErr] = useState(false);
   const [attempt, setAttempt] = useState(0);
   /* 封面走本地解密代理，网络抖动会偶发失败：同地址重试两次再落到占位。
@@ -133,11 +138,12 @@ function ImageLoad({ url, alt, className, eager, raw, loadingIndicator }: {
   const retryUrl = !url || raw || attempt === 0 ? url : `${url}${url.includes("?") ? "&" : "?"}r=${attempt}`;
   return (
     <div className={`ios-image absolute inset-0 overflow-hidden ${className}`} data-ui="image-frame">
-      {!ok && !err && <div className="absolute inset-0 shimmer" />}
+      {/* shimmer 只在"从没加载过 + 首屏还没回来"时出现；加载过的图永远不再闪 */}
+      {!ok && !err && !LOADED_IMAGES.has(url) && <div className="absolute inset-0 shimmer hg-shimmer-dark" />}
       {loadingIndicator && !ok && <div className="absolute inset-0 grid place-items-center"><Loader label="封面加载中" /></div>}
       {err && !loadingIndicator && <div className="ios-image-error" role="img" aria-label={alt || "封面暂不可用"}>HG</div>}
       {url && <Image src={retryUrl} alt={alt} loading={eager ? "eager" : "lazy"} decoding="async"
-        onLoad={() => { setOk(true); setErr(false); }}
+        onLoad={() => { LOADED_IMAGES.add(url); setOk(true); setErr(false); }}
         onError={() => {
           /* 真机上偶发失败（代理抖动/断流）：记一条，滚动中"闪"能据此定位是解码还是重挂载 */
           logLine(`[img] error attempt=${attempt} src=${url.slice(0, 80)}`);
