@@ -2,6 +2,7 @@ import { Button, Surface, TextArea } from "../components/ios/controls";
 import { useEffect, useRef, useState } from "react";
 import { api, APP_VERSION, hostOf, logLine, type UpdateInfo } from "../api";
 import { useStore } from "../store";
+import { middleEllipsis } from "../textFit";
 import { Modal } from "../components/ui";
 import { clearDetailCache } from "../detailFast";
 import LinePicker from "../components/LinePicker";
@@ -126,8 +127,8 @@ export default function Settings({ onBack }: { onBack: () => void; wide: boolean
       <div className="ios-page-body flex-1 min-h-0 scroll-y">
         <div className="hg-set-column">
           <h1 className="ios-page-title">设置</h1>
-          <p className="hg-set-status">
-            {lineError || `${lineHost ? `当前线路 ${lineHost}` : "线路读取中…"} · ${autoLineOn ? "自动选线已开" : "手动选线"}`}
+          <p className="hg-set-status" title={lineHost || undefined}>
+            {lineError || `${lineHost ? `当前线路 ${middleEllipsis(lineHost, 22)}` : "线路读取中…"} · ${autoLineOn ? "自动选线已开" : "手动选线"}`}
           </p>
 
           <SettingsGroup title="播放">

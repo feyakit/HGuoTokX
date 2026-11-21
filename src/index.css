@@ -788,9 +788,8 @@ html[data-fx="low"] .hg-scrim-dither { display: none; }
 }
 .hg-lb-blur > * { transform: scale(1.18); }
 html[data-fx="low"] .hg-lb-blur { display: none; }
-.hg-vfade { position: absolute; left: 0; right: 0; height: 56px; pointer-events: none; z-index: 2; }
-.hg-vfade-top { top: 0; background: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0) 100%); }
-.hg-vfade-bottom { bottom: 0; background: linear-gradient(to top, #000 0%, rgba(0, 0, 0, 0) 100%); }
+/* 装饰层硬约束：任何覆盖层都不得遮挡视频可见区域，因此不再提供"视频内黑渐隐"类 */
+.hg-vfade { display: none !important; }
 
 /* iOS（WKWebView）长列表里"滚动时图片空一下"的标准防御：
    让每张图各自持有一个合成层，WebKit 就不会在滚动/内存压力下把已解码的 backing store 丢掉再重绘成白块。 */

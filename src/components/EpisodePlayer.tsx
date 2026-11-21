@@ -1820,12 +1820,11 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                     现在用**实测**判断：只有"容器比画面更方"（真会留黑边）才渲染，
                     不再用 !portraitVideo 这种静态条件（元数据没到时会误判）。
                     全屏/横行（vpLandscape / rotated）本来铺满，自然不满足条件。 */}
+                {/* 只保留虚化垫底：虚化本身就是渐变过渡，额外再叠 56px 黑渐隐会盖住画面
+                    （这两层以前挂在视频包裹层上，父级高度=视频高 221，上下各吃 56px，
+                    16:9 视频看起来就只剩一条窄带 —— P0）。 */}
                 {!isDesktop && letterbox && (
-                  <>
-                    <div aria-hidden="true" className="hg-lb-blur"><Img src={posterUrl} alt="" /></div>
-                    <span aria-hidden="true" className="hg-vfade hg-vfade-top" />
-                    <span aria-hidden="true" className="hg-vfade hg-vfade-bottom" />
-                  </>
+                  <div aria-hidden="true" className="hg-lb-blur"><Img src={posterUrl} alt="" /></div>
                 )}
                 <VideoSurface ref={videoRef} src={playUrl} poster={posterUrl} autoPlay active={active && !tagMenu && !showHoldGuide} muted={muted}
                   diagnosticContext={{ active: active && !tagMenu && !showHoldGuide, view: mode, kind, video_id: curId, episode: curEp }}

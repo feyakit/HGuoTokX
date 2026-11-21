@@ -445,7 +445,9 @@ body { background:var(--motion-paper); }
 .hg-set-column { width:100%; max-width:720px; margin-inline:auto; padding:0 14px calc(40px + var(--sab,0px)); }
 .hg-set-header { display:flex; align-items:center; padding:calc(var(--sat,0px) + 8px) 14px 4px; }
 .hg-set-status { margin:8px 0 0; padding:0 4px; font-size:12px; line-height:1.5; color:#8A8AA3;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+/* 域名这类长值：安卓字宽比 iOS 多 3–6%，一律单行 + 省略，绝不允许折到第二行 */
+.hg-set-status, .hg-set-row-sub, .hg-set-row-value { word-break: keep-all; overflow-wrap: normal; }
 
 .hg-set-group { margin-top:24px; }
 .hg-set-group-title { margin:0 0 8px; padding:0 4px; font-size:12px; font-weight:600; letter-spacing:.02em; color:#8A8AA3; }
@@ -461,9 +463,10 @@ body { background:var(--motion-paper); }
   background:rgba(255,255,255,.08); }
 .hg-set-row-copy { flex:1; min-width:0; display:flex; flex-direction:column; }
 .hg-set-row-title { font-size:15px; font-weight:500; line-height:1.3; color:var(--p-on); overflow-wrap:anywhere; }
+/* 标题行也是单行：域名/线路名放进 sub 时不许顶出第二行 */
 .hg-set-row-sub { margin-top:3px; font-size:12px; line-height:1.35; color:#9CA3AF;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.hg-set-row-value { flex:none; max-width:40%; font-size:12.5px; color:#9CA3AF;
+.hg-set-row-value { flex:0 1 auto; max-width:45%; min-width:0; font-size:12.5px; color:#9CA3AF;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .hg-set-row-icon { flex:none; display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px;
   border-radius:8px; background:rgba(255,255,255,.07); color:#C9C9D1; }

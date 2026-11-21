@@ -58,7 +58,9 @@ export function SettingsRow({ icon, title, sub, right, danger, disabled, onClick
   return (
     <Button className={`hg-set-row${danger ? " is-danger" : ""}`} disabled={disabled} onClick={onClick}>
       {copy}
-      {right.kind === "value" && right.value ? <span className="hg-set-row-value">{right.value}</span> : null}
+      {right.kind === "value" && right.value ? (
+        <span className="hg-set-row-value" title={String(right.value)}>{right.value}</span>
+      ) : null}
       <span className="hg-set-row-chev" aria-hidden="true"><IChevR size={14} /></span>
     </Button>
   );
