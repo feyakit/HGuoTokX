@@ -7,8 +7,9 @@ import { useStore } from "../../shared/model/store";
 import { Empty, Img, Modal } from "../../shared/ui/ui";
 import { MediaCard } from "../../shared/ui/cards";
 import { useContentPreferences } from "../../shared/model/contentPreferences";
-import { IBack, IBoltF, IChevR, IClock, IMenuFollow, IMenuHistory, IMenuLikes, IPlayF, ISettings, IStar } from "../../shared/ui/icons";
+import { IBack, IBoltF, ICheck, IChevR, IClock, IMenuFollow, IMenuHistory, IMenuLikes, IPlayF, ISettings, IStar } from "../../shared/ui/icons";
 import { useVisibilityRefresh } from "../../shared/lib/dataFreshness";
+import { useLongPress } from "../../shared/lib/useLongPress";
 import { useAutoLoadMore } from "./useAutoLoadMore";
 
 function GuestCatAvatar() {
@@ -584,7 +585,7 @@ export function FavoritesPage({ onBack, wide, initialTab = "video" }: { onBack: 
 
 function FavoritesContent({ onBack, wide, initialTab }: { onBack: () => void; wide: boolean; initialTab: "video" | "post" }) {
   const { blockReason } = useContentPreferences();
-  const { user, favs, postFavs, push, setTab, accountSync, syncAccount } = useStore();
+  const { user, favs, postFavs, push, setTab, accountSync, syncAccount, setCollected, toast } = useStore();
   const [favTab, setFavTab] = useState<"video" | "post">(initialTab);
   const [cache, setCache] = useState<Record<number, Detail>>({});
   const cacheRef = useRef(cache);
@@ -598,6 +599,14 @@ function FavoritesContent({ onBack, wide, initialTab }: { onBack: () => void; wi
   const [reload, setReload] = useState(0);
   const [loading, setLoading] = useState(false);
   const [postLoading, setPostLoading] = useState(false);
+  /* 多选移除（上游 #168）：只做收藏页，历史页不动。 */
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [removeOpen, setRemoveOpen] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState("");
+  const removalPending = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const visibleIds = favs.slice(0, limits.video);
   const cards = visibleIds.map(id => cache[id]).filter((card): card is Detail => !!card);
@@ -618,6 +627,41 @@ function FavoritesContent({ onBack, wide, initialTab }: { onBack: () => void; wi
     resetKey: favTab,
     onMore: () => setLimits(prev => ({ ...prev, [favTab]: prev[favTab] + 12 })),
   });
+
+  const selectionMode = selectedIds.length > 0;
+  const toggleSelected = (id: number) => setSelectedIds(cur => cur.includes(id) ? cur.filter(item => item !== id) : [...cur, id]);
+  const beginSelection = (id: number) => setSelectedIds(cur => cur.includes(id) ? cur : [...cur, id]);
+  const clearSelection = () => { setSelectedIds([]); setRemoveError(""); };
+  const confirmRemoveSelected = async () => {
+    if (removalPending.current || !selectedIds.length) return;
+    removalPending.current = true;
+    setRemoving(true); setRemoveError("");
+    const targets = [...selectedIds];
+    const kind = favTab === "post" ? "post" : "video";
+    try {
+      /* 逐项取消：单条失败不影响其他条，失败项留在选择里可直接重试。 */
+      const failed: number[] = [];
+      for (const id of targets) {
+        try { await setCollected(kind, id, false); } catch { failed.push(id); }
+      }
+      if (failed.length) {
+        setSelectedIds(failed);
+        throw new Error(failed.length === targets.length
+          ? "取消收藏失败，请重试"
+          : `已取消 ${targets.length - failed.length} 项，${failed.length} 项失败，请重试`);
+      }
+      if (mounted.current) {
+        setSelectedIds([]);
+        setRemoveOpen(false);
+        toast(`已取消收藏 ${targets.length} 项`, "info");
+      }
+    } catch (error) {
+      if (mounted.current) setRemoveError(error instanceof Error ? error.message : "取消收藏失败，请重试");
+    } finally {
+      removalPending.current = false;
+      if (mounted.current) setRemoving(false);
+    }
+  };
 
   const favoriteStateUnknown = !!user && !accountSync.favoritesKnown && favs.length === 0 && postFavs.length === 0;
   const favoriteSyncFailed = favoriteStateUnknown && !accountSync.busy;
@@ -694,11 +738,21 @@ function FavoritesContent({ onBack, wide, initialTab }: { onBack: () => void; wi
       <div className="shrink-0 hg-page-x pt-2.5 pb-3 relative z-10">
         <SegmentedControl className="hg-seg-track" role="tablist" aria-label="收藏分类" activeIndex={favTab === "video" ? 0 : 1}>
           <Button role="tab" aria-selected={favTab === "video"} className="ios-segmented-item"
-            onClick={() => setFavTab("video")}>短剧 ({favs.length})</Button>
+            onClick={() => { setFavTab("video"); clearSelection(); }}>短剧 ({favs.length})</Button>
           <Button role="tab" aria-selected={favTab === "post"} className="ios-segmented-item"
-            onClick={() => setFavTab("post")}>吃瓜 ({postFavs.length})</Button>
+            onClick={() => { setFavTab("post"); clearSelection(); }}>吃瓜 ({postFavs.length})</Button>
         </SegmentedControl>
       </div>
+
+      {selectionMode && (
+        <div role="region" aria-label="批量管理"
+          className="shrink-0 hg-page-x pb-2 relative z-20 flex items-center gap-2 text-[13px]">
+          <span className="font-semibold text-on">已选 {selectedIds.length} 项</span>
+          <Button className="ml-auto px-2 text-primary" onClick={clearSelection}>取消</Button>
+          <Button variant="danger" className="rounded-(--r-ctl) px-3"
+            onClick={() => { setRemoveError(""); setRemoveOpen(true); }}>取消收藏</Button>
+        </div>
+      )}
 
       <div ref={favoriteScrollRef} className="flex-1 scroll-y hg-page-x relative z-10" style={{ paddingBottom: "calc(32px + var(--sab, 0px))" }}
         aria-busy={(favTab === "post" ? postLoading : loading) || syncingFavorites}>
@@ -714,34 +768,13 @@ function FavoritesContent({ onBack, wide, initialTab }: { onBack: () => void; wi
               <div className="flex justify-center py-8"><Loader className="w-7 h-7 spinner" /></div>
             ) : postCards.length ? (
               <div className="hg-post-feed">
-                {postCards.map((p) => {
-                  const blocked = blockReason(p.tags);
-                  if (blocked) {
-                    return (
-                      <Button key={p.id} card className="hg-post-card text-left" onClick={() => push({ kind: "post", id: p.id })}
-                        aria-label="该内容命中屏蔽标签，查看提示">
-                        <div className="text-[14px] font-semibold text-mut">已屏蔽内容</div>
-                        <div className="mt-1 text-[12px] text-dim truncate">{blocked}</div>
-                      </Button>
-                    );
-                  }
-                  return (
-                    <div key={p.id} className="hg-post-card" onClick={() => push({ kind: "post", id: p.id })}>
-                      <div className="hg-post-head">
-                        <span className="hg-post-who">
-                          <span className="hg-post-name">{p.author?.name || "吃瓜帖"}</span>
-                          <span className="hg-post-time">{p.publish_time || p.created_at}</span>
-                        </span>
-                      </div>
-                      <div className="hg-post-title">{p.title}</div>
-                      {p.cover && (
-                        <div className="hg-post-art">
-                          <Img src={p.cover} alt="" />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                {postCards.map((p) => (
+                  <FavoritePostCard key={p.id} post={p} blocked={blockReason(p.tags)}
+                    selectionMode={selectionMode} selected={selectedIds.includes(p.id)}
+                    onBegin={() => beginSelection(p.id)}
+                    onToggle={() => toggleSelected(p.id)}
+                    onOpen={() => push({ kind: "post", id: p.id })} />
+                ))}
               </div>
             ) : postFailed.length ? (
               <Empty icon={<IStar size={24} />} title="收藏帖子加载失败"
@@ -769,7 +802,12 @@ function FavoritesContent({ onBack, wide, initialTab }: { onBack: () => void; wi
                   <MediaCard key={c.id} blockedReason={blockReason(c.tags)} title={c.title} cover={c.cover} score={c.score}
                     badge={c.is_finished ? "已完结" : `${c.episode_count} 集`}
                     subtitle={c.tags?.slice(0, 2).join(" · ")}
-                    onOpen={() => push({ kind: "series", id: c.id })} />
+                    selectionMode={selectionMode} selected={selectedIds.includes(c.id)}
+                    onLongPress={() => beginSelection(c.id)}
+                    onOpen={() => {
+                      if (selectionMode) { toggleSelected(c.id); return; }
+                      push({ kind: "series", id: c.id });
+                    }} />
                 ))}
               </div>
             ) : failed.length ? (
@@ -795,6 +833,74 @@ function FavoritesContent({ onBack, wide, initialTab }: { onBack: () => void; wi
               onClick={() => setLimits(prev => ({ ...prev, [favTab]: prev[favTab] + 12 }))}
               className="hg-loadmore">加载更多</Button>)}
       </div>
+
+      <Modal open={removeOpen} onClose={() => { if (!removalPending.current) setRemoveOpen(false); }} label="批量取消收藏">
+        <div className="p-5">
+          <h2 className="text-[18px] font-bold">取消收藏所选内容</h2>
+          <p className="mt-2 text-[14px] text-mut">
+            确认取消收藏选中的 {selectedIds.length} 项内容？观看历史不会受影响。
+            {user ? "当前账号的云端收藏与本机缓存都会更新。" : "此操作只会修改本机记录。"}
+          </p>
+          {removeError && <p role="alert" className="mt-3 text-[13px] text-danger">{removeError}</p>}
+          <div className="mt-4 flex gap-3">
+            <Button variant="secondary" disabled={removing} onClick={() => setRemoveOpen(false)} className="flex-1">取消</Button>
+            <Button variant="danger" disabled={removing || !selectedIds.length} aria-busy={removing}
+              onClick={() => void confirmRemoveSelected()} className="flex-1 rounded-(--r-ctl) px-3">
+              {removing ? "正在取消…" : "确认取消收藏"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+/**
+ * 收藏页的吃瓜卡：从内联 div 提成组件，才能让每张卡各自持有长按计时器（共享一个 hook 实例
+ * 就分不清长按的是哪一张）。
+ */
+function FavoritePostCard({ post, blocked, selectionMode, selected, onOpen, onToggle, onBegin }: {
+  post: Post; blocked?: string | null; selectionMode: boolean; selected: boolean;
+  onOpen: () => void; onToggle: () => void; onBegin: () => void;
+}) {
+  const { longPressProps, consumeSuppressedClick } = useLongPress(onBegin);
+  const press = () => {
+    if (consumeSuppressedClick()) return;
+    if (selectionMode) onToggle();
+    else onOpen();
+  };
+  const className = `hg-post-card is-selectable${selected ? " is-selected" : ""}`;
+  const mark = selectionMode
+    ? <span className="ios-poster-select" aria-hidden="true">{selected && <ICheck size={16} strokeWidth={2.4} />}</span>
+    : null;
+  const label = selectionMode ? `${selected ? "取消选择" : "选择"}${post.title || "该内容"}` : undefined;
+
+  if (blocked) return (
+    <Button card className={className} aria-label={label ?? "该内容命中屏蔽标签，查看提示"}
+      aria-pressed={selectionMode ? selected : undefined} onClick={press} {...longPressProps}>
+      <div className="text-[14px] font-semibold text-mut">已屏蔽内容</div>
+      <div className="mt-1 text-[12px] text-dim truncate">{blocked}</div>
+      {mark}
+    </Button>
+  );
+  return (
+    <div className={className} role="button" tabIndex={0} aria-label={label ?? post.title}
+      aria-pressed={selectionMode ? selected : undefined} onClick={press}
+      onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); press(); } }}
+      {...longPressProps}>
+      <div className="hg-post-head">
+        <span className="hg-post-who">
+          <span className="hg-post-name">{post.author?.name || "吃瓜帖"}</span>
+          <span className="hg-post-time">{post.publish_time || post.created_at}</span>
+        </span>
+      </div>
+      <div className="hg-post-title">{post.title}</div>
+      {post.cover && (
+        <div className="hg-post-art">
+          <Img src={post.cover} alt="" />
+        </div>
+      )}
+      {mark}
     </div>
   );
 }
