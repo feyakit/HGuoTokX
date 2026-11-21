@@ -229,6 +229,9 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const [fsLandscape, setFsLandscape] = useState(false);
   const [heartBurst, setHeartBurst] = useState(0);
   const [seriesEnded, setSeriesEnded] = useState(false);
+  /* 结束态：本剧看完 → 不自动滑进下一部，给「看完 + 推荐 3 部」让用户选 */
+  const [endRecs, setEndRecs] = useState<VideoCard[] | null>(null);
+  const [endBusy, setEndBusy] = useState(false);
   /* 播放页线路：就地小胶囊 + 面板，只有一条线路时不渲染入口 */
   const [lineOpen, setLineOpen] = useState(false);
   const [lineInfo, setLineInfo] = useState<{ label: string; multi: boolean }>({ label: "线路", multi: false });
@@ -697,6 +700,41 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   /* 无限流外壳要知道当前在哪一条：换条时回报一次（换剧/滑到尾部都在这里同步） */
   useEffect(() => { onActiveIndex?.(index); }, [index, onActiveIndex]);
 
+  /** 结束态：拉真实推荐（related 优先，其次 feed），过滤本剧，最多 3 部；不补假卡 */
+  const openEndCard = useCallback(async (regen = false) => {
+    setSeriesEnded(true);
+    showControls();
+    setEndBusy(true);
+    try {
+      const picked: VideoCard[] = [];
+      const seen = new Set<number>([curId]);
+      try {
+        const rel = await api.related(curId, regen);
+        for (const v of rel?.items ?? []) {
+          if (!v || !v.id || !v.cover || seen.has(v.id)) continue;
+          seen.add(v.id); picked.push(v);
+          if (picked.length >= 3) break;
+        }
+      } catch { /* related 失败不阻塞，下面用 feed 兜 */ }
+      if (picked.length < 3) {
+        try {
+          const feed = await api.feed(1, 24, undefined, regen);
+          for (const v of feed?.items ?? []) {
+            if (!v || !v.id || !v.cover || seen.has(v.id)) continue;
+            seen.add(v.id); picked.push(v);
+            if (picked.length >= 3) break;
+          }
+        } catch { /* ignore */ }
+      }
+      setEndRecs(picked.slice(0, 3));
+      logLine(`[endcard] 本剧看完 id=${curId} 推荐=${picked.slice(0, 3).map((v) => `${v.id}:${v.title}`).join(",") || "无"}`);
+    } catch {
+      setEndRecs([]);
+    } finally {
+      setEndBusy(false);
+    }
+  }, [curId, showControls]);
+
   const go = useCallback((delta: number) => {
     const el = boxRef.current;
     if (!el) return;
@@ -712,6 +750,16 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       if (Math.abs(box.scrollTop - target) > step * 0.5) box.scrollTop = target;
     }, 420);
   }, [index, effectiveVideoIds.length, pageStep]);
+
+  /** 点推荐剧：在列表里就滚过去，不在就压一层新的播放页从第 1 集开始 */
+  const openRecommended = useCallback((id: number) => {
+    setSeriesEnded(false);
+    setEndRecs(null);
+    const at = effectiveVideoIds.indexOf(id);
+    if (at >= 0) { go(at - index); return; }
+    store.push({ kind: "feed", videoIds: [id], index: 0, title: "", startEp: 1 });
+  }, [effectiveVideoIds, index, go, store]);
+
 
   /* 「不感兴趣」（v3.0.6 #5）：刷剧流里点了必须立刻换片，不能只是弹个标签面板。
      三件事——① 本地黑名单记账（30 天 / 200 条，见 feedPrefs.ts，下次取数不再给）
@@ -1237,12 +1285,21 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
           return;
         }
         if (swipeEp) {
-          const nb = dramaNeighbor(dir);
-          if (nb) { setEpSlide({ y: 0, animate: false }); go(dir); return; }
-          /* 到列表头尾：回弹 + 轻微震动，不切、也不装作切了 */
+          /* 结束态下上下滑：只关掉结束态回到控件态，不切剧 */
+          if (seriesEnded) {
+            setSeriesEnded(false);
+            setEndRecs(null);
+            setEpSlide({ y: 0, animate: true });
+            setEpPreview(null);
+            showControls();
+            return;
+          }
+          /* 播到最后一集后继续上滑：**不再自动滑进下一部剧**（用户要的是选择权），
+             直接给结束态；下滑同理。 */
           setEpSlide({ y: 0, animate: true });
           setEpPreview(null);
           try { navigator.vibrate?.(8); } catch { /* ignore */ }
+          void openEndCard();
           return;
         }
       }
@@ -1721,7 +1778,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                     if (!isCurrentPlayback()) return;
                     const next = episodes.find((e) => e.ep_num === curEp + 1);
                     if (next) { pickEp(next.ep_num); return; }
-                    if (!endless) { setSeriesEnded(true); showControls(); }
+                    if (!endless) void openEndCard();
                   }}
                   onError={(m) => {
                     if (!isCurrentPlayback()) return;
@@ -1933,29 +1990,12 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                   {!endless && isActive && seriesEnded && (
                     <div className="mx-4 mb-2 inline-flex flex-wrap items-center gap-2 px-3 py-1.5 rounded-full hg-chip-strong backdrop-blur-md text-[12px] elev-2">
                       <span className="text-amber-300 font-semibold">{episodes.length > 1 ? "已播完全剧" : "本集已播完"}</span>
-                      <Button type="button" onClick={() => { setSeriesEnded(false); videoRef.current?.seek(0, "replay"); videoRef.current?.play(); }}
+                      <Button type="button" onClick={() => { setSeriesEnded(false); setEndRecs(null); videoRef.current?.seek(0, "replay"); videoRef.current?.play(); }}
                         className="px-2 py-0.5 rounded-full bg-white/20 text-white font-semibold pressable">
                         重播
                       </Button>
-                      {episodes.length > 1 && curEp !== 1 && (
-                        <Button type="button" onClick={() => { setSeriesEnded(false); pickEp(1); }}
-                          className="px-2 py-0.5 rounded-full bg-white/15 text-white/90 font-semibold pressable">
-                          第 1 集
-                        </Button>
-                      )}
-                      {index < effectiveVideoIds.length - 1 ? (
-                        <Button type="button" onClick={() => { setSeriesEnded(false); go(1); }}
-                          className="px-2 py-0.5 rounded-full bg-primary text-on-primary font-semibold pressable">
-                          下一部
-                        </Button>
-                      ) : kind === "video" && (
-                        <Button type="button" onClick={() => { setSeriesEnded(false); setPanel("detail"); }}
-                          className="px-2 py-0.5 rounded-full bg-white/15 text-white/90 font-semibold pressable">
-                          看推荐
-                        </Button>
-                      )}
                       <Button type="button" aria-label="关闭播完提示"
-                        onClick={() => setSeriesEnded(false)}
+                        onClick={() => { setSeriesEnded(false); setEndRecs(null); }}
                         className="w-5 h-5 rounded-full flex items-center justify-center text-white/70">
                         <IClose size={12} />
                       </Button>
@@ -2205,6 +2245,46 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
             else go(1);
           }}
         />
+      )}
+
+      {/* 结束态（本剧看完）：不自动滑进下一部，给「看完 + 推荐 3 部」让用户选。
+          推荐全部来自真实接口（api_related 优先，其次 api_feed），过滤本剧，不足 3 部就少显示。 */}
+      {!isDesktop && !endless && seriesEnded && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center px-6" data-hg-control="endcard">
+          <div className="w-full max-w-[340px] rounded-2xl bg-black/72 backdrop-blur-md p-5 text-center elev-2">
+            <p className="text-[15px] font-bold text-white">本剧已看完</p>
+            <p className="mt-1 text-[13px] font-semibold text-white/85 clamp-1">{details[curId]?.title || meta.title}</p>
+            <p className="mt-0.5 text-[12px] text-white/45">共 {episodes.length || 1} 集</p>
+
+            {endBusy ? (
+              <div className="mt-4 flex items-center justify-center py-6"><Loader label="正在找同类剧" /></div>
+            ) : (endRecs && endRecs.length > 0) ? (
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                {endRecs.slice(0, 3).map((v) => (
+                  <Button key={v.id} card aria-label={`看《${v.title}》`} onClick={() => openRecommended(v.id)}
+                    className="text-left min-w-0">
+                    <span className="relative block w-full overflow-hidden rounded-lg" style={{ paddingTop: "133.3333%" }}>
+                      <Img src={v.cover} alt="" />
+                    </span>
+                    <span className="mt-1 block text-[12px] leading-[1.35] text-white/90 clamp-2">{v.title}</span>
+                    <span className="block text-[11px] text-white/45">
+                      {(v.total_episodes || v.episode_count) ? `共 ${v.total_episodes || v.episode_count} 集` : ""}
+                    </span>
+                  </Button>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-4 text-[12px] text-white/45">暂时没有更多同类剧</p>
+            )}
+
+            <div className="mt-4 flex gap-2">
+              <Button onClick={() => { setSeriesEnded(false); setEndRecs(null); pickEp(1); }}
+                className="hg-ctrl flex-1 justify-center text-white pressable">重新看第 1 集</Button>
+              <Button onClick={() => void openEndCard(true)}
+                className="hg-ctrl flex-1 justify-center text-white pressable">换一部</Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* 移动端：倍速状态 / 锁定提示 */}
