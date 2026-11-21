@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import Feed from "../src/components/Feed";
-import { AppProvider } from "../src/store";
-import { api } from "../src/api";
+import Feed from "../src/features/feed/Feed";
+import { AppProvider } from "../src/shared/model/store";
+import { api } from "../src/shared/api/api";
 import "../src/index.css";
-import { flushPlaybackLog, initPlaybackLog, playbackLogApi, setPlaybackLog } from "../src/playbackDiagnostics";
-import Settings from "../src/pages/Settings";
-import Player from "../src/components/Player";
+import { flushPlaybackLog, initPlaybackLog, playbackLogApi, setPlaybackLog } from "../src/shared/diagnostics/playbackDiagnostics";
+import Settings from "../src/features/settings/Settings";
+import Player from "../src/features/playback/Player";
 import Hls from "hls.js";
 
 // 仅将自定义媒体协议映射到本地测试服务器；播放器、HLS 和鼠标事件均使用真实实现。

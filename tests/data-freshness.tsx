@@ -13,15 +13,15 @@
  */
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import Home from "../src/pages/Home";
-import Category from "../src/pages/Category";
-import { PostsPage } from "../src/pages/Posts";
-import Search, { RankPage } from "../src/pages/Search";
-import SeriesDetail from "../src/pages/SeriesDetail";
-import { HistoryPage } from "../src/pages/Profile";
-import { AppProvider } from "../src/store";
-import { api, clearApiReadCache } from "../src/api";
-import { ToastHost } from "../src/components/ui";
+import Home from "../src/features/feed/Home";
+import Category from "../src/features/category/Category";
+import { PostsPage } from "../src/features/posts/Posts";
+import Search, { RankPage } from "../src/features/search/Search";
+import SeriesDetail from "../src/features/feed/SeriesDetail";
+import { HistoryPage } from "../src/features/account/Profile";
+import { AppProvider } from "../src/shared/model/store";
+import { api, clearApiReadCache } from "../src/shared/api/api";
+import { ToastHost } from "../src/shared/ui/ui";
 import "../src/index.css";
 
 type Call = { cmd: string; args: Record<string, unknown>; at: number };

@@ -19,7 +19,7 @@ const check = (name, fn) => {
 };
 
 try {
-  const G = await vite.ssrLoadModule("/src/playerGestures.ts");
+  const G = await vite.ssrLoadModule("/src/features/playback/playerGestures.ts");
   const {
     GESTURE, lockAxis, seekSecondsPer100px, seekDeltaSeconds, canSeek, snapSeek,
     doubleTapSeek, doubleTapAction, tapZone, relativeSeek, isEdgeBackStart, isDoubleTap, rotationLocked, episodeIntent, judgeGesture,

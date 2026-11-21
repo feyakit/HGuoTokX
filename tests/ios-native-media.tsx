@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import VideoSurface, { type VideoHandle } from "../src/components/VideoSurface";
-import Player from "../src/components/Player";
+import VideoSurface, { type VideoHandle } from "../src/features/playback/VideoSurface";
+import Player from "../src/features/playback/Player";
 
 type Configuration = { component: "surface" | "player"; src: string; mounted: boolean; active: boolean; muted: boolean; autoPlay: boolean };
 const fixture = (window as unknown as { nativeMediaFixture: {
