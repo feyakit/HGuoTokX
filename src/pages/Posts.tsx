@@ -573,11 +573,17 @@ export function PostDetail({ id, onBack, active = true }: { id: number; onBack: 
       </header>
 
       <div role="progressbar" aria-label="阅读进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={readProgress} className="hg-aurora-progress shrink-0 relative z-10"><div style={{ width: `${readProgress}%` }} /></div>
-      <div ref={scrollRef} data-post-scroll className="flex-1 scroll-y" style={{ paddingBottom: "calc(84px + var(--sab, 0px))" }} onScroll={event => {
-        const el = event.currentTarget;
-        const range = el.scrollHeight - el.clientHeight;
-        setReadProgress(range > 0 ? Math.round(el.scrollTop / range * 100) : 100);
-      }}>
+      {/* 详情页原来没接 markScrolling()（只有列表页接了），所以 html.is-scrolling 这个
+          动效闸门在详情页从来没生效过 —— 滚动中任何无限动画都照跑。这里补上。 */}
+      <div ref={scrollRef} data-post-scroll className="flex-1 scroll-y"
+        style={{ paddingBottom: "calc(84px + var(--sab, 0px))" }}
+        onScroll={event => {
+          markScrolling();
+          const el = event.currentTarget;
+          const range = el.scrollHeight - el.clientHeight;
+          setReadProgress(range > 0 ? Math.round(el.scrollTop / range * 100) : 100);
+        }}
+        onTouchMove={markScrolling}>
         {err ? (
           <Empty icon={<IFireF size={26} />} title="加载失败" sub={err} action="重试" onAction={() => setReload(n => n + 1)} />
         ) : !currentPost ? (
