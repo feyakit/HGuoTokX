@@ -145,31 +145,66 @@ async function speedMenuKeyboardChecks(page, paused) {
   await page.keyboard.press("Enter");
   await assertSelection(1);
 }
+// 契约以 EpisodePlayer.tsx:1396-1401 的注释为准：
+//   · 单击两态：控件收起 → 唤出；控件可见 → 播放/暂停（单击不再"收起控件"）
+//   · 双击（280ms 内第二下）三分法：左 1/3 退 5s、中 1/3 播放/暂停、右 1/3 进 5s
 async function gestureChecks(page) {
   await loadPlayer(page);
-  const video = page.locator('video');
-  const tap = () => page.evaluate(() => {
-    const surface = document.querySelector('video').parentElement.parentElement;
+  const video = page.locator("video");
+  const clean = () => page.locator(".player-root").getAttribute("data-clean");
+  const playing = () => video.evaluate(v => !v.paused);
+  const tapAt = (fx, fy = 0.5) => page.evaluate(([fx, fy]) => {
+    const surface = document.querySelector("video").parentElement.parentElement;
     const bounds = surface.getBoundingClientRect();
-    for (const type of ['pointerdown','pointerup']) surface.dispatchEvent(new PointerEvent(type, {
-      bubbles:true, pointerId:91, pointerType:'touch', button:0, clientX:bounds.x+100, clientY:bounds.y+100,
+    const clientX = bounds.x + bounds.width * fx;
+    const clientY = bounds.y + bounds.height * fy;
+    for (const type of ["pointerdown", "pointerup"]) surface.dispatchEvent(new PointerEvent(type, {
+      bubbles: true, pointerId: 91, pointerType: "touch", button: 0, clientX, clientY,
     }));
-  });
-  const clean = () => page.locator('.player-root').getAttribute('data-clean');
+  }, [fx, fy]);
+
+  // 1) 控件可见时单击 = 播放/暂停，且不得收起控件
+  assert.equal(await clean(), "false", "Player must start with controls visible");
+  assert(await playing(), "Fixture must start playing");
+  await tapAt(0.5);
+  await page.waitForFunction(() => document.querySelector("video").paused);
+  assert.equal(await clean(), "false", "Tap with controls visible toggles playback and must not hide chrome");
+
+  // 2) 控件收起时单击 = 唤出，且要早于双击等待窗口（跟手）
+  await tapAt(0.5);
+  await page.waitForFunction(() => !document.querySelector("video").paused);
+  await page.waitForFunction(() => document.querySelector(".player-root")?.dataset.clean === "true");
   const start = Date.now();
-  await tap();
-  await page.waitForFunction(() => document.querySelector('.player-root')?.dataset.clean === 'true');
-  const singleTapMs = Date.now()-start;
-  assert(singleTapMs < 230, 'First tap must update before the old double-tap waiting window');
-  await page.waitForTimeout(250);
-  await tap();
-  await page.waitForFunction(() => document.querySelector('.player-root')?.dataset.clean === 'false');
-  await page.waitForTimeout(250);
-  const wasPaused = await video.evaluate(v=>v.paused);
-  await tap(); await tap();
-  await page.waitForFunction(paused => document.querySelector('video').paused !== paused, wasPaused);
-  assert.equal(await clean(), 'false', 'Double tap restores chrome and toggles playback once');
-  return {singleTapMs};
+  await tapAt(0.5);
+  await page.waitForFunction(() => document.querySelector(".player-root")?.dataset.clean === "false");
+  const singleTapMs = Date.now() - start;
+  assert(singleTapMs < 230, "Waking the controls must land before the double-tap window");
+
+  // 3) 中区双击 = 一次播放/暂停，且不收起控件
+  await page.waitForTimeout(320);
+  const playingBefore = await playing();          // true = 双击前正在播
+  await tapAt(0.5);                               // 真实双击间隔约 100–250ms，不要塞在同一毫秒
+  await page.waitForTimeout(120);
+  await tapAt(0.5);
+  await page.waitForFunction(state => document.querySelector("video").paused === state, playingBefore);
+  assert.equal(await clean(), "false", "Mid-zone double tap must not hide chrome");
+
+  // 4) 左 1/3 双击 = 退 5s（右 1/3 对称，方向由 tapZone 决定）
+  await video.evaluate(v => { v.currentTime = 20; });
+  await page.waitForFunction(() => document.querySelector("video").currentTime > 18);
+  await page.waitForTimeout(320);
+  const beforeSeek = await video.evaluate(v => v.currentTime);
+  await tapAt(0.15);
+  await page.waitForTimeout(120);
+  await tapAt(0.15);
+  await page.waitForFunction(t => document.querySelector("video").currentTime < t - 3.5, beforeSeek);
+  const afterSeek = await video.evaluate(v => v.currentTime);
+  return {
+    singleTapMs,
+    tap_toggles_playback: true,
+    double_tap_mid_toggles: true,
+    double_tap_left_seek_back: +(beforeSeek - afterSeek).toFixed(2),
+  };
 }
 
 async function seekChecks(page, legacy) {
@@ -369,13 +404,33 @@ async function lifecyclePlayerCheck(page, legacy) {
 async function lifecycleCheck(page) {
   const feed = await lifecyclePlayerCheck(page, false);
   const legacy = await lifecyclePlayerCheck(page, true);
-  // The video mounts after the parent's inactive effect, just like a late API response.
+  // 晚挂载 + 非活跃：产品契约是「非活跃页不附 HLS 引擎、不起播」（EpisodePlayer 在 playUrl
+  // 解析前只渲染封面占位，连 <video> 都不挂）。原断言要求「video 已挂载 + 引擎已 attach +
+  // 暂停」，与实现不符；改为断言真实契约，并补一条「激活后必须真起播」，避免变成空断言。
   await page.goto(`${report.ui}/tests/player-seek.html?diagnostics=1&inactive=1&proxy=${encodeURIComponent(report.media)}`);
-  await page.waitForFunction(() => document.querySelector("video") && window.playerSeekFixture.engineState().levels > 0);
+  await page.waitForFunction(() => document.querySelector(".player-root"));
   await page.waitForTimeout(350);
-  assert(await page.locator("video").evaluate(v => v.paused), "Late-mounted inactive player must not autoplay");
-  assert.equal(await page.evaluate(() => window.playerSeekFixture.engineState().loading), false);
-  return { feed, legacy, late_mount_paused: true };
+  const lateInactive = await page.evaluate(() => {
+    const video = document.querySelector("video");
+    const engine = window.playerSeekFixture.engineState() || {};
+    return {
+      shell: !!document.querySelector(".player-root"),
+      mounted: !!video,
+      playing: !!video && !video.paused,
+      levels: engine.levels ?? 0,
+      loading: engine.loading === true,
+    };
+  });
+  assert(lateInactive.shell, "Late-mounted inactive page must still render the player shell");
+  assert.equal(lateInactive.playing, false, "Late-mounted inactive player must not autoplay");
+  assert.equal(lateInactive.levels, 0, "Inactive player must not attach an HLS engine");
+  assert.equal(lateInactive.loading, false, "Inactive player must not load fragments");
+  await page.evaluate(() => window.playerSeekFixture.setActive(true));
+  await page.waitForFunction(() => {
+    const video = document.querySelector("video");
+    return !!video && !video.paused && video.currentTime > 1;
+  });
+  return { feed, legacy, late_mount_inactive: lateInactive, late_mount_activated_plays: true };
 }
 
 async function proxyRecoveryCheck(page) {
