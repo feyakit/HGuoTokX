@@ -245,8 +245,11 @@ const VideoSurface = forwardRef<VideoHandle, Props>(function VideoSurface(
       muted={muted}
       loop={loop}
       onClick={onClick}
-      className={`w-full h-full ${transparentBg ? "bg-transparent" : "bg-black"} ${fit === "cover" ? "object-cover" : "object-contain"} ${className}`}
-      style={{ opacity: ready ? 1 : 0, transition: "opacity .35s" }}
+      /* 注意：项目里并没有 .bg-black 这个工具类（构建产物里查不到），
+         <video> 的黑底是浏览器默认样式。所以这里必须用内联样式显式改掉，
+         否则 letterbox 下视频会自己把整块舞台涂黑，把下面的虚化盖死。 */
+      style={{ opacity: ready ? 1 : 0, transition: "opacity .35s", ...(transparentBg ? { backgroundColor: "transparent" } : null) }}
+      className={`w-full h-full ${transparentBg ? "hg-video-transparent" : ""} ${fit === "cover" ? "object-cover" : "object-contain"} ${className}`}
       onLoadedData={(e) => {
         const v = e.target as HTMLVideoElement;
         setReady(true);

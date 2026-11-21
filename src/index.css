@@ -816,3 +816,6 @@ html.is-scrolling .shimmer,
 html.is-scrolling .hg-stagger > *,
 html.is-scrolling .hg-crossfade,
 html.is-scrolling .ios-image-error { animation: none !important; }
+
+/* letterbox 时 video 不能自己涂黑（浏览器默认样式是黑的），否则虚化层永远看不见 */
+.hg-video-transparent { background-color: transparent !important; }
