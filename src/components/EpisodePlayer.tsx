@@ -1807,8 +1807,10 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                 <div style={{
                   position: "absolute",
                   inset: 0,
-                  /* 视频与其装饰层同一个层叠上下文：虚化层 z-index:-1 只会待在视频下面 */
+                  /* 视频显式压在虚化之上（虚化 z-index:0 / 视频层 z-index:1），
+                     不用负值 —— 负 z-index 在带背景的父级里会被吃掉。 */
                   isolation: "isolate",
+                  zIndex: 1,
                   transform: isDesktop ? undefined : `translate3d(${zoom.x}px, ${zoom.y + epSlide.y}px, 0) scale(${zoom.s})`,
                   opacity: isDesktop ? 1 : Math.max(0.55, 1 - Math.abs(epSlide.y) / 140),
                   transformOrigin: "center center",
@@ -1825,7 +1827,14 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                     （这两层以前挂在视频包裹层上，父级高度=视频高 221，上下各吃 56px，
                     16:9 视频看起来就只剩一条窄带 —— P0）。 */}
                 {!isDesktop && letterbox && (
-                  <div aria-hidden="true" className="hg-lb-blur"><Img src={posterUrl} alt="" /></div>
+                  /* 虚化垫底用 poster 直接做 background-image：
+                     不再嵌 <Img>，从根上避开 .ios-image 的黑底 / shimmer / 错误态
+                     （那些在加载慢或失败时会把整条信箱区变成纯黑）。 */
+                  <div
+                    aria-hidden="true"
+                    className="hg-lb-blur"
+                    style={posterUrl ? { backgroundImage: `url("${posterUrl}")` } : undefined}
+                  />
                 )}
                 <VideoSurface ref={videoRef} src={playUrl} poster={posterUrl} autoPlay active={active && !tagMenu && !showHoldGuide} muted={muted}
                   diagnosticContext={{ active: active && !tagMenu && !showHoldGuide, view: mode, kind, video_id: curId, episode: curEp }}

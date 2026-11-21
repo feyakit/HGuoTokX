@@ -782,12 +782,17 @@ html[data-fx="low"] .hg-scrim-dither { display: none; }
 
 /* ===== 横版片源竖屏播放（letterbox）：虚化同帧 + 边缘渐隐，消掉画面底边那条硬线 ===== */
 .hg-lb-blur {
-  /* 永远垫在视频下面：父级 isolation:isolate 建立独立层叠上下文，这里 -1 只会落到视频之后，
-     不会盖住画面（横屏全屏时也不会出现"封面颜色盖住视频"）。 */
-  position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: -1;
+  /* 垫在视频下面：视频层 z-index:1，这里 z-index:0；都用正值，
+     避免负 z-index 被带背景的父级吃掉。 */
+  position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0;
+  /* 用 poster 直接做背景：不经过 <Img>，不受 .ios-image 黑底 / shimmer / 错误态影响 */
+  background-size: cover; background-position: center; background-repeat: no-repeat;
+  /* 兜底色：poster 还没到 / 拿不到时，信箱区是深灰而不是纯黑（纯黑看起来像"没做"） */
+  background-color: #14141c;
   -webkit-filter: blur(28px) brightness(.55); filter: blur(28px) brightness(.55);
 }
-.hg-lb-blur > * { transform: scale(1.18); }
+/* 兜底：万一虚化层里将来又放了图，也不允许 .player-root .ios-image 的黑底生效 */
+.hg-lb-blur .ios-image, .hg-lb-blur .ios-image-error { background-color: transparent !important; }
 html[data-fx="low"] .hg-lb-blur { display: none; }
 /* 装饰层硬约束：任何覆盖层都不得遮挡视频可见区域，因此不再提供"视频内黑渐隐"类 */
 .hg-vfade { display: none !important; }
@@ -819,3 +824,6 @@ html.is-scrolling .ios-image-error { animation: none !important; }
 
 /* letterbox 时 video 不能自己涂黑（浏览器默认样式是黑的），否则虚化层永远看不见 */
 .hg-video-transparent { background-color: transparent !important; }
+
+/* 视频本体必须显式定位在虚化层之上（虚化 z-index:0，视频 z-index:1） */
+.player-root video { position: relative; z-index: 1; }
