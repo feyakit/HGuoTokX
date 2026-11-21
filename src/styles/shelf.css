@@ -1216,7 +1216,9 @@
 .ios-button.hg-ed-tab[aria-selected="true"] {
   font-size: clamp(17px, 4.8vw, 20px); font-weight: 800; letter-spacing: -0.3px; color: #fff;
 }
-.ios-button.hg-ed-tab[aria-selected="true"]::after {
+/* 选中态下划线：用 ::before 而不是 ::after —— ::after 让给「热区外扩」，
+   两者都是 bottom:0 的 3px 条，视觉不变。 */
+.ios-button.hg-ed-tab[aria-selected="true"]::before {
   content: ""; position: absolute; left: 2px; right: 2px; bottom: 0;
   height: 3px; border-radius: 999px;
   background: linear-gradient(90deg, #FFB347 0%, #FF6B57 48%, #7C5CFF 100%);
@@ -2039,11 +2041,15 @@
 .hg-tl-author { position: relative; }
 .hg-tl-author::after { content: ""; position: absolute; inset: -13px 0; }
 
-/* ---------- ④ 顶栏频道 tab（41×35 / 33×30）：本轮**未修**。
-   试过 ::before{inset:-7px 0}，但外层 .hg-ed-tabs 是 overflow-x:auto 的滚动容器，
-   纵向也会裁，实测 elementFromPoint 在 ±6px 处全部落空（伪元素被裁掉）。
-   要真到 44 只能加 padding-block，那会把顶栏撑高 7–14px——与「不动布局」冲突，
-   留给产品决定，这里不放一条假装修好了的死规则。 ---------- */
+/* ---------- ④ 顶栏频道 tab：视觉高 35/30 不动，::after 外扩到 44。
+   关键：外层 .hg-ed-tabs 是 overflow-x:auto，overflow 会把纵向也裁掉（伪元素伸出去就点不到）。
+   解法是给容器加 padding-block:5px + margin-block:-5px —— 外框尺寸完全不变（不撑高顶栏），
+   但 5px 的 padding 让伪元素落在「padding box」里，不再被裁。
+   横向各扩 4px：相邻 tab 的 gap 是 12.5px，不会互相盖住。 ---------- */
+.hg-ed-tabs { padding: 8px 4px; margin: -8px -4px; }
+.ios-button.hg-ed-tab { position: relative; }
+/* 未选中的 tab 只有 30 高：上下各 7px 才到 44（35 高的选中项会到 49，更大不是问题）。 */
+.ios-button.hg-ed-tab::after { content: ""; position: absolute; inset: -8px -4px; }
 
 /* ---------- ⑤ 排序 chip 统一到 32 高（吃瓜 26 / 分类 44 两种尺寸合成一种），热区 44 ---------- */
 .ios-button.hg-sort-pill {
@@ -2081,3 +2087,38 @@
    卡名区也会发白。改成只压封面。 */
 .ios-button.hg-poster:active { background-color: transparent; }
 .ios-button.hg-poster:active .hg-poster-art { opacity: 0.82; }
+
+/* ==================================================================
+   卡片圆角三档（v3.0.6）—— 原来的六档（14/15/16/18/20/22）收敛成三档
+     大容器 / 大卡 / 浮层  → 20   （Hero 轮播、专题头图、详情宽幅区）
+     普通卡片 / 列表行     → 16   （宽画幅卡、榜单行、继续观看、专题小卡、
+                                   板块瓦片、历史卡、快捷入口、旧海报卡、吃瓜行）
+     小 chip / 标签 / 缩略图 → 10 / 999（保持不变：封面角、选集格、缩略图、胶囊）
+   为什么不一刀切：20 和 16 是「层级差」，全站一个值会让大卡和小卡分不出主次。
+   选择器同时写 `.hg-x` 与 `.ios-button.hg-x`：这些类里一半是 <Button card>（0,2,0），
+   只写单类会被原规则压掉。
+   ================================================================== */
+:root { --r-card: 16px; --r-panel: 20px; }
+
+/* —— 20：大容器 / 大卡 —— */
+.hg-spotlight, .ios-button.hg-spotlight,
+.hg-hero, .ios-button.hg-hero,
+.hg-topic-hero,
+.hg-detail-hero { border-radius: var(--r-panel); }
+
+/* —— 16：普通卡片与列表行 —— */
+.hg-wide-card, .ios-button.hg-wide-card,
+.hg-rank-row-v2, .ios-button.hg-rank-row-v2,
+.hg-recent-card, .ios-button.hg-recent-card,
+.hg-topic-mini, .ios-button.hg-topic-mini,
+.hg-bento-tile, .ios-button.hg-bento-tile,
+.hg-hist-card, .ios-button.hg-hist-card,
+.hg-quick-card, .ios-button.hg-quick-card,
+.hg-topic-card-v2,
+.hg-creator-card,
+.hg-tl-card, .hg-tl-card.is-hero,
+.hg-post-card,
+.hg-podium-card, .ios-button.hg-podium-card,
+.hg-premiere-card,
+.hg-search-hot-item, .ios-button.hg-search-hot-item,
+.ios-poster { border-radius: var(--r-card); }
