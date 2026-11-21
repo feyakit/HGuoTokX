@@ -59,9 +59,12 @@ function syncBackground() {
   }
 }
 
-function DialogFrame({ open, onClose, children, kind, width, label, z }: {
+/* 输入框下方要一起让出的高度：一行 44~50px 的主按钮 + 12px 间距。 */
+const ACTION_TAIL = 62;
+
+function DialogFrame({ open, onClose, children, kind, width, label, z, avoidNativeKeyboard }: {
   open: boolean; onClose: () => void; children: ReactNode;
-  kind: "modal" | "sheet" | "guide"; width?: number; label: string; z?: string;
+  kind: "modal" | "sheet" | "guide"; width?: number; label: string; z?: string; avoidNativeKeyboard?: boolean;
 }) {
   const motion = !matchMedia("(prefers-reduced-motion: reduce)").matches;
   const [mounted, setMounted] = useState(open);
@@ -92,6 +95,38 @@ function DialogFrame({ open, onClose, children, kind, width, label, z }: {
     element.inert = true;
     element.setAttribute("aria-hidden", "true");
   }, [open, mounted]);
+
+  /* 安卓软键盘（上游 205eb02）：WebView 设置了 adjustResize，键盘弹出时可视区变矮，
+     半屏面板跟着变矮，被聚焦的输入框可能掉到面板滚动区之外——用户看不到自己打的字，
+     「登录」按钮也一起被顶出去。这里只在「面板变矮且焦点在输入框上」时移动面板自身的
+     scrollTop，不碰背景、不动 visualViewport，避免把整页顶起来。 */
+  useLayoutEffect(() => {
+    if (!open || !mounted || !avoidNativeKeyboard || typeof ResizeObserver === "undefined") return;
+    const panel = ref.current?.querySelector<HTMLElement>("[role=dialog]");
+    if (!panel) return;
+    let height = panel.clientHeight;
+    const observer = new ResizeObserver(() => {
+      const nextHeight = panel.clientHeight;
+      const shrank = nextHeight < height;
+      height = nextHeight;
+      const active = document.activeElement;
+      if (!shrank || !active?.matches("input, textarea") || !panel.contains(active)) return;
+      const field = active.getBoundingClientRect();
+      const viewport = panel.getBoundingClientRect();
+      if (field.top < viewport.top) {
+        panel.scrollTop += field.top - viewport.top - 12;
+      } else if (field.bottom + ACTION_TAIL > viewport.bottom) {
+        /* 只让输入框可见不够：它下面的「登录/创建账号」按钮会被键盘盖住，
+           用户打完字找不到提交入口。按「输入框 + 一行操作按钮」一起让位，
+           滚到底仍不够时停在最大滚动位置（按钮是表单最后一个元素）。 */
+        const delta = field.bottom + ACTION_TAIL - viewport.bottom + 12;
+        const maximum = panel.scrollHeight - panel.clientHeight;
+        panel.scrollTop = Math.min(maximum, panel.scrollTop + delta);
+      }
+    });
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, [open, mounted, host, avoidNativeKeyboard]);
 
   useLayoutEffect(() => {
     const element = ref.current;
@@ -172,6 +207,7 @@ function DialogFrame({ open, onClose, children, kind, width, label, z }: {
           if (!layers.some(layer => layer.token === token) && event.relatedTarget instanceof HTMLElement
             && !event.currentTarget.contains(event.relatedTarget)) autoFocusPrevious.current = event.relatedTarget;
         }}
+        data-avoid-native-keyboard={avoidNativeKeyboard || undefined}
         aria-hidden={!open || undefined} inert={!open ? true : undefined}>
         {kind !== "guide" && <Button className="ios-overlay-backdrop" aria-label="关闭对话框" onClick={onClose} tabIndex={-1} />}
         <div role="dialog" aria-modal="true" aria-label={label} tabIndex={-1} className="ios-dialog" onKeyDown={event => event.stopPropagation()}
@@ -187,7 +223,7 @@ function DialogFrame({ open, onClose, children, kind, width, label, z }: {
 export function Modal(props: { open: boolean; onClose: () => void; children: ReactNode; width?: number; label?: string }) {
   return <DialogFrame {...props} kind="modal" label={props.label ?? "对话框"} />;
 }
-export function Sheet(props: { open: boolean; onClose: () => void; children: ReactNode; z?: string; label?: string }) {
+export function Sheet(props: { open: boolean; onClose: () => void; children: ReactNode; z?: string; label?: string; avoidNativeKeyboard?: boolean }) {
   return <DialogFrame {...props} kind="sheet" label={props.label ?? "详情面板"} />;
 }
 

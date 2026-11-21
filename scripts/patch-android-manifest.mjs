@@ -75,8 +75,25 @@ for (const [name, value] of attrs) {
 }
 if (manifest !== manifestBefore) writeFileSync(found.manifest, manifest);
 
+/* ---------- 3. windowSoftInputMode（上游 205eb02） ----------
+   登录/注册表单在底部面板里，键盘弹出必须把窗口顶起来（adjustResize），
+   否则 WebView 高度不变，输入框和「登录」按钮会被键盘直接盖住。
+   edge-to-edge 下 Tauri 的模板不写这个属性，默认行为随设备厂商变，所以显式钉住。 */
+const activity = manifest.match(/<activity\b[^>]*android:name\s*=\s*"\.[^"]*MainActivity"[^>]*>/);
+if (!activity) {
+  console.error("[android-manifest] AndroidManifest.xml 里没找到 MainActivity 的 <activity>");
+  process.exit(1);
+}
+let activityTag = activity[0];
+activityTag = /android:windowSoftInputMode\s*=/.test(activityTag)
+  ? activityTag.replace(/android:windowSoftInputMode\s*=\s*"[^"]*"/, 'android:windowSoftInputMode="adjustResize"')
+  : activityTag.replace(/<activity\b/, '<activity\n            android:windowSoftInputMode="adjustResize"');
+if (activityTag !== activity[0]) manifest = manifest.replace(activity[0], activityTag);
+if (manifest !== manifestBefore) writeFileSync(found.manifest, manifest);
+
+const imeOk = /android:windowSoftInputMode="adjustResize"/.test(manifest);
 const sdkOk = new RegExp(`targetSdk(?:Version)?\\s*[=:(]\\s*${TARGET_SDK}\\b`).test(gradle);
 const backupOk = /android:allowBackup="false"/.test(manifest) && /android:fullBackupContent="false"/.test(manifest);
 console.log(`[android-manifest] ${relative(repoRoot, found.gradle)}: targetSdkVersion=${TARGET_SDK} ${sdkOk ? "✓" : "✗"}`);
-console.log(`[android-manifest] ${relative(repoRoot, found.manifest)}: allowBackup=false ${backupOk ? "✓" : "✗"}`);
+console.log(`[android-manifest] ${relative(repoRoot, found.manifest)}: allowBackup=false ${backupOk ? "✓" : "✗"}, windowSoftInputMode=adjustResize ${imeOk ? "✓" : "✗"}`);
 if (!sdkOk || !backupOk) process.exit(1);
