@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { addPluginListener } from "@tauri-apps/api/core";
 import { platform } from "../../shared/api/api";
+import { holdBackForStartup } from "../../shared/lib/back";
 import "../../styles/launch.css";
 
 // One reveal per WebView lifetime, including StrictMode and subsequent App remounts.
@@ -107,6 +108,9 @@ export function LaunchAnimation({ onFinish }: { onFinish: () => void }) {
 export default function StartupGate({ children }: { children: ReactNode }) {
   const [finished, setFinished] = useState(() => launchCompleted);
   const finish = useCallback(() => { launchCompleted = true; setFinished(true); }, []);
+  /* 动画期间 App 已经挂在下面（3.0.7 起就是这结构），返回键必须先归动画：
+     遮罩卸载时自动释放；StrictMode 下靠幂等释放保证计数正确。 */
+  useEffect(() => (!finished ? holdBackForStartup() : undefined), [finished]);
   if (!finished) return <><LaunchAnimation onFinish={finish} />{children}</>;
   return children;
 }

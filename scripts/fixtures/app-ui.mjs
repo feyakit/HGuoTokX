@@ -10,13 +10,18 @@ export function installFixture({ theme, titles }) {
   localStorage.setItem("hguox_app_v1", JSON.stringify({ favs: [1, 2, 3, 4, 5, 6], history: [{ id: 1, ep: 3, t: 55, dur: 180, at: 123 }], searchHist: ["都市"] }));
   localStorage.setItem("hguox_swipe_ep_v2", "1");
   const callbacks = new Map();
-  let nextCallback = 0, backChannel;
+  let nextCallback = 0;
+  /* 真 Tauri 会保留每一个注册过的 back-button 监听：App 壳和启动遮罩可以同时在听，
+     unregister 只摘掉自己那一个。夹具以前只存最后一个、而且从不移除，
+     于是「遮罩卸载后返回键还打给死掉的动画处理器」这种 bug 在夹具里永远测不出来
+     （上游 4dd7844 同一处修正）。 */
+  const backChannels = new Map();
   window.__IOS_UI_FIXTURE__ = {
     hardwareBack() {
-      if (!backChannel) throw new Error("Android back listener was not registered");
-      backChannel.onmessage({});
+      if (!backChannels.size) throw new Error("Android back listener was not registered");
+      for (const channel of [...backChannels.values()]) channel.onmessage({});
     },
-    hasHardwareBack() { return !!backChannel; },
+    hasHardwareBack() { return backChannels.size > 0; },
   };
   window.__TAURI_INTERNALS__ = {
     metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } },
@@ -41,7 +46,8 @@ export function installFixture({ theme, titles }) {
       if (command === "api_logout") return { ok: true };
       if (command === "security_set") return args.strict;
       if (command === "api_play") throw "UI fixture has no media";
-      if (command === "plugin:app|register_listener" && args.event === "back-button") { backChannel = args.handler; return; }
+      if (command === "plugin:app|register_listener" && args.event === "back-button") { backChannels.set(args.handler.id, args.handler); return null; }
+      if (command === "plugin:app|remove_listener" && args.event === "back-button") { backChannels.delete(args.channelId); return null; }
       if (command === "plugin:window|is_maximized" || command === "plugin:window|is_fullscreen") return false;
       return null;
     },
