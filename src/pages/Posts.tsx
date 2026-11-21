@@ -596,7 +596,7 @@ export function PostDetail({ id, onBack, active = true }: { id: number; onBack: 
                 <Button aria-label="播放视频" onClick={() => setPlay(true)} className="absolute inset-0">
                   <Img src={currentPost.cover} eager />
                     <span className="absolute inset-0 flex items-center justify-center">
-                      <span className="w-14 h-14 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center elev-2">
+                      <span className="w-14 h-14 rounded-full bg-black/70 flex items-center justify-center elev-2">
                         <IPlayF size={24} className="text-white ml-0.5" />
                       </span>
                     </span>

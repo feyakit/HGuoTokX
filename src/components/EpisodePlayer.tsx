@@ -428,6 +428,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
     return () => { alive = false; window.removeEventListener("hg:line-changed", read); };
   }, [isDesktop, active]);
   const [hevcFallback, setHevcFallback] = useState<Record<string, boolean>>({});
+  const blackRecoveredRef = useRef<Record<string, boolean>>({});
   const mainUrl = playUrls[playKey] || "";
   const hevcUrl = hevcUrls[playKey] || "";
   const useHevc = preferHevc && !!hevcUrl && !hevcFallback[playKey];
@@ -904,16 +905,27 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
         if (kind === "video") addHistory(curId, curEp);
       })
       .catch((e) => { if (alive) setErr((e as Error).message || "取播放地址失败"); });
-    /* 黑屏取证（用户报「某一集黑屏但控件正常」）：起播 3s 后看 videoWidth 与 currentTime。
-       videoWidth===0 → 解码没起来（0 字节 / 4xx / 只有音轨）；currentTime 不动 → 卡首帧。 */
+    /* 黑屏取证与自愈（用户报「某一集黑屏但控件正常」）：起播 2.5s 后看 videoWidth 与 currentTime。
+       videoWidth===0 且时间在走 → 只有音轨或硬解失败（如 HEVC），自动切回标准流或重取一次地址。 */
     const blackProbe = window.setTimeout(() => {
+      if (!alive) return;
       const v = videoRef.current?.el();
       if (!v) return;
       if (v.videoWidth === 0 || v.currentTime === 0) {
         const src = v.currentSrc || v.src || "";
         logLine(`[play] blackframe id=${curId} ep=${curEp} vw=${v.videoWidth} t=${v.currentTime.toFixed(2)} err=${v.error?.code ?? 0} proto=${src.split(":")[0]} len=${src.length}`);
+        if (!v.paused && v.currentTime > 0.2 && v.videoWidth === 0 && !blackRecoveredRef.current[playKey]) {
+          blackRecoveredRef.current[playKey] = true;
+          resumeRef.current = { key: playKey, t: v.currentTime };
+          if (useHevc) {
+            setHevcFallback((prev) => ({ ...prev, [playKey]: true }));
+            toast("画面未解码，已切回标准", "info");
+          } else {
+            setPlayBust((b) => b + 1);
+          }
+        }
       }
-    }, 3000);
+    }, 2500);
     return () => { alive = false; window.clearTimeout(blackProbe); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, curId, curEp, proxyRetry, allowed, permissionKey, playBust, requestPlay]);
