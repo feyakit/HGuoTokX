@@ -638,16 +638,16 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const letterbox = useMemo(() => {
     if (!videoSize.w || !videoSize.h || !stageBox.w || !stageBox.h) return false;
     /* 竖版源在"竖屏舞台"里走 cover 铺满 → 根本不留黑边，不需要虚化。
-       但同样是竖版源进横屏全屏时是 contain，左右会出现很宽的黑边，那种情况要铺虚化。 */
-    const coverFit = videoSize.w <= videoSize.h && !rotated && !vpLandscape;
-    if (coverFit) return false;
+       但同样是竖版源进横屏全屏（rotated 伪横屏 / vpLandscape 真横屏）时是 contain，
+       左右会出现很宽的黑边，那种情况要铺虚化。 */
+    if (portraitVideo && !rotated && !vpLandscape) return false;
     const containerRatio = stageBox.w / stageBox.h;
     const videoRatio = videoSize.w / videoSize.h;
     /* contain 下只要画面比例与容器差 > 2%，就一定有黑边：
        画面更宽 → 上下黑边（letterbox）；画面更窄 → 左右黑边（pillarbox）。
        两种都铺同一层全幅虚化垫底，黑边里看到的就是画面配色而不是纯黑。 */
     return Math.abs(videoRatio - containerRatio) / containerRatio > 0.02;
-  }, [videoSize.w, videoSize.h, stageBox.w, stageBox.h, rotated, vpLandscape]);
+  }, [videoSize.w, videoSize.h, stageBox.w, stageBox.h, portraitVideo, rotated, vpLandscape]);
   /* 竖屏快捷胶囊：仅双指放大后显示「还原」按钮，横屏视频不再在竖屏下弹「铺满」裁切提示 */
   const capsuleOn = !fs && !clean && !isDesktop && zoom.s > 1.05;
 
