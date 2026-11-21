@@ -1987,25 +1987,17 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                       </Button>
                     </div>
                   )}
-                  {!endless && isActive && seriesEnded && (
-                    <div className="mx-4 mb-2 inline-flex flex-wrap items-center gap-2 px-3 py-1.5 rounded-full hg-chip-strong backdrop-blur-md text-[12px] elev-2">
-                      <span className="text-amber-300 font-semibold">{episodes.length > 1 ? "已播完全剧" : "本集已播完"}</span>
-                      <Button type="button" onClick={() => { setSeriesEnded(false); setEndRecs(null); videoRef.current?.seek(0, "replay"); videoRef.current?.play(); }}
-                        className="px-2 py-0.5 rounded-full bg-white/20 text-white font-semibold pressable">
-                        重播
-                      </Button>
-                      <Button type="button" aria-label="关闭播完提示"
-                        onClick={() => { setSeriesEnded(false); setEndRecs(null); }}
-                        className="w-5 h-5 rounded-full flex items-center justify-center text-white/70">
-                        <IClose size={12} />
-                      </Button>
+                  {/* 旧的「已播完全剧 / 重播 / ×」浮层已删除：结束态统一由结束卡片表达
+                      （重播 → 重新看第 1 集），不再左右各报一次同一个状态。 */}
+                  {/* 剧名只在没有顶部标题时才显示（顶部已有时这里重复，用户实测截图里两处同名）。
+                      抖音模式保留 @作者 · 剧名，因为那里没有顶部标题。 */}
+                  {(endless || !(mode === "context" && !fs)) && (
+                    <div className="mobile-video-meta-copy relative pb-2 flex items-center gap-2" style={{ paddingRight: 76 }}>
+                      <p className="flex-1 min-w-0 text-[15px] font-semibold leading-snug hg-ink-2 hg-ov-shadow-strong clamp-2">
+                        {endless && meta.author ? `@${meta.author} · ` : ""}{meta.title}
+                      </p>
                     </div>
                   )}
-                  <div className="mobile-video-meta-copy relative pb-2 flex items-center gap-2" style={{ paddingRight: 76 }}>
-                    <p className="flex-1 min-w-0 text-[15px] font-semibold leading-snug hg-ink-2 hg-ov-shadow-strong clamp-2">
-                      {endless && meta.author ? `@${meta.author} · ` : ""}{meta.title}
-                    </p>
-                  </div>
                   <div className="relative pt-1.5 pb-0">
                     <div className="mobile-video-meta-copy relative z-10 flex flex-wrap items-center gap-2" style={{ paddingRight: 76 }}>
                       {endless ? (
@@ -2023,7 +2015,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
                           {episodes.length > 1 && (
                             <Button aria-label={`选集，当前第 ${curEp} 集，共 ${episodes.length} 集`} onClick={() => setPanel("episodes")}
                               className="min-h-11 flex items-center gap-1 text-[12px] font-medium hg-ink-2 hg-ov-shadow-strong pressable">
-                              <IList size={13} />选集 · 第 {curEp}/{episodes.length} 集
+                              <IList size={13} />{seriesEnded ? "选集" : `选集 · 第 ${curEp}/${episodes.length} 集`}
                             </Button>
                           )}
                           <Button aria-label="视频详情" onClick={() => setPanel("detail")}
