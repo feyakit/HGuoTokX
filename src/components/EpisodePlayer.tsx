@@ -256,6 +256,8 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   const barScrub = useRef(false);
   const [barPct, setBarPct] = useState<number | null>(null);
   const [epSlide, setEpSlide] = useState<{ y: number; animate: boolean }>({ y: 0, animate: false });
+  /* 这次触摸是不是从舞台（视频区）起手的：只有这种才拦 touchmove */
+  const stageTouch = useRef(false);
   const epSlideTimer = useRef<number | undefined>(undefined);
   const gesture = useRef<{
     x: number; y: number; startY: number; t: number; timer: number | null;
@@ -1090,6 +1092,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
       return;
     }
     if (gesture.current || e.button !== 0) return;
+    stageTouch.current = true;
     const el = e.currentTarget;
     const rect = el.getBoundingClientRect();
     /* 伪横屏下整块舞台转 90°：手势判定要用舞台自身坐标，屏幕横向变成舞台纵向 */
@@ -1219,6 +1222,7 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
   };
 
   const onUp = (cancelled = false, e?: React.PointerEvent<HTMLDivElement>) => {
+    stageTouch.current = false;
     if (e) pointersRef.current.delete(e.pointerId);
     armAutoHide();
     if (pointersRef.current.size < 2 && pinchRef.current) {
@@ -1752,7 +1756,12 @@ export default function EpisodePlayer({ videoIds, startIndex = 0, title = "", mo
           白字可读性由控件自身那两条压光负责（顶部 96px / 底部 116px）。 */}
       <div ref={boxRef} onScroll={onScroll}
         className={`absolute inset-y-0 left-0 no-bar ${fs ? "overflow-hidden" : "overflow-y-scroll snap-y snap-mandatory overscroll-y-contain"}`}
-        onTouchMove={(e) => { if (gesture.current && gesture.current.mode !== "idle") e.preventDefault(); }}
+        onTouchMove={(e) => {
+          /* 只拦从舞台起手的手势（stageTouch 为真）。以前只判 gesture.current，
+             它可能残留着上一次的 pan → 底栏按钮的 touchmove 被 preventDefault，
+             浏览器就不再合成 click，表现就是「点选集/详情毫无反应」。 */
+          if (stageTouch.current) e.preventDefault();
+        }}
         style={{ right: isDesktop && panel ? 372 : 0, transition: "right .3s cubic-bezier(.2,0,0,1)", overscrollBehavior: "contain" }}>
         {effectiveVideoIds.map((vid, i) => {
           const isActive = i === index;
