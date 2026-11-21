@@ -105,11 +105,12 @@ button { cursor: pointer; font-family: inherit; }
 .a-page-out { animation: kf-page-out .2s cubic-bezier(.4,0,1,1) both; }
 @keyframes kf-win-in { from{opacity:0;transform:translate3d(0,10px,0) scale(.992)} to{opacity:1;transform:translate3d(0,0,0) scale(1)} }
 .shimmer {
-  background: linear-gradient(110deg, var(--p-s1) 0%, var(--p-s3) 50%, var(--p-s1) 100%);
+  /* 静态深色骨架：原来 1.4s infinite 的浅色扫光在 iOS 长列表里会持续触发合成，
+     滚动时整页闪；这里改成不动的一块，颜色上限 #1A1A1E（黑主题下不会看成"白块"）。 */
+  background-color: #141418;
+  background-image: linear-gradient(110deg, #141418 0%, #1a1a1e 50%, #141418 100%);
   background-size: 200% 100%;
-  /* 报告 N-3.0-01：上新页海报位长时间是「一块静止的深灰块」，读起来像图挂了；
-     让它动起来，用户才知道是在等图，不是空位 */
-  animation: kf-shimmer 1.4s linear infinite;
+  animation: none;
 }
 @keyframes kf-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
 @keyframes kf-spin { to{transform:rotate(360deg)} }
@@ -791,14 +792,9 @@ html[data-fx="low"] .hg-lb-blur { display: none; }
 /* 装饰层硬约束：任何覆盖层都不得遮挡视频可见区域，因此不再提供"视频内黑渐隐"类 */
 .hg-vfade { display: none !important; }
 
-/* iOS（WKWebView）长列表里"滚动时图片空一下"的标准防御：
-   让每张图各自持有一个合成层，WebKit 就不会在滚动/内存压力下把已解码的 backing store 丢掉再重绘成白块。 */
-.ios-image {
-  -webkit-transform: translateZ(0); transform: translateZ(0);
-  -webkit-backface-visibility: hidden; backface-visibility: hidden;
-}
-/* 图片本身只做 object-fit，不叠 filter/mask（会阻止层保留） */
-.ios-image img { -webkit-filter: none; filter: none; }
+/* 说明：这里曾经加过 translateZ(0) + backface-visibility:hidden 想让 WebKit 保留解码层，
+   但在"大量卡片的长列表"里反而导致每帧重建合成层、整页闪。已移除，
+   图片只靠 .hg-img-ready 关掉过渡（加载完成后不再有任何 opacity 动画）。 */
 
 /* 图片加载完成后彻底关掉过渡与合成层抖动：滚动中不再变化（吃瓜/列表"闪"的防御） */
 .hg-img-ready { transition: none !important; will-change: auto; }

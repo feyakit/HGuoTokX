@@ -147,6 +147,8 @@ function ImageLoad({ url, alt, className, eager, raw, loadingIndicator }: {
         onError={() => {
           /* 真机上偶发失败（代理抖动/断流）：记一条，滚动中"闪"能据此定位是解码还是重挂载 */
           logLine(`[img] error attempt=${attempt} src=${url.slice(0, 80)}`);
+          /* 重试上限 2 次；失败后直接静态占位（err=true 时 shimmer 已经不再渲染），
+             不允许"占位动画又回来"造成滚动中的亮块 */
           if (!raw && attempt < 2) setAttempt(attempt + 1); else setErr(true);
         }}
         /* 淡入只做一次：加载完就不再带 transition，避免任何后续 className 变化重播淡入（滚动中会看成"闪"） */
